@@ -63,3 +63,5 @@ GitHub Linux 实际交付物已下载并通过全部 SHA256 校验；Apache／�
 `29d30f0` 的全部 Rust、跨平台、依赖、SDK 与受限 PostgreSQL 检查通过；浏览器阶段在共享撤权场景失败，原因是 UI 取消读取后 Chromium 已释放 response body，测试异步读取正文发生竞态。改为在真实 HTTP 响应交给浏览器前读取并校验完整拒绝正文，再原样交付；结束时等待路由处理完成。仅确认目标会话的 400／403 标准错误，保留事件停止、内容清空和所有者任务继续断言。最终真实浏览器复验通过，共校验 8 次拒绝读取。
 
 标签提交 `0ce6ba4` 的 Linux 实际产物已下载，全部 SHA256、许可文件、二进制版本和 Debian 依赖检查通过；使用下载的实际二进制完成整目录、SQLite 快照及受限 PostgreSQL 恢复浏览器验收，两项均通过。[完整 Checks](https://github.com/mosttt/ternilo/actions/runs/36484419833)成功，标签 Release 工作流仍在运行。
+
+首个标签 Release 的第一次尝试因 Workflow 流水线测试末尾遗漏一次合法容量放行而长时间等待，已定位并[修正验收夹具](workflow-admission-ci.md)，第二次尝试复跑原失败作业。四个平台实际产物的 SHA256、许可证内容、二进制架构和 Windows 必需沙箱辅助程序均已独立检查；Windows 许可证仅存在正常 CRLF 行尾差异。公开 Release 仍待流水线完成。

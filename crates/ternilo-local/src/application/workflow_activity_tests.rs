@@ -22,12 +22,13 @@ use ternilo_protocol::{
 };
 use tokio::sync::{mpsc, oneshot};
 
+#[derive(Debug)]
 enum AdmissionEvent {
     Park(Vec<AcceptedSubagentRun>),
     Resume(oneshot::Sender<()>),
 }
 
-struct Admission(mpsc::UnboundedSender<AdmissionEvent>);
+struct Admission(mpsc::UnboundedSender<AdmissionEvent>, RunCancellation);
 
 struct ApproveWorkflow;
 
@@ -72,8 +73,10 @@ impl ExecutionAdmission for Admission {
         Box::pin(async move {
             let (reply, resumed) = oneshot::channel();
             self.0.send(AdmissionEvent::Resume(reply)).unwrap();
-            resumed.await.unwrap();
-            Ok(())
+            tokio::select! {
+                result = resumed => result.map_err(|_| HarnessError::cancelled("fixture admission closed")),
+                () = self.1.cancelled() => Err(HarnessError::cancelled("fixture stopped")),
+            }
         })
     }
 }
@@ -97,6 +100,7 @@ impl Started {
 struct Backend {
     entered: mpsc::UnboundedSender<Started>,
     next: Arc<AtomicU64>,
+    lifetime: RunCancellation,
 }
 
 impl SubagentBackend for Backend {
@@ -140,14 +144,16 @@ impl SubagentDriver for Backend {
                     dropped,
                 })
                 .unwrap();
-            result
-                .await
-                .map_err(|_| HarnessError::execution("fixture result closed"))
+            tokio::select! {
+                result = result => result.map_err(|_| HarnessError::execution("fixture result closed")),
+                () = self.lifetime.cancelled() => Err(HarnessError::cancelled("fixture stopped")),
+            }
         })
     }
 }
 
 struct Fixture {
+    lifetime: RunCancellation,
     _directory: tempfile::TempDir,
     harness: Arc<HarnessSession>,
     entries: mpsc::UnboundedReceiver<Started>,
@@ -160,6 +166,7 @@ impl Fixture {
         let directory = tempfile::tempdir().unwrap();
         let run_id = RunId::new("workflow-parent");
         let (events_tx, events) = mpsc::unbounded_channel();
+        let lifetime = RunCancellation::new();
         let environment = HostEnvironment::with_interaction(
             SessionIdentity {
                 tenant_id: TenantId::new("workflow-tests"),
@@ -178,7 +185,10 @@ impl Fixture {
             Arc::new(MemoryEventStore::default()),
             Arc::new(ApproveWorkflow),
         )
-        .with_execution_admission(run_id.clone(), Arc::new(Admission(events_tx)));
+        .with_execution_admission(
+            run_id.clone(),
+            Arc::new(Admission(events_tx, lifetime.clone())),
+        );
         let mut profile = crate::local_profile();
         profile
             .plugins
@@ -208,6 +218,7 @@ impl Fixture {
                 backend: Arc::new(Backend {
                     entered: entries_tx,
                     next: Arc::new(AtomicU64::new(1)),
+                    lifetime: lifetime.clone(),
                 }),
             })
             .await
@@ -222,6 +233,7 @@ impl Fixture {
         let worker = Arc::clone(&harness);
         let running = tokio::spawn(async move { worker.run(run_id, input).await });
         Self {
+            lifetime,
             _directory: directory,
             harness,
             entries,
@@ -268,13 +280,44 @@ impl Fixture {
     }
 
     async fn finish(self) -> RunOutcome {
-        let result = tokio::time::timeout(Duration::from_secs(3), self.running)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
+        self.finish_with_final_admissions(&[]).await
+    }
+
+    async fn finish_with_final_admissions(
+        mut self,
+        completed: &[&AcceptedSubagentRun],
+    ) -> RunOutcome {
+        let result = tokio::time::timeout(Duration::from_secs(3), async {
+            let mut parked = false;
+            loop {
+                tokio::select! {
+                    result = &mut self.running => break result.unwrap().unwrap(),
+                    event = self.events.recv() => match event.expect("admission remains registered") {
+                        AdmissionEvent::Park(dependencies) => {
+                            assert!(!dependencies.is_empty());
+                            assert!(dependencies.iter().all(|ticket| completed.contains(&ticket)),
+                                "final admission may only wait on explicitly completed children: {dependencies:?}");
+                            parked = true;
+                        }
+                        AdmissionEvent::Resume(reply) => {
+                            assert!(parked, "final readmission requires a preceding park");
+                            parked = false;
+                            reply.send(()).unwrap();
+                        }
+                    },
+                    entry = self.entries.recv() => panic!("unexpected child after final results: {:?}", entry.map(|entry| entry.prompt)),
+                }
+            }
+        }).await.unwrap();
         self.harness.shutdown().await.unwrap();
         result
+    }
+}
+
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        self.lifetime.cancel();
+        self.running.abort();
     }
 }
 
@@ -375,7 +418,11 @@ async fn workflow_pipeline_readmits_each_item_without_a_cross_stage_barrier() {
     third.finish.send("alpha verified".to_owned()).unwrap();
     fourth.finish.send("beta verified".to_owned()).unwrap();
     fixture.resume().await;
-    let result = fixture.finish().await;
+    // Completed leaves can be observed in separate polls. The host must answer
+    // the final park/resume cycle for either leaf, even after both results were sent.
+    let result = fixture
+        .finish_with_final_admissions(&[&third.ticket, &fourth.ticket])
+        .await;
     let output: serde_json::Value = serde_json::from_str(&result.answer).unwrap();
     assert_eq!(output["result"], json!(["alpha verified", "beta verified"]));
 }
