@@ -17,6 +17,7 @@ mod native_recovery;
 mod node_resources;
 mod oidc_sessions;
 mod placement_store;
+mod project_sharing;
 mod registration_store;
 mod resource_audit;
 mod server_secrets;
@@ -51,6 +52,7 @@ pub use model_store::*;
 pub use native_recovery::NativePasswordReset;
 pub use node_resources::{NodeSessionResource, NodeWorkspaceResource};
 pub use oidc_sessions::{OidcRefreshSession, OidcSessionGrant, OidcSessionIdentity};
+pub use project_sharing::ProjectSharingInheritance;
 pub use registration_store::{
     AccountStatus, NativeRegistrationOutcome, OidcRegistrationOutcome, RegistrationDecision,
     RegistrationMode, RegistrationSettings,

@@ -16,3 +16,7 @@ export TERNILO_TEST_DATABASE_URL="postgres://postgres:temporary-auth-check@127.0
 cargo test --locked -p ternilo-control --test authentication_settings --test oidc_sessions --test edge_workbench_postgres --test native_recovery -- --ignored --test-threads=1
 
 cargo test --locked -p ternilo-control --lib model_store:: -- --ignored --test-threads=1
+
+cargo test --locked -p ternilo-control --lib project_sharing::tests -- --ignored --test-threads=1
+
+cargo test --locked -p ternilo-server --bin ternilo-server postgres_project_files_search -- --ignored --test-threads=1

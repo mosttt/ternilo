@@ -12,6 +12,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResourceKind {
+    Project,
     Workspace,
     Session,
 }
@@ -19,6 +20,7 @@ pub enum ResourceKind {
 impl ResourceKind {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
+            Self::Project => "project",
             Self::Workspace => "workspace",
             Self::Session => "session",
         }
@@ -26,6 +28,7 @@ impl ResourceKind {
 
     fn validate_id(self, id: &str) -> Result<(), HarnessError> {
         match self {
+            Self::Project => crate::types::require_bounded(id, "project id", 128),
             Self::Workspace => WorkspaceId::new(id).validate(),
             Self::Session => SessionId::new(id).validate(),
         }
@@ -98,6 +101,8 @@ pub struct ResourceAccessSource {
     pub resource_kind: ResourceKind,
     pub resource_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group_name: Option<String>,
@@ -110,6 +115,7 @@ pub struct ResourceAccess {
     pub role_limited: bool,
     pub owner_user_id: UserId,
     pub is_owner: bool,
+    pub can_manage_sharing: bool,
     pub permissions: ResourcePermissions,
 }
 
@@ -120,9 +126,8 @@ impl ResourceAccess {
             ResourceAction::Submit => self.permissions.submit,
             ResourceAction::Stop => self.permissions.stop,
             ResourceAction::Configure => self.permissions.configure,
-            ResourceAction::ManageSharing | ResourceAction::Delete => {
-                self.is_owner && self.permissions.configure
-            }
+            ResourceAction::ManageSharing => self.can_manage_sharing,
+            ResourceAction::Delete => self.is_owner && self.permissions.configure,
         };
         if allowed {
             Ok(())
@@ -181,6 +186,18 @@ impl ControlStore {
             return Err(HarnessError::invalid(
                 "a shared resource must allow viewing",
             ));
+        }
+        if kind == ResourceKind::Project {
+            return self
+                .set_project_group_share(
+                    actor,
+                    tenant_id,
+                    resource_id,
+                    group_id,
+                    permissions,
+                    now_ms,
+                )
+                .await;
         }
         let mut tx = self.database.tenant_transaction(tenant_id).await?;
         lock(
@@ -256,7 +273,7 @@ impl ControlStore {
                     &mut tx,
                     tenant_id,
                     None,
-                    Some(&actor.user_id),
+                    (kind != ResourceKind::Project).then_some(&actor.user_id),
                     query,
                 )
                 .await?;
@@ -324,6 +341,11 @@ impl ControlStore {
         resource_id: &str,
         query: &crate::PageQuery,
     ) -> Result<GrantPage, HarnessError> {
+        if kind == ResourceKind::Project {
+            return self
+                .list_project_shares(actor, tenant_id, resource_id, query)
+                .await;
+        }
         let (pattern, cursor) = query.parameters()?;
         let mut tx = self.database.tenant_transaction(tenant_id).await?;
         resource_access_in(&mut tx, &actor.user_id, tenant_id, kind, resource_id)
@@ -431,6 +453,11 @@ impl ControlStore {
             ));
         }
         grantee.validate()?;
+        if kind == ResourceKind::Project {
+            return self
+                .set_project_user_share(actor, tenant_id, resource_id, grantee, permissions, now_ms)
+                .await;
+        }
         let mut transaction = self.database.tenant_transaction(tenant_id).await?;
         lock(
             &mut transaction,
@@ -528,6 +555,16 @@ pub async fn resource_access_in(
     kind.validate_id(resource_id)?;
     ternilo_storage::set_tenant_scope(transaction, tenant_id).await?;
     let role = require_action(transaction, tenant_id, actor_id, ControlAction::TenantRead).await?;
+    if kind == ResourceKind::Project {
+        return crate::project_sharing::access_in(
+            transaction,
+            actor_id,
+            tenant_id,
+            resource_id,
+            role,
+        )
+        .await;
+    }
     let (owner, workspace) = resource_owner(transaction, tenant_id, kind, resource_id).await?;
     let is_owner = owner == *actor_id;
     let sources = if is_owner {
@@ -535,6 +572,7 @@ pub async fn resource_access_in(
             kind: ResourceAccessSourceKind::Owner,
             resource_kind: kind,
             resource_id: resource_id.to_owned(),
+            resource_name: None,
             group_id: None,
             group_name: None,
             permissions: ResourcePermissions::OWNER,
@@ -563,6 +601,7 @@ pub async fn resource_access_in(
     Ok(ResourceAccess {
         owner_user_id: owner,
         is_owner,
+        can_manage_sharing: is_owner && permissions.configure,
         permissions,
         sources,
         role_limited: permissions != original,
@@ -596,7 +635,8 @@ pub(crate) async fn resource_sources_in(
         ORDER BY source_kind,resource_kind,resource_id,group_id")
         .bind(tenant_id.as_str()).bind(actor_id.as_str()).bind(kind.as_str()).bind(resource_id).bind(workspace_id)
         .fetch_all(&mut **tx).await.map_err(database_error)?;
-    rows.iter()
+    let mut sources: Vec<_> = rows
+        .iter()
         .map(|row| {
             let source_kind: String = row.try_get("source_kind").map_err(database_error)?;
             let kind = match source_kind.as_str() {
@@ -623,12 +663,23 @@ pub(crate) async fn resource_sources_in(
                     ResourceKind::Session
                 },
                 resource_id: row.try_get("resource_id").map_err(database_error)?,
+                resource_name: None,
                 group_id: row.try_get("group_id").map_err(database_error)?,
                 group_name: row.try_get("group_name").map_err(database_error)?,
                 permissions,
             })
         })
-        .collect()
+        .collect::<Result<_, HarnessError>>()?;
+    let workspace = if kind == ResourceKind::Workspace {
+        Some(resource_id)
+    } else {
+        workspace_id
+    };
+    if let Some(workspace) = workspace {
+        sources
+            .extend(crate::project_sharing::sources_in(tx, actor_id, tenant_id, workspace).await?);
+    }
+    Ok(sources)
 }
 
 async fn resource_owner(

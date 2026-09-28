@@ -17,6 +17,8 @@ const SEARCH_SESSIONS_SQL: &str = "SELECT session.session_id, session.workspace_
              FROM cloud_sessions AS session
              WHERE session.tenant_id = $1 AND session.archived_at_ms IS NULL
                AND (session.user_id = $2 OR EXISTS (
+                 SELECT 1 FROM control_project_workspace_access p WHERE p.tenant_id=session.tenant_id
+                 AND p.workspace_id=session.workspace_id AND p.user_id=$2) OR EXISTS (
                    SELECT 1 FROM control_resource_shares AS grant_record
                    WHERE grant_record.tenant_id = session.tenant_id AND grant_record.grantee_user_id = $2
                    AND ((grant_record.resource_kind = 'session' AND grant_record.resource_id = session.session_id)
@@ -50,6 +52,8 @@ const SEARCH_EVENTS_SQL: &str = "SELECT session.session_id, session.workspace_id
               AND event.session_id = session.session_id
              WHERE session.tenant_id = $1 AND session.archived_at_ms IS NULL
                AND (session.user_id = $2 OR EXISTS (
+                 SELECT 1 FROM control_project_workspace_access p WHERE p.tenant_id=session.tenant_id
+                 AND p.workspace_id=session.workspace_id AND p.user_id=$2) OR EXISTS (
                    SELECT 1 FROM control_resource_shares AS grant_record
                    WHERE grant_record.tenant_id = session.tenant_id AND grant_record.grantee_user_id = $2
                    AND ((grant_record.resource_kind = 'session' AND grant_record.resource_id = session.session_id)

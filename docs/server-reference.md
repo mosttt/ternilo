@@ -272,3 +272,7 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 模型用量核对：`GET /api/v1/admin/models/requests/{request_id}/reconciliations` 读取管理核对记录；`POST /api/v1/admin/models/requests/{request_id}/attempts/{attempt}/reconcile` 由 Owner／Admin 补齐已结束尝试的缺失计数。权限、条件与请求格式见[核对指南](model-usage-reconciliation.md)。
 
 电脑设备报告接口：`GET /api/v1/model-computers/{executor_id}/usage`，使用当前账号和明确的空间上下文，仅电脑所有者可读；共享会话查看权不包含整机用量。可选 `month=YYYY-MM`（UTC）、`query`、`cursor`、`limit`（默认 25，最大 100），返回 `source=device_reported`、`period`、`observations`、`next_cursor`。每条记录包含公开会话 ID、原运行 ID、尝试开始序号、时间、Provider／模型／协议、已验证提交者及可空计数／结束状态；不返回提示词、凭据和原始上游数据。此接口只读已同步的原始记录，不写模型请求账本。覆盖与删除语义见[设备用量](device-provider-usage.md)。
+
+项目共享沿用 `/api/v1/projects/{project_id}/sharing` 的 `GET`、`GET /candidates`、`PUT/DELETE /{user|group}/{subject_id}`，支持明确空间头及既有目录分页。团队成员可读规则，空间管理员可修改；项目创建者身份不代替当前团队管理角色。`ResourceAccess.can_manage_sharing` 明确共享管理能力，项目继承来源的 `resource_kind` 为 `project`，`resource_name` 为项目名称。
+
+`PUT /api/v1/workspaces/{workspace_id}/project-sharing` 接收 `{ "enabled": true }` 或 `false`，只允许有可写权限的资源所有者。返回 `project_id`、`project_name`、`enabled`、`can_change`；工作区共享查询也返回 `project_inheritance`。关闭后移除项目来源，直接共享不变。新组件为 `project_sharing` schema `1`，Control 保持 `14`，无新 Node RPC 操作。参见[项目共享](project-sharing.md)。

@@ -207,7 +207,8 @@ fn api_router() -> Router {
                 .push(
                     Router::with_path("{project_id}")
                         .patch(rename_project)
-                        .delete(delete_project),
+                        .delete(delete_project)
+                        .push(workbench::sharing::router()),
                 ),
         )
         .push(

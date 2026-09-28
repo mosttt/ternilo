@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Folder, LoaderCircle, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Folder, LoaderCircle, Pencil, Plus, RefreshCw, Share2, Trash2 } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
 import { navigate } from '@/app/navigation'
 import { Button } from '@/components/ui/button'
@@ -8,11 +8,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useTranslate } from '@/i18n/provider'
 import { useWorkbench } from '@/state/workbench'
 import type { ProjectRecord } from '@/types'
+import { ResourceSharingDialog } from '@/components/workbench/resource-sharing-dialog'
 
 export function PlatformProjectsSettings({ tenantId }: { tenantId: string }) {
   const translate = useTranslate('workspace')
   const common = useTranslate('common')
-  const { snapshot, selectWorkspace, notify } = useWorkbench()
+  const { snapshot, selectWorkspace, notify, tenants } = useWorkbench()
+  const canShare = tenants?.find(tenant => tenant.tenant_id === tenantId)?.kind === 'team'
+  const [sharingTarget, setSharingTarget] = React.useState<ProjectRecord | null>(null)
   const [projects, setProjects] = React.useState<ProjectRecord[]>([])
   const [name, setName] = React.useState('')
   const [loading, setLoading] = React.useState(true)
@@ -90,6 +93,7 @@ export function PlatformProjectsSettings({ tenantId }: { tenantId: string }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <h3 className="flex min-w-0 items-start gap-2 font-medium"><Folder className="mt-1 size-4 shrink-0" /><span className="min-w-0 break-words [overflow-wrap:anywhere]">{project.name}</span></h3>
           <div className="flex flex-wrap gap-2">
+            {canShare && <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => setSharingTarget(project)}><Share2 />{translate('sharing.project')}</Button>}
             <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => { setMutationError(''); setRenameName(project.name); setRenameTarget(project) }}><Pencil />{translate('project.rename')}</Button>
             <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={saving} onClick={() => { setMutationError(''); setDeleteTarget(project) }}><Trash2 />{translate('project.delete')}</Button>
           </div>
@@ -98,6 +102,7 @@ export function PlatformProjectsSettings({ tenantId }: { tenantId: string }) {
         <div className="mt-3 grid gap-1">{workspaces.map(workspace => <button key={workspace.workspace_id} type="button" className="rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring" onClick={() => { selectWorkspace(workspace.workspace_id); navigate('/') }}><span>{workspace.title}</span>{workspace.node_id && <span className="ml-2 text-xs text-muted-foreground">{workspace.node_id}</span>}</button>)}</div>
       </article>
     })}
+    {sharingTarget && <ResourceSharingDialog key={`${tenantId}:${sharingTarget.project_id}`} target={{ kind: 'project', id: sharingTarget.project_id, title: sharingTarget.name, tenantId }} onClose={() => setSharingTarget(null)} onChanged={async () => { refresh() }} />}
     <Dialog open={Boolean(renameTarget)} onOpenChange={open => { if (!open && !submitting.current) setRenameTarget(null) }}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>{translate('project.rename')}</DialogTitle><DialogDescription>{translate('project.renameDescription')}</DialogDescription></DialogHeader>
