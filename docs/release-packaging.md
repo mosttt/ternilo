@@ -49,7 +49,7 @@ scripts/package-release.sh --component local --version 0.1.0 \
   --target-name linux-x86_64 --output-dir /path/to/releases
 ```
 
-`--target-name` 只命名产物，不做交叉编译或兼容性保证。应在目标系统及架构构建、启动验证；Linux 本地文件执行另需 `bubblewrap`。脚本使用 POSIX shell；Windows CI 通过 Git Bash 执行并传入 `--binary-suffix .exe`，Local 包会检查并携带同次构建的 sandbox runner，不能只复制主程序。桌面安装包由目标平台的 Tauri 构建入口生成。
+`--target-name` 只命名产物，不做交叉编译或兼容性保证。应在目标系统及架构构建、启动验证；文件搜索需要 `ripgrep`，Linux 本地命令执行另需 `bubblewrap`。这两项不内嵌在 Local 归档或 AppImage 中；Linux `.deb` 声明对应依赖，Docker 运行镜像已安装它们。脚本使用 POSIX shell；Windows CI 通过 Git Bash 执行并传入 `--binary-suffix .exe`，Local 包会检查并携带同次构建的 sandbox runner，不能只复制主程序。桌面安装包由目标平台的 Tauri 构建入口生成。
 
 | 参数 | 环境变量 | 默认值 |
 |---|---|---|

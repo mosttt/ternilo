@@ -8,6 +8,8 @@ Ternilo workspace 使用 Rust edition 2024，最低/固定工具链为 Rust 1.98
 
 当前固定提交见 `.github/linorun-revision`，CI 与发行共用它。更新提交前检查该版本的接口、`Cargo.lock` 和相关测试，不将开发者机器上的未提交修改当作 CI 输入。
 
+文件搜索通过外部 `ripgrep` 执行，运行程序和相关集成测试前应确认 `rg --version` 可用。Linux 受限命令执行还需要 `bubblewrap`；CI 在一次性 runner 中显式安装这些运行依赖。
+
 ```text
 /path/to/source/
 ├── linorun/

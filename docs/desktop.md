@@ -127,7 +127,7 @@ cargo tauri build
 
 Tauri 包只携带 `web/dist` 作为最小前端资源；运行时仍由与浏览器端相同的 Salvo adapter 提供该构建，不维护第二份前端。
 
-Linux `.deb` 声明 `bubblewrap` 运行依赖；AppImage 与 CLI 归档仍要求系统安装它。没有可用沙箱时不会静默退回未隔离的命令执行。
+Linux `.deb` 声明 `bubblewrap` 与 `ripgrep` 运行依赖；AppImage 与 CLI 归档仍要求系统安装它们。macOS／Windows 文件搜索同样需要在 `PATH` 中提供 `rg`。没有可用沙箱时不会静默退回未隔离的命令执行。
 
 打包配置显式包含 PNG、Windows ICO 和 macOS ICNS 图标。更新已有 PNG 图案后，在源码根目录运行 `python3 scripts/prepare-desktop-icons.py` 重新生成 ICO／ICNS；脚本只封装已有图像，不调用图像生成服务。生成的两份图标与 PNG 一起作为源码资产提交，Windows sidecar 可执行文件仍是单独的构建产物。
 

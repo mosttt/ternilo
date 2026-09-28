@@ -17,7 +17,7 @@ ternilo serve
 
 打开终端打印的地址，默认是 `http://127.0.0.1:3210`，然后继续下面的第 2 步。若桌面应用已启动本地服务，先执行 `ternilo status` 查看地址，直接打开即可。
 
-运行现成程序不需要 Rust 或 Node.js。Linux 上执行命令、后台任务或终端需要安装 `bubblewrap`；浏览文件和配置模型不要求先搭建容器。交付包由维护者按[构建与打包说明](release-packaging.md)提供；还没有交付包时，可使用本页末尾的[源码启动步骤](#从源码启动)。
+运行现成程序不需要 Rust 或 Node.js。文件搜索需要安装 `ripgrep`，并确保 `rg --version` 能在运行程序的环境中执行。Linux 上执行命令、后台任务或终端还需要安装 `bubblewrap`；浏览文件和配置模型不要求先搭建容器。交付包由维护者按[构建与打包说明](release-packaging.md)提供；还没有交付包时，可使用本页末尾的[源码启动步骤](#从源码启动)。
 
 本地服务只接受当前电脑的连接：`--listen` 不能改为 `0.0.0.0`、局域网或公网地址。其他设备通过 `ternilo-server` 访问，由本机主动连接服务器；不需要开放电脑上的 `3210` 端口。
 
@@ -173,6 +173,7 @@ Ternilo 把 [Linorun](https://github.com/mosttt/linorun) 作为相邻路径依�
 - Rust 1.98.0；仓库的 `rust-toolchain.toml` 会让 rustup 自动安装或选择它。
 - 首次构建时可访问 Rust crate registry。
 - Linux 上需要执行命令、后台任务或终端时安装 `bubblewrap`。
+- 文件搜索及相关集成测试需要 `ripgrep`（`rg` 命令）。
 - 源码首次构建需要 Node.js 安装依赖并生成前端；运行已包含网页的程序不需要 Node.js。
 
 从 Ternilo 仓库根目录启动：

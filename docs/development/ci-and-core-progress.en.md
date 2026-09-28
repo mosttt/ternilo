@@ -2,7 +2,7 @@
 
 English · [简体中文](ci-and-core-progress.md)
 
-Status: local client/Server acceptance passed; the complete GitHub matrix is in progress. This records implementation work and remaining gaps; [product documentation](../product.md) defines supported behavior.
+Status: local core acceptance passed; a missing GitHub CI runtime dependency is being fixed before rerunning checks and continuing remaining features. This records implementation work and remaining gaps; [product documentation](../product.md) defines supported behavior.
 
 ## Scope and findings
 
@@ -18,7 +18,9 @@ CI now includes LocalApplication, builtins, authorization, RPC/ACP, real Python/
 
 Initial commit `da0d9bf` was pushed to main and started the [first Checks run](https://github.com/mosttt/ternilo/actions/runs/36443218372). Dependency checks passed remotely. Linux exposed a directory-picker test that asserted focus restoration before Radix's unmount timer ran; it now waits for the actual focus condition while preserving the assertion, and its six tests pass locally.
 
-Current code commit `12c1e85` is on GitHub main with the [current Checks run](https://github.com/mosttt/ternilo/actions/runs/36446651439). The first two runs were cancelled after fixes were pushed and replaced by newer runs. Complete platform and artifact acceptance is still pending.
+The [Checks run for `12c1e85`](https://github.com/mosttt/ternilo/actions/runs/36446651439) passed dependency checks, Windows and both macOS targets, but Linux failed two search tests because `rg` was unavailable; packaging was skipped. Linux CI now explicitly installs and checks ripgrep, the Debian desktop package declares it, and installation documentation covers the external runtime requirement. The first two runs were superseded by fixes. There are no version tags or GitHub Releases yet; checks and packaging must complete first.
+
+Continue with CI and downloadable artifacts, then the P1/P2 work below, keeping the client and Server first and Work as a design reservation.
 
 Local checks passed: 148 Web test files / 932 unit tests, seven rich-text tests, TypeScript, i18n, documentation links, production Web build, 30 deployment/release script tests, operations configuration, actionlint, workspace Clippy, dependency license/source/advisory checks, npm audit, and both SDK smoke tests.
 

@@ -53,7 +53,7 @@ npm --prefix web run build
 cargo run --locked -p ternilo -- serve
 ```
 
-Linux 执行受限命令还需要 `bubblewrap`。更完整的环境要求和验证方式见[开发指南](docs/contributing.md)。
+文件搜索需要在 `PATH` 中提供 `ripgrep`（`rg`）。Linux 执行受限命令还需要 `bubblewrap`。更完整的环境要求和验证方式见[开发指南](docs/contributing.md)。
 
 ## 可以做什么
 

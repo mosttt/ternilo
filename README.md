@@ -51,7 +51,7 @@ npm --prefix web run build
 cargo run --locked -p ternilo -- serve
 ```
 
-Linux also requires `bubblewrap` for confined commands. See the [development guide](docs/contributing.md) for platform requirements and validation commands.
+File search requires `ripgrep` (`rg`) on `PATH`. Linux also requires `bubblewrap` for confined commands. See the [development guide](docs/contributing.md) for platform requirements and validation commands.
 
 ## Features
 
