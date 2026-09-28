@@ -23,6 +23,8 @@ impl ModelConnection {
                     ProviderProtocol::OpenAiChatCompletions,
                     ProviderProtocol::OpenAiResponses,
                     ProviderProtocol::DeepSeekResponses,
+                    ProviderProtocol::GoogleGemini,
+                    ProviderProtocol::AnthropicMessages,
                 ]
                 .into_iter()
                 .filter_map(|protocol| {
