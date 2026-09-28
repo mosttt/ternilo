@@ -1,5 +1,6 @@
 mod history;
 mod read;
+pub(crate) mod repair;
 
 use std::{
     collections::BTreeMap,

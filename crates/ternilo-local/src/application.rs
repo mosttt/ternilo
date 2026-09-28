@@ -451,7 +451,7 @@ impl LocalApplication {
     }
 }
 
-async fn acquire_data_lock(root: &Path) -> Result<File, HarnessError> {
+pub(crate) async fn acquire_data_lock(root: &Path) -> Result<File, HarnessError> {
     tokio::fs::create_dir_all(root).await.map_err(|error| {
         HarnessError::execution(format!(
             "create Ternilo data directory {}: {error}",

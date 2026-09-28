@@ -2,7 +2,7 @@
 
 [English](ci-and-core-progress.en.md) · 简体中文
 
-状态：两轮完整 CI 与四平台打包通过；首个发布标签 `v0.1.0` 已固定在 `0ce6ba4` 并推送。该提交的检查全部通过，当前仅 Intel macOS 打包仍在运行；[Release 工作流](https://github.com/mosttt/ternilo/actions/runs/36487885237)正在验证并生成实际产物，尚未生成 Release。远程 SDK 已合入，项目共享通过本机最终验收；这两项后续开发不在首个标签快照中。
+状态：两轮完整 CI 与四平台打包通过；首个发布标签 `v0.1.0` 已固定在 `0ce6ba4` 并推送。该提交的检查及四平台打包全部通过；[Release 工作流](https://github.com/mosttt/ternilo/actions/runs/36487885237)正在验证并生成实际产物，尚未生成 Release。远程 SDK 已合入，项目共享通过本机最终验收；这两项后续开发不在首个标签快照中。
 
 ## 本轮目标
 
@@ -61,3 +61,5 @@ GitHub Linux 实际交付物已下载并通过全部 SHA256 校验；Apache／�
 最新 CI 的 `8215c9` 在 i18n 门禁发现已移除占位页的 `model-service.localUsageUnavailable` 遗留键；已删除中英文两处键，翻译检查与生产构建通过。设备用量另已通过 119 项 Server 测试（3 项既有环境忽略）、401 项受影响 Rust 库测试、双库合同和真实浏览器。原生模型连接通过 3 项单元测试、Clippy，以及 Gemini／Anthropic 的平台与私有来源真实工具调用流程。
 
 `29d30f0` 的全部 Rust、跨平台、依赖、SDK 与受限 PostgreSQL 检查通过；浏览器阶段在共享撤权场景失败，原因是 UI 取消读取后 Chromium 已释放 response body，测试异步读取正文发生竞态。改为在真实 HTTP 响应交给浏览器前读取并校验完整拒绝正文，再原样交付；结束时等待路由处理完成。仅确认目标会话的 400／403 标准错误，保留事件停止、内容清空和所有者任务继续断言。最终真实浏览器复验通过，共校验 8 次拒绝读取。
+
+标签提交 `0ce6ba4` 的 Linux 实际产物已下载，全部 SHA256、许可文件、二进制版本和 Debian 依赖检查通过；使用下载的实际二进制完成整目录、SQLite 快照及受限 PostgreSQL 恢复浏览器验收，两项均通过。[完整 Checks](https://github.com/mosttt/ternilo/actions/runs/36484419833)成功，标签 Release 工作流仍在运行。

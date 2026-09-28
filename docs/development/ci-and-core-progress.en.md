@@ -2,7 +2,7 @@
 
 English · [简体中文](ci-and-core-progress.md)
 
-Status: two complete CI runs and all four package targets passed. The first release tag, `v0.1.0`, is fixed at `0ce6ba4` and pushed. All checks for that commit passed; only Intel macOS packaging remains active. The [Release workflow](https://github.com/mosttt/ternilo/actions/runs/36487885237) is building actual deliverables; no Release has been created yet. Remote SDKs are merged and project sharing passed final local acceptance. Both follow the first tag and are outside its snapshot.
+Status: two complete CI runs and all four package targets passed. The first release tag, `v0.1.0`, is fixed at `0ce6ba4` and pushed. All checks and all four package targets for that commit passed. The [Release workflow](https://github.com/mosttt/ternilo/actions/runs/36487885237) is building actual deliverables; no Release has been created yet. Remote SDKs are merged and project sharing passed final local acceptance. Both follow the first tag and are outside its snapshot.
 
 ## Scope and findings
 
@@ -55,3 +55,5 @@ Follow-up CI: `b177e44` passed Rust, platform and authentication gates but its s
 CI for `8215c9` correctly rejected the unused `model-service.localUsageUnavailable` key left by the removed placeholder. Both locales are cleaned; i18n and production build checks pass. Device usage also passed 119 Server tests (3 existing environment-dependent ignores), 401 affected library tests, both databases and real browsers. Native model connections passed three unit tests, Clippy and Gemini/Anthropic platform/private file-tool browser workflows.
 
 `29d30f0` passed Rust, platform, dependency, SDK and restricted PostgreSQL checks. Its sharing browser scenario raced Chromium response-body disposal after the UI cancelled revoked reads. The test now verifies each real upstream denial body before delivering the unchanged response to the browser, waits for route handlers to finish, and recognizes only exact scoped 400/403 error payloads. Stream-stop, UI-clearing and owner-task assertions remain. Final browser verification passed with eight validated denied reads.
+
+Downloaded Linux artifacts for tag commit `0ce6ba4` passed all SHA256 checks, license inspection, executable version checks and Debian dependency inspection. Their actual binaries passed complete-directory, SQLite snapshot and restricted PostgreSQL restore browser workflows. Evidence: [Checks](https://github.com/mosttt/ternilo/actions/runs/36484419833). The tagged Release workflow is still running.
