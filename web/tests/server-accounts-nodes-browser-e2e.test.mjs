@@ -428,26 +428,35 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
 
   let receivedEvents = 0
   const observe = socket => socket.on('framereceived', frame => { try { if (JSON.parse(String(frame.payload)).type === 'event_batch') receivedEvents += 1 } catch {} })
+  let revocationStarted = null
+  let verifiedReads = 0
+  const verificationFailures = []
+  const scopedRead = url => url.origin === origin && (
+    ['queue', 'commands', 'history', 'stats', 'projection', 'plugins'].some(resource => url.pathname === `/api/v1${sessionPath}/${resource}`)
+    || ['/api/v1/catalog', '/api/v1/model-options'].includes(url.pathname) && url.searchParams.get('session_id') === sessionId)
+  await member.route(scopedRead, async route => {
+    if (route.request().method() !== 'GET') { await route.continue(); return }
+    // Read the real upstream response before delivery; aborted UI fetches may lose their CDP body.
+    const response = await route.fetch()
+    if (revocationStarted !== null && [400, 403].includes(response.status())) {
+      try {
+        const error = response.status() === 400
+          ? { code: 'invalid_input', message: 'session does not exist' }
+          : { code: 'policy_denied', message: 'this resource has not been shared with the requested permission' }
+        assert.deepEqual(await response.json(), { error }, 'a revoked session read reveals no data')
+        revokedReadErrors.push({ url: route.request().url(), since: revocationStarted, status: response.status() })
+        verifiedReads++
+      } catch (error) { verificationFailures.push(error) }
+    }
+    await route.fulfill({ response })
+  })
   member.on('websocket', observe)
   await member.reload()
   await input.fill('keep-streaming while sharing is revoked')
   await member.getByRole('button', { name: '发送', exact: true }).click()
   await until(() => jsonRequest(node.origin, `/sessions/${localSessionId}/queue`, node.token), value => Boolean(value.active_run_id), 'second shared run starts before revocation')
   await until(async () => receivedEvents, value => value > 0, 'shared websocket receives events')
-  const rejectedReads = []
-  const revocationStarted = Date.now()
-  const observeRevokedRead = response => {
-    if (response.status() !== 400 || response.request().method() !== 'GET') return
-    const url = new URL(response.url())
-    const sessionRead = ['queue', 'commands', 'history', 'stats', 'projection', 'plugins'].some(resource => url.pathname === `/api/v1${sessionPath}/${resource}`)
-    const targetedRead = ['/api/v1/catalog', '/api/v1/model-options'].includes(url.pathname) && url.searchParams.get('session_id') === sessionId
-    if (!sessionRead && !targetedRead) return
-    rejectedReads.push(response.json().then(body => {
-      assert.deepEqual(body, { error: { code: 'invalid_input', message: 'session does not exist' } }, 'a revoked session read reveals no data')
-      revokedReadErrors.push({ url: response.url(), since: revocationStarted })
-    }))
-  }
-  member.on('response', observeRevokedRead)
+  revocationStarted = Date.now()
   await requestAs(owner, origin, sharingPath, undefined, 'DELETE')
   await member.locator(`[data-sidebar-session-row][data-session-id="${sessionId}"]`).waitFor({ state: 'detached' })
   assert.equal(await member.locator('article[data-role="user"]').count(), 0)
@@ -474,9 +483,10 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   assert.ok((await jsonRequest(node.origin, `/sessions/${localSessionId}/queue`, node.token)).active_run_id, 'revocation does not cancel the owner task')
   fixture.release()
   await until(() => jsonRequest(node.origin, `/sessions/${localSessionId}/queue`, node.token), value => value.active_run_id == null, 'owner task finishes after sharing is revoked')
-  member.off('response', observeRevokedRead)
-  await Promise.all(rejectedReads)
-  if (rejectedReads.length) console.log(`Verified ${rejectedReads.length} scoped read(s) denied after session sharing was revoked.`)
+  await member.unrouteAll({ behavior: 'wait' })
+  assert.deepEqual(verificationFailures, [])
+  assert.ok(verifiedReads >= 4, 'all explicit revoked reads were checked before browser delivery')
+  console.log(`Verified ${verifiedReads} scoped read(s) denied after session sharing was revoked.`)
   member.off('websocket', observe)
 }
 async function configureModel(page, node, baseUrl) {
@@ -675,7 +685,8 @@ test('SQLite Server preserves two private Node histories, shared permissions, an
     await member.screenshot({ path: path.join(artifacts, 'server-member-mobile.png'), fullPage: true })
     assert.deepEqual(pageErrors, [])
     const unexpectedConsoleErrors = consoleErrors.filter(error => {
-      const expected = revokedReadErrors.findIndex(read => read.url === error.location && error.at >= read.since && error.message === 'Failed to load resource: the server responded with a status of 400 (Bad Request)')
+      const expected = revokedReadErrors.findIndex(read => read.url === error.location && error.at >= read.since
+        && error.message === `Failed to load resource: the server responded with a status of ${read.status} (${read.status === 400 ? 'Bad Request' : 'Forbidden'})`)
       if (expected < 0) return true
       revokedReadErrors.splice(expected, 1)
       return false
