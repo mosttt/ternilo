@@ -1,3 +1,4 @@
+mod history;
 mod read;
 
 use std::{
@@ -138,6 +139,13 @@ impl JsonlEventStore {
     ) -> Self {
         self.execution_activity = Some((cache, session_id.as_str().to_owned()));
         self
+    }
+
+    pub(crate) async fn history(
+        &self,
+        query: ternilo_protocol::SessionHistoryQuery,
+    ) -> Result<ternilo_protocol::SessionEventPage, HarnessError> {
+        history::load(self.path.clone(), query).await
     }
 
     pub(crate) async fn load_events(&self) -> Result<Vec<SessionEvent>, HarnessError> {

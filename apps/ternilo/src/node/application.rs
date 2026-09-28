@@ -288,6 +288,11 @@ pub(super) async fn handle_application_inner(
                 .events_after(session_id.as_str(), after_seq)
                 .await?,
         ),
+        ApplicationOperation::SessionHistory { session_id, query } => to_value(
+            application
+                .history(session_id.as_str(), query, false)
+                .await?,
+        ),
         ApplicationOperation::SessionFileContent {
             session_id,
             file_id,

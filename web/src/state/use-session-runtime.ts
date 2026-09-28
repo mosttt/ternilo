@@ -90,5 +90,6 @@ export function useSessionRuntime(): SessionRuntime {
     answerQuestion: controller.answerQuestion,
     reloadMetadata: controller.reloadMetadata,
     retryHistory: controller.retryHistory,
+    loadOlderHistory: controller.loadOlderHistory,
   }), [controller, snapshot])
 }

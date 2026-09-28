@@ -1087,3 +1087,65 @@ fn validate_skill(skill: &str) -> Result<(), HarnessError> {
         Ok(())
     }
 }
+
+#[handler]
+pub(crate) async fn session_history(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Value>, ApiError> {
+    history_page(request, depot, false).await
+}
+
+#[handler]
+pub(crate) async fn archived_session_history(
+    request: &mut Request,
+    depot: &mut Depot,
+    response: &mut salvo_core::prelude::Response,
+) -> Result<Json<Value>, ApiError> {
+    response.headers_mut().insert(
+        salvo_core::http::header::CACHE_CONTROL,
+        "no-store".parse().unwrap(),
+    );
+    history_page(request, depot, true).await
+}
+
+async fn history_page(
+    request: &mut Request,
+    depot: &mut Depot,
+    archived: bool,
+) -> Result<Json<Value>, ApiError> {
+    let (tenant_id, session_id) = scope(request)?;
+    let query = request
+        .parse_queries::<ternilo_protocol::SessionHistoryQuery>()
+        .map_err(invalid_request)?;
+    query.validate()?;
+    let state = app_state(depot);
+    let resolver = PlacementResolver::new(state, actor(depot), &tenant_id);
+    let target = if archived {
+        resolver.archived_session(&session_id).await?
+    } else {
+        resolver.session(&session_id).await?
+    };
+    let page = match target {
+        SessionTarget::Cloud(session) => {
+            state
+                .cloud
+                .session_history_as(
+                    &tenant_id,
+                    &actor(depot).user_id,
+                    &session.session_id,
+                    query,
+                )
+                .await?
+        }
+        SessionTarget::Edge(session) => {
+            EdgeAdapter::new(state, actor(depot), &tenant_id)
+                .history(&session, query)
+                .await?
+        }
+    };
+    if archived {
+        resolver.archived_session(&session_id).await?;
+    }
+    Ok(Json(to_value(page)?))
+}

@@ -11,6 +11,8 @@ mod model_settings;
 pub use model_settings::{ProviderModelValues, ProviderReasoningSetting};
 mod input_provenance;
 pub use input_provenance::{AutomatedInputSource, InputAuthor, InputProvenance};
+mod history;
+pub use history::{SessionEventPage, SessionHistoryQuery};
 mod conversation;
 pub use conversation::{conversation_events, validate_regeneration};
 mod workspace_browser;

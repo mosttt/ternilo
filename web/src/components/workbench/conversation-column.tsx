@@ -256,6 +256,7 @@ export function ConversationColumn({
     else notify(t('approval.detailsUnavailable'), 'error')
   }, [notify, onSelect, runtime.events, t])
   const blankSession = Boolean(currentSession?.blank
+    && runtime.nextBeforeSeq == null
     && runtime.events.length === 0
     && runtime.pendingSubmissions.length === 0
     && !runtime.busy
@@ -960,6 +961,7 @@ export function ConversationColumn({
                 pendingSubmissions: runtime.pendingSubmissions,
                 projection: runtime.projection,
                 reloadMetadata: runtime.reloadMetadata,
+                history: { hasOlder: runtime.nextBeforeSeq != null, loading: runtime.loadingOlder, error: runtime.olderHistoryError, loadOlder: runtime.loadOlderHistory },
                 selection,
                 onSelect,
                 onReaderNavigate: markReaderNavigation,

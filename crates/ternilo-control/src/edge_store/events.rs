@@ -120,6 +120,55 @@ impl EdgeStore {
             .await
     }
 
+    pub async fn history(
+        &self,
+        tenant_id: &TenantId,
+        executor_id: &ExecutorId,
+        session_id: &SessionId,
+        query: ternilo_protocol::SessionHistoryQuery,
+    ) -> Result<ternilo_protocol::SessionEventPage, HarnessError> {
+        query.validate()?;
+        validate_route(tenant_id, executor_id)?;
+        session_id.validate()?;
+        let mut transaction = self.transaction(tenant_id).await?;
+        let rows = sqlx::query(
+            "SELECT event_json FROM control_edge_events
+             WHERE tenant_id = $1 AND executor_id = $2 AND session_id = $3
+             AND (CAST($4 AS BIGINT) IS NULL OR seq < $4) ORDER BY seq DESC LIMIT $5",
+        )
+        .bind(tenant_id.as_str())
+        .bind(executor_id.as_str())
+        .bind(session_id.as_str())
+        .bind(
+            query
+                .before_seq
+                .map(|seq| to_i64(seq, "event cursor"))
+                .transpose()?,
+        )
+        .bind(i64::from(query.limit))
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let mut events = rows
+            .into_iter()
+            .map(|row| {
+                let value: Json<Value> = row.try_get("event_json").map_err(database_error)?;
+                from_json(value, "session event")
+            })
+            .collect::<Result<Vec<SessionEvent>, HarnessError>>()?;
+        Self::project_event_provenance_in_transaction(
+            &mut transaction,
+            tenant_id,
+            executor_id,
+            session_id,
+            &mut events,
+        )
+        .await?;
+        transaction.commit().await.map_err(database_error)?;
+        events.reverse();
+        Ok(ternilo_protocol::SessionEventPage::new(events))
+    }
+
     pub async fn events_after(
         &self,
         tenant_id: &TenantId,

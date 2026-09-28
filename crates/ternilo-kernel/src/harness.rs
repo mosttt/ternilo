@@ -774,6 +774,13 @@ impl HarnessSession {
         self.sessions.events_after(after_seq).await
     }
 
+    pub async fn history(
+        &self,
+        query: ternilo_protocol::SessionHistoryQuery,
+    ) -> Result<ternilo_protocol::SessionEventPage, HarnessError> {
+        self.sessions.history(query).await
+    }
+
     pub async fn append_event(
         &self,
         run_id: RunId,

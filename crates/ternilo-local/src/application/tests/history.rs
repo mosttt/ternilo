@@ -480,3 +480,54 @@ async fn recorded_model_replay_reuses_source_responses_without_provider_calls() 
     tokio::fs::remove_dir_all(data_dir).await.unwrap();
     tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
 }
+
+#[tokio::test]
+async fn bounded_history_matches_active_and_archived_logs_and_checks_archive_state() {
+    let data_dir = test_data_dir();
+    let workspace_dir = data_dir.with_extension("workspace");
+    tokio::fs::create_dir(&workspace_dir).await.unwrap();
+    let application = open_test_application(data_dir.clone()).await;
+    let workspace = application
+        .add_workspace(workspace_dir.to_str().unwrap())
+        .await
+        .unwrap();
+    let session = application
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let id = session.identity.session_id.as_str();
+    for index in 0..3 {
+        application
+            .record_command_feedback(id, format!("feedback {index}"))
+            .await
+            .unwrap();
+    }
+    let events = application.events(id).await.unwrap();
+    let query = ternilo_protocol::SessionHistoryQuery {
+        before_seq: None,
+        limit: 2,
+    };
+    let active = application.history(id, query, false).await.unwrap();
+    assert_eq!(active.events, events[events.len() - 2..]);
+    assert!(application.history(id, query, true).await.is_err());
+    let first = application
+        .history(
+            id,
+            ternilo_protocol::SessionHistoryQuery {
+                before_seq: active.next_before_seq,
+                limit: 200,
+            },
+            false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.events, events[..events.len() - 2]);
+    assert_eq!(first.next_before_seq, None);
+    application.archive_session(id).await.unwrap();
+    assert_eq!(application.history(id, query, true).await.unwrap(), active);
+    application.restore_session(id).await.unwrap();
+    assert!(application.history(id, query, true).await.is_err());
+    application.shutdown().await.unwrap();
+    tokio::fs::remove_dir_all(data_dir).await.unwrap();
+    tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
+}

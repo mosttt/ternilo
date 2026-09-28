@@ -11,7 +11,7 @@ import { history } from './history-loading-fixture.mjs'
 
 const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
 
-test('Local and Server load a complete long journal, replay a suffix and retain offline history', { timeout: 300_000 }, async () => {
+test('Local and Server page a long journal, resume a suffix and retain bounded offline history', { timeout: 300_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-relay-history-'))
   const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ?? directory
   await mkdir(artifacts, { recursive: true })
@@ -73,18 +73,28 @@ test('Local and Server load a complete long journal, replay a suffix and retain 
       const events = name === 'local' ? await local(`/sessions/${sessionId}/events`) : await owner(`/sessions/${serverId}/events`)
       assert.equal(events.length, expected.length)
       assert.deepEqual(events.map(event => event.seq), expected.map(event => event.seq))
+      const request = name === 'local' ? local : owner
+      const id = name === 'local' ? sessionId : serverId
+      const latest = await request(`/sessions/${id}/history?limit=200`)
+      assert.deepEqual(latest.events.map(event => event.seq), expected.slice(-200).map(event => event.seq))
+      const older = await request(`/sessions/${id}/history?limit=200&before_seq=${latest.next_before_seq}`)
+      assert.deepEqual(older.events.map(event => event.seq), expected.slice(-400, -200).map(event => event.seq))
     }
     console.log(JSON.stringify({ events: expected.length, reload_ms: measurements }))
     await page.setViewportSize({ width: 390, height: 844 })
     await page.reload()
     await page.getByText('History preserved.', { exact: true }).waitFor({ timeout: 120_000 })
-    await page.locator('[data-turn-process]').tap()
+    assert.equal(await page.locator('[data-turn-process]').count(), 0, 'partial history stays expanded')
     await page.locator('[data-reasoning-row]').getByRole('button').tap()
-    assert.equal(await page.locator('[data-reasoning-body]').textContent(), expected.filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''))
+    assert.equal(await page.locator('[data-reasoning-body]').textContent(), expected.slice(-200).filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''))
     await page.screenshot({ path: path.join(artifacts, 'server-history-mobile.png') })
+    assert.deepEqual(errors, [])
+    await page.close()
     await stopProcess(node)
     const offline = await owner(`/sessions/${serverId}/events`)
     assert.equal(offline.length, expected.length)
+    const offlinePage = await owner(`/sessions/${serverId}/history?limit=200`)
+    assert.deepEqual(offlinePage.events.map(event => event.seq), expected.slice(-200).map(event => event.seq))
     assert.deepEqual(errors, [])
     await writeFile(path.join(artifacts, 'history-timings.json'), JSON.stringify(measurements, null, 2))
   } catch (error) {

@@ -101,6 +101,7 @@ const team: AgentTeamSnapshot = {
 }
 
 function metadata(path: string): unknown {
+  if (path.includes('/history?')) return { events: [], next_before_seq: null }
   if (path.endsWith('/stats')) return stats
   if (path.endsWith('/projection')) return projection
   if (path.startsWith('/questions?')) return [] as PendingQuestion[]
@@ -135,15 +136,17 @@ async function flush() {
   await Promise.resolve()
 }
 
-describe('session controller live transport', () => {
-  it('publishes a long history once and discards unfinished history when switching sessions', () => {
+describe('session controller live transport', async () => {
+  it('publishes a long history once and discards unfinished history when switching sessions', async () => {
     const { deps, live } = dependencies(new FakeApi(async path => metadata(path)))
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('source', true)
+    await flush()
     live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'source', reset: true,
       complete: false, events: [event(99)], next_seq: 100 })
     controller.setTarget('session', true)
+    await flush()
     const snapshots: number[] = []
     controller.subscribe(() => { snapshots.push(controller.getSnapshot().events.length) })
     for (let offset = 0; offset < 30_000; offset += 250) {
@@ -157,11 +160,12 @@ describe('session controller live transport', () => {
     controller.dispose()
   })
 
-  it('retains received history when loading fails and can retry from a clean baseline', () => {
+  it('retains received history when loading fails and can retry from a clean baseline', async () => {
     const { deps, live } = dependencies(new FakeApi(async path => metadata(path)))
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: true,
       complete: false, events: [event(0)], next_seq: 1 })
     live.emit({ type: 'error', subscription_id: 1, code: 'unavailable', message: 'Disconnected' })
@@ -173,11 +177,12 @@ describe('session controller live transport', () => {
     controller.dispose()
   })
 
-  it('keeps the pending submission snapshot stable while streaming unrelated events', () => {
+  it('keeps the pending submission snapshot stable while streaming unrelated events', async () => {
     const { deps, live } = dependencies(new FakeApi(async path => metadata(path)))
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     const pending = controller.getSnapshot().pendingSubmissions
     const subscriber = vi.fn()
     const unsubscribe = controller.subscribe(subscriber)
@@ -195,12 +200,13 @@ describe('session controller live transport', () => {
     controller.dispose()
   })
 
-  it('hydrates chunked history and all metadata without REST polling', () => {
+  it('hydrates chunked history and all metadata without REST polling', async () => {
     const api = new FakeApi(async path => metadata(path))
     const { deps, live } = dependencies(api)
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
 
     live.emit({
       type: 'event_batch', subscription_id: 1, session_id: 'session', reset: true,
@@ -230,18 +236,20 @@ describe('session controller live transport', () => {
       stats, projection, questions: [], effectiveProfile: profile, agentTeam: team,
     })
     expect(controller.getSnapshot().events.map(item => item.seq)).toEqual([0, 1])
-    expect(api.calls).toEqual([])
+    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=200'])
     controller.dispose()
   })
 
-  it('routes Workbench baselines and ignores stale Session frames', () => {
+  it('routes Workbench baselines and ignores stale Session frames', async () => {
     const api = new FakeApi(async path => metadata(path))
     const { deps, live } = dependencies(api)
     const controller = new SessionController(deps)
     controller.start()
     live.status('ready')
     controller.setTarget('source', true)
+    await flush()
     controller.setTarget('fork', true)
+    await flush()
 
     const state: ApplicationState = { workspaces: [], sessions: [] }
     live.emit({ type: 'workbench', revision: 7, state, activity: [] })
@@ -264,12 +272,13 @@ describe('session controller live transport', () => {
     controller.dispose()
   })
 
-  it('replaces an old baseline and explicitly resubscribes on history retry', () => {
+  it('replaces an old baseline and explicitly resubscribes on history retry', async () => {
     const { deps, live } = dependencies(new FakeApi(async path => metadata(path)))
     const controller = new SessionController(deps)
     controller.start()
     live.status('ready')
     controller.setTarget('session', true)
+    await flush()
     live.emit({
       type: 'event_batch', subscription_id: 1, session_id: 'session', reset: true,
       complete: true, events: [event(7)], next_seq: 8,
@@ -279,7 +288,8 @@ describe('session controller live transport', () => {
     expect(controller.getSnapshot()).toMatchObject({
       liveStatus: 'ready', loading: true, events: [], historyError: '',
     })
-    expect(live.retries).toEqual([{ afterSeq: null }])
+    await flush()
+    expect(live.targets.at(-1)).toEqual({ sessionId: 'session', options: { afterSeq: null } })
 
     live.emit({
       type: 'event_batch', subscription_id: 2, session_id: 'session', reset: true,
@@ -289,11 +299,12 @@ describe('session controller live transport', () => {
     controller.dispose()
   })
 
-  it('surfaces a live subscription error and keeps it target-scoped', () => {
+  it('surfaces a live subscription error and keeps it target-scoped', async () => {
     const { deps, live } = dependencies(new FakeApi(async path => metadata(path)))
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     live.emit({ type: 'error', subscription_id: 1, code: 'unavailable', message: 'history unavailable' })
     expect(controller.getSnapshot()).toMatchObject({
       loadedSessionId: 'session', loading: false, historyError: 'history unavailable',
@@ -316,6 +327,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', false, 'account-a')
+    await flush()
     const sending = controller.submit('hello')
     expect(controller.getSnapshot().pendingSubmissions[0]?.author).toEqual({ kind: 'account', user_id: 'current-user', username: 'current-user' })
     expect(api.calls[0]?.options?.body).toEqual({ delivery: 'queue', run_id: 'client-run', content: { kind: 'prompt', input: 'hello' }, references: [], attachments: [] })
@@ -325,6 +337,7 @@ describe('session controller live transport', () => {
     await sending
     expect(controller.getSnapshot().pendingSubmissions[0]?.author).toEqual({ kind: 'account', user_id: 'canonical-user', username: 'canonical-user' })
     controller.setTarget('session', false, 'account-b')
+    await flush()
     expect(controller.getSnapshot().pendingSubmissions).toEqual([])
     controller.dispose()
   })
@@ -344,6 +357,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', false)
+    await flush()
 
     await controller.submit('hello')
     expect(controller.getSnapshot().pendingSubmissions).toMatchObject([{
@@ -351,6 +365,7 @@ describe('session controller live transport', () => {
     }])
 
     controller.setTarget('session', true)
+    await flush()
     live.emit({
       type: 'event_batch', subscription_id: 1, session_id: 'session', reset: true,
       complete: true,
@@ -378,11 +393,13 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', false, 'tenant-a')
+    await flush()
 
     await controller.submit('hello')
     expect(controller.getSnapshot().pendingSubmissions).toHaveLength(1)
 
     controller.setTarget('session', false, 'tenant-b')
+    await flush()
     expect(controller.getSnapshot().pendingSubmissions).toEqual([])
     controller.dispose()
   })
@@ -403,6 +420,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     live.emit({
       type: 'session_metadata', subscription_id: 1, session_id: 'session',
       metadata: {
@@ -447,6 +465,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     await expect(controller.editQueueItem('item', 'my draft', 1)).rejects.toBe(conflict)
     const writes = api.calls.filter(call => call.options?.method === 'PATCH')
     expect(writes).toHaveLength(1)
@@ -475,6 +494,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     live.emit({
       type: 'session_metadata', subscription_id: 1, session_id: 'session',
       metadata: {
@@ -506,6 +526,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     const publish = (runId: string) => live.emit({
       type: 'session_metadata', subscription_id: 1, session_id: 'session',
       metadata: {
@@ -517,7 +538,7 @@ describe('session controller live transport', () => {
     live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
       complete: true, events: [event(0, { run_id: 'A', type: 'turn_finished' })], next_seq: 1,
     })
-    expect(api.calls).toHaveLength(1)
+    expect(api.calls.filter(call => call.path.endsWith('/queue'))).toHaveLength(1)
     publish('BC')
     resolveRead(emptyInbox('session'))
     await flush()
@@ -533,6 +554,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     const publishInbox = (activeRunId: string | null) => live.emit({
       type: 'session_metadata', subscription_id: 1, session_id: 'session',
       metadata: {
@@ -545,7 +567,7 @@ describe('session controller live transport', () => {
       type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
       complete: true, events: [event(2, { run_id: 'active-run', type: 'turn_cancelled' })], next_seq: 3,
     })
-    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/queue'])
+    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=200', '/sessions/session/queue'])
     if (liveFirst) publishInbox(null)
     rejectRead(new Error('selected Ternilo node is offline'))
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -565,6 +587,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     live.emit({
       type: 'session_metadata', subscription_id: 1, session_id: 'session',
       metadata: {
@@ -578,7 +601,7 @@ describe('session controller live transport', () => {
     })
     await flush()
 
-    expect(api.calls).toEqual([])
+    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=200'])
     expect(controller.getSnapshot()).toMatchObject({ activeRunId: 'active-run', busy: true })
     controller.dispose()
   })
@@ -592,6 +615,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', false)
+    await flush()
 
     await controller.reloadMetadata()
     expect(controller.getSnapshot()).toMatchObject({
@@ -608,6 +632,7 @@ describe('session controller live transport', () => {
     const controller = new SessionController(deps)
     controller.start()
     controller.setTarget('session', true)
+    await flush()
     expect(live.listenerCount).toBe(2)
     controller.dispose()
     expect(live.listenerCount).toBe(0)
@@ -618,4 +643,57 @@ describe('session controller live transport', () => {
     expect(live.listenerCount).toBe(0)
     await flush()
   })
+})
+
+it('loads a bounded baseline, prepends older pages while Live advances, and keeps the live cursor independent', async () => {
+  let resolveOlder!: (value: unknown) => void
+  const api = new FakeApi(async path => path.includes('before_seq=')
+    ? new Promise(resolve => { resolveOlder = resolve })
+    : { events: [event(200), event(201)], next_before_seq: 200 })
+  const { deps, live } = dependencies(api)
+  const controller = new SessionController(deps)
+  controller.start()
+  controller.setTarget('session', true)
+  expect(live.targets).toEqual([{ sessionId: null, options: undefined }])
+  await flush()
+  expect(live.targets.at(-1)).toEqual({ sessionId: 'session', options: { afterSeq: 201 } })
+  const older = controller.loadOlderHistory()
+  await controller.loadOlderHistory()
+  expect(api.calls).toHaveLength(2)
+  live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
+    complete: true, events: [event(202)], next_seq: 203 })
+  resolveOlder({ events: [event(198), event(199)], next_before_seq: 198 })
+  await older
+  expect(controller.getSnapshot()).toMatchObject({ nextBeforeSeq: 198, loadingOlder: false })
+  expect(controller.getSnapshot().events.map(item => item.seq)).toEqual([198, 199, 200, 201, 202])
+  expect(live.targets).toHaveLength(2)
+  controller.dispose()
+})
+
+it('cancels stale initial and older pages across account scopes and keeps failed page cursors retryable', async () => {
+  const pending: Array<{ resolve(value: unknown): void; reject(error: Error): void }> = []
+  const api = new FakeApi(() => new Promise((resolve, reject) => pending.push({ resolve, reject })))
+  const { deps, live } = dependencies(api)
+  const controller = new SessionController(deps)
+  controller.start()
+  controller.setTarget('same', true, 'first-account')
+  controller.setTarget('same', true, 'second-account')
+  pending[0]!.resolve({ events: [event(999)], next_before_seq: 999 })
+  pending[1]!.resolve({ events: [event(5)], next_before_seq: 5 })
+  await flush()
+  expect(controller.getSnapshot().events.map(item => item.seq)).toEqual([5])
+  expect(api.calls[0]!.options?.signal?.aborted).toBe(true)
+  const failed = controller.loadOlderHistory()
+  pending[2]!.reject(new Error('offline'))
+  await failed
+  expect(controller.getSnapshot()).toMatchObject({ nextBeforeSeq: 5, olderHistoryError: 'offline', historyError: '', loadingOlder: false })
+  const old = controller.loadOlderHistory()
+  controller.setTarget('same', true, 'third-account')
+  pending[3]!.resolve({ events: [event(1)], next_before_seq: null })
+  pending[4]!.resolve({ events: [], next_before_seq: null })
+  await old
+  await flush()
+  expect(controller.getSnapshot().events).toEqual([])
+  expect(live.targets.at(-1)?.options?.afterSeq).toBe(null)
+  controller.dispose()
 })

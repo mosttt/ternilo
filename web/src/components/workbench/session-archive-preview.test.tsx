@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   restored.mockClear()
-  vi.spyOn(api, 'request').mockImplementation(async path => path === '/sessions/archived' ? [session] as never : history as never)
+  vi.spyOn(api, 'request').mockImplementation(async path => path === '/sessions/archived' ? [session] as never : { events: history, next_before_seq: null } as never)
 })
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 async function render() {
@@ -43,7 +43,7 @@ it('lazily previews shared history without restoring or starting anything and re
   expect(api.request).toHaveBeenCalledTimes(1)
   expect(button('恢复会话').disabled).toBe(true)
   await click('查看历史')
-  expect(api.request).toHaveBeenLastCalledWith('/sessions/history%2Fsession/archive-events', expect.objectContaining({ headers: { 'x-ternilo-tenant': 'team' }, cache: 'no-store', signal: expect.any(AbortSignal) }))
+  expect(api.request).toHaveBeenLastCalledWith('/sessions/history%2Fsession/archive-history?limit=200', expect.objectContaining({ headers: { 'x-ternilo-tenant': 'team' }, cache: 'no-store', signal: expect.any(AbortSignal) }))
   const preview = document.querySelector('[data-archive-preview]')!
   expect(preview.textContent).toContain('Alice')
   expect(preview.textContent).toContain('Saved answer')
@@ -80,7 +80,7 @@ it('discards a late closed preview and clears previous history when a refresh lo
 
 it('bounds rendered history pages and exposes every original event without another network read', async () => {
   await render()
-  vi.mocked(api.request).mockResolvedValueOnce(Array.from({ length: 103 }, (_, index) => ({ ...history[0], seq: index, content: `Archived entry ${index}` })))
+  vi.mocked(api.request).mockResolvedValueOnce({ next_before_seq: null, events: Array.from({ length: 103 }, (_, index) => ({ ...history[0], seq: index, content: `Archived entry ${index}` })) })
   await click('查看历史')
   expect(document.querySelectorAll('[data-archive-item]')).toHaveLength(50)
   await click('下一页')
@@ -92,4 +92,20 @@ it('bounds rendered history pages and exposes every original event without anoth
   expect(document.querySelector('[data-archive-event]')?.getAttribute('data-archive-event')).toBe('0')
   expect(button('上一页').disabled).toBe(true)
   expect(api.request).toHaveBeenCalledTimes(2)
+})
+
+it('requests older archived events with an exclusive cursor and clears history if permission is revoked', async () => {
+  await render()
+  vi.mocked(api.request).mockResolvedValueOnce({ events: [{ ...history[0], seq: 200, content: 'Recent archived entry' }], next_before_seq: 200 })
+  await click('查看历史')
+  vi.mocked(api.request).mockResolvedValueOnce({ events: [{ ...history[0], seq: 199, content: 'Earlier archived entry' }], next_before_seq: 199 })
+  await click('加载更早')
+  expect(api.request).toHaveBeenLastCalledWith('/sessions/history%2Fsession/archive-history?limit=200&before_seq=200', expect.objectContaining({ headers: { 'x-ternilo-tenant': 'team' }, cache: 'no-store' }))
+  expect(document.body.textContent).toContain('Earlier archived entry')
+  expect(document.body.textContent).toContain('Recent archived entry')
+  vi.mocked(api.request).mockRejectedValueOnce(new Error('access revoked'))
+  await click('加载更早')
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('access revoked')
+  expect(document.body.textContent).not.toContain('Recent archived entry')
+  expect(document.body.textContent).not.toContain('Earlier archived entry')
 })

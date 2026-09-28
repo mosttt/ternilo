@@ -40,6 +40,8 @@ pub(crate) fn router() -> Router {
                 .push(Router::with_path("restore").post(sessions::restore_session))
                 .push(Router::with_path("events").get(sessions::session_events))
                 .push(Router::with_path("archive-events").get(sessions::archived_session_events))
+                .push(Router::with_path("history").get(sessions::session_history))
+                .push(Router::with_path("archive-history").get(sessions::archived_session_history))
                 .push(Router::with_path("references").get(sessions::reference_candidates))
                 .push(
                     Router::with_path("workspace")

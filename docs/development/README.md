@@ -7,3 +7,5 @@
 - [CI 与客户端／Server 闭环进度](ci-and-core-progress.md)：本轮许可证、持续集成、验证结果和后续优先级。
 
 已支持的功能见[产品说明](../product.md)，模块职责见[架构](../architecture.md)，开发和验证命令见[开发指南](../contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。
+
+- [有界会话历史 / Bounded session history](bounded-session-history.md)

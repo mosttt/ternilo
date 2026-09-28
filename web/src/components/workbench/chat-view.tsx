@@ -32,6 +32,7 @@ interface TurnWindow {
 }
 
 interface PagingAnchor {
+  runId?: string
   key: string
   top: number
 }
@@ -249,7 +250,7 @@ function TurnBlock({ turn, latest, events, sessionId, assistantTails, projection
   </section>
 }
 
-export function ChatView({ sessionId, events, pendingSubmissions, projection, reloadMetadata, selection, onSelect, onReaderNavigate, onRegenerate, onEdit, regenerateDisabled }: {
+export function ChatView({ sessionId, events, pendingSubmissions, projection, reloadMetadata, selection, onSelect, onReaderNavigate, onRegenerate, onEdit, regenerateDisabled, history }: {
   sessionId: string
   events: SessionEvent[]
   pendingSubmissions: PendingSubmissionEcho[]
@@ -261,6 +262,7 @@ export function ChatView({ sessionId, events, pendingSubmissions, projection, re
   onRegenerate?(event: SessionEvent): Promise<void>
   onEdit?(event: SessionEvent, input: string): Promise<void>
   regenerateDisabled?: boolean
+  history?: import('@/plugins/conversation-registry').ConversationViewContext['history']
 }) {
   const t = useTranslate('chat')
   const items = React.useMemo(() => buildConversationItems(events), [events])
@@ -276,13 +278,17 @@ export function ChatView({ sessionId, events, pendingSubmissions, projection, re
   const running = React.useMemo(() => currentTurnActivity(events), [events])
   const [turnWindow, setTurnWindow] = React.useState<TurnWindow>(() => tailWindow(turns.length))
   const previousTotalRef = React.useRef(turns.length)
+  const previousFirstRef = React.useRef(turns[0]?.runId)
   const pendingAnchorRef = React.useRef<PagingAnchor | null>(null)
 
   React.useLayoutEffect(() => {
     const previousTotal = previousTotalRef.current
+    const prepended = previousFirstRef.current !== undefined && turns[0]?.runId !== previousFirstRef.current
+    previousFirstRef.current = turns[0]?.runId
     if (turns.length === previousTotal) return
     previousTotalRef.current = turns.length
     setTurnWindow(current => {
+      if (prepended) return { start: 0, end: Math.min(turns.length, MAX_TURN_WINDOW) }
       if (turns.length < previousTotal) return tailWindow(turns.length)
       if (current.end !== previousTotal) return {
         start: Math.min(current.start, turns.length),
@@ -296,17 +302,18 @@ export function ChatView({ sessionId, events, pendingSubmissions, projection, re
       const start = pinned ? Math.max(0, end - MAX_TURN_WINDOW) : current.start
       return { start, end: Math.min(end, start + MAX_TURN_WINDOW) }
     })
-  }, [turns.length])
+  }, [turns])
 
   React.useLayoutEffect(() => {
     const anchor = pendingAnchorRef.current
     const flow = rootRef.current
-    if (!anchor || !flow) return
+    if (!anchor || !flow || history?.loading) return
     pendingAnchorRef.current = null
     const scrollport = scrollportOf(flow)
     const row = anchorElement(flow, anchor.key)
+      ?? [...flow.querySelectorAll<HTMLElement>('[data-chat-run-id]')].find(item => item.dataset.chatRunId === anchor.runId)
     if (row) scrollport.scrollTop += flowTop(row, scrollport) - anchor.top
-  }, [turnWindow.end, turnWindow.start])
+  }, [events, history?.loading, turnWindow.end, turnWindow.start])
 
   const preserveAnchor = React.useCallback(() => {
     const flow = rootRef.current
@@ -314,11 +321,16 @@ export function ChatView({ sessionId, events, pendingSubmissions, projection, re
     const scrollport = scrollportOf(flow)
     const row = pagingAnchor(flow, scrollport)
     const key = row?.dataset.chatAnchorKey
-    if (row && key) pendingAnchorRef.current = { key, top: flowTop(row, scrollport) }
+    if (row && key) pendingAnchorRef.current = { key, runId: row.dataset.chatRunId, top: flowTop(row, scrollport) }
   }, [])
 
   const loadOlder = () => {
     preserveAnchor()
+    if (turnWindow.start === 0 && history?.hasOlder) {
+      onReaderNavigate()
+      void history.loadOlder()
+      return
+    }
     setTurnWindow(current => {
       const start = Math.max(0, current.start - TURN_PAGE_SIZE)
       return { start, end: Math.min(turns.length, current.end, start + MAX_TURN_WINDOW) }
@@ -334,9 +346,10 @@ export function ChatView({ sessionId, events, pendingSubmissions, projection, re
   }
 
   const visibleTurns = turns.slice(turnWindow.start, turnWindow.end)
-  if (!visibleTurns.length && !pendingSubmissions.length && running == null) return null
+  if (!visibleTurns.length && !pendingSubmissions.length && running == null && !history?.hasOlder) return null
   return <div ref={rootRef} className={css.flow} data-chat-flow="">
-    {turnWindow.start > 0 && <div className={css.paging}><button type="button" onClick={loadOlder}>{t('chat.loadOlder')}</button></div>}
+    {(turnWindow.start > 0 || history?.hasOlder) && <div className={css.paging}><button type="button" disabled={history?.loading} onClick={loadOlder}>{t('chat.loadOlder')}</button></div>}
+    {history?.error && <p role="alert">{t('chat.loadError', { message: history.error })}</p>}
     <TurnNavigator turns={visibleTurns} rootRef={rootRef} onReaderNavigate={onReaderNavigate} t={t} />
     {visibleTurns.map(turn => <TurnBlock
       key={turn.runId}
