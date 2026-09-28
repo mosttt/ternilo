@@ -912,3 +912,6 @@ async fn postgres_file_inventory_and_download_enforce_the_same_contract() {
     offline_sources_contract(&fixture).await;
     accepted_tests::accepted_upload_contract(&fixture).await;
 }
+
+#[path = "files_tests/account_delivery_tests.rs"]
+mod account_delivery_tests;

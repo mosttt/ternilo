@@ -38,7 +38,7 @@
 
 ## 后续 P2
 
-项目共享继承已实现并通过双库及真实浏览器验收，见[项目共享记录](project-sharing.md)。Server 远程 SDK 已合入 main。继续处理资源交接、账号停用后的任务清理及多实例路由／通知。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。
+项目共享继承已实现并通过双库及真实浏览器验收，见[项目共享记录](project-sharing.md)。Server 远程 SDK 已合入 main。[账号命令投递](account-command-revocation.md)已补齐停用后禁止旧输入重放；完整运行中清理、资源交接及多实例路由／通知仍需继续处理。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。
 
 ## Implementation outline
 
