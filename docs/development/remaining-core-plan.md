@@ -1,20 +1,24 @@
 # 剩余核心功能实施顺序
 
-状态：实施准备；等待当前 CI 与交付验证完成，再按以下顺序修改功能。用户已要求持续推进剩余项，优先 `ternilo` 与 `ternilo-server`，Work 仅保留接入约束。
+状态：账号恢复与历史分页已合入 main 并完成本机验证；继续推进模型用量核对，同时跟进四平台交付。用户已要求持续推进剩余项，优先 `ternilo` 与 `ternilo-server`，Work 仅保留接入约束。
 
-## 1. 本机维护命令恢复原生账号
+## 1. 本机维护命令恢复原生账号（已完成）
+
+实现和验证见[账号恢复记录](native-account-recovery.md)。
 
 提供 `ternilo-server admin` 下的密码重置命令，读取已有私有配置，使用隐藏终端输入或显式标准输入接收新密码。保持原 user_id、账号状态、平台角色、个人空间、资源、电脑与模型授权；拒绝不存在的原生账号和已移除账号。单纯 OIDC 账号不因恢复命令自动增加原生登录方式。
 
 新密码哈希和旧本站浏览器会话撤销在同一事务完成，包括已绑定 OIDC 的本站持久会话；外部 IdP 凭据仍由 IdP 管理。审计沿用已有 operator_cli 维护操作模式，不记录密码或哈希。
 
-目前原生登录将 `authenticate_native_credentials` 与 `create_browser_session` 分开调用。新增重置能力时，应让凭据验证返回不可伪造的验证结果，签发原生会话时在同一账号锁下复核对应密码哈希，防止重置前验证成功的旧密码在重置后签发新会话。已有经可信身份调用的会话创建接口与原生凭据登录用途分开。
+实施前原生登录将 `authenticate_native_credentials` 与 `create_browser_session` 分开调用。新增重置能力时，应让凭据验证返回不可伪造的验证结果，签发原生会话时在同一账号锁下复核对应密码哈希，防止重置前验证成功的旧密码在重置后签发新会话。已有经可信身份调用的会话创建接口与原生凭据登录用途分开。
 
 验收包括 SQLite／受限 PostgreSQL、旧密码和旧会话失效、新密码登录保留身份、其他账号不受影响、停用状态不绕过、旧验证结果不能再次签发、失败不部分更新；通过真实 Server／CLI 流程验证。
 
-## 2. 历史分页与实时续读
+## 2. 历史分页与实时续读（已完成）
 
-已有 `SessionEventReadRequest` 提供正向有界读取，但网页当前首次 Live 订阅从空游标读取全部历史，并等 complete 后一次展示。Local／归档 HTTP 接口仍返回全量事件。
+实现和验证见[有界历史记录](bounded-session-history.md)。
+
+实施前，`SessionEventReadRequest` 提供正向有界读取，提供了工具读取接口，但网页首次 Live 订阅从空游标读取全部历史，并等 complete 后一次展示。Local／归档 HTTP 接口仍返回全量事件。
 
 新增有界的末页／向前历史读取契约，保留绝对事件序号。需要贯穿 JSONL 存储、LocalApplication、版本化 Node 协议、Server Edge／Cloud 路由及网页；旧的全量接口按兼容需求保留，不将客户端隐藏行当成服务端分页。
 
@@ -36,4 +40,4 @@
 
 ## Implementation outline
 
-Finish CI and delivery validation first. Then implement operator-only native account recovery, bounded history pagination with live cursor continuity, and device usage plus unknown-usage reconciliation. Preserve identity and resource ownership, revalidate credentials during session issuance, and distinguish device-reported usage from authoritative Server budgets. Test SQLite and restricted PostgreSQL behavior and real CLI/browser workflows. Continue with shared-resource lifecycle, remote SDKs and multi-instance routing afterward; Work remains an explicit integration reservation.
+Native account recovery and bounded history pagination are implemented, validated locally and merged into main. Follow the remaining package builds and continue with device usage plus unknown-usage reconciliation. Preserve identity and resource ownership, revalidate credentials during session issuance, and distinguish device-reported usage from authoritative Server budgets. Test SQLite and restricted PostgreSQL behavior and real CLI/browser workflows. Continue with shared-resource lifecycle, remote SDKs and multi-instance routing afterward; Work remains an explicit integration reservation.

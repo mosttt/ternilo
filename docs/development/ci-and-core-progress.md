@@ -2,7 +2,7 @@
 
 [English](ci-and-core-progress.en.md) · 简体中文
 
-状态：`76801de` 的全部 CI 检查门禁已通过，四平台发行包正在构建；账号恢复功能在独立分支准备。此文件记录本轮开发事实与未完成项；正式支持范围以[产品说明](../product.md)为准。
+状态：`76801de` 的全部 CI 检查通过，Linux／Windows／macOS Apple Silicon 包已生成，仅余 macOS Intel；账号恢复与有界历史已合入 main，下一步为模型用量核对。此文件记录开发事实与未完成项，正式支持范围见[产品说明](../product.md)。
 
 ## 本轮目标
 
@@ -22,7 +22,7 @@
 
 后续执行顺序：完成 CI 与可下载交付物，再依次实现下文 P1／P2 剩余项；继续优先客户端与 Server，Work 保持必要预留。
 
-`ripgrep` 修复提交 `76801de` 的 [Checks](https://github.com/mosttt/ternilo/actions/runs/36451490404) 已通过 Linux 核心／SDK／PostgreSQL／浏览器／原生桌面／恢复验收、Windows 和两种 macOS 检查及依赖门禁，正在生成四平台发行包。后续功能的具体约束见[实施计划](remaining-core-plan.md)。账号恢复在 `feat/operator-account-recovery` 分支开发，已通过 SQLite／受限 PostgreSQL 契约及相关身份回归；浏览器验证发现旧凭据被撤销后缺少客户端重新认证衔接，正在补齐，尚未合入 main。
+`ripgrep` 修复提交 `76801de` 的 [Checks](https://github.com/mosttt/ternilo/actions/runs/36451490404) 已通过 Linux 核心／SDK／PostgreSQL／浏览器／原生桌面／恢复验收、Windows 和两种 macOS 检查及依赖门禁，正在生成四平台发行包。后续功能的具体约束见[实施计划](remaining-core-plan.md)。账号恢复 `6d00781` 和历史分页 `72b3530` 已合入 main。恢复包含密码校验与会话签发竞态修复、旧凭据失效后的网页重新登录；分页贯穿 Local、Node、Server、实时续接及归档预览。详见[账号恢复](native-account-recovery.md)与[有界历史](bounded-session-history.md)的双库／浏览器证据。
 
 首轮远端依赖门禁通过；Linux 的 932 项前端测试中，目录选择器的焦点恢复断言提前于 Radix 卸载定时器执行，导致 1 项失败。已改为等待实际焦点恢复，保留原断言。首次本机浏览器运行使用了先前编译的二进制，资源摘要和 OIDC 契约均提示其与当前源码不匹配；该轮不计入当前版本验收，重建后重新验证。
 
@@ -34,13 +34,15 @@ CI 进一步加入依赖编译缓存：固定缓存 Action 提交，使用仓库
 
 本机最后完成了包含 `tauri/custom-protocol` 的客户端、Server、插件 CLI 和桌面构建；两项真实原生桌面测试通过，覆盖冷／热深链接、单实例转发及复用 CLI 服务。最新 GitHub 运行已通过依赖门禁与 macOS Apple Silicon 编译，并实际保存编译缓存；Linux、Windows、macOS Intel 及后续打包仍应以当前运行结果为准。此验收记录的后续纯文档提交不重复触发完整构建，代码验证对应 `12c1e85`。
 
+GitHub Linux 实际交付物已下载并通过全部 SHA256 校验；Apache／第三方许可文件齐全，`.deb` 声明 `bubblewrap` 与 `ripgrep`。使用该次 CI 的真实客户端、Server、插件二进制，完整目录／SQLite 快照与 PostgreSQL 恢复浏览器验收均通过。
+
 ## 已确认的未完成项与顺序
 
 以下为代码与文档共同证实的缺口，不是已承诺交付的功能。不存在 `todo!` 不代表产品已经闭环。
 
 1. **P0：首次 CI 与实际交付验证。** 确认本次 GitHub 的干净检出、四平台构建和 Linux 浏览器／恢复结果；失败优先修复。桌面签名、安装／卸载和真实平台运行验收仍须分别完成，源码编译不能替代。证据：`.github/workflows/ci.yml`、`.github/workflows/packages.yml`、[CI 说明](../ci-release.md)。
-2. **P1：原生账号凭据恢复。** 目前有原生认证、OIDC 绑定、封禁恢复及登录配置重置，但没有密码找回或重置。先确定管理员丢失凭据时的本机维护恢复流程，再考虑邮箱验证和用户自助恢复；验收应保留原 user_id／资源，并使旧登录失效。证据：`apps/ternilo-server/src/admin.rs`、`platform/identity.rs`、[安全说明](../security.md)。
-3. **P1：长历史读取闭环。** Live 有增量读取，但打开历史及归档仍加载完整事件快照。后续应贯穿本地存储、Node 传输、Server 路由和网页建立有界分页，验证大历史首次打开、前向补读、断线重连与归档预览。证据：`crates/ternilo-local/src/application/history.rs`、[产品限制](../product.md)。
+2. **已完成：原生账号凭据恢复。** 本机维护命令保留身份和资源，撤销旧原生／已绑定 OIDC 站内会话；双库及真实浏览器验收通过。使用方式见[账号恢复](../account-recovery.md)。邮箱自助恢复仍属后续能力。
+3. **已完成：长历史读取闭环。** 默认读取最近 200 条，按游标补读较早事件，实时游标保持独立；归档共享／撤销／恢复及离线缓存均已验证。Cloud 派生统计仍需完整回放。见[实施记录](bounded-session-history.md)。
 4. **P1：模型用量完整性。** Server 已有平台／自备模型账本和预算；设备直接调用 Provider 的用量未汇总到 Server，未知用量也缺少完整的核对操作流程。后续验证离线重连去重、原操作者与预算来源、迟到用量及未知消耗保留。证据：`apps/ternilo-server/src/platform/models/gateway/tests.rs`、[模型服务](../model-service.md)。
 5. **P2：协作资源生命周期。** 工作区／会话共享与权限组已实现，项目级继承、资源所有权交接及账号停用后的完整任务清理仍缺失；必须明确正在执行任务、共享撤销和文件归属的语义。证据：[产品限制](../product.md)、`crates/ternilo-control/src/account_status_store/tests.rs`。
 6. **P2：远程自动化与扩容。** 当前 SDK 仅启动本机 stdio 子进程；Server HTTP／WebSocket SDK 和重连尚未提供。Server 的 Node 连接及通知仍在单进程内，多副本必须先实现连接持有者路由和通知同步。证据：[自动化](../automation.md)、`apps/ternilo-server/src/platform/edge/connection.rs`、[部署边界](../deployment.md)。

@@ -2,7 +2,7 @@
 
 English · [简体中文](ci-and-core-progress.md)
 
-Status: all CI checks for `76801de` passed and four-platform packages are building; account recovery is being prepared on a separate branch. This records implementation work and remaining gaps; [product documentation](../product.md) defines supported behavior.
+Status: all CI checks for `76801de` passed; Linux, Windows and Apple Silicon packages are built, with Intel macOS still running. Native account recovery and bounded history are merged into main after local validation; model usage reconciliation is next.
 
 ## Scope and findings
 
@@ -22,7 +22,7 @@ The [Checks run for `12c1e85`](https://github.com/mosttt/ternilo/actions/runs/36
 
 Continue with CI and downloadable artifacts, then the P1/P2 work below, keeping the client and Server first and Work as a design reservation.
 
-The [Checks run for ripgrep fix `76801de`](https://github.com/mosttt/ternilo/actions/runs/36451490404) passed Linux core/SDK/PostgreSQL/browser/native-desktop/recovery checks, Windows, both macOS targets and dependency gates. Platform packages are building. The [implementation plan](remaining-core-plan.md) records subsequent requirements. `feat/operator-account-recovery` has passing SQLite/restricted-PostgreSQL contracts and related identity regressions; browser verification exposed missing client reauthentication after credential revocation, which is being fixed before merging.
+The [Checks run for ripgrep fix `76801de`](https://github.com/mosttt/ternilo/actions/runs/36451490404) passed Linux core/SDK/PostgreSQL/browser/native-desktop/recovery checks, Windows, both macOS targets and dependency gates. Platform packages are building. The [implementation plan](remaining-core-plan.md) records subsequent requirements. Recovery commit `6d00781` and history commit `72b3530` are merged into main. Recovery covers credential/session issuance races and browser reauthentication. History covers Local, Node, Server, archives and Live continuity; see the [recovery](native-account-recovery.md) and [history](bounded-session-history.md) records. Downloaded Linux CI artifacts passed SHA256 and license checks; their actual binaries passed complete-directory, SQLite-snapshot and PostgreSQL restore browser workflows.
 
 Local checks passed: 148 Web test files / 932 unit tests, seven rich-text tests, TypeScript, i18n, documentation links, production Web build, 30 deployment/release script tests, operations configuration, actionlint, workspace Clippy, dependency license/source/advisory checks, npm audit, and both SDK smoke tests.
 
