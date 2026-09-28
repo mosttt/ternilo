@@ -2,7 +2,7 @@
 
 [English](ci-and-core-progress.en.md) · 简体中文
 
-状态：`76801de` 的全部 CI 检查通过，Linux／Windows／macOS Apple Silicon 包已生成，仅余 macOS Intel；账号恢复与有界历史已合入 main，下一步为模型用量核对。此文件记录开发事实与未完成项，正式支持范围见[产品说明](../product.md)。
+状态：`76801de` 的全部 CI 检查及四平台安装包均已通过；账号恢复与有界历史已合入 main，下一步为模型用量核对。此文件记录开发事实与未完成项，正式支持范围见[产品说明](../product.md)。
 
 ## 本轮目标
 
@@ -33,6 +33,8 @@
 CI 进一步加入依赖编译缓存：固定缓存 Action 提交，使用仓库工具链，并按目标平台和 Linorun 提交区分。失败的运行也保存依赖缓存，以缩短后续复验；不缓存工作区源码来替代编译验证。
 
 本机最后完成了包含 `tauri/custom-protocol` 的客户端、Server、插件 CLI 和桌面构建；两项真实原生桌面测试通过，覆盖冷／热深链接、单实例转发及复用 CLI 服务。最新 GitHub 运行已通过依赖门禁与 macOS Apple Silicon 编译，并实际保存编译缓存；Linux、Windows、macOS Intel 及后续打包仍应以当前运行结果为准。此验收记录的后续纯文档提交不重复触发完整构建，代码验证对应 `12c1e85`。
+
+包含恢复与分页的提交 `b177e44` 已推送，[新一轮 Checks](https://github.com/mosttt/ternilo/actions/runs/36463338780) 正在验证。原始基线的 [Checks](https://github.com/mosttt/ternilo/actions/runs/36451490404) 已于 2026-09-29 完成，所有任务均成功。
 
 GitHub Linux 实际交付物已下载并通过全部 SHA256 校验；Apache／第三方许可文件齐全，`.deb` 声明 `bubblewrap` 与 `ripgrep`。使用该次 CI 的真实客户端、Server、插件二进制，完整目录／SQLite 快照与 PostgreSQL 恢复浏览器验收均通过。
 
