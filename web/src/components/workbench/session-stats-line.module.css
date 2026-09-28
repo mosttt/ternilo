@@ -1,0 +1,37 @@
+.root {
+  display: flex;
+  width: 100%;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  padding-top: 4px;
+  color: var(--label-caption);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.group { display: inline-flex; flex: none; align-items: center; }
+
+.root[data-truncated] { overflow-x: auto; }
+
+.separator { padding-inline: 8px; color: var(--label-dimmed); }
+
+@media (max-width: 760px) {
+  .root,
+  .root[data-truncated] {
+    width: calc(100% - 12px);
+    flex-wrap: wrap;
+    overflow-x: visible;
+    overflow-y: visible;
+    padding: 4px 2px 0;
+    font-size: 10px;
+    line-height: 16px;
+    white-space: normal;
+  }
+  .separator { padding-inline: 5px; }
+}

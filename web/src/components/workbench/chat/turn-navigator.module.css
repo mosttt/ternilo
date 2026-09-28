@@ -1,0 +1,18 @@
+.slot { position: absolute; z-index: 7; right: 12px; top: 50%; height: 0; pointer-events: none; }
+.rail { position: relative; width: 28px; transform: translateY(-50%); cursor: pointer; pointer-events: auto; }
+.scroller { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.scroller::-webkit-scrollbar { display: none; }
+.marks { position: relative; }
+.mark { position: absolute; right: 0; width: 20px; height: 10px; border: 0; border-radius: 8px; padding: 0; background: transparent; transform: translateY(-50%); cursor: pointer; }
+.mark::before { position: absolute; top: 50%; right: 0; width: 12px; height: 2px; border-radius: 2px; background: var(--border-strong); content: ''; transform: translateY(-50%); transition: width 140ms ease, background-color 140ms ease; }
+.mark[data-preview]::before { width: 18px; background: var(--label-tertiary); }
+.mark[data-active]::before { width: 20px; background: var(--foreground); }
+.mark:focus-visible::before { width: 20px; background: var(--accent-color); }
+.mark:focus-visible { outline: 1px solid var(--accent-color); outline-offset: 2px; }
+.preview { position: absolute; right: calc(100% + 10px); display: flex; width: 280px; max-height: 100px; overflow: hidden; flex-direction: column; gap: 4px; border-radius: 10px; padding: 10px 12px; background: var(--surface-layer-1); box-shadow: var(--shadow-lv3); pointer-events: none; }
+.preview strong, .preview span { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.preview strong { color: var(--foreground); }
+.preview span { color: var(--label-caption); }
+@container (max-width: 900px) { .slot { display: none; } }
+@media (max-width: 900px) { .slot { display: none; } }
+@media (prefers-reduced-motion: reduce) { .mark::before { transition: none; } }

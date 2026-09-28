@@ -1,0 +1,44 @@
+{
+  "schema_version": 5,
+  "catalog_revision": "ternilo-builtins-v17",
+  "policy_revision": "local-example-v1",
+  "metadata": {
+    "tenant_id": "tenant-example",
+    "user_id": "user-example",
+    "project_id": null,
+    "workspace_id": "workspace-example",
+    "agent_id": "agent-example",
+    "session_id": "session-example",
+    "run_id": "run-example"
+  },
+  "limits": {
+    "max_steps": 0,
+    "max_tool_calls": 512
+  },
+  "permissions": "workspace_write",
+  "mode": "execute",
+  "profile": {
+    "plugins": [
+      { "id": "session", "kind": "ternilo.session.log", "config": {} },
+      { "id": "prompt-registry", "kind": "ternilo.prompt.registry", "config": {} },
+      { "id": "tool-registry", "kind": "ternilo.tools.registry", "config": {} },
+      { "id": "hook-registry", "kind": "ternilo.hooks.registry", "config": {} },
+      {
+        "id": "system-prompt",
+        "kind": "ternilo.prompt.system",
+        "config": { "content": "You are Ternilo, a concise cloud agent." }
+      },
+      { "id": "identity-prompt", "kind": "ternilo.prompt.identity", "config": {} },
+      { "id": "rhai-code-runtime", "kind": "ternilo.code_runtime.rhai", "config": {} },
+      { "id": "code-mode", "kind": "ternilo.tools.code_mode", "config": { "mode": "both" } },
+      { "id": "model", "kind": "ternilo.model.rule", "config": { "prefix": "ternilo-cloud: " } },
+      { "id": "session-title", "kind": "ternilo.session_title.llm", "config": {} },
+      { "id": "context", "kind": "ternilo.context.compaction", "config": {} },
+      { "id": "agent-loop", "kind": "ternilo.agent.react", "config": {} }
+    ]
+  },
+  "input": "/code let total = 20 + 22; #{ total: total }",
+  "references": [],
+  "reference_contexts": [],
+  "attachments": []
+}

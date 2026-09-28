@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-initial-links"
+description = "Enables the desktop_initial_links command without any pre-configured scope."
+commands.allow = ["desktop_initial_links"]
+
+[[permission]]
+identifier = "deny-desktop-initial-links"
+description = "Denies the desktop_initial_links command without any pre-configured scope."
+commands.deny = ["desktop_initial_links"]

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ternilo">
+  <rect width="512" height="512" rx="112" fill="#456bdc"/>
+  <g transform="translate(64 64) scale(12)" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round">
+    <path d="M9 6h8a7 7 0 0 1 0 14h-2"/>
+    <path d="M23 26h-8a7 7 0 0 1 0-14h2"/>
+    <path d="m11 21 10-10"/>
+  </g>
+</svg>

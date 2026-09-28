@@ -1,0 +1,32 @@
+.card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-layer-1);
+}
+
+.open { border-color: var(--border-strong); }
+.header { display: flex; min-width: 0; align-items: center; gap: 12px; padding: 4px 14px 4px 4px; }
+
+.disclosure {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 10px;
+  text-align: left;
+}
+
+.disclosure:hover { background: var(--interactive-hover); }
+.disclosure:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.body { border-top: 1px solid var(--border); padding: 20px; background: var(--surface-layer-3); }
+
+@media (max-width: 640px) {
+  .header { align-items: flex-start; padding-right: 10px; }
+  .disclosure { align-items: flex-start; }
+  .body { padding: 16px 13px; }
+  .body input,
+  .body button { min-height: 40px; }
+}

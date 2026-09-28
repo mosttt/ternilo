@@ -1,0 +1,15 @@
+[package]
+name = "ternilo-sandbox-windows"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+clap.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+zagens-windows-sandbox = "0.8.9"
+
+[lints]
+workspace = true

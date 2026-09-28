@@ -1,0 +1,15 @@
+.root { position: relative; min-width: 0; }
+.root > summary { display: flex; height: 24px; align-items: center; gap: 6px; color: var(--label-tertiary); font-size: 11px; list-style: none; cursor: pointer; }
+.root > summary::-webkit-details-marker { display: none; }
+.root > summary > :global(svg) { width: 13px; height: 13px; flex: none; }
+.root > summary > :global(svg:last-child) { width: 12px; height: 12px; transition: transform 100ms ease; }
+.root[open] > summary > :global(svg:last-child) { transform: rotate(90deg); }
+.summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.details { display: grid; width: max-content; max-width: min(520px, 86vw); grid-template-columns: minmax(100px, auto) minmax(0, 1fr); gap: 5px 16px; margin: 2px 0 0; border-radius: 8px; padding: 10px 12px; background: var(--surface-code); color: var(--label-secondary); font-size: 11px; }
+.details dt { color: var(--label-caption); }
+.details dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  .root > summary { min-height: 36px; height: auto; padding-block: 6px; }
+  .details { width: 100%; max-width: 100%; grid-template-columns: minmax(76px, auto) minmax(0, 1fr); gap: 6px 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .root > summary > :global(svg:last-child) { transition: none; } }

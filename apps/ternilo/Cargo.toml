@@ -1,0 +1,39 @@
+[package]
+name = "ternilo"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+clap.workspace = true
+futures-util.workspace = true
+rand.workspace = true
+salvo_core.workspace = true
+salvo_extra.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tokio-util = { workspace = true, features = ["rt"] }
+tokio-tungstenite.workspace = true
+reqwest.workspace = true
+ternilo-transport.workspace = true
+ternilo-transport-store.workspace = true
+ternilo-builtins.workspace = true
+ternilo-acp.workspace = true
+ternilo-automation.workspace = true
+ternilo-extension.workspace = true
+ternilo-kernel.workspace = true
+ternilo-local.workspace = true
+ternilo-protocol.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio-tungstenite.workspace = true
+
+[target.'cfg(unix)'.dev-dependencies]
+nix.workspace = true

@@ -1,0 +1,88 @@
+name: Build packages
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: '0'
+  CARGO_BUILD_JOBS: '2'
+  CARGO_PROFILE_RELEASE_DEBUG: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  packages:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,appimage
+            suffix: ''
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+            suffix: .exe
+          - os: macos-15
+            target: aarch64-apple-darwin
+            bundles: dmg
+            suffix: ''
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: dmg
+            suffix: ''
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+        working-directory: ternilo
+    env:
+      RUST_TARGET: ${{ matrix.target }}
+      BINARY_SUFFIX: ${{ matrix.suffix }}
+      BUNDLES: ${{ matrix.bundles }}
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: ternilo
+          persist-credentials: false
+      - uses: ./ternilo/.github/actions/prepare
+        with:
+          target: ${{ matrix.target }}
+      - id: info
+        run: python scripts/ci/release-info.py
+      - name: Shared Web and release binaries
+        run: |
+          npm --prefix web run build
+          cargo build --locked --release --target "$RUST_TARGET" -p ternilo -p ternilo-server -p ternilo-plugin-cli
+          "target/$RUST_TARGET/release/ternilo$BINARY_SUFFIX" --version
+          "target/$RUST_TARGET/release/ternilo-server$BINARY_SUFFIX" --version
+      - name: Windows sandbox sidecar
+        if: runner.os == 'Windows'
+        run: python scripts/prepare-windows-sidecar.py --target "$RUST_TARGET"
+      - name: Desktop installers
+        working-directory: ternilo/apps/ternilo-desktop
+        run: npm exec --yes --package @tauri-apps/cli@2.12.0 -- tauri build --ci --target "$RUST_TARGET" --bundles "$BUNDLES" -- --locked
+      - name: Portable client and Server packages
+        env:
+          VERSION: ${{ steps.info.outputs.version }}
+        run: |
+          for component in local server; do
+            if [ -n "$BINARY_SUFFIX" ]; then
+              bash scripts/package-release.sh --component "$component" --version "$VERSION" --no-build --bin-dir "target/$RUST_TARGET/release" --target-name "$RUST_TARGET" --binary-suffix "$BINARY_SUFFIX" --output-dir dist/release
+            else
+              bash scripts/package-release.sh --component "$component" --version "$VERSION" --no-build --bin-dir "target/$RUST_TARGET/release" --target-name "$RUST_TARGET" --output-dir dist/release
+            fi
+          done
+          python scripts/ci/release-info.py --collect "target/$RUST_TARGET/release/bundle" --output dist/release --target "$RUST_TARGET"
+          python scripts/ci/release-info.py --checksums dist/release
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: packages-${{ matrix.target }}
+          path: ternilo/dist/release/*
+          if-no-files-found: error
+          retention-days: 14

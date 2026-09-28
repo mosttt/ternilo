@@ -1,0 +1,13 @@
+.root { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
+.footer { display: flex; min-width: 0; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 4px 16px; color: var(--label-tertiary); }
+.metrics { display: flex; min-width: 0; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: 4px 12px; padding-top: 4px; font-size: 11px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.metrics > span { white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) and (min-width: 761px) and (min-height: 521px) {
+  [data-actions-reveal='hover'] .footer { opacity: 0; transition: opacity 80ms ease; }
+  [data-actions-reveal='hover']:hover .footer,
+  [data-actions-reveal='hover']:focus-within .footer { opacity: 1; }
+}
+@media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  .footer { align-items: stretch; flex-direction: column; gap: 0; }
+  .metrics { justify-content: flex-start; padding: 0 0 4px; }
+}

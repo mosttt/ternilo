@@ -1,0 +1,15 @@
+[package]
+name = "ternilo-rhai"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+ternilo-protocol.workspace = true
+rhai.workspace = true
+schemars.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,949 @@
+#!/usr/bin/env python3
+"""Initialize, inspect and operate a Ternilo deployment."""
+
+import argparse
+import base64
+from contextlib import contextmanager
+from datetime import datetime, timezone
+import hashlib
+import getpass
+import ipaddress
+import io
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+from urllib.parse import quote, unquote, urlparse, urlsplit, urlunsplit
+from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.error import HTTPError, URLError
+
+
+ROTATION_FILES = ("cloud-rotate-credentials.sh", "rotate-credentials.py")
+
+
+def fail(message):
+    raise ValueError(message)
+
+
+def explicit_image(value):
+    if not value or any(character.isspace() for character in value):
+        fail("Set an explicit image version or digest with --image / TERNILO_IMAGE.")
+    tag = value.rsplit("/", 1)[-1]
+    if "@sha256:" not in value and (":" not in tag or tag.rsplit(":", 1)[-1] in ("latest", "local", "")):
+        fail("Use a release version or digest, not an unversioned, latest, or local image.")
+    return value
+
+
+def create_file(path, content, mode=0o600):
+    if path.exists():
+        return False
+    with path.open("xb") as output:
+        os.chmod(path, mode)
+        output.write(content)
+    return True
+
+
+def env_values(path):
+    values = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, separator, value = line.partition("=")
+        if not separator:
+            fail("Invalid .env line; use KEY=VALUE entries.")
+        values[key.strip()] = value.strip().strip("\"'")
+    return values
+
+
+def component(args):
+    marker = args.directory / ".ternilo-deployment"
+    saved = marker.read_text().strip() if marker.exists() else None
+    selected = args.component or saved or "server"
+    if selected not in ("server", "worker") or (saved and selected != saved):
+        fail("Deployment component does not match its saved server/worker identity.")
+    return selected
+
+
+def compose_file(args):
+    return f"compose.{component(args)}.yml"
+
+
+def deployment_values(args):
+    marker = args.directory / ".ternilo-deployment"
+    if not marker.exists():
+        fail("This is not an initialized Server or Worker deployment.")
+    component(args)
+    values = env_values(args.directory / ".env")
+    values.update({key: os.environ[key] for key in values if key in os.environ})
+    if args.image:
+        values["TERNILO_IMAGE"] = args.image
+    if args.public_url:
+        values["TERNILO_SERVER_PUBLIC_URL"] = args.public_url
+    if args.server_url:
+        values["TERNILO_WORKER_SERVER_URL"] = args.server_url
+    explicit_image(values.get("TERNILO_IMAGE", ""))
+    return values
+
+
+def docker_command(args):
+    if not shutil.which(args.docker):
+        fail(f"Docker command not found: {args.docker}")
+    environment = os.environ.copy()
+    if args.image:
+        environment["TERNILO_IMAGE"] = explicit_image(args.image)
+    if args.project_name:
+        environment["TERNILO_DEPLOY_PROJECT"] = args.project_name
+    return [args.docker, "compose", "--env-file", str(args.directory / ".env"), "-f",
+            str(args.directory / compose_file(args))], environment
+
+
+def run_compose(args, arguments, **options):
+    command, environment = docker_command(args)
+    return subprocess.run(command + arguments, env=environment, **options)
+
+
+def initialize(args):
+    if component(args) == "worker":
+        return initialize_worker(args)
+    source = Path(__file__).resolve().parent
+    target = args.directory
+    marker = target / ".ternilo-deployment"
+    if marker.exists():
+        deployment_values(args)
+    else:
+        image = explicit_image(args.image)
+        target.mkdir(parents=True, exist_ok=True)
+        if any(target.iterdir()):
+            fail("Initialization requires an empty directory or an existing Server deployment.")
+        for name in (compose_file(args), "ternilo-deploy", ".env.server.example", *ROTATION_FILES):
+            executable = name == "ternilo-deploy" or name in ROTATION_FILES
+            create_file(target / name, (source / name).read_bytes(), 0o755 if executable else 0o644)
+        values = env_values(source / ".env.server.example")
+        values.update({
+            "TERNILO_IMAGE": image,
+            "TERNILO_DEPLOY_PROJECT": args.project_name or "ternilo-server-" + secrets.token_hex(4),
+            "TERNILO_SERVER_PUBLIC_URL": args.public_url or "http://localhost:4321",
+        })
+        if args.managed_execution_enabled is not None:
+            values["TERNILO_SERVER_MANAGED_EXECUTION_ENABLED"] = str(args.managed_execution_enabled).lower()
+        for key in ("TERNILO_SERVER_HTTP_BIND_ADDRESS", "TERNILO_SERVER_HTTP_PORT"):
+            if key in os.environ:
+                values[key] = os.environ[key]
+        create_file(target / ".env", "".join(f"{key}={value}\n" for key, value in values.items()).encode())
+        create_file(marker, b"server\n")
+    inspect_config(args)
+    exists = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", "server",
+                                "-f", "/var/lib/ternilo/server.json"], capture_output=True, text=True)
+    if exists.returncode == 0:
+        print(f"Existing Server configuration and data preserved at {target}.")
+        return
+    if exists.returncode != 1:
+        fail("Could not inspect the Server volume; check Docker and the configured image.")
+    values = deployment_values(args)
+    environment_names = ["TERNILO_DATABASE_URL", "TERNILO_MIGRATION_DATABASE_URL", "TERNILO_SECRET_MASTER_KEY",
+                         "TERNILO_SERVER_OWNER_USERNAME", "TERNILO_SERVER_OWNER_EMAIL", "TERNILO_SERVER_OWNER_PASSWORD", "TERNILO_SERVER_OWNER_DISPLAY_NAME"]
+    command, environment = docker_command(args)
+    if args.database_url:
+        environment["TERNILO_DATABASE_URL"] = args.database_url
+    if args.migration_database_url:
+        environment["TERNILO_MIGRATION_DATABASE_URL"] = args.migration_database_url
+    arguments = ["run", "--rm", "--no-deps"]
+    for name in environment_names:
+        if environment.get(name):
+            arguments.extend(["-e", name])
+    arguments += ["server", "server", "init", "--non-interactive", "--config", "/var/lib/ternilo/server.json",
+                  "--listen", "0.0.0.0:4321", "--public-url", values["TERNILO_SERVER_PUBLIC_URL"]]
+    subprocess.run(command + arguments, env=environment, check=True)
+    if args.worker_policy:
+        configure(args)
+    print(f"Initialized Server at {target}. Configuration, keys and any SQLite data are in its private volume.")
+    print("No service was started. Next: ./ternilo-deploy check --directory .; then ./ternilo-deploy up --directory .")
+
+
+def inspect_config(args):
+    values = deployment_values(args)
+    if component(args) == "worker":
+        validate_origin(values.get("TERNILO_WORKER_SERVER_URL", ""), "TERNILO_WORKER_SERVER_URL")
+        return values
+    parsed = urlparse(values.get("TERNILO_SERVER_PUBLIC_URL", ""))
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ("", "/"):
+        fail("TERNILO_SERVER_PUBLIC_URL must be an HTTP(S) origin without credentials, path, query or fragment.")
+    try:
+        port = int(values.get("TERNILO_SERVER_HTTP_PORT", "4321"))
+    except ValueError:
+        fail("TERNILO_SERVER_HTTP_PORT must be a TCP port number.")
+    if not 1 <= port <= 65535:
+        fail("TERNILO_SERVER_HTTP_PORT must be between 1 and 65535.")
+    ipaddress.ip_address(values.get("TERNILO_SERVER_HTTP_BIND_ADDRESS", "127.0.0.1"))
+    if values.get("TERNILO_SERVER_MANAGED_EXECUTION_ENABLED", "false") not in ("true", "false"):
+        fail("TERNILO_SERVER_MANAGED_EXECUTION_ENABLED must be true or false.")
+    return values
+
+
+def validate_origin(value, label):
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ("", "/"):
+        fail(f"{label} must be an HTTP(S) origin without credentials, path, query or fragment.")
+
+
+def initialize_worker(args):
+    source = Path(__file__).resolve().parent
+    target = args.directory
+    marker = target / ".ternilo-deployment"
+    if not marker.exists():
+        image = explicit_image(args.image)
+        validate_origin(args.server_url or "", "--server-url / TERNILO_WORKER_SERVER_URL")
+        if not os.environ.get("TERNILO_WORKER_TOKEN"):
+            fail("Set TERNILO_WORKER_TOKEN to the credential created in Server settings before initialization.")
+        target.mkdir(parents=True, exist_ok=True)
+        if any(target.iterdir()):
+            fail("Initialization requires an empty directory or an existing Worker deployment.")
+        for name in (compose_file(args), "ternilo-deploy", ".env.worker.example"):
+            create_file(target / name, (source / name).read_bytes(), 0o755 if name == "ternilo-deploy" else 0o644)
+        values = {"TERNILO_IMAGE": image, "TERNILO_DEPLOY_PROJECT": args.project_name or "ternilo-worker-" + secrets.token_hex(4),
+                  "TERNILO_WORKER_SERVER_URL": args.server_url}
+        create_file(target / ".env", "".join(f"{key}={value}\n" for key, value in values.items()).encode())
+        create_file(marker, b"worker\n")
+    values = inspect_config(args)
+    exists = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", "worker", "-f", "/var/lib/ternilo/worker.json"], capture_output=True)
+    if exists.returncode == 0:
+        print(f"Existing Worker configuration and files preserved at {target}.")
+        return
+    if exists.returncode != 1:
+        fail("Could not inspect the Worker volume; check Docker and the Worker image.")
+    if not os.environ.get("TERNILO_WORKER_TOKEN"):
+        fail("Set TERNILO_WORKER_TOKEN before initializing the private Worker configuration.")
+    command = ["run", "--rm", "--no-deps", "-e", "TERNILO_WORKER_TOKEN", "worker", "worker", "init",
+               "--data-dir", "/var/lib/ternilo", "--server-url", values["TERNILO_WORKER_SERVER_URL"],
+               "--sandbox", "container", "--health-listen", "127.0.0.1:5431"]
+    for name in ("max_active_runs", "max_resident_runs"):
+        value = getattr(args, name)
+        if value is not None:
+            command.extend(["--" + name.replace("_", "-"), str(value)])
+    run_compose(args, command, check=True)
+    print(f"Initialized Worker at {target}; its private volume holds the scoped token, persistent files and storage identity.")
+    print("Next: ternilo-deploy up --directory " + str(target))
+
+
+def configure(args):
+    if component(args) != "server" or (args.managed_execution_enabled is None and not args.worker_policy):
+        fail("configure requires a Server deployment and a managed-execution setting or --worker-policy.")
+    inspect_config(args)
+    policy = None
+    if args.worker_policy:
+        if args.worker_policy.stat().st_size > 1024 * 1024:
+            fail("Worker policy must fit within 1 MiB.")
+        policy = json.loads(args.worker_policy.read_text())
+        if not isinstance(policy, dict):
+            fail("Worker policy must be a JSON object.")
+    if policy is not None:
+        config = read_server_config(args)
+        config["worker_policy"] = "/var/lib/ternilo/worker-policy.json"
+        write_server_file(args, "worker-policy.json", (json.dumps(policy, indent=2) + "\n").encode())
+        write_server_file(args, "server.json", (json.dumps(config, indent=2) + "\n").encode())
+    if args.managed_execution_enabled is not None:
+        values = env_values(args.directory / ".env")
+        values["TERNILO_SERVER_MANAGED_EXECUTION_ENABLED"] = str(args.managed_execution_enabled).lower()
+        (args.directory / ".env").write_text("".join(f"{key}={value}\n" for key, value in values.items()))
+    print("Server settings saved privately. Run ternilo-deploy restart during maintenance to apply them; existing processes keep their current execution policy until restarted. Configure models through platform model administration.")
+
+
+def write_server_file(args, name, content):
+    if name not in ("server.json", "worker-policy.json"):
+        fail("Unsupported private Server configuration file.")
+    # Filenames are fixed above. Sensitive content is sent only on standard input.
+    command = f"umask 077; cat > /var/lib/ternilo/{name}.pending && sync -f /var/lib/ternilo/{name}.pending && mv /var/lib/ternilo/{name}.pending /var/lib/ternilo/{name} && sync -f /var/lib/ternilo"
+    run_compose(args, ["run", "--rm", "--no-deps", "-T", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c", command], check=True, input=content)
+
+
+def server_origin(args):
+    origin = args.server_url or args.public_url
+    if not origin:
+        values = deployment_values(args)
+        origin = values.get("TERNILO_WORKER_SERVER_URL") if component(args) == "worker" else values.get("TERNILO_SERVER_PUBLIC_URL")
+    return origin
+
+
+@contextmanager
+def server_api(origin):
+    validate_origin(origin or "", "Server URL")
+    token = os.environ.get("TERNILO_SERVER_ACCESS_TOKEN", "")
+
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    http = build_opener(NoRedirect)
+    signed_in = False
+    if not token:
+        username = os.environ.get("TERNILO_SERVER_OWNER_USERNAME")
+        password = os.environ.get("TERNILO_SERVER_OWNER_PASSWORD")
+        if not username or not password:
+            if not sys.stdin.isatty():
+                fail("Set TERNILO_SERVER_OWNER_USERNAME and TERNILO_SERVER_OWNER_PASSWORD, or TERNILO_SERVER_ACCESS_TOKEN, for non-interactive maintenance.")
+            username = username or input("Platform administrator username: ").strip()
+            password = password or getpass.getpass("Platform administrator password: ")
+        login = Request(origin.rstrip("/") + "/api/v1/auth/login", data=json.dumps({"username": username, "password": password}).encode(),
+                        headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with http.open(login, timeout=30) as response:
+                token = json.load(response)["access_token"]
+        except (HTTPError, URLError, KeyError):
+            fail("Server sign-in failed; check the Server URL and administrator credentials.")
+        signed_in = True
+    if any(character.isspace() for character in token):
+        fail("TERNILO_SERVER_ACCESS_TOKEN is invalid.")
+
+    def request(path, body=None, method=None):
+        message = Request(origin.rstrip("/") + "/api/v1" + path,
+                          data=json.dumps(body).encode() if body is not None else None,
+                          method=method or ("POST" if body is not None else "GET"),
+                          headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+        try:
+            with http.open(message, timeout=30) as response:
+                return json.load(response) if response.status != 204 else None
+        except HTTPError as error:
+            fail(f"Server administration returned HTTP {error.code}; check authentication and the requested operation.")
+        except URLError:
+            fail("Server administration could not connect; check the Server URL and network.")
+
+    try:
+        yield request
+    finally:
+        if signed_in:
+            logout = Request(origin.rstrip("/") + "/api/v1/auth/logout", method="POST", headers={"Authorization": "Bearer " + token})
+            try:
+                with http.open(logout, timeout=30) as response:
+                    response.read()
+            except (HTTPError, URLError):
+                print("Temporary sign-in could not be revoked; it will expire normally.", file=sys.stderr)
+
+
+def set_execution_paused(api, paused, drain_seconds):
+    state = api("/admin/execution", {"claims_paused": paused}, "PATCH")
+    if paused:
+        deadline = time.monotonic() + drain_seconds
+        while state["active_runs"] or state["active_commands"]:
+            if time.monotonic() >= deadline:
+                fail(f"Execution remains paused with {state['active_runs']} active runs and {state['active_commands']} active commands. Do not back up yet; wait or stop the remaining work, then inspect execution-status.")
+            time.sleep(1)
+            state = api("/admin/execution")
+
+
+def execution_maintenance(args):
+    with server_api(server_origin(args)) as api:
+        if args.action == "execution-status":
+            print(json.dumps(api("/admin/execution"), indent=2))
+            return
+        paused = args.action == "pause-execution"
+        set_execution_paused(api, paused, args.drain_seconds)
+        if paused:
+            print("Execution is paused; active runs and commands are zero. Stop every Worker, then Server, before creating a matching database and volume backup.")
+        else:
+            print("Execution resumed. Queued tasks may now be claimed by their assigned Workers.")
+
+
+def configure_model(args):
+    if component(args) != "server" or not args.provider_profile:
+        fail("configure-model requires a Server deployment and --provider-profile with a Provider profile JSON file.")
+    if args.provider_profile.stat().st_size > 1024 * 1024:
+        fail("Provider profile must fit within 1 MiB.")
+    profile = json.loads(args.provider_profile.read_text())
+    if not isinstance(profile, dict) or not profile.get("id"):
+        fail("Provider profile must be a JSON object with an id.")
+    key = args.model_api_key
+    if key == "":
+        if not sys.stdin.isatty():
+            fail("Set TERNILO_MODEL_API_KEY for non-interactive model configuration.")
+        key = getpass.getpass("Platform Provider API key: ")
+    if key is not None and (not key or any(character.isspace() for character in key)):
+        fail("Provider API key must be nonempty and contain no whitespace.")
+    body = {"profile": profile, "enabled": True}
+    if key is not None:
+        body["api_key"] = key
+    with server_api(server_origin(args)) as api:
+        api("/admin/models/providers/" + quote(profile["id"], safe=""), body, "PUT")
+    print("Platform Provider saved. Its credential is encrypted in the Server database and takes effect immediately. Publish models and assign budgets in platform model administration.")
+
+
+def check(args):
+    inspect_config(args)
+    if args.offline:
+        print("PASS: deployment files. Docker, stored Server configuration and database connectivity were not checked.")
+        return
+    run_compose(args, ["config", "--quiet"], check=True)
+    subprocess.run([args.docker, "info", "--format", "{{.ServerVersion}}"], check=True)
+    service = component(args)
+    run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", service,
+                       "-s", f"/var/lib/ternilo/{service}.json"], check=True)
+    print(f"PASS: Compose, Docker and persistent configuration. Use up/status to check the running {service}.")
+
+
+def status(args):
+    deployment_values(args)
+    result = run_compose(args, ["ps", "--all", "--format", "json"], check=True, capture_output=True, text=True)
+    raw = result.stdout.strip()
+    rows = json.loads(raw) if raw.startswith("[") else [json.loads(line) for line in raw.splitlines() if line.strip()]
+    service = component(args)
+    server = next((row for row in rows if row.get("Service") == service), None)
+    if not server:
+        fail(f"{service}: not created. Run ternilo-deploy up.")
+    state, health = server.get("State", "unknown"), server.get("Health", "")
+    print(f"{service}: {state}" + (f" ({health})" if health else ""))
+    if state != "running" or health != "healthy":
+        fail(f"{service} is not ready. Run ternilo-deploy logs to inspect startup or connectivity errors.")
+    print(f"PASS: {service} is running and its readiness check succeeds.")
+
+
+def operate(args):
+    inspect_config(args)
+    if args.action in ("up", "restart") and component(args) == "server":
+        require_no_pending_rotation(args)
+    options = {"up": ["up", "-d", "--no-build", "--wait"],
+               "restart": ["up", "-d", "--no-build", "--force-recreate", "--wait"],
+               "down": ["down"], "logs": ["logs", "--tail=100"]}
+    run_compose(args, options[args.action], check=True)
+
+
+def checksum(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def inspect_image_id(args, reference):
+    result = subprocess.run([args.docker, "image", "inspect", reference, "--format", "{{.Id}}"],
+                            capture_output=True, text=True)
+    identity = result.stdout.strip()
+    if result.returncode or not re.fullmatch(r"sha256:[a-f0-9]{64}", identity):
+        fail(f"Docker image is not available locally: {reference}. Load the saved image or obtain the recorded release first.")
+    return identity
+
+
+def verify_database_dump(args, path):
+    with path.open("rb") as source:
+        if source.read(5) != b"PGDMP":
+            fail("PostgreSQL backup requires a custom-format pg_dump archive.")
+    if not shutil.which(args.pg_restore):
+        fail("PostgreSQL backup verification requires a matching pg_restore executable; set --pg-restore / TERNILO_PG_RESTORE.")
+    result = subprocess.run([args.pg_restore, "--list", str(path)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if result.returncode:
+        fail("PostgreSQL dump is not readable by the selected pg_restore; check the dump and PostgreSQL client version.")
+
+
+def verify_saved_image(path, identity):
+    with tarfile.open(path) as archive:
+        manifests = json.load(archive.extractfile("manifest.json"))
+        if not isinstance(manifests, list) or not manifests:
+            fail("Saved image has no image manifest.")
+
+        def digest_member(name):
+            member = archive.getmember(name)
+            if not member.isfile():
+                fail("Saved image metadata is not a regular file.")
+            digest = hashlib.sha256()
+            with archive.extractfile(member) as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            return "sha256:" + digest.hexdigest()
+
+        configs = [digest_member(manifest["Config"]) for manifest in manifests]
+        if len(configs) == 1 and configs[0] == identity:
+            return
+        # Containerd-backed Docker uses the OCI descriptor as the image ID instead of its configuration digest.
+        if "index.json" in archive.getnames():
+            descriptors = json.load(archive.extractfile("index.json"))["manifests"]
+            if len(descriptors) == 1 and descriptors[0]["digest"] == identity:
+                if digest_member("blobs/sha256/" + identity.removeprefix("sha256:")) == identity:
+                    for manifest, digest in zip(manifests, configs):
+                        if Path(manifest["Config"]).name != digest.removeprefix("sha256:"):
+                            fail("Saved image configuration does not match its content digest.")
+                    return
+        fail("Saved image does not match the recorded image identity.")
+
+
+def regular_members(bundle):
+    members = bundle.getmembers()
+    paths = set()
+    for member in members:
+        path = Path(member.name)
+        if path.is_absolute() or ".." in path.parts or not (member.isfile() or member.isdir()) or path in paths:
+            fail("Backup contains an unsafe, duplicate path or unsupported link.")
+        paths.add(path)
+    return members
+
+
+def server_archive(archive):
+    with tarfile.open(archive) as bundle:
+        members = regular_members(bundle)
+        config = next((member for member in members if Path(member.name) == Path("server.json")), None)
+        if not config or not config.isfile() or config.size > 1024 * 1024:
+            fail("Server backup has no valid private server.json.")
+        settings = json.load(bundle.extractfile(config))
+        if not settings.get("secret_master_key"):
+            fail("Server backup is missing its secret master key.")
+        database = settings["database_url"]
+        if database.startswith(("postgres://", "postgresql://")):
+            return "postgres"
+        if not database.startswith("sqlite:///var/lib/ternilo/"):
+            fail("SQLite backup requires its database inside the private Server volume.")
+        path = Path(urlsplit(database).path).relative_to("/var/lib/ternilo")
+        if ".." in path.parts or not any(Path(member.name) == path and member.isfile() for member in members):
+            fail("Server backup is missing its configured SQLite database.")
+        return "sqlite"
+
+
+def verify_backup_contents(args, staging):
+    metadata = json.loads((staging / "backup.json").read_text())
+    if metadata.get("format_version") != 2 or metadata.get("component") not in ("server", "worker"):
+        fail("Unsupported backup format or component.")
+    service = metadata["component"]
+    if args.component and args.component != service:
+        fail(f"Backup component is {service}, not the requested component.")
+    identity = metadata.get("image_id", "")
+    if not re.fullmatch(r"sha256:[a-f0-9]{64}", identity):
+        fail("Backup is missing an exact Docker image identity.")
+    explicit_image(metadata["image"])
+    for name in (".env", ".ternilo-deployment", f"compose.{service}.yml", f".env.{service}.example", "ternilo-deploy", f"{service}-data.tar.gz"):
+        if not (staging / name).is_file():
+            fail(f"Backup is missing {name}.")
+    if (staging / ".ternilo-deployment").read_text().strip() != service:
+        fail("Backup deployment marker does not match its component.")
+    if service == "worker":
+        worker_archive(staging / "worker-data.tar.gz")
+    else:
+        for name in ROTATION_FILES:
+            if not (staging / name).is_file():
+                fail(f"Server backup is missing {name}.")
+        database = server_archive(staging / "server-data.tar.gz")
+        if metadata.get("database") != database:
+            fail("Server backup database metadata differs from its private configuration.")
+        if database == "postgres":
+            verify_database_dump(args, staging / "database.dump")
+    if not isinstance(metadata.get("image_included"), bool) or metadata["image_included"] != (staging / "image.tar").is_file():
+        fail("Saved image metadata does not match the backup contents.")
+    if metadata["image_included"]:
+        verify_saved_image(staging / "image.tar", identity)
+    return metadata
+
+
+def open_backup(args, staging):
+    if not args.archive or not args.archive.is_file():
+        fail("verify/restore requires an existing --archive / TERNILO_DEPLOY_BACKUP_ARCHIVE.")
+    expected = Path(str(args.archive) + ".sha256").read_text().split()[0]
+    if checksum(args.archive) != expected:
+        fail("Backup checksum does not match; no deployment was changed.")
+    extract_regular_archive(args.archive, staging)
+    return verify_backup_contents(args, staging)
+
+
+def verify_backup(args):
+    with tempfile.TemporaryDirectory(prefix="ternilo-backup-verify-") as temporary:
+        metadata = open_backup(args, Path(temporary))
+    print(f"PASS: {metadata['component']} backup contents and checksum; image {metadata['image_id']}.")
+    print("No deployment or volume was changed. Validate real service recovery separately.")
+
+
+def finish_backup(args, staging, metadata, archive):
+    if args.include_image:
+        subprocess.run([args.docker, "image", "save", metadata["image"], "-o", str(staging / "image.tar")], check=True)
+    if inspect_image_id(args, metadata["image"]) != metadata["image_id"]:
+        fail("Configured image changed during backup; no backup was published.")
+    (staging / "backup.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    verify_backup_contents(args, staging)
+    with tarfile.open(archive, "x:gz") as bundle:
+        for file in sorted(staging.iterdir()):
+            bundle.add(file, arcname=file.name)
+    Path(str(archive) + ".sha256").write_text(f"{checksum(archive)}  {archive.name}\n")
+
+
+def stopped_server(args):
+    service = component(args)
+    result = run_compose(args, ["ps", "--status", "running", "-q", service],
+                         check=True, capture_output=True, text=True)
+    if result.stdout.strip():
+        fail(f"Stop {service} before backup or restore: ternilo-deploy down. Its data volume will be retained.")
+    rendered = run_compose(args, ["config", "--format", "json"], check=True, capture_output=True, text=True)
+    compose = json.loads(rendered.stdout)
+    mount = next((entry for entry in compose["services"][service].get("volumes", [])
+                  if entry.get("target") == "/var/lib/ternilo"), None)
+    if not mount or mount.get("type") != "volume":
+        fail("Backup, restore and rotation require a named data volume; custom bind mounts need separate operations.")
+    volume = compose["volumes"][mount["source"]]["name"]
+    consumers = subprocess.run([args.docker, "ps", "--filter", f"volume={volume}", "--format", "{{.ID}}"],
+                               check=True, capture_output=True, text=True)
+    if consumers.stdout.strip():
+        fail(f"Another running container uses the {service} data volume; stop all its consumers before this operation.")
+
+
+def require_no_pending_rotation(args):
+    result = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", "server",
+                               "-e", "/var/lib/ternilo/server.next.json"], capture_output=True)
+    if result.returncode == 0:
+        fail("Unfinished key rotation: preserve server.json and server.next.json and resolve the database key before starting or backing up Server.")
+    if result.returncode != 1:
+        fail("Could not inspect pending key rotation; check Docker and the configured image.")
+
+
+def read_server_config(args):
+    result = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "cat", "server",
+                               "/var/lib/ternilo/server.json"], check=True, capture_output=True)
+    return json.loads(result.stdout)
+
+
+def rotate_key(args):
+    if component(args) != "server":
+        fail("Worker holds no master key; key rotation belongs to Server.")
+    inspect_config(args)
+    stopped_server(args)
+    config = read_server_config(args)
+    next_key = args.next_key or base64.b64encode(secrets.token_bytes(32)).decode()
+    try:
+        valid = len(base64.b64decode(next_key, validate=True)) == 32
+    except ValueError:
+        valid = False
+    if not valid:
+        fail("TERNILO_NEXT_SECRET_MASTER_KEY must encode exactly 32 bytes in base64.")
+    prepared = dict(config, secret_master_key=next_key)
+    # Save the recovery key before changing the database, without replacing current configuration.
+    run_compose(args, ["run", "--rm", "--no-deps", "-T", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c",
+                       "umask 077; set -C; cat > /var/lib/ternilo/server.next.json && sync -f /var/lib/ternilo/server.next.json"],
+                check=True, input=(json.dumps(prepared, indent=2) + "\n").encode())
+    command, environment = docker_command(args)
+    environment.update(TERNILO_MIGRATION_DATABASE_URL=config.get("migration_database_url") or config["database_url"],
+                       TERNILO_SECRET_MASTER_KEY=config["secret_master_key"], TERNILO_NEXT_SECRET_MASTER_KEY=next_key)
+    try:
+        subprocess.run(command + ["run", "--rm", "--no-deps", "-e", "TERNILO_MIGRATION_DATABASE_URL",
+                                  "-e", "TERNILO_SECRET_MASTER_KEY", "-e", "TERNILO_NEXT_SECRET_MASTER_KEY",
+                                  "server", "server", "admin", "rotate-secret-master-key"], env=environment, check=True)
+    except subprocess.CalledProcessError:
+        fail("Key rotation did not complete. Keep Server stopped and preserve server.json and server.next.json; inspect the database before recovery.")
+    run_compose(args, ["run", "--rm", "--no-deps", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c",
+                       "mv /var/lib/ternilo/server.next.json /var/lib/ternilo/server.json && sync -f /var/lib/ternilo"], check=True)
+    print("Master key rotated and private configuration updated. Server remains stopped; keep previous backups with their original keys.")
+
+
+def rotate_database_passwords(args):
+    if component(args) != "server":
+        fail("Worker has no database credentials; database password rotation belongs to Server.")
+    inspect_config(args)
+    stopped_server(args)
+    config = read_server_config(args)
+    runtime_url = config["database_url"]
+    migration_url = config.get("migration_database_url") or runtime_url
+    runtime, migration = urlsplit(runtime_url), urlsplit(migration_url)
+    if runtime.scheme not in ("postgres", "postgresql") or migration.scheme not in ("postgres", "postgresql"):
+        fail("Database password rotation requires PostgreSQL; SQLite has no database password.")
+    next_runtime, next_migration = args.next_runtime_password, args.next_migration_password
+    if not next_runtime or not next_migration:
+        fail("Set TERNILO_RUNTIME_DB_PASSWORD_NEXT and TERNILO_MIGRATOR_DB_PASSWORD_NEXT.")
+    runtime_role, migration_role = unquote(runtime.username or ""), unquote(migration.username or "")
+    if not runtime_role or not migration_role:
+        fail("Both PostgreSQL connections must name an explicit database role.")
+    if runtime_role == migration_role and next_runtime != next_migration:
+        fail("One database role cannot have two different next passwords.")
+    if (runtime.hostname, runtime.port or 5432, runtime.path) != (migration.hostname, migration.port or 5432, migration.path):
+        fail("Runtime and migration connections must target the same PostgreSQL database.")
+
+    def replaced_password(url, password):
+        parsed = urlsplit(url)
+        host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
+        port = f":{parsed.port}" if parsed.port else ""
+        authority = f"{quote(unquote(parsed.username), safe='')}:{quote(password, safe='')}@{host}{port}"
+        return urlunsplit((parsed.scheme, authority, parsed.path, parsed.query, parsed.fragment))
+
+    prepared = dict(config, database_url=replaced_password(runtime_url, next_runtime))
+    if config.get("migration_database_url"):
+        prepared["migration_database_url"] = replaced_password(migration_url, next_migration)
+    run_compose(args, ["run", "--rm", "--no-deps", "-T", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c",
+                       "umask 077; set -C; cat > /var/lib/ternilo/server.next.json && sync -f /var/lib/ternilo/server.next.json"],
+                check=True, input=(json.dumps(prepared, indent=2) + "\n").encode())
+    topology = json.loads(run_compose(args, ["config", "--format", "json"], check=True, capture_output=True).stdout)
+    service = topology["services"]["server"]
+    network = service.get("network_mode")
+    if not network:
+        network_key = next(iter(service.get("networks", {"default": None})))
+        network = topology["networks"][network_key]["name"]
+    environment = dict(os.environ, TERNILO_ROTATION_DATABASE_URL=migration_url,
+                       TERNILO_RUNTIME_DB_ROLE=runtime_role, TERNILO_MIGRATOR_DB_ROLE=migration_role,
+                       TERNILO_RUNTIME_DB_PASSWORD_NEXT=next_runtime, TERNILO_MIGRATOR_DB_PASSWORD_NEXT=next_migration)
+    sql = b"""\\set ON_ERROR_STOP on
+\\getenv runtime_role TERNILO_RUNTIME_DB_ROLE
+\\getenv migrator_role TERNILO_MIGRATOR_DB_ROLE
+\\getenv runtime_password TERNILO_RUNTIME_DB_PASSWORD_NEXT
+\\getenv migrator_password TERNILO_MIGRATOR_DB_PASSWORD_NEXT
+BEGIN;
+SET LOCAL log_min_error_statement = PANIC;
+ALTER ROLE :\"migrator_role\" PASSWORD :'migrator_password';
+ALTER ROLE :\"runtime_role\" PASSWORD :'runtime_password';
+COMMIT;
+"""
+    command = [args.docker, "run", "--rm", "-i", "--network", network]
+    for name in ("TERNILO_ROTATION_DATABASE_URL", "TERNILO_RUNTIME_DB_ROLE", "TERNILO_MIGRATOR_DB_ROLE",
+                 "TERNILO_RUNTIME_DB_PASSWORD_NEXT", "TERNILO_MIGRATOR_DB_PASSWORD_NEXT"):
+        command += ["-e", name]
+    command += ["--entrypoint", "sh", "postgres:17-bookworm", "-c",
+                'exec psql --dbname "$TERNILO_ROTATION_DATABASE_URL" --no-psqlrc --set=ON_ERROR_STOP=1']
+    result = subprocess.run(command, input=sql, env=environment, capture_output=True)
+    if result.returncode:
+        # PostgreSQL may have committed before a connection failure; keep both configurations for recovery.
+        fail("Database rotation did not confirm completion. Server remains stopped; current configuration was not promoted. Preserve server.json and server.next.json and verify database roles before recovery.")
+    run_compose(args, ["run", "--rm", "--no-deps", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c",
+                       "mv /var/lib/ternilo/server.next.json /var/lib/ternilo/server.json && sync -f /var/lib/ternilo"], check=True)
+    print("PostgreSQL role passwords and private Server configuration updated atomically. Server remains stopped; restart it before resuming execution.")
+
+
+def backup(args):
+    if component(args) == "worker":
+        return backup_worker(args)
+    values = inspect_config(args)
+    if not args.output_dir:
+        fail("backup requires --output-dir / TERNILO_DEPLOY_BACKUP_DIR.")
+    stopped_server(args)
+    require_no_pending_rotation(args)
+    config = read_server_config(args)
+    postgres = config["database_url"].startswith(("postgres://", "postgresql://"))
+    if postgres and (not args.database_dump or not args.database_dump.is_file()):
+        fail("PostgreSQL backup requires a completed pg_dump file via --database-dump; keep Server stopped while dumping.")
+    if not postgres and not config["database_url"].startswith("sqlite:///var/lib/ternilo/"):
+        fail("SQLite backup requires the database to be inside the persistent /var/lib/ternilo volume.")
+    identity = inspect_image_id(args, values["TERNILO_IMAGE"])
+    if postgres:
+        verify_database_dump(args, args.database_dump)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    archive = args.output_dir / f"ternilo-server-{stamp}.tar.gz"
+    if archive.exists() or Path(str(archive) + ".sha256").exists():
+        fail("Backup output already exists; choose another output directory.")
+    with tempfile.TemporaryDirectory(prefix="ternilo-server-backup-") as temporary:
+        staging = Path(temporary)
+        with (staging / "server-data.tar.gz").open("wb") as destination:
+            run_compose(args, ["run", "--rm", "--no-deps", "-T", "--entrypoint", "tar", "server",
+                               "-C", "/var/lib/ternilo", "-czf", "-", "."], check=True, stdout=destination)
+        for name in (".env", ".ternilo-deployment", "compose.server.yml", ".env.server.example", "ternilo-deploy", *ROTATION_FILES):
+            shutil.copy2(args.directory / name, staging / name)
+        if postgres:
+            shutil.copyfile(args.database_dump, staging / "database.dump")
+        finish_backup(args, staging, {
+            "format_version": 2, "component": "server", "database": "postgres" if postgres else "sqlite", "image": values["TERNILO_IMAGE"], "image_id": identity,
+            "created_at": stamp, "image_included": args.include_image,
+        }, archive)
+    print(f"Created private backup: {archive}")
+    print("Server remains stopped. Run ternilo-deploy up after keeping the backup and checksum safely.")
+
+
+def extract_regular_archive(archive, target):
+    with tarfile.open(archive) as bundle:
+        members = regular_members(bundle)
+        # Extract only the validated regular files; never apply archive ownership.
+        for member in members:
+            destination = target / member.name
+            if member.isdir():
+                destination.mkdir(parents=True, exist_ok=True)
+            else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with bundle.extractfile(member) as source, destination.open("wb") as output:
+                    shutil.copyfileobj(source, output)
+                os.chmod(destination, member.mode & 0o777)
+
+
+def worker_archive(archive):
+    with tarfile.open(archive) as bundle:
+        members = bundle.getmembers()
+        links = {Path(member.name) for member in members if member.issym()}
+        for member in members:
+            path = Path(member.name)
+            if path.is_absolute() or ".." in path.parts or any(parent in links for parent in path.parents):
+                fail("Worker backup contains an unsafe path or a member beneath a symbolic link.")
+            if not (member.isfile() or member.isdir() or member.issym() or member.islnk()):
+                fail("Worker backup contains an unsupported filesystem object.")
+            if member.islnk() and (Path(member.linkname).is_absolute() or ".." in Path(member.linkname).parts):
+                fail("Worker backup hard link escapes its data volume.")
+        config = next((member for member in members if Path(member.name) == Path("worker.json")), None)
+        if not config or not config.isfile() or config.size > 1024 * 1024:
+            fail("Worker backup has no valid private worker.json.")
+        settings = json.load(bundle.extractfile(config))
+        if settings.get("workspace_root") != "/var/lib/ternilo/workspaces":
+            fail("Worker volume backup requires workspace_root=/var/lib/ternilo/workspaces; back up custom mounts separately.")
+        return settings
+
+
+def backup_worker(args):
+    values = inspect_config(args)
+    if not args.output_dir:
+        fail("backup requires --output-dir / TERNILO_DEPLOY_BACKUP_DIR.")
+    stopped_server(args)
+    identity = inspect_image_id(args, values["TERNILO_IMAGE"])
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    archive = args.output_dir / f"ternilo-worker-{stamp}.tar.gz"
+    if archive.exists() or Path(str(archive) + ".sha256").exists():
+        fail("Backup output already exists; choose another output directory.")
+    with tempfile.TemporaryDirectory(prefix="ternilo-worker-backup-") as temporary:
+        staging = Path(temporary)
+        volume = staging / "worker-data.tar.gz"
+        with volume.open("wb") as destination:
+            run_compose(args, ["run", "--rm", "--no-deps", "-T", "--entrypoint", "tar", "worker",
+                               "-C", "/var/lib/ternilo", "-czf", "-", "."], check=True, stdout=destination)
+        worker_archive(volume)
+        for name in (".env", ".ternilo-deployment", "compose.worker.yml", ".env.worker.example", "ternilo-deploy"):
+            shutil.copy2(args.directory / name, staging / name)
+        finish_backup(args, staging, {
+            "format_version": 2, "component": "worker", "image": values["TERNILO_IMAGE"], "image_id": identity,
+            "created_at": stamp, "image_included": args.include_image,
+        }, archive)
+    print(f"Created private Worker backup: {archive}")
+    print("Worker remains stopped. Keep this entire volume with its matching paused Server/database backup.")
+
+
+def restore_worker(args, staging, metadata):
+    if args.component and args.component != "worker":
+        fail("Backup component is worker, not the requested Server component.")
+    args.component = "worker"
+    source = staging / "worker-data.tar.gz"
+    settings = worker_archive(source)
+    if args.server_url:
+        validate_origin(args.server_url, "--server-url")
+        settings["server_url"] = args.server_url
+    payload = staging / "restored-worker-data.tar.gz"
+    with tarfile.open(source) as original, tarfile.open(payload, "w:gz") as restored:
+        for member in original.getmembers():
+            if Path(member.name) == Path("worker.json"):
+                content = (json.dumps(settings, indent=2) + "\n").encode()
+                member.size = len(content)
+                member.mode = 0o600
+                restored.addfile(member, io.BytesIO(content))
+            else:
+                restored.addfile(member, original.extractfile(member) if member.isfile() else None)
+    args.directory.mkdir(parents=True, exist_ok=True)
+    for name in ("compose.worker.yml", ".env.worker.example", "ternilo-deploy"):
+        shutil.copy2(staging / name, args.directory / name)
+    values = env_values(staging / ".env")
+    values["TERNILO_DEPLOY_PROJECT"] = args.project_name or "ternilo-worker-" + secrets.token_hex(4)
+    values["TERNILO_IMAGE"] = metadata["image_id"]
+    values["TERNILO_WORKER_SERVER_URL"] = settings["server_url"]
+    create_file(args.directory / ".env", "".join(f"{key}={value}\n" for key, value in values.items()).encode())
+    create_file(args.directory / ".ternilo-deployment", b"worker\n")
+    stopped_server(args)
+    empty = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "sh", "worker", "-c",
+                               'test -z "$(find /var/lib/ternilo -mindepth 1 -print -quit)"'], capture_output=True)
+    if empty.returncode != 0:
+        fail("Restore volume is not empty or cannot be inspected; no existing files were overwritten.")
+    with payload.open("rb") as data:
+        run_compose(args, ["run", "--rm", "--no-deps", "-T", "--cap-add", "FOWNER", "--entrypoint", "tar", "worker",
+                           "-C", "/var/lib/ternilo", "-xzf", "-", "--same-owner", "--same-permissions"], check=True, stdin=data)
+    print(f"Restored Worker into a new stopped deployment: {args.directory}")
+    print("Original storage marker, hidden attachments and file ownership were retained. Restore the matching Server/database before starting this Worker.")
+
+
+def restore(args):
+    if args.directory.exists() and any(args.directory.iterdir()):
+        fail("Restore requires an empty target directory and creates an independent data volume.")
+    with tempfile.TemporaryDirectory(prefix="ternilo-server-restore-") as temporary:
+        staging = Path(temporary)
+        metadata = open_backup(args, staging)
+        if inspect_image_id(args, args.image or metadata["image_id"]) != metadata["image_id"]:
+            fail("Restore image differs from the backup image identity; no deployment was changed.")
+        args.image = metadata["image_id"]
+        if metadata["component"] == "worker":
+            return restore_worker(args, staging, metadata)
+        data = staging / "data"
+        data.mkdir()
+        extract_regular_archive(staging / "server-data.tar.gz", data)
+        config = json.loads((data / "server.json").read_text())
+        if metadata["database"] == "postgres":
+            if not args.database_url or not args.database_url.startswith(("postgres://", "postgresql://")):
+                fail("Restore database.dump to a new PostgreSQL database first, then pass its --database-url; this command never overwrites a database.")
+            config["database_url"] = args.database_url
+            config["migration_database_url"] = args.migration_database_url
+        if args.public_url:
+            config["public_url"] = args.public_url
+        (data / "server.json").write_text(json.dumps(config, indent=2) + "\n")
+        os.chmod(data / "server.json", 0o600)
+        args.directory.mkdir(parents=True, exist_ok=True)
+        for name in ("compose.server.yml", ".env.server.example", "ternilo-deploy", *ROTATION_FILES):
+            shutil.copy2(staging / name, args.directory / name)
+        values = env_values(staging / ".env")
+        values["TERNILO_DEPLOY_PROJECT"] = args.project_name or "ternilo-server-" + secrets.token_hex(4)
+        values["TERNILO_IMAGE"] = metadata["image_id"]
+        if args.public_url:
+            values["TERNILO_SERVER_PUBLIC_URL"] = args.public_url
+        create_file(args.directory / ".env", "".join(f"{key}={value}\n" for key, value in values.items()).encode())
+        create_file(args.directory / ".ternilo-deployment", b"server\n")
+        stopped_server(args)
+        empty = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "sh", "server", "-c",
+                                   'test -z "$(find /var/lib/ternilo -mindepth 1 -print -quit)"'], capture_output=True)
+        if empty.returncode != 0:
+            fail("Restore volume is not empty or cannot be inspected; no existing data was overwritten.")
+        payload = staging / "restore-data.tar.gz"
+        with tarfile.open(payload, "w:gz") as bundle:
+            def owner(info):
+                info.uid = info.gid = 10001
+                info.uname = info.gname = "ternilo"
+                return info
+            bundle.add(data, arcname=".", filter=owner)
+        run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "chown", "server",
+                           "10001:10001", "/var/lib/ternilo"], check=True)
+        with payload.open("rb") as source:
+            run_compose(args, ["run", "--rm", "--no-deps", "-T", "--user", "10001:10001", "--entrypoint", "tar", "server",
+                               "-C", "/var/lib/ternilo", "-xzf", "-"], check=True, stdin=source)
+    print(f"Restored into a new stopped deployment: {args.directory}")
+    print("Review the public URL, then run ternilo-deploy check and ternilo-deploy up.")
+
+
+def main():
+    os.umask(0o077)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("init", "configure", "configure-model", "check", "status", "up", "restart", "down", "logs", "backup", "verify", "restore", "rotate-key", "rotate-database-passwords", "pause-execution", "resume-execution", "execution-status"))
+    parser.add_argument("--component", choices=("server", "worker"), default=os.getenv("TERNILO_DEPLOY_COMPONENT"), help="TERNILO_DEPLOY_COMPONENT; server by default during init, otherwise the saved deployment component")
+    parser.add_argument("--server-url", default=os.getenv("TERNILO_WORKER_SERVER_URL"), help="TERNILO_WORKER_SERVER_URL; Server origin for Worker initialization")
+    parser.add_argument("--max-active-runs", type=int, default=os.getenv("TERNILO_WORKER_MAX_ACTIVE_RUNS"), help="TERNILO_WORKER_MAX_ACTIVE_RUNS; Worker foreground capacity saved during init (default: 4)")
+    parser.add_argument("--max-resident-runs", type=int, default=os.getenv("TERNILO_WORKER_MAX_RESIDENT_RUNS"), help="TERNILO_WORKER_MAX_RESIDENT_RUNS; Worker resident capacity saved during init (default: 16)")
+    parser.add_argument("--managed-execution-enabled", action=argparse.BooleanOptionalAction, default=None, help="Enable or disable managed Worker execution on Server during init/configure")
+    parser.add_argument("--worker-policy", type=Path, default=os.getenv("TERNILO_SERVER_WORKER_POLICY"), help="TERNILO_SERVER_WORKER_POLICY; policy to store privately on Server during init/configure")
+    parser.add_argument("--provider-profile", type=Path, help="Provider profile JSON for configure-model; excludes the API key")
+    parser.add_argument("--model-api-key", nargs="?", const="", default=os.getenv("TERNILO_MODEL_API_KEY"), help="TERNILO_MODEL_API_KEY; platform Provider credential for configure-model, or omit the value for hidden input")
+    parser.add_argument("--drain-seconds", type=int, default=int(os.getenv("TERNILO_BACKUP_DRAIN_SECONDS", "300")), help="TERNILO_BACKUP_DRAIN_SECONDS; maximum wait for active execution after pausing")
+    parser.add_argument("--directory", type=Path, default=Path(os.getenv("TERNILO_DEPLOY_DIR", ".")), help="TERNILO_DEPLOY_DIR; initialization target or existing deployment")
+    parser.add_argument("--image", default=os.getenv("TERNILO_IMAGE"), help="TERNILO_IMAGE; explicit release version or digest")
+    parser.add_argument("--docker", default=os.getenv("TERNILO_DOCKER", "docker"), help="TERNILO_DOCKER; Docker executable")
+    parser.add_argument("--offline", action=argparse.BooleanOptionalAction, default=os.getenv("TERNILO_DEPLOY_OFFLINE", "false").lower() == "true", help="TERNILO_DEPLOY_OFFLINE; skip Docker during check")
+    parser.add_argument("--public-url", default=os.getenv("TERNILO_SERVER_PUBLIC_URL"), help="TERNILO_SERVER_PUBLIC_URL; public HTTP(S) origin for init")
+    parser.add_argument("--project-name", default=os.getenv("TERNILO_DEPLOY_PROJECT"), help="TERNILO_DEPLOY_PROJECT; isolated Compose project for init")
+    parser.add_argument("--database-url", default=os.getenv("TERNILO_DATABASE_URL"), help="TERNILO_DATABASE_URL; optional PostgreSQL URL for init (prefer environment)")
+    parser.add_argument("--migration-database-url", default=os.getenv("TERNILO_MIGRATION_DATABASE_URL"), help="TERNILO_MIGRATION_DATABASE_URL; optional schema-owner URL for init")
+    parser.add_argument("--output-dir", type=Path, default=os.getenv("TERNILO_DEPLOY_BACKUP_DIR"), help="TERNILO_DEPLOY_BACKUP_DIR; private backup output directory")
+    parser.add_argument("--archive", type=Path, default=os.getenv("TERNILO_DEPLOY_BACKUP_ARCHIVE"), help="TERNILO_DEPLOY_BACKUP_ARCHIVE; backup archive to verify or restore")
+    parser.add_argument("--database-dump", type=Path, default=os.getenv("TERNILO_DEPLOY_DATABASE_DUMP"), help="TERNILO_DEPLOY_DATABASE_DUMP; pg_dump file taken while Server is stopped")
+    parser.add_argument("--pg-restore", default=os.getenv("TERNILO_PG_RESTORE", "pg_restore"), help="TERNILO_PG_RESTORE; matching PostgreSQL client for read-only dump verification")
+    parser.add_argument("--include-image", action=argparse.BooleanOptionalAction, default=os.getenv("TERNILO_DEPLOY_BACKUP_IMAGE", "false").lower() == "true", help="TERNILO_DEPLOY_BACKUP_IMAGE; include the configured Docker image in backup")
+    parser.add_argument("--next-key", default=os.getenv("TERNILO_NEXT_SECRET_MASTER_KEY"), help="TERNILO_NEXT_SECRET_MASTER_KEY; optional next master key for rotate-key (prefer environment)")
+    parser.add_argument("--next-runtime-password", default=os.getenv("TERNILO_RUNTIME_DB_PASSWORD_NEXT"), help="TERNILO_RUNTIME_DB_PASSWORD_NEXT; next PostgreSQL runtime-role password (prefer environment)")
+    parser.add_argument("--next-migration-password", default=os.getenv("TERNILO_MIGRATOR_DB_PASSWORD_NEXT"), help="TERNILO_MIGRATOR_DB_PASSWORD_NEXT; next PostgreSQL migration-role password (prefer environment)")
+    args = parser.parse_args()
+    args.directory = args.directory.resolve()
+    if args.action != "configure-model" and (args.model_api_key is not None or args.provider_profile):
+        parser.error("Model configuration belongs to configure-model against a running Server; it is not a deployment file setting.")
+    try:
+        {"init": initialize, "configure": configure, "configure-model": configure_model, "check": check, "status": status, "up": operate, "restart": operate, "down": operate, "logs": operate,
+         "backup": backup, "verify": verify_backup, "restore": restore, "rotate-key": rotate_key, "rotate-database-passwords": rotate_database_passwords,
+         "pause-execution": execution_maintenance, "resume-execution": execution_maintenance, "execution-status": execution_maintenance}[args.action](args)
+    except (ValueError, OSError, KeyError, IndexError, tarfile.TarError, subprocess.CalledProcessError) as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

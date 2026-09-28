@@ -1,0 +1,147 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.info.outputs.version }}
+      image: ${{ steps.info.outputs.image }}
+      prerelease: ${{ steps.info.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: ternilo
+          persist-credentials: false
+      - id: info
+        working-directory: ternilo
+        env:
+          PUBLISH: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          if [ "$PUBLISH" = true ]; then python3 scripts/ci/release-info.py --publish; else python3 scripts/ci/release-info.py; fi
+  checks:
+    needs: version
+    uses: ./.github/workflows/ci.yml
+    with:
+      skip-packages: true
+  packages:
+    needs: [version, checks]
+    uses: ./.github/workflows/packages.yml
+  server-image:
+    needs: [version, checks, packages]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: ternilo
+          persist-credentials: false
+      - id: linorun
+        run: echo "revision=$(cat ternilo/.github/linorun-revision)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: mosttt/linorun
+          ref: ${{ steps.linorun.outputs.revision }}
+          path: linorun
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Reserve build space on the disposable runner
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Build candidate
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: ternilo
+          file: ternilo/deploy/docker/Dockerfile
+          target: server
+          build-contexts: linorun=./linorun
+          platforms: linux/amd64
+          load: true
+          tags: ternilo-server:ci
+          build-args: |
+            CARGO_BUILD_JOBS=2
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+          cache-from: type=gha,scope=ternilo-server-amd64
+          cache-to: type=gha,mode=max,scope=ternilo-server-amd64
+      - name: Validate the actual image
+        run: python3 ternilo/scripts/ci/server-image-smoke.py --image ternilo-server:ci
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the tested image
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          IMAGE: ${{ needs.version.outputs.image }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          docker tag ternilo-server:ci "$IMAGE:$VERSION"
+          docker tag ternilo-server:ci "$IMAGE:sha-$GITHUB_SHA"
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:sha-$GITHUB_SHA"
+          mkdir -p image-metadata
+          docker inspect "$IMAGE:$VERSION" --format '{{index .RepoDigests 0}}' > image-metadata/server-image.txt
+      - name: Retain candidate metadata
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          mkdir -p image-metadata
+          docker inspect ternilo-server:ci --format '{{.Id}}' > image-metadata/server-image.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: server-image-metadata
+          path: image-metadata/server-image.txt
+          if-no-files-found: error
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [version, packages, server-image]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: ternilo
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: packages-*
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: server-image-metadata
+          path: artifacts
+      - name: Checksums and source provenance
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          printf 'version=%s\ncommit=%s\nlinorun=%s\n' "$VERSION" "$GITHUB_SHA" "$(cat ternilo/.github/linorun-revision)" > artifacts/SOURCE
+          python3 ternilo/scripts/ci/release-info.py --checksums artifacts
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          printf '%s\n\n' 'Client and Server binaries, desktop installers, and the tested Server image digest are attached.' 'Desktop installers are unsigned; automatic updates remain disabled. Review platform installation and signing before publishing this draft.' > release-notes.md
+          flags=()
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" artifacts/* --verify-tag --draft --title "Ternilo $GITHUB_REF_NAME" --notes-file release-notes.md "${flags[@]}"

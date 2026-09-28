@@ -1,0 +1,2 @@
+# Bundled JavaScript can contain literal trailing spaces inside template strings.
+web/dist/assets/*.js whitespace=-blank-at-eol

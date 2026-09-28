@@ -1,0 +1,39 @@
+[package]
+name = "ternilo-local"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+base64.workspace = true
+ternilo-authorization.workspace = true
+ternilo-builtins.workspace = true
+ternilo-code-runtime.workspace = true
+ternilo-extension.workspace = true
+ternilo-kernel.workspace = true
+ternilo-protocol.workspace = true
+nix.workspace = true
+linorun-core.workspace = true
+linorun-macros.workspace = true
+reqwest.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tokio-rusqlite.workspace = true
+
+[lints]
+workspace = true
+
+[target.'cfg(windows)'.dependencies]
+cap-std.workspace = true
+cap-fs-ext.workspace = true
+
+[dev-dependencies]
+cap-std.workspace = true
+cap-fs-ext.workspace = true
+ed25519-dalek.workspace = true
+tempfile.workspace = true

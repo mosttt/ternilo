@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    {
+      "id": "model",
+      "kind": "ternilo.model.openai_compatible",
+      "config": {
+        "provider": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "protocol": "openai-responses",
+        "model": "YOUR_MODEL_ID",
+        "api_key_env": "OPENAI_API_KEY",
+        "timeout_ms": 120000
+      }
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+.actions {
+  display: flex;
+  min-width: 0;
+  height: calc(28px + var(--ternilo-content-font-delta, 0px));
+  align-items: center;
+  gap: 10px;
+  margin-left: -6px;
+  color: var(--label-tertiary);
+}
+
+.userActions { justify-content: flex-end; margin-right: -6px; }
+
+.action {
+  display: inline-flex;
+  width: calc(28px + var(--ternilo-content-font-delta, 0px));
+  height: calc(28px + var(--ternilo-content-font-delta, 0px));
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px;
+  background: transparent;
+  color: var(--label-tertiary);
+}
+
+.action > :global(svg) { width: 16px; height: 16px; }
+.spin { animation: spin 1s linear infinite; }
+.action:hover:not(:disabled) { background: var(--interactive-hover); color: var(--label-secondary); }
+.action:disabled { opacity: .45; }
+.selected { color: var(--primary); }
+.negative { color: var(--destructive); }
+
+.time {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--label-tertiary);
+  font-size: var(--ternilo-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--ternilo-content-font-delta, 0px));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 761px) and (min-height: 521px) {
+  [data-actions-reveal='hover'] .actions { opacity: 0; transition: opacity 80ms ease; }
+  [data-actions-reveal='hover']:hover .actions,
+  [data-actions-reveal='hover']:focus-within .actions,
+  [data-actions-reveal='hover'] .actions:has([data-state='open']) { opacity: 1; }
+}
+
+.note {
+  max-width: 176px;
+  overflow: hidden;
+  border-radius: 6px;
+  padding: 2px 6px;
+  color: var(--label-tertiary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note:hover { background: var(--interactive-hover); color: var(--label-secondary); }
+
+.popover {
+  z-index: 70;
+  width: min(300px, calc(100vw - 24px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--popover);
+  box-shadow: var(--shadow-lv3);
+}
+.popover textarea { width: 100%; resize: none; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--background); font-size: 13px; }
+.popoverActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.popoverActions button { border-radius: 7px; padding: 5px 10px; font-size: 12px; }
+.popoverActions button:hover { background: var(--interactive-hover); }
+
+@media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  .actions { height: auto; min-height: 40px; flex-wrap: wrap; gap: 4px; }
+  .action { width: 40px; height: 40px; }
+  .time { flex: none; margin-left: 4px; }
+  .note { flex-basis: 100%; max-width: 100%; min-height: 36px; padding: 6px 8px; text-align: left; }
+  .popoverActions button { min-height: 40px; padding: 7px 12px; }
+}
+
+@media (max-width: 520px) {
+  .time { font-size: 11px; }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}

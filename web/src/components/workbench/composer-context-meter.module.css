@@ -1,0 +1,17 @@
+.root { position: relative; display: inline-flex; }
+.trigger { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 999px; color: var(--label-secondary); }
+.trigger:hover { background: var(--interactive-hover); }
+.track { fill: none; stroke: var(--border-focus); stroke-width: 2; }
+.fill { fill: none; stroke: var(--label-tertiary); stroke-width: 2; stroke-linecap: round; }
+.fill[data-warning] { stroke: var(--warning); }
+.panel { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 100; box-sizing: border-box; width: 264px; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px; background: var(--popover); box-shadow: var(--shadow-lv3); color: var(--label-secondary); font-size: 12px; line-height: 20px; }
+.header { display: flex; align-items: center; gap: 5px; }
+.header strong { color: var(--foreground); }
+.header code { margin-left: auto; color: var(--foreground); font-size: 12px; }
+.bar { height: 4px; margin: 10px 0; overflow: hidden; border-radius: 999px; background: var(--interactive-hover); }
+.bar span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.panel dl { margin: 0; }
+.panel dl div { display: flex; justify-content: space-between; gap: 12px; }
+.panel dd { margin: 0; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.panel p { margin: 8px 0 0; border-radius: 7px; padding: 6px 8px; background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
+@media (max-width: 520px) { .panel { right: -52px; width: min(264px, calc(100vw - 28px)); } }

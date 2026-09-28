@@ -1,0 +1,38 @@
+[package]
+name = "ternilo-worker"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+base64.workspace = true
+futures-util.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+zeroize.workspace = true
+clap.workspace = true
+linorun-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+salvo_core.workspace = true
+salvo_extra.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+ternilo-builtins.workspace = true
+ternilo-code-runtime.workspace = true
+ternilo-cloud.workspace = true
+ternilo-kernel.workspace = true
+ternilo-local.workspace = true
+ternilo-protocol.workspace = true
+ternilo-transport.workspace = true
+ternilo-extension.workspace = true
+nix.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+command-fds.workspace = true
+rustix.workspace = true
+
+[lints]
+workspace = true

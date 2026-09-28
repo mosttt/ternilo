@@ -1,0 +1,15 @@
+{
+  "plugins": [
+    {
+      "id": "rust-analyzer",
+      "kind": "ternilo.lsp.stdio",
+      "enabled": true,
+      "config": {
+        "server_name": "rust_analyzer",
+        "command": "rust-analyzer",
+        "args": [],
+        "timeout_ms": 30000
+      }
+    }
+  ]
+}

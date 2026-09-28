@@ -1,0 +1,30 @@
+name: ${TERNILO_DEPLOY_PROJECT:-ternilo-server}
+
+services:
+  server:
+    image: ${TERNILO_IMAGE:?set TERNILO_IMAGE to an explicit version or digest}
+    command: [server, serve, --config, /var/lib/ternilo/server.json]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      TERNILO_SERVER_MANAGED_EXECUTION_ENABLED: ${TERNILO_SERVER_MANAGED_EXECUTION_ENABLED:-false}
+    ports:
+      - "${TERNILO_SERVER_HTTP_BIND_ADDRESS:-127.0.0.1}:${TERNILO_SERVER_HTTP_PORT:-4321}:4321"
+    volumes:
+      - server-data:/var/lib/ternilo
+    user: "0:0"
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:4321/readyz]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    # Tini forwards shutdown signals to the unprivileged Server process.
+    cap_add: [CHOWN, DAC_READ_SEARCH, KILL, SETUID, SETGID, SETPCAP]
+    security_opt: [no-new-privileges:true]
+
+volumes:
+  server-data:

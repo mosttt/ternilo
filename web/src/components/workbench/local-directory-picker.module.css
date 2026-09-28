@@ -1,0 +1,486 @@
+.dialog.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - 32px));
+  height: min(540px, calc(100dvh - 32px));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  gap: 0;
+  border-color: var(--border);
+  border-radius: 12px;
+  background: var(--surface-layer-2);
+  color: var(--foreground);
+  --ternilo-scrollbar-thumb: var(--scrollbar-elevated);
+  --ternilo-scrollbar-thumb-hover: var(--scrollbar-elevated-hover);
+}
+
+.editorScope {
+  display: contents;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px 16px 9px 24px;
+  border-bottom: 1px solid var(--border-focus);
+}
+
+.title,
+.createTitle {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: normal;
+}
+
+.description {
+  max-width: 600px;
+  margin: 0;
+  color: var(--label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.crumbBar {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  margin-left: -9px;
+  padding: 0 8px;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.crumbBar:has(.crumbEditZone:enabled:hover),
+.crumbBar:has(.crumbEditZone:focus-visible),
+.crumbBar:has(.pathInput) {
+  border-color: var(--border);
+}
+
+.crumbTrail {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.crumbTrail::-webkit-scrollbar,
+.millerRow::-webkit-scrollbar {
+  display: none;
+}
+
+.crumbSeat {
+  display: inline-flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.crumb {
+  max-width: 160px;
+  min-height: 30px;
+  padding: 4px 2px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--label-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.crumb:hover,
+.crumb:focus-visible {
+  color: var(--foreground);
+}
+
+.crumb:focus-visible,
+.crumbEditZone:focus-visible,
+.row:focus-visible,
+.showHiddenToggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.crumbChevron,
+.rowChevron {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--label-tertiary);
+}
+
+.crumbEditZone {
+  display: flex;
+  min-width: 40px;
+  height: 32px;
+  padding: 0;
+  flex: 1 0 40px;
+  align-items: center;
+  justify-content: flex-end;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--label-tertiary);
+  cursor: text;
+}
+
+.crumbEditZone svg {
+  width: 15px;
+  height: 15px;
+}
+
+.crumbEditZone:enabled:hover,
+.crumbEditZone:focus-visible {
+  color: var(--foreground);
+}
+
+.crumbEditZone:disabled {
+  color: var(--label-caption);
+  cursor: default;
+}
+
+.pathInput {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 30px;
+  padding: 0;
+  flex: 1 1 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.pathInput::placeholder,
+.createInput::placeholder {
+  color: var(--label-caption);
+}
+
+.content {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  padding: 16px 16px 12px 24px;
+  flex: 1 1 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.millerRow {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0;
+  align-items: stretch;
+  gap: 12px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+
+.column {
+  display: flex;
+  min-width: 256px;
+  padding-right: 8px;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.divider {
+  width: 1px;
+  flex: none;
+  background: var(--border-focus);
+}
+
+.rowSeat {
+  display: flex;
+  flex: none;
+}
+
+.row {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 6px;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--interactive-hover);
+}
+
+.rowSelected,
+.rowSelected:hover {
+  background: var(--interactive-active);
+}
+
+.row:disabled {
+  color: var(--label-caption);
+  cursor: default;
+}
+
+.rowIcon,
+.rowIconSelected {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.rowIcon {
+  color: var(--label-secondary);
+}
+
+.rowIconSelected {
+  color: var(--primary);
+}
+
+.rowName {
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  display: grid;
+  min-height: 120px;
+  margin: 0;
+  padding: 16px;
+  place-items: center;
+  color: var(--label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.status,
+.error {
+  padding: 4px 120px 4px 4px;
+  flex: none;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.status {
+  color: var(--label-secondary);
+}
+
+.error {
+  color: var(--destructive);
+}
+
+.loadingFloat {
+  position: absolute;
+  right: 16px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface-layer-2);
+}
+
+.footerBar {
+  display: flex;
+  padding: 14px 24px;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border-focus);
+}
+
+.footerControl,
+.footerAction {
+  min-height: 36px;
+}
+
+.showHiddenToggle {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 6px 4px;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.showHiddenToggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.showHiddenToggle:hover,
+.showHiddenToggleActive {
+  color: var(--foreground);
+}
+
+.showHiddenToggle:disabled {
+  color: var(--label-caption);
+  cursor: default;
+}
+
+.footerGap {
+  min-width: 0;
+  flex: 1 1 16px;
+}
+
+.footerAction {
+  min-width: 72px;
+}
+
+.createDialog.createDialog {
+  display: block;
+  width: min(380px, calc(100vw - 32px));
+  max-width: none;
+  padding: 0;
+  gap: 0;
+  border-color: var(--border);
+  border-radius: 12px;
+  background: var(--surface-layer-2);
+}
+
+.createBody {
+  display: flex;
+  padding: 22px 24px 20px;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.createIn {
+  margin: 0;
+  color: var(--label-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.createInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.createInput:focus-visible {
+  border-color: var(--border-focus);
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.createActions {
+  display: flex;
+  margin-top: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 639px), (max-height: 480px) {
+  .dialog.dialog {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+  }
+
+  .header {
+    padding: 12px 12px 8px 16px;
+    gap: 5px;
+  }
+
+  .description {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .content {
+    padding: 10px 8px 8px 16px;
+  }
+
+  .footerBar {
+    padding: 8px 16px;
+  }
+
+  .row,
+  .crumb,
+  .crumbEditZone,
+  .showHiddenToggle,
+  .footerControl,
+  .footerAction,
+  .createActions button {
+    min-height: 40px;
+  }
+
+  .footerGap {
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .footerAction {
+    flex: 1 1 0;
+  }
+
+  .status,
+  .error {
+    padding-right: 90px;
+  }
+}
+
+@media (max-height: 480px) and (min-width: 640px) {
+  .description {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .header {
+    padding-top: 8px;
+    padding-bottom: 6px;
+  }
+
+  .footerBar {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+}

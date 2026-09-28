@@ -1,0 +1,54 @@
+{
+  "catalog_revision": "ternilo-cloud-v2",
+  "policy_revision": "cloud-example-v1",
+  "maximum_limits": {
+    "max_steps": 0,
+    "max_tool_calls": 512
+  },
+  "max_run_attempts": 2,
+  "max_tenant_workspace_bytes": 10737418240,
+  "max_tenant_workspace_entries": 1000000,
+  "minimum_workspace_free_bytes": 2147483648,
+  "max_extension_packages_per_run": 4,
+  "extension_host_policy": {
+    "allowed_capabilities": ["log", "workspace_read"],
+    "maximum_rhai_limits": {
+      "max_operations": 1000000,
+      "max_string_bytes": 1048576,
+      "max_collection_items": 100000,
+      "max_call_levels": 64,
+      "max_expr_depth": 64,
+      "max_variables": 4096,
+      "max_functions": 256,
+      "max_wall_ms": 60000,
+      "max_input_bytes": 1048576,
+      "max_output_bytes": 2097152,
+      "max_workspace_read_bytes": 2097152
+    },
+    "maximum_wasm_component_limits": {
+      "fuel": 20000000,
+      "max_memory_bytes": 67108864,
+      "max_input_bytes": 1048576,
+      "max_output_bytes": 2097152,
+      "max_workspace_read_bytes": 2097152
+    },
+    "max_payload_bytes": 16777216
+  },
+  "allowed_plugin_kinds": [
+    "ternilo.session.log",
+    "ternilo.prompt.registry",
+    "ternilo.tools.registry",
+    "ternilo.hooks.registry",
+    "ternilo.prompt.system",
+    "ternilo.prompt.identity",
+    "ternilo.prompt.section",
+    "ternilo.code_runtime.rhai",
+    "ternilo.tools.code_mode",
+    "ternilo.model.rule",
+    "ternilo.session_title.llm",
+    "ternilo.context.compaction",
+    "ternilo.agent.react",
+    "ternilo.extension.package"
+  ],
+  "denied_tools": []
+}

@@ -1,0 +1,18 @@
+package ternilo:extension@1.0.0;
+
+interface host {
+  enum log-level {
+    debug,
+    info,
+    warn,
+    error,
+  }
+
+  log: func(level: log-level, message: string) -> result<_, string>;
+  read-workspace-text: func(path: string) -> result<string, string>;
+}
+
+world runtime {
+  import host;
+  export invoke: func(handler: string, context-json: string, input-json: string) -> result<string, string>;
+}

@@ -1,0 +1,328 @@
+.workspaceRow,
+.sessionRow {
+  position: relative;
+  min-width: 0;
+  border-radius: 8px;
+  color: var(--foreground);
+}
+
+.workspaceButton,
+.sessionButton {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.workspaceButton {
+  height: 36px;
+  gap: 6px;
+  padding: 0 60px 0 8px;
+}
+
+.sessionButton {
+  min-height: 36px;
+  gap: 4px;
+  padding: 4px 34px 4px calc(8px + var(--session-indent, 0px));
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.nestedSession::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(15px + var(--session-indent, 0px) - 14px);
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
+.childToggle {
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  left: calc(8px + var(--session-indent, 0px));
+  display: inline-grid;
+  width: 16px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+  color: var(--label-tertiary);
+}
+
+.childToggle:hover { color: var(--foreground); }
+.childToggle[data-state='running'] { color: var(--accent-color); }
+.childToggle[data-state='warning'] { color: var(--warning, #d78b21); }
+.sessionParent .sessionStatusSlot { visibility: hidden; }
+
+.sessionStatusSlot {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  place-items: center;
+}
+
+.sessionStatusDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--label-caption);
+}
+
+.sessionStatusDot[data-state='warning'] { background: var(--warning, #d78b21); }
+.sessionStatusDot[data-state='running'] {
+  background: var(--accent-color);
+}
+.sessionStatusDot[data-state='completed'] { background: var(--success, #25a065); }
+.sessionStatusDot[data-state='idle'] { background: var(--label-caption); }
+
+.workspaceButton:hover,
+.sessionButton:hover,
+.menuOpen .workspaceButton,
+.menuOpen .sessionButton {
+  background: var(--interactive-hover);
+}
+
+.selected .sessionButton { background: var(--interactive-active); color: var(--foreground); }
+
+.workspaceButton[data-active] .placementIcon {
+  color: var(--label-secondary);
+}
+
+.workspaceLeading {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 20px;
+  color: var(--label-tertiary);
+}
+
+.workspaceButton:hover .placementIcon,
+.menuOpen .placementIcon { display: none; }
+.chevron { display: none; }
+.workspaceButton:hover .chevron,
+.menuOpen .chevron { display: block; }
+
+.title,
+.workspaceTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceTitle { flex: 1; font-size: 12px; font-weight: 600; line-height: 20px; color: var(--label-secondary); }
+
+.statusDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.statusDot[data-offline] { background: var(--label-tertiary); }
+
+.rowActions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspaceRow:focus-within .rowActions,
+.sessionRow:focus-within .rowActions,
+.workspaceRow:hover .rowActions,
+.sessionRow:hover .rowActions,
+.menuOpen .rowActions { display: flex; }
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--label-tertiary);
+}
+
+.iconButton:hover { color: var(--foreground); }
+
+.reorderMenuItem {
+  min-height: 40px;
+  touch-action: manipulation;
+}
+
+.sessionCopy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.snippet {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.searchResult .sessionButton { min-height: 48px; align-items: flex-start; }
+
+.time {
+  flex: none;
+  margin-left: auto;
+  color: var(--label-tertiary);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.sessionRow:hover .time,
+.menuOpen .time { visibility: hidden; }
+
+.hoverCard {
+  z-index: 60;
+  width: min(320px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover);
+  color: var(--foreground);
+  box-shadow: var(--shadow-lv3);
+}
+
+.hoverContent {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  border: 0;
+  padding: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.pathButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 32px;
+  gap: 12px;
+  border: 0;
+  border-radius: 5px;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--label-tertiary);
+  text-align: left;
+}
+.pathButton:hover { color: var(--foreground); background: var(--interactive-hover); }
+.pathButton svg { flex: none; }
+.locationHint { padding: 6px 0; color: var(--label-secondary); font-size: 12px; line-height: 1.6; }
+.copyFeedback { font-size: 12px; line-height: 1.5; }
+.locationDialog { width: min(380px, calc(100vw - 24px)); padding: 0; gap: 0; }
+.locationDialog .hoverContent { padding: 20px; }
+.locationDialog .hoverTitle { padding-right: 30px; }
+.locationDialog [data-slot='dialog-close'] { top: 8px; right: 8px; width: 40px; height: 40px; }
+.hoverTitle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.hoverPath { max-width: 100%; color: var(--label-secondary); overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 11px; }
+.hoverMeta { color: var(--label-tertiary); font-size: 11px; }
+.hoverStatus {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--label-secondary);
+  font-size: 12px;
+}
+
+.dropBefore::before,
+.dropAfter::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  right: 4px;
+  left: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--primary);
+  pointer-events: none;
+}
+
+.dropBefore::before { top: -2px; }
+.dropAfter::after { bottom: -2px; }
+
+:global(.app-sidebar[data-mobile-open]) .sessionParent .sessionButton {
+  min-height: 42px;
+}
+
+:global(.app-sidebar[data-mobile-open]) .childToggle {
+  top: 1px;
+  left: calc(-4px + var(--session-indent, 0px));
+  width: 40px;
+  height: 40px;
+}
+
+@container ternilo-sidebar (max-width: 250px) {
+  .sessionParent .sessionButton { min-height: 42px; }
+  .childToggle {
+    top: 1px;
+    left: calc(-4px + var(--session-indent, 0px));
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspaceButton,
+  .sessionButton { min-height: 42px; }
+  .workspaceButton { padding-right: 88px; }
+  .sessionButton { padding-right: 44px; }
+  .rowActions { top: 1px; right: 2px; gap: 2px; display: flex; }
+  .time { display: none; }
+  .iconButton { width: 40px; height: 40px; }
+  .pathButton { min-height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sessionRow { animation: none; }
+}
+
+.machineLabel {
+  display: inline-block;
+  flex: none;
+  max-width: 72px;
+  overflow: hidden;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

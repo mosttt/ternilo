@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "package_id": "dev.ternilo.rhai-echo",
+  "version": "1.0.0",
+  "description": "可审查的 Rhai 多工具 Extension Package 示例。",
+  "source": "https://plugins.ternilo.dev/examples",
+  "publisher_key_id": "example-publisher",
+  "payload_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "runtime": {
+    "kind": "rhai",
+    "limits": {
+      "max_operations": 1000000,
+      "max_string_bytes": 1048576,
+      "max_collection_items": 100000,
+      "max_call_levels": 64,
+      "max_expr_depth": 64,
+      "max_variables": 4096,
+      "max_functions": 256,
+      "max_wall_ms": 60000,
+      "max_input_bytes": 1048576,
+      "max_output_bytes": 2097152,
+      "max_workspace_read_bytes": 2097152
+    }
+  },
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "prefix": {
+        "type": "string",
+        "title": "回显前缀",
+        "default": "Rhai: "
+      },
+      "label": {
+        "type": "string",
+        "title": "检查结果标签",
+        "default": "inspection"
+      }
+    },
+    "required": ["prefix", "label"],
+    "additionalProperties": false
+  },
+  "contributions": {
+    "tools": [
+      {
+        "handler": "echo_handler",
+        "spec": {
+          "name": "rhai_echo",
+          "description": "使用 Extension 设置中的前缀回显输入文本。",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "要回显的文本。"
+              }
+            },
+            "required": ["text"],
+            "additionalProperties": false
+          }
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "content": { "type": "string" },
+            "is_error": { "type": "boolean" }
+          },
+          "required": ["content", "is_error"],
+          "additionalProperties": false
+        },
+        "effect": "read_only",
+        "presentation": {
+          "title": "Rhai 回显",
+          "icon_kind": "sparkles",
+          "input_summary": [
+            { "label": "文本", "path": ["text"] }
+          ],
+          "result": { "kind": "text" }
+        }
+      },
+      {
+        "handler": "inspect_handler",
+        "spec": {
+          "name": "rhai_inspect",
+          "description": "返回传入参数、Extension 设置和安全会话标识。",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "description": "要检查的任意 JSON 值。"
+              }
+            },
+            "required": ["value"],
+            "additionalProperties": false
+          }
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "label": { "type": "string" },
+            "arguments": { "type": "object" },
+            "session_id": { "type": "string" }
+          },
+          "required": ["label", "arguments", "session_id"],
+          "additionalProperties": false
+        },
+        "effect": "read_only",
+        "presentation": {
+          "title": "Rhai 参数检查",
+          "icon_kind": "code",
+          "input_summary": [
+            { "label": "值", "path": ["value"] }
+          ],
+          "result": { "kind": "json" }
+        }
+      }
+    ],
+    "prompt_sections": [
+      {
+        "id": "rhai-extension-guidance",
+        "order": 450,
+        "content": "The mounted Rhai example provides rhai_echo for prefixed echoing and rhai_inspect for inspecting JSON arguments."
+      }
+    ],
+    "skills": [
+      {
+        "name": "rhai-extension-tools",
+        "description": "Use the installed Rhai example tools through their signed Extension contribution.",
+        "when_to_use": "When validating Rhai Extension installation, tool discovery, or configured tool behavior.",
+        "invocation": {
+          "model_invocable": true,
+          "user_invocable": true
+        },
+        "content": "# Rhai Extension tools\n\nUse `rhai_echo` to echo text with the mounted prefix. Use `rhai_inspect` to inspect JSON arguments together with the safe session identity."
+      }
+    ],
+    "hooks": [],
+    "commands": [],
+    "providers": []
+  },
+  "requested_capabilities": []
+}

@@ -1,0 +1,66 @@
+.trigger {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  gap: 7px;
+  border-radius: 7px;
+  padding: 2px 5px;
+  color: var(--label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+}
+.trigger:hover,
+.trigger[data-state='open'] { background: var(--interactive-hover); color: var(--foreground); }
+.trigger:focus-visible,
+.copy:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.avatar {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--surface-layer-2);
+  color: var(--label-secondary);
+  font-size: 9px;
+  font-weight: 600;
+}
+.avatar svg { width: 13px; height: 13px; }
+.name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compact { min-height: 26px; padding-left: 0; font-size: 11px; }
+.compact .avatar { width: 20px; height: 20px; font-size: 8px; }
+.details {
+  z-index: 70;
+  width: min(300px, calc(100vw - 24px));
+  max-height: var(--radix-popover-content-available-height);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--popover);
+  color: var(--foreground);
+  box-shadow: var(--shadow-lv3);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.details h3 { margin: 0 0 12px; font-weight: 600; }
+.details dt { margin-top: 12px; color: var(--label-tertiary); font-size: 11px; }
+.details dd { margin-top: 4px; }
+.details p { color: var(--label-secondary); }
+.idRow { display: flex; min-width: 0; align-items: flex-start; gap: 8px; }
+.id { min-width: 0; flex: 1; padding-top: 7px; font-size: 11px; user-select: all; }
+.copy { display: grid; width: 32px; height: 32px; flex: none; place-items: center; border-radius: 7px; }
+.copy svg { width: 15px; height: 15px; }
+.copy:hover { background: var(--interactive-hover); }
+.details .notice,
+.details .error { margin-top: 10px; font-size: 11px; }
+.details .error { color: var(--destructive); }
+@media (max-width: 760px) {
+  .trigger { min-height: 36px; }
+  .copy { width: 40px; height: 40px; }
+}

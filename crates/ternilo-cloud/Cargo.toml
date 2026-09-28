@@ -1,0 +1,35 @@
+[package]
+name = "ternilo-cloud"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+base64.workspace = true
+rand.workspace = true
+linorun-core.workspace = true
+linorun-macros.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+ternilo-kernel.workspace = true
+ternilo-protocol.workspace = true
+ternilo-storage.workspace = true
+ternilo-control.workspace = true
+chrono.workspace = true
+ternilo-transport.workspace = true
+ternilo-extension.workspace = true
+ternilo-builtins.workspace = true
+ternilo-code-runtime.workspace = true
+ternilo-local.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+ed25519-dalek.workspace = true
+
+[lints]
+workspace = true

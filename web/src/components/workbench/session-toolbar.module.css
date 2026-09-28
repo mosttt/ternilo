@@ -1,0 +1,25 @@
+.composerControls,
+.headerActions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.composerControls { gap: 1px; }
+.headerActions { gap: 3px; }
+.composerControl,
+.headerAction { min-width: 28px; color: var(--label-tertiary); }
+.presetAction { max-width: 160px; }
+.headerActionLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobileOnly,
+.mobileOnlySeparator { display: none; }
+
+@media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  .headerActions > :not(.headerMore):not(.headerService) { display: none; }
+  .composerControl { min-width: 40px; height: 40px; }
+  .headerMore,
+  .headerService { min-width: 40px; height: 40px; }
+  .composerControlLabel { display: none; }
+  .mobileOnly { display: flex; }
+  .mobileOnlySeparator { display: block; }
+}

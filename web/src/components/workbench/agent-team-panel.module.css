@@ -1,0 +1,232 @@
+.panel {
+  width: min(900px, calc(100vw - 32px));
+  max-width: 900px;
+  height: min(760px, calc(100dvh - 32px));
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+.panel > :global([data-slot='dialog-close']) { width: 40px; height: 40px; padding: 0; }
+
+.header { min-width: 0; padding: 20px 54px 14px 22px; }
+.titleRow { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; }
+.title { display: flex; align-items: center; gap: 8px; }
+.title > :global(svg) { width: 18px; height: 18px; }
+.titleRow > :global(button) { position: absolute; top: 12px; right: 48px; }
+
+.tabs {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+}
+.tabs > button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--label-tertiary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tabs > button:hover { background: var(--surface-module); color: var(--foreground); }
+.tabs > button[data-active] { background: var(--surface-selector); color: var(--foreground); }
+.tabs > button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.tabs svg { width: 15px; height: 15px; }
+.tabs em {
+  min-width: 18px;
+  border-radius: 999px;
+  padding: 1px 5px;
+  background: var(--surface-selector);
+  color: var(--label-caption);
+  font-size: 10px;
+  font-style: normal;
+  text-align: center;
+}
+.tabs em[data-unread] { background: var(--primary); color: var(--primary-foreground); }
+
+.notice { margin: 10px 18px 0; border: 1px solid var(--destructive); border-radius: 8px; padding: 8px 10px; color: var(--destructive); font-size: 12px; line-height: 18px; }
+.notice[data-kind='conflict'] { border-color: var(--warning, #d78b21); color: var(--warning, #d78b21); }
+.notice > strong,
+.notice > small { display: block; }
+.notice > small { margin-top: 2px; color: var(--label-secondary); font-size: 11px; overflow-wrap: anywhere; }
+.body { grid-row: 4; min-width: 0; min-height: 0; overflow: auto; padding: 14px 18px 18px; }
+.body > section { min-width: 0; }
+.loadState,
+.emptyState { display: grid; justify-items: center; gap: 8px; padding: 34px 14px; color: var(--label-tertiary); text-align: center; }
+.loadState p,
+.emptyState p { max-width: 520px; margin: 0; color: var(--label-caption); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+
+.roster { display: grid; min-height: 0; gap: 9px; }
+.member {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  margin-left: min(54px, calc(var(--team-member-depth, 0) * 18px));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px;
+  background: var(--surface-layer-1);
+}
+.member[data-selected] { border-color: var(--border-strong); background: var(--interactive-active); }
+.memberHeader { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.avatar { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 7px; background: var(--surface-selector); color: var(--label-secondary); }
+.avatar > :global(svg) { width: 15px; height: 15px; }
+.identity { display: grid; min-width: 0; flex: 1; }
+.identity > strong,
+.identity > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.identity > strong { color: var(--foreground); font-size: 13px; font-weight: 550; }
+.identity > strong > em { margin-left: 6px; color: var(--primary); font-size: 10px; font-style: normal; font-weight: 500; }
+.identity > small,
+.status { color: var(--label-tertiary); font-size: 11px; }
+.dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--label-caption); }
+.dot[data-status='running'],
+.dot[data-status='current'] { background: var(--primary); }
+.dot[data-status='completed'],
+.dot[data-status='idle'],
+.dot[data-status='available'] { background: var(--success, #25a065); }
+.dot[data-status='failed'] { background: var(--destructive); }
+.dot[data-status='cancelled'] { background: var(--warning, #d78b21); }
+.memberMeta { color: var(--label-caption); font-size: 10px; }
+.fact { display: grid; min-width: 0; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; font-size: 12px; line-height: 18px; }
+.fact > strong { color: var(--label-tertiary); font-weight: 500; }
+.fact > p,
+.fact > pre { min-width: 0; margin: 0; color: var(--label-secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+.fact > pre { max-height: 180px; overflow: auto; font: 11px/17px var(--font-mono); }
+.failure > strong,
+.failure > pre { color: var(--destructive); }
+.memberActions,
+.stopRow { display: flex; min-height: 32px; flex-wrap: wrap; align-items: center; gap: 4px; }
+.memberActions > span,
+.stopRow > span { color: var(--label-caption); font-size: 10px; }
+.memberActions > :global(button:first-child),
+.stopRow > :global(button:first-child) { margin-left: -8px; }
+.followup { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.followup > label { grid-column: 1 / -1; color: var(--label-tertiary); font-size: 11px; }
+.followup > textarea {
+  min-width: 0;
+  min-height: 56px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  line-height: 19px;
+}
+.followup > textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.followup > :global(button) { align-self: end; }
+.readOnly { margin: 0; border-top: 1px solid var(--border-subtle); padding-top: 8px; color: var(--label-caption); font-size: 11px; line-height: 17px; }
+.actionError { margin: 0; color: var(--destructive); font-size: 12px; overflow-wrap: anywhere; }
+
+.tasksView,
+.mailbox { display: grid; gap: 12px; }
+.viewIntro { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; }
+.viewIntro > div { min-width: 0; }
+.viewIntro strong { color: var(--foreground); font-size: 13px; }
+.viewIntro p { margin: 3px 0 0; color: var(--label-tertiary); font-size: 11px; line-height: 17px; }
+.taskList,
+.messageList { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.taskCard,
+.taskForm,
+.messageForm,
+.messageCard { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--surface-layer-1); }
+.taskCard { display: grid; gap: 9px; }
+.taskCard > header { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.taskCard > header > strong { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.taskStatus { flex: none; border-radius: 999px; padding: 2px 7px; background: var(--surface-selector); color: var(--label-secondary); font-size: 10px; }
+.taskCard[data-status='in_progress'] .taskStatus { color: var(--primary); }
+.taskCard[data-status='blocked'] .taskStatus { color: var(--warning, #d78b21); }
+.taskCard[data-status='completed'] .taskStatus { color: var(--success, #25a065); }
+.taskCard[data-status='cancelled'] .taskStatus { color: var(--label-caption); text-decoration: line-through; }
+.taskActions { display: flex; flex: none; align-items: center; gap: 2px; }
+.taskDescription { margin: 0; color: var(--label-secondary); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.taskFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; margin: 0; font-size: 11px; }
+.taskFacts > div { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr); gap: 6px; }
+.taskFacts dt { color: var(--label-caption); }
+.taskFacts dd { min-width: 0; margin: 0; color: var(--label-tertiary); overflow-wrap: anywhere; }
+.deleteConfirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-top: 1px solid var(--border-subtle); padding-top: 9px; color: var(--destructive); font-size: 11px; }
+.deleteConfirm > span { min-width: 180px; flex: 1; }
+.taskForm { display: grid; gap: 12px; }
+.taskFormGrid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(150px, 1fr); gap: 12px; }
+.taskDescriptionField { grid-column: 1 / -1; }
+.dependencies { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; margin: 0; border: 0; padding: 0; }
+.dependencies legend { width: 100%; margin-bottom: 3px; color: var(--foreground); font-size: 12px; font-weight: 500; }
+.dependencies > label { display: flex; max-width: 100%; align-items: center; gap: 6px; border-radius: 7px; padding: 5px 8px; background: var(--surface-module); color: var(--label-secondary); font-size: 11px; }
+.dependencies > label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dependencies > span { color: var(--label-caption); font-size: 11px; }
+.formActions { display: flex; justify-content: flex-end; gap: 6px; }
+
+.messageForm { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(0, 2fr) auto; align-items: end; gap: 10px; }
+.messageField textarea { min-height: 64px; }
+.messageCard { display: grid; gap: 8px; }
+.messageCard[data-unread] { border-color: color-mix(in srgb, var(--accent-color) 56%, var(--border)); }
+.messageCard > header,
+.messageCard > footer { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.messageCard > header strong { min-width: 0; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.messageCard time,
+.messageCard footer { color: var(--label-caption); font-size: 10px; }
+.messageCard > p { margin: 0; color: var(--label-secondary); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.messageCard[data-direction='outgoing'] { margin-left: min(80px, 9%); }
+.messageCard[data-direction='incoming'] { margin-right: min(80px, 9%); }
+
+.spin { animation: team-spin 800ms linear infinite; }
+@keyframes team-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 620px) {
+  .panel {
+    top: calc(var(--ternilo-visual-viewport-top, 0px) + max(8px, env(safe-area-inset-top))) !important;
+    bottom: auto;
+    width: calc(100vw - 16px);
+    height: calc(var(--ternilo-visual-viewport-height, 100dvh) - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
+    max-height: none !important;
+    --tw-translate-x: -50% !important;
+    --tw-translate-y: 0px !important;
+    border-radius: 12px;
+  }
+  .panel > :global([data-slot='dialog-close']) { top: 6px; right: 6px; width: 40px; height: 40px; padding: 0; }
+  .header { padding: 14px 88px 11px 14px; }
+  .titleRow > :global(button) { top: 6px; right: 48px; width: 40px; height: 40px; }
+  .tabs { justify-content: stretch; padding: 7px 8px; }
+  .tabs > button { flex: 1; justify-content: center; padding: 8px 5px; }
+  .tabs > button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .body { padding: 10px 8px 12px; }
+  .notice { margin: 8px 8px 0; }
+  .member { margin-left: min(20px, calc(var(--team-member-depth, 0) * 8px)); padding: 10px; }
+  .fact { grid-template-columns: 1fr; gap: 2px; }
+  .followup,
+  .taskFormGrid,
+  .messageForm { grid-template-columns: 1fr; }
+  .followup > :global(button),
+  .memberActions > :global(button),
+  .stopRow > :global(button),
+  .formActions > :global(button),
+  .messageForm > :global(button) { min-height: 40px; }
+  .followup > :global(button),
+  .messageForm > :global(button) { width: 100%; }
+  .taskFacts { grid-template-columns: 1fr; }
+  .taskDescriptionField { grid-column: auto; }
+  .messageCard[data-direction] { margin-right: 0; margin-left: 0; }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .panel { top: calc(var(--ternilo-visual-viewport-top, 0px) + max(8px, env(safe-area-inset-top))) !important; bottom: auto; height: calc(var(--ternilo-visual-viewport-height, 100dvh) - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom))); max-height: none !important; --tw-translate-x: -50% !important; --tw-translate-y: 0px !important; }
+  .panel > :global([data-slot='dialog-close']) { top: 6px; right: 6px; width: 40px; height: 40px; padding: 0; }
+  .header { padding-top: 10px; padding-bottom: 8px; }
+  .body { padding-top: 8px; }
+  .followup > :global(button),
+  .memberActions > :global(button),
+  .stopRow > :global(button),
+  .formActions > :global(button),
+  .messageForm > :global(button) { min-height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

@@ -1,0 +1,30 @@
+[package]
+name = "ternilo-control"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+argon2.workspace = true
+chrono.workspace = true
+base64.workspace = true
+chacha20poly1305.workspace = true
+futures-util.workspace = true
+jsonwebtoken.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+ternilo-protocol.workspace = true
+ternilo-storage.workspace = true
+ternilo-transport.workspace = true
+ternilo-extension.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

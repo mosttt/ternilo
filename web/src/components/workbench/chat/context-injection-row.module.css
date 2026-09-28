@@ -1,0 +1,41 @@
+.root { min-width: 0; }
+.root:has([data-open]) { padding-bottom: 4px; }
+
+.source {
+  min-width: 0;
+  overflow: hidden;
+  flex: none;
+  max-width: 38%;
+  color: var(--label-tertiary);
+  font-size: var(--ternilo-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--ternilo-content-font-delta, 0px));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary {
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+  color: var(--label-tertiary);
+  font-size: var(--ternilo-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--ternilo-content-font-delta, 0px));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.body {
+  box-sizing: border-box;
+  width: calc(100% - 22px - var(--ternilo-content-font-delta, 0px));
+  max-height: 141px;
+  margin: 4px 0 0 calc(22px + var(--ternilo-content-font-delta, 0px));
+  overflow: auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 16px 12px 12px;
+  background: var(--surface-code);
+  color: var(--label-tertiary);
+  font: 400 11px/16px var(--font-mono);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

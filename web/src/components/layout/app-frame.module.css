@@ -1,0 +1,217 @@
+.frame {
+  position: relative; /* anchors the drag handles, which straddle column borders */
+  display: grid;
+  grid-template-rows: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--background);
+  /* Keep the column tracks and resize handles on the same motion curve. */
+  transition: grid-template-columns var(--motion-slow) var(--ease-standard);
+}
+
+/* Dragging writes widths at pointer cadence; easing them would detach the
+   column from the handle. */
+.frame[data-dragging] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame {
+    transition: none;
+  }
+}
+
+.sidebarCol {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.sidebarCol > :global(.app-sidebar) {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+}
+
+.centerCol {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.centerCol > :global(.conversation-column) {
+  flex: 1;
+  min-height: 0;
+}
+
+.detailsCol {
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+}
+
+.detailsCol > :global(.details-panel) {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The details subtree stays mounted at zero width, so its border must not paint
+   a 1px seam. The collapsed sidebar instead retains a bordered compact rail. */
+.frame[data-details-collapsed] .detailsCol {
+  border-left: none;
+}
+
+/* When the layout solver cannot retain the details minimum width, the
+   inspector becomes frame chrome instead of remaining mounted in a 0px grid
+   track. This also covers wide phone landscape and compact tablet widths that
+   do not cross the portrait-only mobile breakpoint. */
+.frame[data-details-overlay] .detailsCol {
+  position: absolute;
+  z-index: 35;
+  inset: 0;
+  width: 100%;
+  overflow: hidden;
+  border-left: none;
+  box-shadow: var(--shadow-lv3);
+}
+
+.frame[data-details-overlay] .sidebarCol[inert] { visibility: hidden; }
+
+.frame[data-details-overlay] .detailsCol > :global(.details-panel) {
+  position: static;
+  inset: auto;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: none;
+}
+
+/* Drag handles are frame children (columns clip overflow): an 8px hit strip
+   centered on the column border via inline left, above column content. Details
+   adds a visible 12x32 pill at vertical center; sidebar keeps only the hit strip. */
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  margin-left: -4px;
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+  /* Rides the same curve as the tracks so the pill stays on the moving
+     border during collapse/expand; paused while dragging (frame rule). */
+  transition: left var(--motion-slow) var(--ease-standard);
+}
+
+.frame[data-dragging] .handle {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .handle {
+    transition: none;
+  }
+}
+
+.handle[data-side='details']::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 32px;
+  border-radius: 10px;
+  box-sizing: border-box;
+  background: var(--surface-layer-2);
+  border: 1px solid var(--border-thin);
+  /* Hover affordance: the details pill hides until the pointer is over its
+     column, the strip itself, or a drag. */
+  opacity: 0;
+  transition:
+    opacity var(--motion-slow) var(--ease-standard),
+    background var(--motion-slow) var(--ease-standard);
+}
+
+.detailsCol:hover ~ .handle[data-side='details']::after,
+.handle[data-side='details']:hover::after,
+.handle[data-side='details'][data-dragging='true']::after {
+  opacity: 1;
+}
+
+.handle[data-side='details']:hover::after,
+.handle[data-side='details'][data-dragging='true']::after {
+  background: var(--button-elevated-hover);
+  border-color: var(--border-focus);
+}
+
+.overlayLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.overlayLayer > * {
+  pointer-events: auto;
+}
+
+.mobileBackdrop {
+  display: none;
+}
+
+/* Narrow screens retain the same mounted content in full-height drawers. */
+@media (max-width: 760px) {
+  .frame[data-mobile] {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .frame[data-mobile] .centerCol {
+    width: 100%;
+    height: 100%;
+  }
+
+  .frame[data-mobile] .sidebarCol {
+    position: absolute;
+    z-index: 45;
+    inset: 0 auto 0 0;
+    width: min(310px, calc(100vw - 36px));
+    overflow: hidden;
+    border-right: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-lv3);
+    transform: translateX(-102%);
+    transition: transform var(--motion-normal) var(--ease-standard);
+  }
+
+  .frame[data-mobile][data-mobile-sidebar-open] .sidebarCol {
+    transform: translateX(0);
+  }
+
+  .frame[data-mobile] .sidebarCol > :global(.app-sidebar) {
+    position: static;
+    inset: auto;
+    width: 100%;
+    height: 100%;
+    transform: none;
+    box-shadow: none;
+    transition: none;
+  }
+
+  .mobileBackdrop {
+    position: absolute;
+    z-index: 40;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: var(--overlay);
+  }
+}

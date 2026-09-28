@@ -1,0 +1,173 @@
+.inspector {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-code);
+}
+
+.toolbar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 4px;
+}
+
+.action {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--label-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.action:hover,
+.action[aria-pressed='true'] {
+  background: var(--interactive-hover);
+  color: var(--foreground);
+}
+
+.action:focus-visible,
+.expander:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.action[data-state='failed'] { color: var(--destructive); }
+.action > :global(svg) { width: 14px; height: 14px; flex: none; }
+
+.treeViewport,
+.raw {
+  box-sizing: border-box;
+  max-width: 100%;
+  max-height: 340px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.treeViewport {
+  --json-property: #5db0d7;
+  --json-string: #f28b82;
+  --json-number: #99c8ff;
+  --json-keyword: #99c8ff;
+  --json-punctuation: var(--foreground);
+  --json-hover: rgb(232 234 237 / 5%);
+  color: var(--foreground);
+  font: 11px/20px var(--font-mono);
+}
+
+.treeViewport:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+:global(html:not(.dark)) .treeViewport {
+  --json-property: #881391;
+  --json-string: #c41a16;
+  --json-number: #1c00cf;
+  --json-keyword: #1c00cf;
+  --json-punctuation: #202124;
+  --json-hover: rgb(60 64 67 / 5%);
+}
+
+.treeBody {
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 100%;
+  padding: 7px 8px 9px;
+  white-space: pre;
+}
+
+.rootBracket { padding-left: 4px; color: var(--json-punctuation); }
+.rootChildren,
+.children { margin: 0; padding: 0; list-style: none; }
+.children { padding-left: 14px; }
+.node { min-width: 100%; list-style: none; }
+
+.row {
+  display: flex;
+  min-width: 100%;
+  min-height: 20px;
+  align-items: flex-start;
+  border-radius: 3px;
+}
+
+.row:hover,
+.row:has(> .expander:focus-visible) { background: var(--json-hover); }
+
+.expander,
+.expanderSpacer {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.expander {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  background: transparent;
+  color: var(--label-caption);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.expander:hover { color: var(--foreground); }
+.chevron,
+.chevronOpen {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid currentColor;
+  transform: scale(.75);
+}
+.chevronOpen { transform: rotate(90deg) scale(.75); }
+.key { margin-right: 3px; color: var(--json-property); }
+.string { color: var(--json-string); }
+.number { color: var(--json-number); }
+.keyword { color: var(--json-keyword); }
+.other { color: var(--label-secondary); }
+.punctuation,
+.previewKey { color: var(--json-punctuation); }
+.ellipsis { color: var(--label-tertiary); }
+
+.raw {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--label-secondary);
+  font: 11px/17px var(--font-mono);
+  white-space: pre;
+}
+
+@media (max-width: 720px) {
+  .action { min-height: 40px; padding-inline: 10px; }
+  .treeViewport,
+  .raw { max-height: 46dvh; }
+  .treeViewport { font-size: 12px; line-height: 40px; }
+  .row { min-height: 40px; }
+  .expander,
+  .expanderSpacer { width: 40px; height: 40px; }
+  .children { padding-left: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action { transition: none; }
+}

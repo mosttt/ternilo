@@ -1,0 +1,40 @@
+[package]
+name = "ternilo-server"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+base64.workspace = true
+clap.workspace = true
+futures-util.workspace = true
+rand.workspace = true
+salvo_core.workspace = true
+salvo_extra.workspace = true
+reqwest.workspace = true
+rpassword = "7.4"
+sha2.workspace = true
+tempfile.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+url = "2.5"
+ternilo-builtins.workspace = true
+ternilo-cloud.workspace = true
+ternilo-control.workspace = true
+ternilo-kernel.workspace = true
+ternilo-local.workspace = true
+ternilo-storage.workspace = true
+ternilo-protocol.workspace = true
+ternilo-transport.workspace = true
+ternilo-extension.workspace = true
+
+[dev-dependencies]
+salvo_core = { workspace = true, features = ["test"] }
+tokio-tungstenite.workspace = true
+
+[lints]
+workspace = true

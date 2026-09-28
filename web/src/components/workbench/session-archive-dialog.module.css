@@ -1,0 +1,28 @@
+.dialog { width: min(640px, calc(100vw - 24px)); max-width: 640px; overflow-y: auto; }
+.toolbar { display: flex; justify-content: flex-end; }
+.list { display: grid; gap: 12px; list-style: none; padding: 0; margin: 0; min-width: 0; }
+.session { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; overflow-wrap: anywhere; }
+.heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.heading strong { min-width: 0; }
+.heading span { flex-shrink: 0; }
+.metadata { display: grid; gap: 4px; color: var(--muted-foreground); font-size: 12px; }
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hint, .status { color: var(--muted-foreground); font-size: 13px; }
+.error { color: var(--destructive); font-size: 13px; overflow-wrap: anywhere; }
+.preview { display: grid; gap: 14px; min-width: 0; }
+.previewTitle { overflow-wrap: anywhere; }
+.previewToolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.history { list-style: none; padding: 0; margin: 0; min-width: 0; }
+.historyRow { padding: 14px 0; min-width: 0; overflow-wrap: anywhere; border-bottom: 1px solid var(--border); }
+.historyRole { display: block; margin-bottom: 8px; font-size: 13px; }
+.historyText { white-space: pre-wrap; font-size: 14px; }
+.historyDetails { min-width: 0; font-size: 13px; }
+.historyDetails summary { min-height: 40px; padding: 8px 0; cursor: pointer; }
+.historyDetails summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.historyDetails pre { max-height: 320px; overflow: auto; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 8px; background: var(--muted); font-size: 12px; }
+@media (max-width: 480px) {
+  .dialog { padding: 20px 16px; }
+  .dialog button { min-width: 40px; min-height: 40px; }
+  .dialog [data-slot="dialog-close"] { top: 8px; right: 8px; }
+  .session { padding: 12px; }
+}

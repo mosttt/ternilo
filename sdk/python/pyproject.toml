@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ternilo-sdk"
+version = "0.1.0"
+description = "Python client for the Ternilo automation runtime"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ternilo"]

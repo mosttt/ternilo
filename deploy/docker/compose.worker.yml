@@ -1,0 +1,29 @@
+name: ${TERNILO_DEPLOY_PROJECT:-ternilo-worker}
+
+services:
+  worker:
+    image: ${TERNILO_IMAGE:?set TERNILO_IMAGE to an explicit Worker version or digest}
+    command: [worker, serve, --data-dir, /var/lib/ternilo]
+    restart: unless-stopped
+    stop_grace_period: 45s
+    volumes:
+      - worker-data:/var/lib/ternilo
+    user: "0:0"
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:5431/readyz]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    cap_drop: [ALL]
+    cap_add: [SYS_ADMIN, NET_ADMIN, SETUID, SETGID, CHOWN, DAC_READ_SEARCH, SETPCAP]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=unconfined
+    pids_limit: 512
+
+volumes:
+  worker-data:

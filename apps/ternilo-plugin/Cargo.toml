@@ -1,0 +1,26 @@
+[package]
+name = "ternilo-plugin-cli"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "ternilo-plugin"
+path = "src/main.rs"
+
+[dependencies]
+base64.workspace = true
+clap.workspace = true
+ed25519-dalek.workspace = true
+ternilo-extension.workspace = true
+ternilo-protocol.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+wit-component.workspace = true
+zeroize.workspace = true
+
+[lints]
+workspace = true

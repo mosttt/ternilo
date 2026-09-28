@@ -1,0 +1,17 @@
+{
+  "plugins": [
+    { "id": "session", "kind": "ternilo.session.log", "config": {} },
+    { "id": "prompt-registry", "kind": "ternilo.prompt.registry", "config": {} },
+    { "id": "tool-registry", "kind": "ternilo.tools.registry", "config": {} },
+    {
+      "id": "system-prompt",
+      "kind": "ternilo.prompt.system",
+      "config": { "content": "You are Ternilo, a concise and capable local software agent." }
+    },
+    { "id": "identity-prompt", "kind": "ternilo.prompt.identity", "config": {} },
+    { "id": "model", "kind": "ternilo.model.rule", "config": { "prefix": "ternilo: " } },
+    { "id": "session-title", "kind": "ternilo.session_title.llm", "config": {} },
+    { "id": "context", "kind": "ternilo.context.compaction", "config": {} },
+    { "id": "agent-loop", "kind": "ternilo.agent.react", "config": {} }
+  ]
+}

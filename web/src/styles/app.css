@@ -1,0 +1,147 @@
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#root {
+  position: relative;
+  top: var(--ternilo-visual-viewport-top, 0px);
+  width: 100%;
+  height: var(--ternilo-visual-viewport-height, 100%);
+  min-height: 0;
+  overflow: hidden;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  background-color: var(--surface-layer-3);
+  color: var(--foreground);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--label-caption);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--primary);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+button:focus-visible,
+a[href]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+[role="dialog"] {
+  border-color: var(--border-subtle);
+  background: var(--surface-layer-2);
+  box-shadow: var(--shadow-lv3);
+}
+
+[role="menu"] {
+  border-color: var(--border-subtle);
+  background: var(--popover);
+  box-shadow: var(--shadow-lv2);
+}
+
+[data-slot="dropdown-menu-item"].text-destructive[data-highlighted] {
+  color: var(--destructive);
+  background: var(--interactive-danger);
+}
+
+[data-slot="button"].bg-primary {
+  background: var(--button-primary);
+  color: var(--button-primary-foreground);
+}
+
+[data-slot="button"].bg-primary:hover:not(:disabled) {
+  background: var(--button-primary-hover);
+}
+
+[data-slot="button"].text-destructive:hover:not(:disabled) {
+  background: var(--interactive-danger);
+  color: var(--destructive);
+}
+
+[data-slot="button"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 8px;
+  left: 8px;
+  transform: translateY(-150%);
+  border-radius: 7px;
+  background: var(--foreground);
+  padding: 7px 11px;
+  color: var(--background);
+  font-size: 13px;
+}
+
+.skip-link:focus { transform: translateY(0); }
+
+@media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  [data-slot="dialog-close"] {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  [data-slot="dropdown-menu-item"],
+  [data-slot="dropdown-menu-radio-item"],
+  [data-slot="dropdown-menu-sub-trigger"] {
+    min-height: 40px;
+  }
+
+  [role="dialog"] [data-slot="dialog-footer"] { align-items: stretch; }
+  [role="dialog"] [data-slot="dialog-footer"] > button { min-height: 40px; }
+
+  /* Preserve the compact 36x20 visual switch while giving its Radix root a
+     real 40x40 pointer and focus target. */
+  [data-slot="switch"] {
+    position: relative;
+    box-sizing: border-box;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  [data-slot="switch"]::before {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 36px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--input);
+    content: '';
+    transform: translateY(-50%);
+  }
+
+  [data-slot="switch"][data-state="checked"]::before { background: var(--primary); }
+  [data-slot="switch"] > * { position: relative; z-index: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}

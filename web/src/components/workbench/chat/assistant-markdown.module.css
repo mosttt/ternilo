@@ -1,0 +1,21 @@
+.root {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--foreground);
+  font-size: var(--ternilo-content-font-size, 14px);
+  line-height: calc(24px + var(--ternilo-content-font-delta, 0px));
+}
+
+.body { min-width: 0; }
+
+.stopped {
+  align-self: flex-start;
+  border-radius: 6px;
+  padding: 0 6px;
+  background: var(--interactive-hover);
+  color: var(--label-tertiary);
+  font-size: 11px;
+  line-height: 18px;
+}

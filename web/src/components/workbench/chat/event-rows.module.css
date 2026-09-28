@@ -1,0 +1,32 @@
+.root { min-width: 0; }
+.goalRound { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 0; border: 0; border-radius: 4px; background: transparent; color: var(--label-tertiary); text-align: left; font-size: 12px; cursor: pointer; }
+.goalRound > span { flex: 1; }
+.goalRound > :global(svg) { width: 14px; height: 14px; }
+.goalRound:hover { color: var(--foreground); }
+.goalRound:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.summary { min-width: 0; overflow: hidden; color: var(--label-tertiary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.spin { animation: spin 1s linear infinite; }
+.body, .definition { box-sizing: border-box; width: calc(100% - 22px); max-height: 180px; margin: 4px 0 0 22px; overflow: auto; border-radius: 8px; padding: 10px 12px; background: var(--surface-code); color: var(--label-tertiary); font: 11px/17px var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.bodyStack { display: flex; flex-direction: column; gap: 4px; }
+.definition { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 10px; }
+.definition dt { color: var(--label-caption); }
+.definition dd { margin: 0; }
+.details { align-self: flex-start; margin: 2px 0 0 22px; border: 0; padding: 3px 0; background: transparent; color: var(--primary); font-size: 12px; cursor: pointer; }
+.card { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 5px; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 9px 11px; background: transparent; color: var(--label-secondary); text-align: left; cursor: pointer; }
+.card:hover { border-color: var(--border); background: var(--interactive-hover); }
+.card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.cardHeader { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.cardHeader > :global(svg) { width: 14px; height: 14px; flex: none; }
+.cardHeader > strong { min-width: 0; overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.cardHeader > :global(svg:last-child) { margin-left: auto; color: var(--label-caption); }
+.cardBody, .cardMeta { color: var(--label-tertiary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.error { border-color: color-mix(in srgb, var(--destructive) 35%, transparent); }
+.error .cardHeader { color: var(--destructive); }
+.warning { border-color: color-mix(in srgb, #d89b32 35%, transparent); }
+.warning .cardHeader { color: #d89b32; }
+.plan { display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
+.plan > div { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; }
+.plan :global(svg) { width: 13px; height: 13px; flex: none; margin-top: 2px; }
+.plan [data-status="completed"] { color: var(--label-caption); text-decoration: line-through; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

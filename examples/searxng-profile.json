@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    {
+      "id": "web-search",
+      "kind": "ternilo.web.search.searxng",
+      "enabled": true,
+      "config": {
+        "base_url": "https://search.example.com",
+        "timeout_ms": 30000,
+        "max_results": 10
+      }
+    }
+  ]
+}

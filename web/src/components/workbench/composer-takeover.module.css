@@ -1,0 +1,96 @@
+.question,
+.approval {
+  box-sizing: border-box;
+  width: calc(100% - 32px);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--border-thin);
+  border-radius: 20px;
+  background: var(--surface-input);
+  box-shadow: var(--shadow-lv2);
+  color: var(--foreground);
+}
+
+.question > header,
+.approval > header { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px 10px; }
+.heading { min-width: 0; flex: 1; }
+.eyebrow { color: var(--primary); font-size: 12px; line-height: 18px; }
+.question h2,
+.approval h2 { min-width: 0; margin: 2px 0 0; overflow-wrap: anywhere; font-size: 15px; font-weight: 500; line-height: 22px; white-space: normal; }
+.iconButton { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 8px; color: var(--label-tertiary); }
+.iconButton:hover { background: var(--interactive-hover); }
+.iconButton svg { width: 15px; height: 15px; }
+.minimized > header { padding-bottom: 14px; }
+.questionBody { padding: 0 16px; }
+.questionDetail { min-width: 0; margin: 0 0 12px; overflow-wrap: anywhere; color: var(--label-secondary); font-size: 13px; line-height: 20px; }
+.options { display: flex; flex-direction: column; gap: 8px; }
+.options button { display: flex; height: auto; min-width: 0; align-items: flex-start; gap: 10px; border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; color: var(--foreground); text-align: left; white-space: normal; }
+.options button:hover:not(:disabled) { border-color: var(--border-strong); background: var(--interactive-hover); }
+.options button.selectedOption { border-color: var(--accent-color); background: var(--primary-surface); }
+.optionMark { display: grid; width: 20px; height: 20px; flex: none; place-items: center; border-radius: 6px; background: var(--interactive-hover); color: var(--label-tertiary); font-size: 11px; }
+.optionMark svg { width: 13px; height: 13px; }
+.optionCopy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.optionLabel { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px; overflow-wrap: anywhere; line-height: 20px; white-space: normal; }
+.optionLabel em { border-radius: 999px; padding: 1px 6px; background: var(--surface-selector); color: var(--label-secondary); font-size: 10px; font-style: normal; }
+.optionCopy small { min-width: 0; overflow-wrap: anywhere; color: var(--label-tertiary); font-size: 12px; line-height: 18px; white-space: normal; }
+.customAnswer { display: flex; gap: 8px; margin-top: 10px; }
+.customAnswer > svg { width: 16px; height: 16px; flex: none; margin: 12px 0 0 3px; color: var(--label-tertiary); }
+.customAnswer textarea { min-height: 40px; max-height: 120px; flex: 1; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--surface-layer-1); color: var(--foreground); outline: none; font: inherit; }
+.customAnswer textarea:focus { border-color: var(--primary); }
+.customAnswer button,
+.allow,
+.deny { border-radius: 9px; padding: 8px 12px; font-size: 13px; }
+.customAnswer button,
+.allow { background: var(--primary); color: var(--primary-foreground); }
+.customAnswer button:disabled,
+.allow:disabled,
+.deny:disabled { opacity: .5; }
+.questionFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 10px; }
+.feedback { min-width: 0; flex: 1; color: var(--destructive); font-size: 12px; text-align: center; }
+.questionActions { display: flex; align-items: center; gap: 10px; }
+.pager { display: flex; align-items: center; gap: 7px; color: var(--label-tertiary); font-size: 12px; }
+.pager button { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; }
+.pager button:hover:not(:disabled) { background: var(--interactive-hover); }
+.pager svg { width: 14px; height: 14px; }
+.skip { display: inline-flex; align-items: center; gap: 5px; color: var(--label-tertiary); font-size: 12px; }
+.skip svg { width: 13px; height: 13px; }
+.continue { min-height: 34px; border-radius: 9px; padding: 7px 12px; background: var(--primary); color: var(--primary-foreground); font-size: 12px; }
+.continue:disabled { opacity: .5; }
+.approval { padding-bottom: 12px; border-color: color-mix(in srgb, var(--warning) 50%, var(--border)); }
+.approvalIcon { display: grid; width: 32px; height: 32px; flex: none; place-items: center; border-radius: 9px; background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+.approvalIcon svg { width: 18px; height: 18px; }
+.approval > p { margin: 0; padding: 0 16px 10px; color: var(--label-secondary); font-size: 13px; line-height: 20px; }
+.detailButton { display: flex; align-items: center; gap: 6px; margin: 0 16px; color: var(--label-tertiary); font-size: 12px; }
+.detailButton svg { width: 13px; height: 13px; }
+.detailButton svg:last-child { margin-left: 2px; }
+.approvalDetails { display: grid; grid-template-columns: auto 1fr; gap: 5px 8px; margin: 8px 16px 0; border-radius: 9px; padding: 9px; background: var(--surface-layer-1); color: var(--label-tertiary); font-size: 11px; }
+.approvalDetails code { min-width: 0; overflow: hidden; color: var(--label-secondary); text-overflow: ellipsis; }
+.approvalDetails pre { grid-column: 1 / -1; max-height: 150px; margin: 4px 0 0; overflow: auto; color: var(--label-secondary); white-space: pre-wrap; }
+.approvalActions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px 0; }
+.deny { border: 1px solid var(--border); color: var(--label-secondary); }
+.allow { display: inline-flex; align-items: center; gap: 5px; }
+.allow svg { width: 14px; height: 14px; }
+
+@media (max-width: 520px) {
+  .question,
+  .approval { width: calc(100% - 12px); border-radius: 16px; }
+  .customAnswer { flex-direction: column; }
+  .customAnswer > svg { display: none; }
+  .questionFooter { flex-wrap: wrap; }
+  .feedback { order: 3; flex-basis: 100%; }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .approvalDetails pre { max-height: 70px; }
+}
+
+@media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  .iconButton,
+  .pager button { width: 40px; height: 40px; }
+  .options button,
+  .detailButton,
+  .skip,
+  .continue,
+  .allow,
+  .deny { min-height: 40px; }
+}

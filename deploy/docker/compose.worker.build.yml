@@ -1,0 +1,8 @@
+services:
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: worker
+      additional_contexts:
+        linorun: ${TERNILO_LINORUN_SOURCE:-../../../linorun}

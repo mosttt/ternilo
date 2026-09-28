@@ -1,0 +1,74 @@
+.root { position: relative; }
+.trigger {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  padding: 3px 4px;
+  background: transparent;
+  color: var(--label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+.trigger:hover,
+.trigger:focus-visible { color: var(--foreground); }
+.trigger:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.trigger > :global(svg) { width: 13px; height: 13px; transition: transform 120ms ease; }
+.trigger > :global(svg[data-open]) { transform: rotate(180deg); }
+.liveDot,
+.dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  display: flex;
+  width: 360px;
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: min(420px, calc(100dvh - 110px));
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  background: var(--popover);
+  box-shadow: var(--shadow-lv3);
+}
+.row {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--foreground);
+  font-size: 12px;
+}
+.settled { color: var(--label-tertiary); }
+.row[data-job-status='completed'] .dot { background: var(--success, #25a065); }
+.row[data-job-status='failed'] .dot { background: var(--destructive); }
+.row[data-job-status='cancelled'] .dot { background: var(--warning, #d78b21); }
+.kind { flex: none; border-radius: 5px; padding: 0 6px; background: var(--surface-selector); color: var(--label-secondary); font-size: 10px; line-height: 18px; }
+.command { min-width: 0; overflow: hidden; flex: 1; color: inherit; font-family: var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.status { max-width: 32%; overflow: hidden; flex: none; color: var(--label-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.duration { flex: none; color: var(--label-caption); font-size: 11px; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  .trigger { min-width: 40px; min-height: 40px; justify-content: center; }
+  .trigger > span:not(.liveDot) { display: none; }
+  .menu { position: fixed; top: 58px; right: 8px; left: 8px; width: auto; max-width: none; }
+  .status { display: none; }
+}
+@media (max-height: 480px) and (orientation: landscape) { .menu { max-height: calc(100dvh - 72px); } }
+@media (prefers-reduced-motion: reduce) { .trigger > :global(svg) { transition: none; } }

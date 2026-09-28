@@ -1,0 +1,48 @@
+.userRow {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.userStack {
+  display: flex;
+  min-width: 0;
+  max-width: min(calc(var(--ternilo-chat-content-width, 748px) * .702), 82%);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bubble {
+  max-width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px 14px 4px 14px;
+  padding: 12px 18px;
+  background: var(--surface-bubble);
+  color: var(--foreground);
+  font-size: var(--ternilo-content-font-size, 14px);
+  line-height: calc(22px + var(--ternilo-content-font-delta, 0px));
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.assistantRow {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.editor { width: min(36rem, calc(100vw - 64px)); max-width: 100%; display: grid; gap: 8px; }
+.editor textarea { width: 100%; min-height: 100px; resize: vertical; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface-bubble); color: var(--foreground); font: inherit; }
+.editor textarea:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+.editorActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.editError { color: var(--destructive); font-size: 13px; }
+
+@media (max-width: 520px) {
+  .editorActions :global(button) { min-height: 40px; }
+  .userStack { max-width: 88%; }
+  .bubble { padding: 9px 14px; }
+}

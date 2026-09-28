@@ -1,0 +1,160 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      skip-packages:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_INCREMENTAL: '0'
+  CARGO_BUILD_JOBS: '2'
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  CARGO_PROFILE_TEST_DEBUG: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  client-server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+        working-directory: ternilo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: ternilo
+          persist-credentials: false
+      - uses: ./ternilo/.github/actions/prepare
+      - name: Enable sandbox namespaces on the disposable runner
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --ro-bind / / --unshare-user --unshare-pid --proc /proc --dev /dev true
+      - name: Web, documentation and deployment checks
+        run: |
+          npm --prefix web run verify:i18n
+          node web/scripts/verify-formal-docs.mjs --include-development
+          npm --prefix web run typecheck
+          npm --prefix web run test:rich-text
+          npm --prefix web run test:unit -- --maxWorkers=2
+          npm --prefix web run build
+          python3 deploy/docker/tests/deployment-tools.test.py
+          python3 deploy/docker/tests/release-gate.test.py
+          sh deploy/docker/tests/operations-configuration.test.sh
+          python3 -m unittest discover -s scripts/ci -p '*_test.py'
+      - name: Rust checks
+        run: |
+          cargo fmt --all --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-local -p ternilo-builtins -p ternilo-authorization -p ternilo-automation -p ternilo-acp -p ternilo-control -p ternilo-protocol -p ternilo-kernel -p ternilo-transport -p ternilo-transport-store -p ternilo-storage
+      - name: Matched client, Server and native desktop
+        run: cargo build --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-desktop --features tauri/custom-protocol
+      - name: SDKs against the built client
+        env:
+          TERNILO_BIN: ${{ github.workspace }}/ternilo/target/debug/ternilo
+          PYTHONPATH: ${{ github.workspace }}/ternilo/sdk/python/src
+        run: |
+          python3 -m unittest discover -s sdk/python/tests
+          npm --prefix sdk/typescript test
+      - name: Authentication and Node routing with restricted PostgreSQL grants
+        run: bash scripts/ci/postgres-auth.sh
+      - name: Chromium
+        working-directory: ternilo/web
+        run: npx playwright install --with-deps chromium
+      - name: Browser, native desktop and installation recovery
+        env:
+          TERNILO_E2E_NODE_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo
+          TERNILO_E2E_SERVER_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo-server
+          TERNILO_E2E_PLUGIN_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo-plugin
+          TERNILO_E2E_DESKTOP_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo-desktop
+          TERNILO_E2E_ARTIFACT_DIR: ${{ runner.temp }}/ternilo-browser-evidence
+        run: |
+          node --test --test-concurrency=1 web/tests/browser-e2e.test.mjs web/tests/server-accounts-nodes-browser-e2e.test.mjs web/tests/server-oidc-contract-browser-e2e.test.mjs web/tests/server-oidc-link-browser-e2e.test.mjs web/tests/server-security-browser-e2e.test.mjs web/tests/scrollbar-browser-e2e.test.mjs web/tests/mobile-viewport-focus-browser-e2e.test.mjs web/tests/pwa-responsive-browser-e2e.test.mjs
+          node --test --test-concurrency=1 web/tests/server-groups-browser-e2e.test.mjs web/tests/server-model-service-browser-e2e.test.mjs
+          dbus-run-session -- xvfb-run -a node --test web/tests/desktop-smoke.test.mjs
+          node --test --test-concurrency=1 web/tests/delivery-restore-acceptance.test.mjs web/tests/postgres-restore-acceptance.test.mjs
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: browser-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/ternilo-browser-evidence/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  dependencies:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: ternilo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: ternilo
+          persist-credentials: false
+      - uses: ./ternilo/.github/actions/prepare
+      - run: |
+          if ! cargo deny --version | grep -q '0.20.2'; then cargo install cargo-deny --version 0.20.2 --locked; fi
+          cargo deny check advisories licenses sources
+          npm --prefix web audit --audit-level=high
+
+  platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+        working-directory: ternilo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: ternilo
+          persist-credentials: false
+      - uses: ./ternilo/.github/actions/prepare
+        with:
+          target: ${{ matrix.target }}
+      - run: npm --prefix web run build
+      - name: Prepare Windows sandbox for desktop metadata
+        if: runner.os == 'Windows'
+        run: python scripts/prepare-windows-sidecar.py --target "$RUST_TARGET"
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+      - run: cargo check --locked --target "$RUST_TARGET" -p ternilo -p ternilo-server -p ternilo-desktop -p ternilo-local -p ternilo-sandbox-windows --all-targets
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+      - name: Windows workspace boundaries
+        if: runner.os == 'Windows'
+        run: cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::workspace_browser
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+
+  packages:
+    if: ${{ !inputs.skip-packages && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/') }}
+    needs: [client-server, dependencies, platforms]
+    uses: ./.github/workflows/packages.yml

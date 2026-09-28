@@ -1,0 +1,25 @@
+:root {
+  --ternilo-scrollbar-thumb: var(--scrollbar-base);
+  --ternilo-scrollbar-thumb-hover: var(--scrollbar-base-hover);
+  --ternilo-scrollbar-width: 8px;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  :root, body, body * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  [data-scrollbar-active] { scrollbar-color: var(--ternilo-scrollbar-thumb) transparent; }
+}
+
+::-webkit-scrollbar { width: var(--ternilo-scrollbar-width); height: var(--ternilo-scrollbar-width); }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border-radius: 8px; background: transparent; }
+[data-scrollbar-active]::-webkit-scrollbar-thumb { background: var(--ternilo-scrollbar-thumb); }
+[data-scrollbar-active]::-webkit-scrollbar-thumb:hover { background: var(--ternilo-scrollbar-thumb-hover); }
+
+@media (forced-colors: active) {
+  :root, body, body *, [data-scrollbar-active] { scrollbar-color: auto; }
+  ::-webkit-scrollbar-thumb, [data-scrollbar-active]::-webkit-scrollbar-thumb,
+  [data-scrollbar-active]::-webkit-scrollbar-thumb:hover { background: CanvasText; }
+}

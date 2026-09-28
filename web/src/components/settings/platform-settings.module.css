@@ -1,0 +1,190 @@
+.notice {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--surface-module);
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.45fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+}
+
+.searchForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
+.pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.pagination > span { color: var(--muted-foreground); font-size: 12px; }
+.pagination > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.pagination button { min-height: 40px; }
+.groupRow { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-module); }
+.groupRow > :first-child { flex: 1; min-width: 0; }
+.groupRow strong, .groupRow p { overflow-wrap: anywhere; }
+.groupRow strong { font-size: 14px; }
+.groupRow p { margin-top: 4px; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.groupRow button { min-height: 40px; }
+.groupEditor { display: grid; gap: 16px; border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: var(--surface-module); }
+.groupMember { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+.groupMember > :first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.groupMember strong, .groupMember small { display: block; overflow-wrap: anywhere; }
+.groupMember strong { font-size: 13px; }
+.groupMember small { color: var(--muted-foreground); font-size: 12px; }
+.groupMember button { min-width: 40px; min-height: 40px; }
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.42fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--surface-module);
+}
+
+.identity { min-width: 0; }
+.identity strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.identity code, .metadata { color: var(--muted-foreground); font-size: 12px; }
+.identity code { display: block; overflow-wrap: anywhere; white-space: normal; }
+.metadata { margin-top: 4px; line-height: 1.45; }
+
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.status { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; }
+.status::before { width: 8px; height: 8px; border-radius: 999px; background: var(--muted-foreground); content: ""; }
+.status[data-online="true"]::before { background: var(--success); }
+
+.state {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.stateLine { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.statePanel {
+  display: grid;
+  min-height: 132px;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  color: var(--muted-foreground);
+  text-align: center;
+  font-size: 14px;
+}
+
+.statePanel > div { display: grid; justify-items: center; gap: 12px; }
+.spinner { animation: platform-spin 0.9s linear infinite; }
+
+.quotaForm { border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: var(--surface-module); }
+.quotaGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; }
+.quotaActions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; border-top: 1px solid var(--border); padding-top: 14px; }
+
+.auditHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.auditHeader > :first-child { margin-bottom: 12px; }
+.auditList { display: grid; gap: 10px; }
+.auditRow { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 13px 14px; background: var(--surface-module); }
+.auditPrimary { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.auditPrimary strong { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.auditPrimary time { margin-left: auto; color: var(--muted-foreground); font-size: 12px; }
+.auditFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin-top: 11px; }
+.auditFacts div { min-width: 0; }
+.auditFacts dt { color: var(--muted-foreground); font-size: 12px; }
+.auditFacts dd { min-width: 0; margin-top: 2px; overflow-wrap: anywhere; font-size: 13px; }
+.auditFacts code { font-size: 11px; white-space: normal; }
+.auditDetails { margin-top: 11px; border-top: 1px solid var(--border); padding-top: 9px; }
+.auditDetails summary { width: fit-content; cursor: pointer; color: var(--muted-foreground); font-size: 12px; }
+.auditDetails pre { max-height: 260px; margin: 9px 0 0; overflow: auto; border-radius: 8px; padding: 10px; background: var(--surface-layer-3); font-size: 11px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.usageHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.usageHeader > :first-child { margin-bottom: 12px; }
+.usageControls { display: grid; grid-template-columns: auto minmax(142px, 170px) auto; align-items: center; gap: 8px; }
+.usageControls label { color: var(--muted-foreground); font-size: 12px; }
+.usageSemantics { margin: 9px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.55; }
+.usageBody { display: grid; gap: 18px; margin-top: 16px; }
+.usageContext { display: flex; min-width: 0; flex-wrap: wrap; gap: 8px 24px; }
+.usageContext div { display: flex; min-width: 0; gap: 7px; }
+.usageContext dt { color: var(--muted-foreground); font-size: 12px; }
+.usageContext dd { min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.usageContext code { font-size: 11px; white-space: normal; }
+.usageSummary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.usageSummary article { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 13px 14px; background: var(--surface-module); }
+.usageSummary span { display: block; color: var(--muted-foreground); font-size: 12px; }
+.usageSummary strong { display: block; margin-top: 5px; overflow-wrap: anywhere; font-size: 18px; font-variant-numeric: tabular-nums; }
+.usageTokenFacts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.usageTokenFacts div { border-radius: 8px; padding: 9px 12px; background: var(--surface-layer-3); }
+.usageTokenFacts dt { color: var(--muted-foreground); font-size: 12px; }
+.usageTokenFacts dd { margin-top: 2px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.usageSection { min-width: 0; }
+.usageSection h3 { margin-bottom: 9px; font-size: 14px; font-weight: 600; }
+.usageSectionDescription { margin: -4px 0 9px; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.usageEmpty, .usageTruncated { color: var(--muted-foreground); font-size: 13px; }
+.usageTruncated { margin-top: 8px; }
+.usageTableScroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+.usageTableScroll:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.usageTable { width: 100%; min-width: 720px; border-collapse: collapse; background: var(--surface-module); font-size: 12px; }
+.usageTable th, .usageTable td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.usageTable tr:last-child td { border-bottom: 0; }
+.usageTable th { color: var(--muted-foreground); font-weight: 500; white-space: nowrap; }
+.usageTable td { font-variant-numeric: tabular-nums; }
+.usageTable code { display: block; max-width: 280px; overflow-wrap: anywhere; white-space: normal; font-size: 11px; }
+.usageTable small { display: block; margin-top: 3px; color: var(--muted-foreground); }
+.usageIssues { display: grid; gap: 2px; margin: 5px 0 0; padding: 0; color: var(--destructive); font-size: 11px; list-style: none; }
+.usageAnomalies { display: grid; gap: 8px; }
+.usageAnomalies article { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; border: 1px solid color-mix(in srgb, var(--destructive) 35%, var(--border)); border-radius: 10px; padding: 12px 13px; background: color-mix(in srgb, var(--destructive) 6%, var(--surface-module)); }
+.usageAnomalies svg { width: 17px; height: 17px; color: var(--destructive); }
+.usageAnomalies strong, .usageAnomalies span { display: block; min-width: 0; overflow-wrap: anywhere; }
+.usageAnomalies strong { font-size: 13px; }
+.usageAnomalies span { margin-top: 2px; color: var(--muted-foreground); font-size: 12px; }
+
+.command {
+  max-height: 230px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px;
+  background: var(--surface-layer-3);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+.command:focus { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+@keyframes platform-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 720px) {
+  .groupRow { align-items: flex-start; flex-wrap: wrap; }
+  .groupRow > :first-child { flex-basis: 100%; }
+  .groupRow > button { flex: 1; }
+  .searchForm { grid-template-columns: minmax(0, 1fr); }
+  .searchForm button { width: fit-content; min-height: 40px; }
+  .pagination { align-items: flex-start; flex-direction: column; }
+  .formGrid, .row { grid-template-columns: minmax(0, 1fr); }
+  .quotaGrid, .auditFacts { grid-template-columns: minmax(0, 1fr); }
+  .actions { justify-content: stretch; }
+  .actions > button { flex: 1; }
+  .row select { width: 100%; }
+  .auditPrimary time { width: 100%; margin-left: 0; }
+  .usageHeader { display: grid; }
+  .usageControls { grid-template-columns: minmax(0, 1fr) auto; }
+  .usageControls label { grid-column: 1 / -1; }
+  .usageControls button, .statePanel button { min-height: 40px; }
+  .usageSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .usageTokenFacts { grid-template-columns: minmax(0, 1fr); }
+}

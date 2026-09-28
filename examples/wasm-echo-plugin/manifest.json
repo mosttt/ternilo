@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "package_id": "dev.ternilo.echo",
+  "version": "1.0.0",
+  "description": "WASM Component 回显与工作区文本读取示例。",
+  "source": "https://plugins.ternilo.dev/examples",
+  "publisher_key_id": "example-publisher",
+  "payload_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "runtime": {
+    "kind": "wasm-component",
+    "world": "ternilo:extension/runtime@1.0.0",
+    "limits": {
+      "fuel": 5000000,
+      "max_memory_bytes": 16777216,
+      "max_input_bytes": 1048576,
+      "max_output_bytes": 2097152,
+      "max_workspace_read_bytes": 2097152
+    }
+  },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false
+  },
+  "contributions": {
+    "tools": [
+      {
+        "handler": "echo",
+        "spec": {
+          "name": "wasm_echo",
+          "description": "Echo text through a named WASM Component handler.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "content": { "type": "string" },
+            "is_error": { "type": "boolean" }
+          },
+          "required": ["content", "is_error"],
+          "additionalProperties": false
+        },
+        "effect": "read_only"
+      },
+      {
+        "handler": "read_workspace",
+        "spec": {
+          "name": "wasm_read_workspace",
+          "description": "Read a UTF-8 workspace file through an explicit host capability.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string" }
+            },
+            "required": ["path"],
+            "additionalProperties": false
+          }
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "content": { "type": "string" },
+            "is_error": { "type": "boolean" }
+          },
+          "required": ["content", "is_error"],
+          "additionalProperties": false
+        },
+        "effect": "read_only"
+      }
+    ],
+    "prompt_sections": [
+      {
+        "id": "wasm-extension-guidance",
+        "order": 450,
+        "content": "The mounted WASM example provides wasm_echo for echoing text and wasm_read_workspace for reading an explicitly requested workspace file."
+      }
+    ],
+    "skills": [
+      {
+        "name": "wasm-extension-tools",
+        "description": "Use the installed WASM example tools through their signed Extension contribution.",
+        "when_to_use": "When validating WASM Component Extension installation, dispatch, or workspace-read behavior.",
+        "invocation": {
+          "model_invocable": true,
+          "user_invocable": true
+        },
+        "content": "# WASM Extension tools\n\nUse `wasm_echo` for deterministic echoing. Use `wasm_read_workspace` only when the user explicitly asks to read a UTF-8 file in the current workspace."
+      }
+    ],
+    "hooks": [],
+    "commands": [],
+    "providers": []
+  },
+  "requested_capabilities": ["log", "workspace_read"]
+}

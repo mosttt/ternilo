@@ -1,0 +1,26 @@
+/* Shared syntax colors for streaming and completed code blocks. */
+:root {
+  --shiki-foreground: var(--foreground);
+  --shiki-background: var(--surface-code);
+  --shiki-token-constant: #0969da;
+  --shiki-token-string: #116329;
+  --shiki-token-comment: #656d76;
+  --shiki-token-keyword: #cf222e;
+  --shiki-token-parameter: #953800;
+  --shiki-token-function: #8250df;
+  --shiki-token-string-expression: #0a3069;
+  --shiki-token-punctuation: #57606a;
+  --shiki-token-link: #0969da;
+}
+
+.dark {
+  --shiki-token-constant: #a5d6ff;
+  --shiki-token-string: #9ecbff;
+  --shiki-token-comment: #969dac;
+  --shiki-token-keyword: #ff9ba9;
+  --shiki-token-parameter: #e3b67e;
+  --shiki-token-function: #d2a8ff;
+  --shiki-token-string-expression: #b8d7a3;
+  --shiki-token-punctuation: #bbc1ce;
+  --shiki-token-link: #a5c8ff;
+}

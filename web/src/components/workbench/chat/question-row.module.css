@@ -1,0 +1,58 @@
+.root {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--label-secondary);
+}
+
+.root[data-state="pending"] { border-color: color-mix(in srgb, var(--primary) 40%, var(--border-subtle)); }
+.root[data-state="interrupted"] { border-color: color-mix(in srgb, #d89b32 40%, var(--border-subtle)); }
+
+.header {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  padding: 8px 11px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.header:hover { background: var(--interactive-hover); }
+.header:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.header > svg { width: 14px; height: 14px; flex: none; }
+.header > strong { min-width: 0; overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.header > svg:last-child { color: var(--label-caption); }
+
+.state {
+  margin-left: auto;
+  flex: none;
+  color: var(--label-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.body { display: flex; min-width: 0; flex-direction: column; gap: 7px; padding: 0 11px 10px 32px; }
+.prompt, .reason, .verdict, .interrupted { min-width: 0; margin: 0; font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.prompt { color: var(--label-secondary); }
+.reason, .label { color: var(--label-tertiary); }
+.optionGroup { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.label { font-size: 11px; line-height: 16px; }
+.options { display: flex; min-width: 0; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.options li { max-width: 100%; border-radius: 999px; padding: 2px 8px; background: var(--interactive-hover); color: var(--label-tertiary); font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
+.options li small { display: block; color: var(--label-caption); font-size: 10px; }
+.verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; color: var(--label-secondary); }
+.verdict strong { font-weight: 500; }
+.interrupted { color: #d89b32; }
+
+@media (max-width: 480px) {
+  .header { padding-inline: 9px; }
+  .body { padding: 0 9px 10px; }
+}

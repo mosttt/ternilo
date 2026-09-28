@@ -1,0 +1,54 @@
+name: Prepare Ternilo sources
+description: Install the pinned toolchain and matching sibling Linorun source
+inputs:
+  target:
+    description: Additional Rust target
+    default: ''
+runs:
+  using: composite
+  steps:
+    - id: revision
+      shell: bash
+      working-directory: ternilo
+      run: |
+        revision=$(cat .github/linorun-revision)
+        [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+        echo "revision=$revision" >> "$GITHUB_OUTPUT"
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        repository: mosttt/linorun
+        ref: ${{ steps.revision.outputs.revision }}
+        path: linorun
+        persist-credentials: false
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      with:
+        node-version: '26'
+        cache: npm
+        cache-dependency-path: ternilo/web/package-lock.json
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.13'
+    - shell: bash
+      working-directory: ternilo
+      env:
+        RUST_TARGET: ${{ inputs.target }}
+      run: |
+        rustup show active-toolchain
+        if [ -n "$RUST_TARGET" ]; then rustup target add "$RUST_TARGET"; fi
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ~/.cargo/bin/cargo-deny
+        key: cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('ternilo/Cargo.lock', 'ternilo/rust-toolchain.toml', 'ternilo/.github/linorun-revision') }}
+        restore-keys: cargo-v1-${{ runner.os }}-${{ runner.arch }}-
+    - if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libxdo-dev libssl-dev bubblewrap xvfb dbus-x11
+    - shell: bash
+      working-directory: ternilo
+      run: npm --prefix web ci

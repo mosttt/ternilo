@@ -1,0 +1,25 @@
+[package]
+name = "ternilo-code-runtime"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+ternilo-kernel.workspace = true
+ternilo-protocol.workspace = true
+ternilo-rhai.workspace = true
+linorun-core.workspace = true
+linorun-macros.workspace = true
+rhai.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+ternilo-builtins.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

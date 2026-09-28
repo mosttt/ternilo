@@ -1,0 +1,58 @@
+.card {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  background: var(--surface-layer-1);
+  color: var(--label-secondary);
+  font-size: 12px;
+}
+.inspect { display: flex; width: 100%; min-width: 0; flex-direction: column; align-items: stretch; gap: 4px; border: 0; padding: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.inspect:focus-visible,
+.iconButton:focus-visible,
+.openSession:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.heading { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.heading > :global(svg) { width: 14px; height: 14px; flex: none; }
+.heading > strong { min-width: 0; overflow: hidden; flex: 1; color: var(--foreground); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.subagentHeading { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.subagentIdentity { display: flex; min-width: 0; flex: 1; align-items: center; gap: 7px; }
+.subagentTitle { display: flex; min-width: 0; flex: 1; align-items: center; gap: 7px; }
+.subagentTitle > :global(svg) { width: 14px; height: 14px; flex: none; }
+.subagentTitle > strong { min-width: 0; overflow: hidden; color: var(--foreground); font-size: 13px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.subagentStatus { display: inline-flex; flex: none; align-items: center; gap: 7px; }
+.subagentActions { display: flex; flex: none; gap: 7px; }
+.badge { flex: none; color: var(--label-tertiary); font-size: 11px; }
+.body { display: -webkit-box; margin: 2px 0 0 21px; overflow: hidden; color: var(--label-secondary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.meta { margin: 1px 0 0 21px; color: var(--label-tertiary); font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
+.dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--label-caption); }
+.dot[data-status='running'] { background: var(--primary); }
+.dot[data-status='completed'],
+.dot[data-status='idle'] { background: var(--success, #25a065); }
+.dot[data-status='failed'] { background: var(--destructive); }
+.dot[data-status='cancelled'] { background: var(--warning, #d78b21); }
+.iconButton { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border: 0; border-radius: 5px; padding: 0; background: transparent; color: var(--label-tertiary); cursor: pointer; }
+.iconButton:hover { color: var(--foreground); }
+.details { margin: 6px 0 0 21px; border-top: 1px solid var(--border); padding-top: 5px; color: var(--label-tertiary); }
+.details summary { cursor: pointer; }
+.details pre { max-height: 220px; margin: 5px 0 0; overflow: auto; font: 11px/17px var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.error { color: var(--destructive); }
+.openSession { display: inline-flex; min-height: 30px; align-items: center; gap: 6px; margin: 7px 0 0 21px; border: 0; border-radius: 6px; padding: 4px 7px; background: transparent; color: var(--primary); font-size: 11px; cursor: pointer; }
+.openSession:hover { background: var(--interactive-hover); }
+.openSession > :global(svg) { width: 13px; height: 13px; }
+.readOnly { margin: 7px 0 0 21px; color: var(--label-caption); font-size: 11px; line-height: 17px; }
+@media (max-width: 560px) {
+  .card { padding: 10px; }
+  .inspect { min-height: 40px; justify-content: center; }
+  .iconButton { width: 40px; height: 40px; }
+  .subagentIdentity { flex-direction: column; align-items: stretch; gap: 2px; }
+  .subagentTitle { align-items: flex-start; }
+  .subagentTitle > :global(svg) { margin-top: 2px; }
+  .subagentTitle > strong { overflow-wrap: anywhere; white-space: normal; }
+  .subagentStatus { margin-left: 21px; }
+  .body,
+  .meta,
+  .details,
+  .openSession,
+  .readOnly { margin-left: 0; }
+}

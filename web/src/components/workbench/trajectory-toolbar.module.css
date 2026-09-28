@@ -1,0 +1,145 @@
+.root {
+  display: flex;
+  width: 100%;
+  min-height: 46px;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-thin);
+  padding: 8px 12px;
+  background: var(--surface-layer-1);
+}
+
+.actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.action {
+  display: inline-flex;
+  height: 30px;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 6px;
+  background: transparent;
+  color: var(--label-tertiary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.action:hover,
+.action[aria-pressed="true"] {
+  background: var(--interactive-hover);
+  color: var(--foreground);
+}
+
+.action:focus-visible {
+  outline: 1px solid var(--accent-color);
+  outline-offset: 1px;
+}
+
+.action svg {
+  width: 12px;
+  height: 12px;
+}
+
+.search {
+  display: flex;
+  width: min(220px, 36%);
+  min-width: 84px;
+  height: 30px;
+  margin-left: auto;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border-regular);
+  border-radius: 6px;
+  padding: 0 6px;
+  background: var(--surface-layer-2);
+  color: var(--label-caption);
+}
+
+.search:focus-within {
+  border-color: var(--accent-color);
+  background: var(--surface-layer-1);
+}
+
+.search svg {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+
+.search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+}
+
+.search input::placeholder { color: var(--label-caption); }
+
+@media (max-width: 760px) {
+  .root {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 5px 6px;
+  }
+
+  .actions {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .actions::-webkit-scrollbar { display: none; }
+
+  .action {
+    min-width: 40px;
+    height: 40px;
+    justify-content: center;
+  }
+
+  .search {
+    width: 100%;
+    height: 36px;
+    margin-left: 0;
+  }
+}
+
+@container ternilo-trajectory (max-width: 760px) {
+  .root {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 5px 6px;
+  }
+
+  .actions {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .actions::-webkit-scrollbar { display: none; }
+
+  .action {
+    min-width: 40px;
+    height: 40px;
+    justify-content: center;
+  }
+
+  .search {
+    width: 100%;
+    height: 36px;
+    margin-left: 0;
+  }
+}

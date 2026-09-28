@@ -1,0 +1,1 @@
+{"desktop":{"identifier":"desktop","description":"Expose Ternilo's native desktop adapters only to its loopback UI origins.","remote":{"urls":["http://127.0.0.1:*/*"]},"local":false,"windows":["main"],"permissions":["core:event:allow-listen","core:event:allow-unlisten","allow-pick-workspace","allow-desktop-notify","allow-desktop-initial-links"]}}
