@@ -36,6 +36,9 @@ mod transport_tests;
 #[path = "files_tests/event_sync_tests.rs"]
 mod event_sync_tests;
 
+#[path = "files_tests/read_revocation_tests.rs"]
+mod read_revocation_tests;
+
 #[path = "files_tests/services_tests.rs"]
 mod services_tests;
 

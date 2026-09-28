@@ -948,6 +948,8 @@ impl<'a> EdgeAdapter<'a> {
                 });
             }
         }
+        // A Node read can outlive a share; recheck before releasing its projected events.
+        self.require_action(mapping, ResourceAction::View).await?;
         Ok(())
     }
 
