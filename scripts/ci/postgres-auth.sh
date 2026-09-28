@@ -20,3 +20,5 @@ cargo test --locked -p ternilo-control --lib model_store:: -- --ignored --test-t
 cargo test --locked -p ternilo-control --lib project_sharing::tests -- --ignored --test-threads=1
 
 cargo test --locked -p ternilo-server --bin ternilo-server postgres_project_files_search -- --ignored --test-threads=1
+
+cargo test --locked -p ternilo-server --bin ternilo-server postgres_account_delivery -- --ignored --test-threads=1

@@ -1,5 +1,7 @@
 //! Durable Node delivery, shared by every server mode and database backend.
 
+mod input_authorization;
+
 use sqlx::{Any, Row, Transaction};
 use ternilo_control::EdgeStore;
 use ternilo_protocol::{HarnessError, SessionEvent, SessionId, TenantId};
@@ -107,6 +109,7 @@ impl GatewayJournal {
         database
             .initialize("gateway", 1, SCHEMA, POSTGRES_SCHEMA)
             .await?;
+        input_authorization::initialize(&database).await?;
         Ok(Self { database })
     }
 
@@ -252,7 +255,7 @@ impl GatewayJournal {
         }
         let encoded = encode(command)?;
         let mut transaction = self.transaction(route).await?;
-        sqlx::query(
+        let inserted = sqlx::query(
             "INSERT INTO gateway_commands
              (tenant_id, command_id, executor_id, command_json, state, issued_at_ms, expires_at_ms)
              VALUES ($1, $2, $3, $4, 'pending', $5, $6)
@@ -266,7 +269,9 @@ impl GatewayJournal {
         .bind(integer(command.expires_at_ms)?)
         .execute(&mut *transaction)
         .await
-        .map_err(database_error)?;
+        .map_err(database_error)?
+        .rows_affected()
+            != 0;
         let row = sqlx::query(
             "SELECT executor_id, command_json FROM gateway_commands WHERE tenant_id = $1 AND command_id = $2",
         )
@@ -285,6 +290,7 @@ impl GatewayJournal {
                 "command ID was reused with different content or target",
             ));
         }
+        input_authorization::accept(&mut transaction, route, command, inserted).await?;
         if let Some(provenance) = &command.input_provenance {
             let (session_id, target_subagent_id) = match &command.body {
                 ExecutorCommandBody::Application { request } => match request {
@@ -326,40 +332,57 @@ impl GatewayJournal {
     ) -> Result<Vec<ExecutorCommand>, HarnessError> {
         let mut transaction = self.transaction(route).await?;
         require_lease(&mut transaction, route, lease, now).await?;
-        let rows = sqlx::query(
-            "SELECT command_id, command_json FROM gateway_commands
-             WHERE tenant_id = $1 AND executor_id = $2 AND expires_at_ms > $3
-               AND (state = 'pending' OR (state = 'inflight' AND
-                    (dispatch_until_ms <= $3 OR owner_id <> $4 OR fencing_token <> $5)))
-             ORDER BY issued_at_ms, command_id LIMIT $6",
-        )
-        .bind(route.tenant_id.as_str())
-        .bind(route.executor_id.as_str())
-        .bind(integer(now)?)
-        .bind(&lease.owner_id)
-        .bind(integer(lease.fencing_token)?)
-        .bind(i64::from(limit))
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(database_error)?;
-        let mut commands = Vec::with_capacity(rows.len());
-        for row in rows {
-            let id: String = row.try_get("command_id").map_err(database_error)?;
-            let encoded: String = row.try_get("command_json").map_err(database_error)?;
-            sqlx::query(
-                "UPDATE gateway_commands SET state = 'inflight', owner_id = $3,
-                     fencing_token = $4, dispatch_until_ms = $5
-                 WHERE tenant_id = $1 AND command_id = $2",
+        let mut commands = Vec::new();
+        while commands.len() < limit as usize {
+            let rows = sqlx::query(
+                "SELECT command_id, command_json, state FROM gateway_commands command
+                 WHERE tenant_id = $1 AND executor_id = $2 AND expires_at_ms > $3
+                   AND (state = 'pending' OR (state = 'inflight' AND
+                        (dispatch_until_ms <= $3 OR owner_id <> $4 OR fencing_token <> $5)))
+                   AND NOT EXISTS (SELECT 1 FROM gateway_input_authorizations auth
+                       WHERE auth.tenant_id = command.tenant_id AND auth.command_id = command.command_id AND auth.invalidated = 1)
+                 ORDER BY issued_at_ms, command_id LIMIT $6",
             )
             .bind(route.tenant_id.as_str())
-            .bind(id)
+            .bind(route.executor_id.as_str())
+            .bind(integer(now)?)
             .bind(&lease.owner_id)
             .bind(integer(lease.fencing_token)?)
-            .bind(integer(now.saturating_add(ttl))?)
-            .execute(&mut *transaction)
-            .await
-            .map_err(database_error)?;
-            commands.push(decode(&encoded)?);
+            .bind(i64::from(limit) - i64::try_from(commands.len()).expect("bounded by limit"))
+            .fetch_all(&mut *transaction).await.map_err(database_error)?;
+            if rows.is_empty() {
+                break;
+            }
+            for row in rows {
+                let encoded: String = row.try_get("command_json").map_err(database_error)?;
+                let command: ExecutorCommand = decode(&encoded)?;
+                let state: String = row.try_get("state").map_err(database_error)?;
+                if !input_authorization::may_dispatch(
+                    &mut transaction,
+                    route,
+                    &command,
+                    &state,
+                    now,
+                )
+                .await?
+                {
+                    continue;
+                }
+                sqlx::query(
+                    "UPDATE gateway_commands SET state = 'inflight', owner_id = $3,
+                         fencing_token = $4, dispatch_until_ms = $5
+                     WHERE tenant_id = $1 AND command_id = $2",
+                )
+                .bind(route.tenant_id.as_str())
+                .bind(command.command_id.as_str())
+                .bind(&lease.owner_id)
+                .bind(integer(lease.fencing_token)?)
+                .bind(integer(now.saturating_add(ttl))?)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?;
+                commands.push(command);
+            }
         }
         transaction.commit().await.map_err(database_error)?;
         Ok(commands)
