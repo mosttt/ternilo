@@ -46,3 +46,5 @@ The entry pages and account recovery guide are available in English and Simplifi
 Documentation is organized around usage and maintenance tasks. Unimplemented technical designs live in `docs/development/` and are not included in delivery packages.
 
 Commands assume the repository or extracted package root unless stated otherwise. Replace example domains, paths, accounts, and secrets with your own values; they do not identify public services.
+
+- [Reconcile unknown model usage](model-usage-reconciliation.en.md): complete missing counters with administrative evidence and immutable audit.

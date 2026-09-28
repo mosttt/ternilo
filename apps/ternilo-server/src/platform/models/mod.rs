@@ -7,6 +7,7 @@ mod gateway;
 mod grants;
 mod groups;
 mod maintenance;
+mod reconciliation;
 mod rotation;
 pub(crate) mod usage;
 
@@ -27,7 +28,17 @@ pub(crate) fn administration_router() -> Router {
         .push(config::publications_router())
         .push(groups::router())
         .push(grants::router())
-        .push(Router::with_path("requests").get(access::admin_requests))
+        .push(
+            Router::with_path("requests")
+                .get(access::admin_requests)
+                .push(
+                    Router::with_path("{request_id}/reconciliations").get(reconciliation::records),
+                )
+                .push(
+                    Router::with_path("{request_id}/attempts/{attempt}/reconcile")
+                        .post(reconciliation::reconcile),
+                ),
+        )
         .push(Router::with_path("usage").get(access::admin_usage))
 }
 

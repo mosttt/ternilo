@@ -268,3 +268,5 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 身份路由提供 setup、注册、登录、当前会话读取、退出、邀请接受、OIDC 显式绑定，以及[本站浏览器会话自助管理](#浏览器登录会话)。[原生密码重置](account-recovery.md)仅由本机维护 CLI 提供，没有公开重置路由；邮件找回、自助恢复和 MFA 尚未提供。退出当前会话、逐项／批量撤销其他原生会话，以及管理员封禁／注销触发的全账号撤销已实现。模型授权设备及 Node 电脑的撤销是另外两类接口，均不撤销外部 IdP 会话。
 
 实际部署见 [Docker 与生产部署](deployment.md)，Node 使用见 [远程访问与 Node](remote-access.md)，整体威胁模型见 [安全模型](security.md)。
+
+模型用量核对：`GET /api/v1/admin/models/requests/{request_id}/reconciliations` 读取管理核对记录；`POST /api/v1/admin/models/requests/{request_id}/attempts/{attempt}/reconcile` 由 Owner／Admin 补齐已结束尝试的缺失计数。权限、条件与请求格式见[核对指南](model-usage-reconciliation.md)。

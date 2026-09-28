@@ -507,14 +507,30 @@ async fn workload_contract(store: &ControlStore) {
         .await
         .unwrap();
     store
-        .settle_model_attempt(
+        .reconcile_model_usage(
+            &owner,
             &accepted.request.request_id,
             2,
-            &settlement(ModelRequestState::Failed, Some(20)),
+            &super::ModelUsageReconciliationInput {
+                expected_settled_at_ms: NOW + 3,
+                usage: settlement(ModelRequestState::Failed, Some(20))
+                    .usage
+                    .unwrap(),
+                reference: "upstream/retried-attempt-2".to_owned(),
+                note: "Verified after workload termination and grant revocation.".to_owned(),
+            },
             NOW + 11,
         )
         .await
         .unwrap();
+    assert_eq!(
+        store
+            .model_usage_reconciliations(&owner, &accepted.request.request_id)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
     store
         .settle_model_attempt(
             &accepted.request.request_id,

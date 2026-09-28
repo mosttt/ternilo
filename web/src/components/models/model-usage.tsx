@@ -4,11 +4,14 @@ import { Button } from '@/components/ui/button'
 import { useTranslate } from '@/i18n/provider'
 import { modelAccessPath, modelAdminPath, type ModelServiceRequest, type ModelUsageReport } from './model-service-api'
 import { ModelDirectory, errorMessage, useModelDate, useModelPage } from './model-service-ui'
+import { ModelUsageReconciliationDialog } from './model-usage-reconciliation'
+import type { ModelServiceAttempt } from './model-service-api'
 import css from './model-service.module.css'
 
-export function ModelUsage({ admin = false, source }: { admin?: boolean; source?: 'user_provider' | 'platform_grant' }) {
+export function ModelUsage({ admin = false, editable = false, source }: { admin?: boolean; editable?: boolean; source?: 'user_provider' | 'platform_grant' }) {
   const t = useTranslate('modelService')
   const date = useModelDate()
+  const [selected, setSelected] = React.useState<{ request: ModelServiceRequest; attempt?: ModelServiceAttempt } | null>(null)
   const errorLabels: Record<string, string> = {
     access_denied: t('errorAccessDenied'),
     quota_exceeded: t('errorQuotaExceeded'),
@@ -59,11 +62,14 @@ export function ModelUsage({ admin = false, source }: { admin?: boolean; source?
             <strong>{t('attempt', { number: attempt.attempt })} · {t(attempt.state)}</strong>
             <p>{attempt.accounted_tokens !== null ? t('requestUsage', { count: attempt.accounted_tokens.toLocaleString() }) : !attempt.attempted ? t('notAttempted') : attempt.state === 'pending' ? t('requestReserved', { count: attempt.reserved_tokens.toLocaleString() }) : t('unknown')}</p>
             {attempt.usage && <p>{t('inputTokens')}: {attempt.usage.input_tokens ?? t('notReported')} · {t('outputTokens')}: {attempt.usage.output_tokens ?? t('notReported')} · {t('reasoningTokens')}: {attempt.usage.reasoning_tokens ?? t('notReported')}</p>}
+            {admin && editable && request.state !== 'pending' && attempt.state !== 'pending' && attempt.attempted && attempt.accounted_tokens === null && attempt.settled_at_ms !== null && <Button type="button" size="sm" variant="outline" onClick={() => setSelected({ request, attempt })}>{t('reconcileAction')}</Button>}
             {attempt.error_code && <code>{errorLabels[attempt.error_code] ?? attempt.error_code}</code>}
           </li>)}</ol></details>}
+          {admin && <Button type="button" size="sm" variant="ghost" onClick={() => setSelected({ request })}>{t('reconcileRecords')}</Button>}
           {request.error_code && <code>{errorLabels[request.error_code] ?? request.error_code}</code>}
         </div>
       </article>)}</div>
     </ModelDirectory>
+    {admin && selected && <ModelUsageReconciliationDialog key={`${selected.request.request_id}:${selected.attempt?.attempt ?? 'records'}`} {...selected} editable={editable} onSaved={refresh} onClose={() => setSelected(null)} />}
   </div>
 }

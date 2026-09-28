@@ -323,6 +323,57 @@ test('platform model access works without workers or machine enrollment and stay
     await user.getByRole('link', { name: '用量', exact: true }).click()
     await until(() => user.locator('[data-model-request]').filter({ hasText: '用量待核对' }).count(), count => count === 2, 'cancelled calls retain unknown usage in the UI')
     await user.screenshot({ path: path.join(artifacts, 'model-usage-unknown.png') })
+    assert.equal(await user.getByRole('button', { name: '核对用量', exact: true }).count(), 0)
+    const pendingRequests = (await serverRequest(origin, '/admin/models/requests', { token: ownerToken })).requests
+    const unknownRequest = pendingRequests.find(request => request.attempted && request.accounted_tokens === null && request.state !== 'pending')
+    const unknownAttempt = unknownRequest.attempts.find(attempt => attempt.attempted && attempt.accounted_tokens === null)
+    const reconcilePath = `/admin/models/requests/${unknownRequest.request_id}/attempts/${unknownAttempt.attempt}/reconcile`
+    const reconcileInput = { expected_settled_at_ms: unknownAttempt.settled_at_ms,
+      usage: { input_tokens: 70, output_tokens: 30, cached_input_tokens: null, cache_write_tokens: null, reasoning_tokens: null },
+      reference: 'upstream-report/browser-confirmed-call', note: 'Confirmed missing usage against the upstream report.' }
+    await assert.rejects(() => serverRequest(origin, reconcilePath, { token: oidc.accessToken(), body: reconcileInput }), /403/)
+    await owner.getByRole('tab', { name: '用量', exact: true }).click()
+    const usageRow = owner.locator(`[data-model-request="${unknownRequest.request_id}"]`)
+    await usageRow.locator('summary').click()
+    await usageRow.getByRole('button', { name: '核对用量', exact: true }).click()
+    dialog = owner.getByRole('dialog', { name: '管理员核对用量', exact: true })
+    await dialog.getByLabel('输入', { exact: true }).fill('70')
+    await dialog.getByLabel('输出', { exact: true }).fill('30')
+    await dialog.getByLabel('核对依据', { exact: true }).fill(reconcileInput.reference)
+    await dialog.getByLabel('核对说明', { exact: true }).fill(reconcileInput.note)
+    for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 740 }]) {
+      await owner.setViewportSize(viewport)
+      await assertLayout(owner, dialog)
+      await owner.screenshot({ path: path.join(artifacts, `model-reconcile-${viewport.width}.png`) })
+    }
+    const reconciled = owner.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/v1${reconcilePath}`)
+    await dialog.getByRole('button', { name: '确认用量并记录核对', exact: true }).click()
+    const reconciledResponse = await reconciled
+    assert.equal(reconciledResponse.status(), 200)
+    const result = await reconciledResponse.json()
+    assert.equal(result.attempt.accounted_tokens, 100)
+    assert.equal(result.attempt.state, unknownAttempt.state)
+    await dialog.locator('[data-usage-reconciliation]').waitFor()
+    assert.ok((await dialog.textContent()).includes(reconcileInput.reference))
+    await dialog.getByRole('button', { name: '关闭', exact: true }).last().click()
+    const repeated = await serverRequest(origin, reconcilePath, { token: ownerToken, body: reconcileInput })
+    assert.equal(repeated.reconciliation.reconciled_at_ms, result.reconciliation.reconciled_at_ms)
+    await assert.rejects(() => serverRequest(origin, reconcilePath, { token: ownerToken, body: { ...reconcileInput, note: 'Conflicting correction' } }), /409/)
+    const recordsPath = `/admin/models/requests/${unknownRequest.request_id}/reconciliations`
+    assert.equal((await serverRequest(origin, recordsPath, { token: ownerToken })).length, 1)
+    const reconciledUsage = await serverRequest(origin, '/model-access/usage', { token: oidc.accessToken() })
+    assert.equal(reconciledUsage.used_tokens, finalUsage.used_tokens + 100)
+    assert.equal(reconciledUsage.unknown_requests, 1)
+    assert.equal(reconciledUsage.reserved_tokens, finalUsage.reserved_tokens - unknownAttempt.reserved_tokens)
+    await owner.reload()
+    await owner.getByRole('tab', { name: '用量', exact: true }).click()
+    await owner.locator(`[data-model-request="${unknownRequest.request_id}"]`).getByRole('button', { name: '核对记录', exact: true }).click()
+    dialog = owner.getByRole('dialog', { name: '核对记录', exact: true })
+    await dialog.locator('[data-usage-reconciliation]').waitFor()
+    assert.ok((await dialog.textContent()).includes(reconcileInput.reference))
+    await dialog.getByRole('button', { name: '关闭', exact: true }).last().click()
+    context.diagnostic('Administrative reconciliation is durable, idempotent, permission checked and reflected in the original account budget')
+
 
     const identity = await serverRequest(origin, '/auth/session', { token: ownerToken })
     assert.equal(identity.instance.managed_execution_enabled, false)
@@ -352,8 +403,13 @@ test('platform model access works without workers or machine enrollment and stay
     await auditor.getByRole('tab', { name: '上游接入', exact: true }).click()
     await auditor.locator('[data-model-provider]').first().waitFor()
     assert.equal(await auditor.getByRole('button', { name: '编辑', exact: true }).count(), 0)
+    await auditor.getByRole('tab', { name: '用量', exact: true }).click()
+    await auditor.locator('[data-model-request]').first().waitFor()
+    assert.equal(await auditor.getByRole('button', { name: '核对用量', exact: true }).count(), 0)
+    await assert.rejects(() => serverRequest(origin, reconcilePath, { token: oidc.accessToken('01'), body: reconcileInput }), /403/)
+
     assert.deepEqual(errors, [])
-    await writeFile(path.join(artifacts, 'model-service-result.json'), JSON.stringify({ requests: upstream.requests.length, used_tokens: finalUsage.used_tokens, unknown_requests: finalUsage.unknown_requests, reserved_tokens: finalUsage.reserved_tokens, workers_enabled: false, enrolled_machines: 0, viewports: [390, 320, 844], errors }, null, 2))
+    await writeFile(path.join(artifacts, 'model-service-result.json'), JSON.stringify({ requests: upstream.requests.length, used_tokens: reconciledUsage.used_tokens, unknown_requests: reconciledUsage.unknown_requests, reserved_tokens: reconciledUsage.reserved_tokens, workers_enabled: false, enrolled_machines: 0, viewports: [390, 320, 844], errors }, null, 2))
   } catch (error) {
     if (browser) {
       for (const [contextIndex, context] of browser.contexts().entries()) {
