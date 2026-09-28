@@ -336,6 +336,7 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   const originalDefault = await requestAs(owner, origin, `/default-model${targetQuery}`)
 
   await share()
+  await member.goto(origin)
   await member.locator(`[data-sidebar-session-row][data-session-id="${sessionId}"]`).waitFor({ state: 'attached' })
   await selectSession(member, entry, false)
   await member.getByText('你可以查看内容，当前共享权限不允许发送任务。', { exact: true }).waitFor()
@@ -436,9 +437,13 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   const rejectedReads = []
   const revocationStarted = Date.now()
   const observeRevokedRead = response => {
-    if (response.status() !== 400 || response.request().method() !== 'GET' || new URL(response.url()).pathname !== `/api/v1${sessionPath}/queue`) return
+    if (response.status() !== 400 || response.request().method() !== 'GET') return
+    const url = new URL(response.url())
+    const sessionRead = ['queue', 'commands', 'history', 'stats', 'projection', 'plugins'].some(resource => url.pathname === `/api/v1${sessionPath}/${resource}`)
+    const targetedRead = ['/api/v1/catalog', '/api/v1/model-options'].includes(url.pathname) && url.searchParams.get('session_id') === sessionId
+    if (!sessionRead && !targetedRead) return
     rejectedReads.push(response.json().then(body => {
-      assert.deepEqual(body.error, { code: 'invalid_input', message: 'session does not exist' }, 'an inbox read is denied after sharing is revoked')
+      assert.deepEqual(body, { error: { code: 'invalid_input', message: 'session does not exist' } }, 'a revoked session read reveals no data')
       revokedReadErrors.push({ url: response.url(), since: revocationStarted })
     }))
   }
@@ -455,6 +460,14 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   }, { endpoint: `${origin}/api/v1${sessionPath}/queue`, token, tenantId })
   assert.equal(hiddenRead.status, 400)
   assert.deepEqual(hiddenRead.body, { error: { code: 'invalid_input', message: 'session does not exist' } }, 'revoked browser reads reveal no queue data')
+  for (const endpoint of [`${sessionPath}/commands`, `/catalog${targetQuery}`, `/model-options${targetQuery}`]) {
+    const deniedRead = await member.evaluate(async ({ url, headers }) => {
+      const response = await fetch(url, { headers })
+      return { status: response.status, body: await response.json() }
+    }, { url: `${origin}/api/v1${endpoint}`, headers })
+    assert.equal(deniedRead.status, 400)
+    assert.deepEqual(deniedRead.body, { error: { code: 'invalid_input', message: 'session does not exist' } })
+  }
   const hidden = await member.request.post(`${origin}/api/v1${sessionPath}/queue`, { headers, data: { content: { kind: 'prompt', input: 'must not run after revocation' } } })
   assert.equal(hidden.status(), 400)
   assert.deepEqual((await hidden.json()).error, { code: 'invalid_input', message: 'session does not exist' })
@@ -463,7 +476,7 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   await until(() => jsonRequest(node.origin, `/sessions/${localSessionId}/queue`, node.token), value => value.active_run_id == null, 'owner task finishes after sharing is revoked')
   member.off('response', observeRevokedRead)
   await Promise.all(rejectedReads)
-  if (rejectedReads.length) console.log(`Verified ${rejectedReads.length} inbox read(s) denied after session sharing was revoked.`)
+  if (rejectedReads.length) console.log(`Verified ${rejectedReads.length} scoped read(s) denied after session sharing was revoked.`)
   member.off('websocket', observe)
 }
 async function configureModel(page, node, baseUrl) {
@@ -603,6 +616,8 @@ test('SQLite Server preserves two private Node histories, shared permissions, an
     assert.deepEqual((await requestAs(member, origin, '/state')).workspaces, [])
     const memberCredentials = await credentials(member)
     const memberIdentity = await requestAs(member, origin, '/auth/session')
+    // Keep background chat reads out of the grant-editor checks; the active-chat revocation case follows.
+    await member.goto(`${origin}/spaces/current`)
     await verifySharingManagement(owner, origin, a, 'session', memberIdentity.user.user_id, artifacts)
     await verifySharingManagement(owner, origin, a, 'workspace', memberIdentity.user.user_id, artifacts)
     await verifySharedSessionUse(owner, member, origin, a, nodes[0], seed.sessionId, fixture, artifacts, revokedReadErrors)

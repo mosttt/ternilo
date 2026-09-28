@@ -48,3 +48,6 @@ These are verified gaps, not delivery promises. Prioritize one Server managing l
 ## Work reservation
 
 Follow the [Work execution design](execution-coordination.en.md): separate persistent Work IDs from container IDs, reuse versioned executor contracts and workspace routing, preserve authorization and usage attribution, and manage containers from the host. No Work service, database table, Docker scheduler or placeholder UI has been added.
+
+
+Follow-up CI: `b177e44` passed Rust, platform and authentication gates but its sharing browser test rejected expected console errors from commands/catalog/model-options reads racing explicit revocation. Grant-editor checks now remain on the management page. The active-chat revocation scenario validates the entire denial payload for each scoped read before classifying its exact console entry as expected, retaining stream-stop, UI-clearing and owner-task assertions. Real browser verification passed. [Checks for `40c2365`](https://github.com/mosttt/ternilo/actions/runs/36466395897) are running; the corrected main follows.

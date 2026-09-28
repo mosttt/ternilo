@@ -54,3 +54,6 @@ GitHub Linux 实际交付物已下载并通过全部 SHA256 校验；Apache／�
 ## Work 预留
 
 沿用[Work 资源与执行边界](execution-coordination.md)：持久 Work ID 与容器 ID 分离；复用版本化 executor、工作区路由、会话与模型授权；容器生命周期由宿主节点管理。当前不新增 Docker 调度、Work 数据表、独立程序或空页面。
+
+
+后续 CI 排查：`b177e44` 的 Rust／跨平台／认证门禁通过，但账号共享浏览器测试在预期撤权响应的控制台断言处失败。测试原先只确认队列的拒绝响应，遗漏了撤权时尚在完成的 commands、catalog 和 model-options 读取。现在授权编辑场景保持在管理页，主动聊天撤权场景逐一核验相同 Session 的完整 400 错误体，只有已核验的对应控制台项被识别为预期；实时流停止、界面清空及所有者任务继续的原断言保留。真实浏览器复验通过。包含用量核对的 `40c2365` 正在进行 [Checks](https://github.com/mosttt/ternilo/actions/runs/36466395897)，随后由修复后的 main 继续验证。
