@@ -208,6 +208,7 @@ impl ControlStore {
             )
             .await?;
         crate::authentication_settings::initialize(database).await?;
+        crate::project_sharing::initialize(database).await?;
         crate::oidc_sessions::initialize(database).await
     }
 

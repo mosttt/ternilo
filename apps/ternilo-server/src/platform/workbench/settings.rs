@@ -102,6 +102,7 @@ async fn shared_settings_read(
     access.require(ResourceAction::View)?;
     let resolver = PlacementResolver::new(state, user, tenant_id);
     let target = match kind {
+        ResourceKind::Project => unreachable!("settings targets are sessions or workspaces"),
         ResourceKind::Session => match resolver.session(&SessionId::new(resource_id)).await? {
             SessionTarget::Cloud(_) => SettingsTarget::Cloud,
             SessionTarget::Edge(session) => SettingsTarget::Edge(session.executor_id),

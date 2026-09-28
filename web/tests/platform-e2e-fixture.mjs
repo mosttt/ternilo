@@ -36,7 +36,7 @@ export async function selectSpace(page, tenantId) {
   if (await trigger.getAttribute('data-space-id') === tenantId) return
   await trigger.click()
   await page.locator(`[data-space-menu] [role="option"][data-space-id="${tenantId}"]`).click()
-  await page.locator(`[data-space-switcher] [role="combobox"][data-space-id="${tenantId}"][aria-busy="false"]`).waitFor()
+  await page.locator(`[data-space-switcher] [role="combobox"][data-space-id="${tenantId}"][aria-busy="false"]:visible`).waitFor()
 }
 
 export function base64Url(value) {

@@ -46,10 +46,7 @@ impl ControlStore {
         action: ResourceAction,
         now_ms: u64,
     ) -> Result<(), HarnessError> {
-        let resource_type = match kind {
-            ResourceKind::Workspace => "workspace",
-            ResourceKind::Session => "session",
-        };
+        let resource_type = kind.as_str();
         let action = match action {
             ResourceAction::View => "resource.view",
             ResourceAction::Submit => "resource.submit",

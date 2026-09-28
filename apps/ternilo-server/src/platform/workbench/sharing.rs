@@ -4,7 +4,7 @@ use ternilo_control::{
     CandidatePage, PageQuery, ResourceAccess, ResourceAction, ResourceKind, ResourcePermissions,
     SharedGrant,
 };
-use ternilo_protocol::{HarnessError, UserId};
+use ternilo_protocol::{HarnessError, UserId, WorkspaceId};
 
 use crate::platform::{
     http::{ApiError, invalid_request, now_ms, path_parameter, tenant_parameter},
@@ -25,6 +25,8 @@ pub(crate) fn router() -> Router {
 fn resource(request: &Request) -> Result<(ResourceKind, String), ApiError> {
     if let Some(id) = request.param::<String>("session_id") {
         Ok((ResourceKind::Session, id))
+    } else if let Some(id) = request.param::<String>("project_id") {
+        Ok((ResourceKind::Project, id))
     } else {
         Ok((
             ResourceKind::Workspace,
@@ -38,6 +40,8 @@ struct SharingSnapshot {
     access: ResourceAccess,
     shares: Vec<SharedGrant>,
     next_cursor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_inheritance: Option<ternilo_control::ProjectSharingInheritance>,
 }
 
 #[derive(Deserialize)]
@@ -63,7 +67,7 @@ async fn get_sharing(
     let user = actor(depot);
     let access = store.resource_access(user, &tenant_id, kind, &id).await?;
     access.require(ResourceAction::View)?;
-    let (shares, next_cursor) = if access.is_owner && access.permissions.configure {
+    let (shares, next_cursor) = if access.can_manage_sharing || kind == ResourceKind::Project {
         let page = store
             .list_resource_shares(user, &tenant_id, kind, &id, &query)
             .await?;
@@ -71,11 +75,47 @@ async fn get_sharing(
     } else {
         (Vec::new(), None)
     };
+    let project_inheritance = if kind == ResourceKind::Workspace {
+        Some(
+            store
+                .workspace_project_sharing(user, &tenant_id, &WorkspaceId::new(&id))
+                .await?,
+        )
+    } else {
+        None
+    };
     Ok(Json(SharingSnapshot {
         access,
         shares,
         next_cursor,
+        project_inheritance,
     }))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetProjectInheritance {
+    enabled: bool,
+}
+
+#[handler]
+pub(super) async fn set_project_inheritance(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ternilo_control::ProjectSharingInheritance>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let workspace = WorkspaceId::new(path_parameter(request, "workspace_id")?);
+    let body = request
+        .parse_json::<SetProjectInheritance>()
+        .await
+        .map_err(invalid_request)?;
+    let state = app_state(depot);
+    let inheritance = state
+        .store
+        .set_workspace_project_sharing(actor(depot), &tenant, &workspace, body.enabled, now_ms()?)
+        .await?;
+    state.edge.notify_resource_change(&tenant);
+    Ok(Json(inheritance))
 }
 
 #[handler]

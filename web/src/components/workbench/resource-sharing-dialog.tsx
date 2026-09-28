@@ -8,7 +8,7 @@ import { Field, Input, Label, Select } from '@/components/ui/field'
 import { DirectoryPagination } from '@/components/settings/directory-pagination'
 import { useTranslate } from '@/i18n/provider'
 import type { ResourceAccess, ResourcePermissions, ShareSubject } from '@/types'
-import { getSharing, listSharingCandidates, setSharing, subjectKey, subjectLabel, type SharingCandidates, type SharingSnapshot, type SharingTarget } from './sharing-api'
+import { getSharing, listSharingCandidates, setProjectInheritance, setSharing, subjectKey, subjectLabel, type SharingCandidates, type SharingSnapshot, type SharingTarget } from './sharing-api'
 export type { SharingTarget } from './sharing-api'
 
 const readOnly: ResourcePermissions = { view: true, submit: false, stop: false, configure: false }
@@ -21,8 +21,12 @@ function PermissionText({ permissions }: { permissions: ResourcePermissions }) {
   return <>{(Object.keys(permissionLabels) as (keyof ResourcePermissions)[]).filter(permission => permissions[permission]).map(permission => t(permissionLabels[permission])).join(' · ') || t('sharing.noPermissions')}</>
 }
 
-function EffectiveAccess({ access, target }: { access: ResourceAccess; target: SharingTarget }) {
+function EffectiveAccess({ access, target, canManage }: { access: ResourceAccess; target: SharingTarget; canManage: boolean }) {
   const t = useTranslate('workspace')
+  if (target.kind === 'project') return <section className="grid gap-2 rounded-xl border p-3 text-sm" data-sharing-effective-access="">
+    <h3 className="font-semibold">{t('sharing.effective')}</h3>
+    <p>{t(canManage ? 'sharing.manageProjectRules' : 'sharing.readProjectRules')}</p>
+  </section>
   return <section className="grid gap-2 rounded-xl border p-3 text-sm" data-sharing-effective-access="">
     <h3 className="font-semibold">{t('sharing.effective')}</h3>
     <p className="leading-relaxed"><PermissionText permissions={access.permissions} /></p>
@@ -32,6 +36,7 @@ function EffectiveAccess({ access, target }: { access: ResourceAccess; target: S
         <span>{t(sourceLabels[source.kind], { name: source.group_name || source.group_id || '' })}</span>
         {source.kind === 'fork' && source.group_name && <span> · {t('sharing.sourceGroup', { name: source.group_name })}</span>}
         {source.resource_kind === 'workspace' && target.kind === 'session' && <span> · {t('sharing.inheritedWorkspace')}</span>}
+        {source.resource_kind === 'project' && target.kind !== 'project' && <span> · {t('sharing.inheritedProject', { name: source.resource_name || source.resource_id })}</span>}
         <span> · <PermissionText permissions={source.permissions} /></span>
       </li>)}
     </ul>
@@ -45,8 +50,9 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
   onChanged(): Promise<void>
 }) {
   const t = useTranslate('workspace')
-  const { tenants, currentTenantId } = useWorkbench()
-  const personal = tenants.find(tenant => tenant.tenant_id === currentTenantId)?.kind === 'personal'
+  const { tenants, currentTenantId, serverIdentity } = useWorkbench()
+  const tenantId = target.tenantId ?? currentTenantId ?? undefined
+  const personal = tenants.find(tenant => tenant.tenant_id === tenantId)?.kind === 'personal'
   const [snapshot, setSnapshot] = React.useState<SharingSnapshot | null>(null)
   const [cursors, setCursors] = React.useState<Array<string | null>>([null])
   const [selected, setSelected] = React.useState<ShareSubject | null>(null)
@@ -55,10 +61,12 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
   const [busy, setBusy] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
+  const [projectRules, setProjectRules] = React.useState(false)
   const [revision, reload] = React.useReducer(value => value + 1, 0)
   const cursor = cursors.at(-1) ?? null
-  const canManage = Boolean(snapshot?.access.is_owner && snapshot.access.permissions.configure)
-  const requestTarget = React.useMemo(() => ({ kind: target.kind, id: target.id, title: target.title }), [target.kind, target.id, target.title])
+  const canManage = Boolean(snapshot && (snapshot.access.can_manage_sharing ?? (snapshot.access.is_owner && snapshot.access.permissions.configure)))
+  const requestTarget = React.useMemo(() => ({ kind: target.kind, id: target.id, title: target.title, tenantId }), [target.kind, target.id, target.title, tenantId])
+  const actorId = serverIdentity?.user.user_id
 
   React.useEffect(() => {
     if (personal) return
@@ -69,7 +77,7 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
     }).catch(cause => { if (!controller.signal.aborted) setError(errorMessage(cause)) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [requestTarget, cursor, personal, revision])
+  }, [requestTarget, cursor, personal, revision, actorId])
 
   const select = (subject: ShareSubject | null) => {
     setSelected(subject)
@@ -91,11 +99,22 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
     finally { setBusy(false) }
   }
 
-  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose() }}>
+  const inherit = async (enabled: boolean) => {
+    if (busy || !snapshot?.project_inheritance?.can_change) return
+    setBusy(true); setError('')
+    try {
+      const inheritance = await setProjectInheritance(requestTarget, enabled)
+      setSnapshot(current => current ? { ...current, project_inheritance: inheritance } : current)
+      await onChanged()
+    } catch (cause) { setError(errorMessage(cause)) }
+    finally { setBusy(false) }
+  }
+
+  return <><Dialog open onOpenChange={open => { if (!open && !busy) onClose() }}>
     <DialogContent className="flex max-h-[90dvh] max-w-xl flex-col overflow-hidden [&>[data-slot=dialog-close]]:right-2 [&>[data-slot=dialog-close]]:top-2 [&>[data-slot=dialog-close]]:size-10" onEscapeKeyDown={event => { if (busy) event.preventDefault() }}>
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2"><Share2 className="size-4" />{t(target.kind === 'workspace' ? 'sharing.workspace' : 'sharing.session')}</DialogTitle>
-        <DialogDescription>{t(personal ? 'sharing.personalDescription' : target.kind === 'workspace' ? 'sharing.workspaceDescription' : 'sharing.sessionDescription', { name: target.title })}</DialogDescription>
+        <DialogTitle className="flex items-center gap-2"><Share2 className="size-4" />{t(target.kind === 'project' ? 'sharing.project' : target.kind === 'workspace' ? 'sharing.workspace' : 'sharing.session')}</DialogTitle>
+        <DialogDescription>{t(personal ? 'sharing.personalDescription' : target.kind === 'project' ? 'sharing.projectDescription' : target.kind === 'workspace' ? 'sharing.workspaceDescription' : 'sharing.sessionDescription', { name: target.title })}</DialogDescription>
       </DialogHeader>
       <div className="grid min-h-0 gap-5 overflow-y-auto py-1">
         {personal ? <div className="grid gap-4" data-personal-sharing-guidance="">
@@ -106,7 +125,15 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
           </Button>
         </div> : <p className="text-sm leading-relaxed text-muted-foreground">{t('sharing.machineOwnership')}</p>}
         {!personal && loading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" />{t('sharing.loading')}</p>}
-        {!personal && snapshot && <EffectiveAccess access={snapshot.access} target={target} />}
+        {!personal && snapshot && <EffectiveAccess access={snapshot.access} target={target} canManage={canManage} />}
+        {!personal && snapshot?.project_inheritance && <section className="grid gap-3 rounded-xl border p-3 text-sm" data-project-inheritance="" aria-busy={busy}>
+          <label className="flex min-h-10 items-center gap-2">
+            <input type="checkbox" checked={snapshot.project_inheritance.enabled} disabled={busy || !snapshot.project_inheritance.can_change} onChange={event => void inherit(event.target.checked)} />
+            {t('sharing.inheritProject', { name: snapshot.project_inheritance.project_name })}
+          </label>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('sharing.inheritProjectDescription')}</p>
+          <Button type="button" variant="outline" className="w-fit" disabled={busy} onClick={() => setProjectRules(true)}>{t('sharing.viewProjectRules')}</Button>
+        </section>}
         {!personal && canManage && <>
           <SharingRecipientPicker target={requestTarget} disabled={busy} selected={selected} onSelect={select} />
           {selected && <div className="grid gap-3 rounded-xl border bg-card p-4" data-sharing-permissions="">
@@ -121,26 +148,30 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
             </div>
             <Button disabled={busy} onClick={() => void save(selected, permissions)}>{busy && <LoaderCircle className="animate-spin" />}{t('sharing.save')}</Button>
           </div>}
-          <section className="grid gap-3">
+        </>}
+        {!personal && snapshot && (canManage || target.kind === 'project') && <section className="grid gap-3">
             <h3 className="text-sm font-semibold">{t('sharing.people')}</h3>
-            {snapshot?.shares.length === 0 && <p className="text-sm text-muted-foreground">{t('sharing.private')}</p>}
+            {snapshot?.shares.length === 0 && <p className="text-sm text-muted-foreground">{t(target.kind === 'project' ? 'sharing.noProjectRules' : 'sharing.private')}</p>}
             {snapshot?.shares.map(share => <div className="flex flex-wrap items-center gap-2 rounded-xl border p-3" key={subjectKey(share.subject)} data-sharing-grant={subjectKey(share.subject)}>
               <div className="min-w-0 flex-[1_1_160px]">
                 <p className="break-words text-sm font-medium">{share.subject.kind === 'group' && <Users className="mr-1 inline size-4" />}{subjectLabel(share.subject)}</p>
                 {share.inherited && <p className="mt-1 text-xs text-muted-foreground">{t('sharing.inheritedFork')}</p>}
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground"><PermissionText permissions={share.permissions} /></p>
               </div>
-              <Button className="min-h-10" variant="ghost" disabled={busy} onClick={() => { setSelected(share.subject); setPermissions(share.permissions); setSelectedInherited(share.inherited) }}>{t('sharing.edit')}</Button>
-              <Button size="icon" variant="ghost" disabled={busy} aria-label={t('sharing.remove', { name: subjectLabel(share.subject) })} onClick={() => void save(share.subject, null)}><Trash2 className="text-destructive" /></Button>
+              {canManage && <><Button className="min-h-10" variant="ghost" disabled={busy} onClick={() => { setSelected(share.subject); setPermissions(share.permissions); setSelectedInherited(share.inherited) }}>{t('sharing.edit')}</Button>
+              <Button size="icon" variant="ghost" disabled={busy} aria-label={t('sharing.remove', { name: subjectLabel(share.subject) })} onClick={() => void save(share.subject, null)}><Trash2 className="text-destructive" /></Button></>}
             </div>)}
             <DirectoryPagination page={cursors.length} count={snapshot?.shares.length ?? 0} loading={loading || busy} nextCursor={snapshot?.next_cursor ?? null}
               onPrevious={() => setCursors(current => current.slice(0, -1))} onNext={value => setCursors(current => [...current, value])} />
-          </section>
-        </>}
+          </section>}
         {error && <div role="alert" className="text-sm text-destructive">{error}{!snapshot && <Button variant="ghost" onClick={reload}>{t('sharing.retry')}</Button>}</div>}
       </div>
     </DialogContent>
   </Dialog>
+    {projectRules && snapshot?.project_inheritance && <ResourceSharingDialog
+      target={{ kind: 'project', id: snapshot.project_inheritance.project_id, title: snapshot.project_inheritance.project_name, tenantId }}
+      onClose={() => { setProjectRules(false); reload() }} onChanged={onChanged} />}
+  </>
 }
 
 function SharingRecipientPicker({ target, disabled, selected, onSelect }: {

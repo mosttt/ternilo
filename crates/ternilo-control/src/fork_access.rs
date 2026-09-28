@@ -59,7 +59,9 @@ impl ControlStore {
         }
         let mut direct = ResourcePermissions::default();
         for source in &parent.sources {
-            if source.kind == ResourceAccessSourceKind::DirectUser {
+            if source.kind == ResourceAccessSourceKind::DirectUser
+                && source.resource_kind != ResourceKind::Project
+            {
                 direct.combine(source.permissions);
             }
         }
@@ -76,6 +78,10 @@ impl ControlStore {
         // personal grant. Forking again copies these same references, without recursion.
         let mut group_sources = std::collections::BTreeMap::new();
         for source in &parent.sources {
+            // Same-workspace forks inherit current project rules; never freeze them as child grants.
+            if source.resource_kind == ResourceKind::Project {
+                continue;
+            }
             if let Some(group_id) = &source.group_id {
                 let permissions = group_sources
                     .entry((

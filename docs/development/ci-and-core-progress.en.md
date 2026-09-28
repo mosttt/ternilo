@@ -2,7 +2,7 @@
 
 English · [简体中文](ci-and-core-progress.md)
 
-Status: the second complete CI run for `40c2365`, including all four package targets, passed. Recovery, bounded history, reconciliation, device usage and native Server model connections are merged. The next candidate removes an obsolete locale key caught by CI and includes authorization revalidation after delayed Node reads.
+Status: two complete CI runs and all four package targets passed. The first release tag, `v0.1.0`, is fixed at `0ce6ba4` and pushed. All checks for that commit passed; only Intel macOS packaging remains active. The [Release workflow](https://github.com/mosttt/ternilo/actions/runs/36487885237) is building actual deliverables; no Release has been created yet. Remote SDKs are merged and project sharing passed final local acceptance. Both follow the first tag and are outside its snapshot.
 
 ## Scope and findings
 
@@ -40,8 +40,8 @@ The final local build included the client, Server, plugin CLI and desktop with `
 2. **Completed: Native account recovery.** The local maintenance command preserves identity/resources and revokes existing browser sessions; credential issuance races, SQLite/PostgreSQL and real CLI/browser workflows are verified. See [recovery](native-account-recovery.md).
 3. **Completed: Bounded history.** Local, Node, Server and Web page 200 recent events by default, load older pages and preserve Live cursors. Archive sharing/revocation/restoration and offline reads are verified. See [history](bounded-session-history.md).
 4. **Completed: Usage visibility.** Owner/admin reconciliation preserves immutable evidence for unknown Server usage. Separate device Provider observations preserve retries, partial counters and verified submitters; SQLite/PostgreSQL and actual browser workflows cover offline replay, forks and owner-only access. See [reconciliation](model-usage-reconciliation.md) and [device usage](device-provider-usage.md).
-5. **P2: Shared-resource lifecycle.** Project-wide inheritance, ownership transfer and complete task cleanup after account deactivation remain missing. Define effects on running work, revoked shares and files. Evidence: account-status tests and [product limits](../product.md).
-6. **P2: Remote automation and scaling.** Local stdio SDKs are established; [remote SDKs](remote-server-sdks.md) now implement HTTP/Live, pagination and reconnection with actual Server/Node validation, ready to merge; multiple Server instances require routing to connection owners and synchronized notifications. Evidence: [automation](../automation.md), `platform/edge/connection.rs`, and [deployment](../deployment.md).
+5. **P2: Shared-resource lifecycle.** [Project sharing inheritance](project-sharing.md) passed both databases and real browsers. Ownership transfer and complete task cleanup after account deactivation remain missing. Define effects on running work, revoked shares and files. Evidence: account-status tests and [product limits](../product.md).
+6. **P2: Remote automation and scaling.** Local stdio SDKs are established; [remote SDKs](remote-server-sdks.md) now implement HTTP/Live, pagination and reconnection with actual Server/Node validation and are merged; multiple Server instances require routing to connection owners and synchronized notifications. Evidence: [automation](../automation.md), `platform/edge/connection.rs`, and [deployment](../deployment.md).
 
 These are verified gaps, not delivery promises. Prioritize one Server managing local computers and VPS nodes. Work and multi-Server scaling are not prerequisites.
 

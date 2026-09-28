@@ -9,7 +9,7 @@ mod placement;
 mod session_queue;
 mod sessions;
 mod settings;
-mod sharing;
+pub(super) mod sharing;
 mod types;
 mod workspace;
 
@@ -105,7 +105,8 @@ pub(crate) fn router() -> Router {
                 .push(
                     Router::with_path("{project_id}")
                         .patch(crate::platform::rename_project)
-                        .delete(crate::platform::delete_project),
+                        .delete(crate::platform::delete_project)
+                        .push(sharing::router()),
                 ),
         )
         .push(
@@ -118,6 +119,10 @@ pub(crate) fn router() -> Router {
                         .patch(workspace::rename_workspace)
                         .delete(workspace::unregister_workspace)
                         .push(Router::with_path("location").get(workspace::workspace_location))
+                        .push(
+                            Router::with_path("project-sharing")
+                                .put(sharing::set_project_inheritance),
+                        )
                         .push(sharing::router()),
                 ),
         )

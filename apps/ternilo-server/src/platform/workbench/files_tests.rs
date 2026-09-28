@@ -39,6 +39,9 @@ mod event_sync_tests;
 #[path = "files_tests/read_revocation_tests.rs"]
 mod read_revocation_tests;
 
+#[path = "files_tests/project_sharing_tests.rs"]
+mod project_sharing_tests;
+
 #[path = "files_tests/services_tests.rs"]
 mod services_tests;
 

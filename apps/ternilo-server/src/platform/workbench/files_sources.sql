@@ -2,6 +2,8 @@ SELECT workspace.workspace_id, workspace.executor_id, 'workspace' AS resource_ki
 FROM control_workspaces AS workspace
 WHERE workspace.tenant_id=$1 AND workspace.executor_id IS NOT NULL
   AND (workspace.owner_user_id=$2 OR EXISTS (
+    SELECT 1 FROM control_project_workspace_access p WHERE p.tenant_id=workspace.tenant_id
+      AND p.workspace_id=workspace.workspace_id AND p.user_id=$2) OR EXISTS (
     SELECT 1 FROM control_resource_shares AS grant_record
     WHERE grant_record.tenant_id=workspace.tenant_id AND grant_record.resource_kind='workspace'
       AND grant_record.resource_id=workspace.workspace_id AND grant_record.grantee_user_id=$2)

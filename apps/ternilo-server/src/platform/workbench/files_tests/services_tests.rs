@@ -68,12 +68,18 @@ async fn assert_access(
 
 async fn shared_service_permissions(fixture: &Fixture, kind: ResourceKind) {
     let name = match kind {
+        ResourceKind::Project => {
+            unreachable!("this fixture exercises direct session and workspace grants")
+        }
         ResourceKind::Session => "session-services",
         ResourceKind::Workspace => "workspace-services",
     };
     let session = fixture.session(name).await;
     let collaborator = fixture.collaborator().await;
     let resource_id = match kind {
+        ResourceKind::Project => {
+            unreachable!("this fixture exercises direct session and workspace grants")
+        }
         ResourceKind::Session => session.session_id.as_str(),
         ResourceKind::Workspace => session.workspace_id.as_str(),
     };

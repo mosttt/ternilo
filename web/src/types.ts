@@ -12,6 +12,7 @@ export interface ResourcePermissions {
 export interface ResourceAccess {
   owner_user_id: string
   is_owner: boolean
+  can_manage_sharing?: boolean
   permissions: ResourcePermissions
   sources: ResourceAccessSource[]
   role_limited: boolean
@@ -19,8 +20,9 @@ export interface ResourceAccess {
 
 export interface ResourceAccessSource {
   kind: 'owner' | 'direct_user' | 'group' | 'fork'
-  resource_kind: 'workspace' | 'session'
+  resource_kind: 'project' | 'workspace' | 'session'
   resource_id: string
+  resource_name?: string | null
   group_id?: string | null
   group_name?: string | null
   permissions: ResourcePermissions
