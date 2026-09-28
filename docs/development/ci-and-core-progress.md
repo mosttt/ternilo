@@ -2,7 +2,7 @@
 
 [English](ci-and-core-progress.en.md) · 简体中文
 
-状态：本机核心闭环验收通过；正在修复 GitHub CI 的运行依赖缺项并准备重跑，之后继续推进剩余功能。此文件记录本轮开发事实与未完成项；正式支持范围以[产品说明](../product.md)为准。
+状态：`76801de` 的全部 CI 检查门禁已通过，四平台发行包正在构建；账号恢复功能在独立分支准备。此文件记录本轮开发事实与未完成项；正式支持范围以[产品说明](../product.md)为准。
 
 ## 本轮目标
 
@@ -21,6 +21,8 @@
 代码提交 `12c1e85` 的 [Checks](https://github.com/mosttt/ternilo/actions/runs/36446651439) 最终通过依赖门禁、Windows 与两种 macOS 检查，但 Linux 两项搜索测试失败，后续打包被跳过。日志表明 runner 无法启动 `rg`；已补充 Linux CI 的 `ripgrep` 安装与版本检查，同时补齐 `.deb` 的运行依赖及各交付形式的安装说明。此前两轮在修复提交推送后已主动终止。当前没有版本标签或 GitHub Release，需先完成检查和实际打包。
 
 后续执行顺序：完成 CI 与可下载交付物，再依次实现下文 P1／P2 剩余项；继续优先客户端与 Server，Work 保持必要预留。
+
+`ripgrep` 修复提交 `76801de` 的 [Checks](https://github.com/mosttt/ternilo/actions/runs/36451490404) 已通过 Linux 核心／SDK／PostgreSQL／浏览器／原生桌面／恢复验收、Windows 和两种 macOS 检查及依赖门禁，正在生成四平台发行包。后续功能的具体约束见[实施计划](remaining-core-plan.md)。账号恢复在 `feat/operator-account-recovery` 分支开发，已通过 SQLite／受限 PostgreSQL 契约及相关身份回归；浏览器验证发现旧凭据被撤销后缺少客户端重新认证衔接，正在补齐，尚未合入 main。
 
 首轮远端依赖门禁通过；Linux 的 932 项前端测试中，目录选择器的焦点恢复断言提前于 Radix 卸载定时器执行，导致 1 项失败。已改为等待实际焦点恢复，保留原断言。首次本机浏览器运行使用了先前编译的二进制，资源摘要和 OIDC 契约均提示其与当前源码不匹配；该轮不计入当前版本验收，重建后重新验证。
 

@@ -4,5 +4,6 @@
 
 - [Work 资源与执行边界](execution-coordination.md)：托管电脑、容器归属、节点绑定与现有执行接口的衔接。
 - [CI 与客户端／Server 闭环进度](ci-and-core-progress.md)：本轮许可证、持续集成、验证结果和后续优先级。
+- [剩余核心功能实施顺序](remaining-core-plan.md)：账号恢复、历史分页、用量及后续协作能力的实现边界与验收目标。
 
 已支持的功能见[产品说明](../product.md)，模块职责见[架构](../architecture.md)，开发和验证命令见[开发指南](../contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。

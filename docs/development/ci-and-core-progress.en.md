@@ -2,7 +2,7 @@
 
 English · [简体中文](ci-and-core-progress.md)
 
-Status: local core acceptance passed; a missing GitHub CI runtime dependency is being fixed before rerunning checks and continuing remaining features. This records implementation work and remaining gaps; [product documentation](../product.md) defines supported behavior.
+Status: all CI checks for `76801de` passed and four-platform packages are building; account recovery is being prepared on a separate branch. This records implementation work and remaining gaps; [product documentation](../product.md) defines supported behavior.
 
 ## Scope and findings
 
@@ -21,6 +21,8 @@ Initial commit `da0d9bf` was pushed to main and started the [first Checks run](h
 The [Checks run for `12c1e85`](https://github.com/mosttt/ternilo/actions/runs/36446651439) passed dependency checks, Windows and both macOS targets, but Linux failed two search tests because `rg` was unavailable; packaging was skipped. Linux CI now explicitly installs and checks ripgrep, the Debian desktop package declares it, and installation documentation covers the external runtime requirement. The first two runs were superseded by fixes. There are no version tags or GitHub Releases yet; checks and packaging must complete first.
 
 Continue with CI and downloadable artifacts, then the P1/P2 work below, keeping the client and Server first and Work as a design reservation.
+
+The [Checks run for ripgrep fix `76801de`](https://github.com/mosttt/ternilo/actions/runs/36451490404) passed Linux core/SDK/PostgreSQL/browser/native-desktop/recovery checks, Windows, both macOS targets and dependency gates. Platform packages are building. The [implementation plan](remaining-core-plan.md) records subsequent requirements. `feat/operator-account-recovery` has passing SQLite/restricted-PostgreSQL contracts and related identity regressions; browser verification exposed missing client reauthentication after credential revocation, which is being fixed before merging.
 
 Local checks passed: 148 Web test files / 932 unit tests, seven rich-text tests, TypeScript, i18n, documentation links, production Web build, 30 deployment/release script tests, operations configuration, actionlint, workspace Clippy, dependency license/source/advisory checks, npm audit, and both SDK smoke tests.
 

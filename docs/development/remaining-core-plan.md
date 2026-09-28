@@ -1,0 +1,39 @@
+# 剩余核心功能实施顺序
+
+状态：实施准备；等待当前 CI 与交付验证完成，再按以下顺序修改功能。用户已要求持续推进剩余项，优先 `ternilo` 与 `ternilo-server`，Work 仅保留接入约束。
+
+## 1. 本机维护命令恢复原生账号
+
+提供 `ternilo-server admin` 下的密码重置命令，读取已有私有配置，使用隐藏终端输入或显式标准输入接收新密码。保持原 user_id、账号状态、平台角色、个人空间、资源、电脑与模型授权；拒绝不存在的原生账号和已移除账号。单纯 OIDC 账号不因恢复命令自动增加原生登录方式。
+
+新密码哈希和旧本站浏览器会话撤销在同一事务完成，包括已绑定 OIDC 的本站持久会话；外部 IdP 凭据仍由 IdP 管理。审计沿用已有 operator_cli 维护操作模式，不记录密码或哈希。
+
+目前原生登录将 `authenticate_native_credentials` 与 `create_browser_session` 分开调用。新增重置能力时，应让凭据验证返回不可伪造的验证结果，签发原生会话时在同一账号锁下复核对应密码哈希，防止重置前验证成功的旧密码在重置后签发新会话。已有经可信身份调用的会话创建接口与原生凭据登录用途分开。
+
+验收包括 SQLite／受限 PostgreSQL、旧密码和旧会话失效、新密码登录保留身份、其他账号不受影响、停用状态不绕过、旧验证结果不能再次签发、失败不部分更新；通过真实 Server／CLI 流程验证。
+
+## 2. 历史分页与实时续读
+
+已有 `SessionEventReadRequest` 提供正向有界读取，但网页当前首次 Live 订阅从空游标读取全部历史，并等 complete 后一次展示。Local／归档 HTTP 接口仍返回全量事件。
+
+新增有界的末页／向前历史读取契约，保留绝对事件序号。需要贯穿 JSONL 存储、LocalApplication、版本化 Node 协议、Server Edge／Cloud 路由及网页；旧的全量接口按兼容需求保留，不将客户端隐藏行当成服务端分页。
+
+首次历史页与后续 Live 游标衔接，保证页读取期间产生的事件不会丢失；较早页面合并不得倒退实时游标，切换账号／会话后丢弃旧请求。长运行被页面截断时仍可显示部分工具和输出，并提供继续读取入口。归档预览遵守当前归档状态和原有资源权限。
+
+验收包括大历史首屏、有界响应、向前加载、断线重连、切换会话、重复事件去重、归档／恢复、Server 离线电脑及共享撤权。
+
+## 3. 设备用量与未知用量核对
+
+先区分设备报告的自有 Provider 使用记录与 Server 已核验的预算账本。设备报告不能变成可任意修改平台预算的依据；Server 网关调用不能因 Node 事件重放而重复计量。沿用稳定请求／尝试标识与既有归属，不按模型名称推断来源。
+
+设备离线期间的使用记录须能在重连后幂等汇入；计数缺失保持未知，不伪装为零。未知用量的核对应复用既有结算规则、当前授权和事务，并保存操作者、来源及审计，拒绝无条件覆盖已结算账目。
+
+验收包括来源区分、跨协议计数、离线重放去重、共享运行归属、未知消耗保留、迟到用量及核对幂等性。
+
+## 后续 P2
+
+再处理项目级共享继承、资源交接及账号停用后的任务清理，随后推进 Server 远程 SDK 与多实例路由／通知。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。
+
+## Implementation outline
+
+Finish CI and delivery validation first. Then implement operator-only native account recovery, bounded history pagination with live cursor continuity, and device usage plus unknown-usage reconciliation. Preserve identity and resource ownership, revalidate credentials during session issuance, and distinguish device-reported usage from authoritative Server budgets. Test SQLite and restricted PostgreSQL behavior and real CLI/browser workflows. Continue with shared-resource lifecycle, remote SDKs and multi-instance routing afterward; Work remains an explicit integration reservation.
