@@ -152,3 +152,5 @@ Adapter 使用官方 Rust `agent-client-protocol` SDK，实现 `initialize`、`a
 ## 将外部 Agent 作为子代理
 
 Ternilo 也可以反过来作为 ACP client，启动 Codex、Claude Code 或其他 ACP v1 process。该配置属于 session/profile plugin，而不是 automation server；示例和权限边界见 [扩展系统：外部 ACP 子代理](extensions.md#外部-acp-子代理)。
+
+会话日志损坏时可在停止本地服务后使用 `ternilo repair-session-log --session-id ID --data-dir PATH` 检查；显式 `--apply` 会先保存原文件备份再修复不完整尾行，详见[离线日志维护](session-log-repair.md)。

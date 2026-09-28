@@ -47,6 +47,7 @@ pub use directory::{
     DirectoryEntry, DirectoryListing, canonical_directory, create_directory, home_directory,
     list_directory,
 };
+pub use event_store::repair::{SessionLogRepairAction, SessionLogRepairReport, repair_session_log};
 pub use extensions::LocalRuntimeExtensions;
 pub use interaction::{InteractionBroker, PendingQuestion};
 pub use jobs::local_jobs_factory;

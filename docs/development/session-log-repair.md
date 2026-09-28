@@ -1,0 +1,11 @@
+# 会话日志离线维护
+
+状态：五项文件维护测试、全部 11 项 event store 测试、7 项 CLI 测试和真实 CLI／浏览器恢复流程通过；Clippy、文档链接、工作流和格式检查也已通过。
+
+产品文档列出了日志尾行修复缺口。当前 reader 拒绝不完整 JSONL，直接追加也无法分隔缺少换行的完整末条事件。新增 `repair-session-log` 维护入口，与 LocalApplication 共用目录锁，无需先启动并读取损坏的会话。默认检查，`--apply` 先同步完整原文件备份，再截掉不完整 JSON 尾行或补齐末条换行；拒绝完整记录损坏、序号错误和中间空行，不改变有效事件字节。
+
+五项测试覆盖只读检查、备份内容和 Unix 权限、后续追加的连续序号、完整末行缺换行、损坏中间／完整记录拒绝、目录锁及 UTF-8 多字节截断。真实 CLI／浏览器流程检查在线维护拒绝、离线预览和应用、备份精确相等、恢复后页面历史、接口事件与新事件追加。
+
+Formal instructions: [中文](../session-log-repair.md) / [English](../session-log-repair.en.md). This is offline, explicitly applied repair of an incomplete final record, with a durable original backup. It neither skips damaged complete records nor replays interrupted work. Validation covers byte preservation, sequence continuity, writer exclusion and actual browser recovery.
+
+浏览器验证同时检查页面、控制台和 HTTP 响应；修复后原有五条历史逐条一致，新增反馈事件保持连续序号，最终截图已检查。测试夹具曾省略 UserMessage 的规范化空 references／attachments 字段，现按正式事件结构提供，保留完整事件深比较。

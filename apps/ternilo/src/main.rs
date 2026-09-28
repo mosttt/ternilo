@@ -50,6 +50,16 @@ enum Command {
         #[arg(long, env = "TERNILO_LOCAL_DATA_DIR")]
         data_dir: Option<PathBuf>,
     },
+    /// Inspect a session log offline, or repair an incomplete tail after making a backup.
+    RepairSessionLog {
+        #[arg(long, env = "TERNILO_LOCAL_DATA_DIR")]
+        data_dir: Option<PathBuf>,
+        #[arg(long)]
+        session_id: String,
+        /// Apply the proposed repair; without this flag, only report what would change.
+        #[arg(long)]
+        apply: bool,
+    },
     /// Run one prompt through the same shared harness API.
     Run {
         prompt: String,
@@ -177,6 +187,24 @@ async fn execute(args: Args) -> Result<(), HarnessError> {
         }
         Command::Stop { data_dir } => {
             ternilo::service::stop(&data_dir.map_or_else(default_data_dir, Ok)?).await
+        }
+        Command::RepairSessionLog {
+            data_dir,
+            session_id,
+            apply,
+        } => {
+            let report = ternilo_local::repair_session_log(
+                &data_dir.map_or_else(default_data_dir, Ok)?,
+                &SessionId::new(session_id),
+                apply,
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&report)
+                    .map_err(|error| HarnessError::execution(error.to_string()))?
+            );
+            Ok(())
         }
         Command::Run {
             prompt,
@@ -641,7 +669,8 @@ mod tests {
             Command::Plugins
             | Command::Provider { .. }
             | Command::Status { .. }
-            | Command::Stop { .. } => {
+            | Command::Stop { .. }
+            | Command::RepairSessionLog { .. } => {
                 panic!("non-execution commands have no execution limits")
             }
         }
