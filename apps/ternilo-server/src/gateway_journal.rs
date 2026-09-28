@@ -210,8 +210,7 @@ impl GatewayJournal {
     ) -> Result<(), HarnessError> {
         let mut transaction = self.transaction(route).await?;
         sqlx::query(
-            "UPDATE gateway_commands SET state = 'pending', owner_id = NULL,
-                 fencing_token = NULL, dispatch_until_ms = NULL
+            "UPDATE gateway_commands SET dispatch_until_ms = 0
              WHERE tenant_id = $1 AND executor_id = $2 AND state = 'inflight'
                AND owner_id = $3 AND fencing_token = $4",
         )
@@ -456,16 +455,20 @@ impl GatewayJournal {
                 ));
             }
         } else {
+            let withheld =
+                input_authorization::is_withheld(&mut transaction, route, &reply.command_id)
+                    .await?;
             if state != "inflight"
-                || row
-                    .try_get::<Option<String>, _>("owner_id")
-                    .map_err(database_error)?
-                    .as_deref()
-                    != Some(lease.owner_id.as_str())
-                || row
-                    .try_get::<Option<i64>, _>("fencing_token")
-                    .map_err(database_error)?
-                    != Some(integer(lease.fencing_token)?)
+                || (!withheld
+                    && (row
+                        .try_get::<Option<String>, _>("owner_id")
+                        .map_err(database_error)?
+                        .as_deref()
+                        != Some(lease.owner_id.as_str())
+                        || row
+                            .try_get::<Option<i64>, _>("fencing_token")
+                            .map_err(database_error)?
+                            != Some(integer(lease.fencing_token)?)))
             {
                 return Err(HarnessError::policy(
                     "stale gateway ownership attempted to complete a command",

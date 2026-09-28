@@ -1,6 +1,6 @@
 use super::{
-    Any, CommandReply, Database, ExecutorCommand, HarnessError, RouteKey, Row, Transaction,
-    database_error, encode, integer, lock,
+    Any, CommandId, CommandReply, Database, ExecutorCommand, HarnessError, RouteKey, Row,
+    Transaction, database_error, encode, integer, lock,
 };
 use ternilo_protocol::InputAuthor;
 
@@ -109,7 +109,7 @@ pub(super) async fn may_dispatch(
             command.command_id.clone(),
             now,
             HarnessError::policy(
-                "input delivery authorization is no longer valid; the command was not dispatched",
+                "input delivery authorization is no longer valid; prior execution is not confirmed",
             ),
         );
         sqlx::query(
@@ -127,4 +127,15 @@ pub(super) async fn may_dispatch(
     // An inflight command may already have executed. Keep accepting its actual reply;
     // withholding redelivery does not prove cancellation or undo its effects.
     Ok(false)
+}
+
+// The current fenced connection may return a real receipt without replaying a revoked input.
+pub(super) async fn is_withheld(
+    tx: &mut Transaction<'static, Any>,
+    route: &RouteKey,
+    command_id: &CommandId,
+) -> Result<bool, HarnessError> {
+    let found: Option<String> = sqlx::query_scalar("SELECT command_id FROM gateway_input_authorizations WHERE tenant_id = $1 AND command_id = $2 AND invalidated = 1")
+        .bind(route.tenant_id.as_str()).bind(command_id.as_str()).fetch_optional(&mut **tx).await.map_err(database_error)?;
+    Ok(found.is_some())
 }
