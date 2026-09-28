@@ -35,14 +35,12 @@ runs:
       run: |
         rustup show active-toolchain
         if [ -n "$RUST_TARGET" ]; then rustup target add "$RUST_TARGET"; fi
-    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        python -c 'import os, tomllib; from pathlib import Path; toolchain = tomllib.loads(Path("rust-toolchain.toml").read_text())["toolchain"]["channel"]; print("RUSTUP_TOOLCHAIN=" + toolchain, file=open(os.environ["GITHUB_ENV"], "a"))'
+    - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c
       with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          ~/.cargo/bin/cargo-deny
-        key: cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('ternilo/Cargo.lock', 'ternilo/rust-toolchain.toml', 'ternilo/.github/linorun-revision') }}
-        restore-keys: cargo-v1-${{ runner.os }}-${{ runner.arch }}-
+        workspaces: ternilo -> target
+        key: ${{ inputs.target }}-${{ steps.revision.outputs.revision }}
+        cache-on-failure: true
     - if: runner.os == 'Linux'
       shell: bash
       run: |

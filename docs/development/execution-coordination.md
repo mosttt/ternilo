@@ -1,5 +1,7 @@
 # Work 资源与执行边界
 
+[English](execution-coordination.en.md) · 简体中文
+
 状态：设计预留，未实现。现有 Node／executor 身份、版本化传输、工作区路由和模型授权是接入边界。当前没有独立 Work 程序、管理页面、数据库资源或 Docker 调度器。
 
 ## 资源模型

@@ -68,13 +68,16 @@ async function upstreamFixture() {
 }
 
 async function assertLayout(page, locator) {
+  // Viewport emulation can return before the application's resize handler runs.
+  await page.waitForFunction(() => Number.parseFloat(document.documentElement.style.getPropertyValue('--ternilo-visual-viewport-height'))
+    === Math.round(window.visualViewport?.height ?? window.innerHeight))
   await locator.evaluate(async element => {
     await Promise.all(element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})))
   })
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'page stays within the viewport')
   assert.ok(await locator.evaluate(element => element.scrollWidth <= element.clientWidth), 'surface has no horizontal overflow')
   const bounds = await locator.boundingBox()
-  assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= page.viewportSize().width + 1 && bounds.y + bounds.height <= page.viewportSize().height + 1, 'surface remains inside the viewport')
+  assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= page.viewportSize().width + 1 && bounds.y + bounds.height <= page.viewportSize().height + 1, `surface remains inside the viewport: ${JSON.stringify({ bounds, viewport: page.viewportSize() })}`)
   for (const button of await locator.getByRole('button').all()) {
     const box = await button.boundingBox()
     if (box) assert.ok(box.height >= 39.9 && box.width >= 39.9, 'buttons have usable touch targets')

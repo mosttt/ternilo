@@ -92,6 +92,9 @@ async function changeGroupMember(editor, user, adding) {
 }
 
 async function assertLayout(page, locator) {
+  // Viewport emulation can return before the application's resize handler runs.
+  await page.waitForFunction(() => Number.parseFloat(document.documentElement.style.getPropertyValue('--ternilo-visual-viewport-height'))
+    === Math.round(window.visualViewport?.height ?? window.innerHeight))
   await locator.evaluate(async element => {
     await Promise.all(element.getAnimations({ subtree: true })
       .filter(animation => animation.effect?.getTiming().iterations !== Infinity)
