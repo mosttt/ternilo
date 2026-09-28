@@ -34,7 +34,8 @@ export function filterTrajectoryTurns(
   })
 }
 
-export function TrajectoryView({ sessionId, events, selection, onSelect }: {
+export function TrajectoryView({ sessionId, events, selection, onSelect, history }: {
+  history?: import('@/plugins/conversation-registry').ConversationViewContext['history']
   sessionId: string
   events: SessionEvent[]
   selection: DetailsSelection
@@ -102,6 +103,8 @@ export function TrajectoryView({ sessionId, events, selection, onSelect }: {
   if (!events.length) return <div ref={rootRef} className={css.empty} data-trajectory-state="empty">{t('history.empty')}</div>
   return (
     <div ref={rootRef} className={css.root} data-trajectory-root="" data-trajectory-state={visibleTurns.length ? 'ready' : 'empty'}>
+      {history?.hasOlder && <button type="button" disabled={history.loading} onClick={() => void history.loadOlder()}>{errorT('chat.loadOlder')}</button>}
+      {history?.error && <p role="alert">{errorT('chat.loadError', { message: history.error })}</p>}
       <div className={css.stickyChrome} data-trajectory-sticky-chrome="">
         <TrajectoryToolbar
           mode={durationMode}

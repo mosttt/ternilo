@@ -16,7 +16,7 @@ use ternilo_protocol::{
     TenantId, UserAnswer, UserId, WorkspaceId, WorkspaceRequest, validate_agent_preset_id,
 };
 
-pub const EXECUTOR_PROTOCOL_VERSION: u32 = 42;
+pub const EXECUTOR_PROTOCOL_VERSION: u32 = 43;
 
 macro_rules! transport_id {
     ($name:ident) => {
@@ -302,6 +302,10 @@ pub enum ApplicationOperation {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         after_seq: Option<u64>,
     },
+    SessionHistory {
+        session_id: SessionId,
+        query: ternilo_protocol::SessionHistoryQuery,
+    },
     SessionFileContent {
         session_id: SessionId,
         file_id: String,
@@ -492,6 +496,10 @@ impl ApplicationOperation {
             }
             Self::WorkspaceLocation { workspace_id }
             | Self::WorkspaceUnregister { workspace_id } => workspace_id.validate(),
+            Self::SessionHistory { session_id, query } => {
+                session_id.validate()?;
+                query.validate()
+            }
             operation @ (Self::SessionCreate { .. }
             | Self::SessionUpdate { .. }
             | Self::SessionFork { .. }
@@ -731,6 +739,7 @@ fn validate_session_operation(operation: &ApplicationOperation) -> Result<(), Ha
         | ApplicationOperation::SessionArchive { session_id }
         | ApplicationOperation::SessionRestore { session_id }
         | ApplicationOperation::SessionEvents { session_id, .. }
+        | ApplicationOperation::SessionHistory { session_id, .. }
         | ApplicationOperation::SessionPlugins { session_id }
         | ApplicationOperation::SessionCommands { session_id }
         | ApplicationOperation::SessionServices { session_id }
@@ -1405,7 +1414,7 @@ mod tests {
 
     #[test]
     fn executor_live_capabilities_have_an_explicit_versioned_wire() {
-        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 42);
+        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 43);
         let mut peer = ExecutorHello {
             protocol_version: 40,
             executor_id: ExecutorId::new("native-model-peer"),
@@ -1416,6 +1425,8 @@ mod tests {
         };
         assert!(peer.validate().is_err());
         peer.protocol_version = 41;
+        assert!(peer.validate().is_err());
+        peer.protocol_version = 42;
         assert!(peer.validate().is_err());
         peer.protocol_version = EXECUTOR_PROTOCOL_VERSION;
         peer.validate().unwrap();

@@ -17,6 +17,7 @@ export interface ConversationViewContext {
   onRegenerate?(event: SessionEvent): Promise<void>
   onEdit?(event: SessionEvent, input: string): Promise<void>
   regenerateDisabled?: boolean
+  history?: { hasOlder: boolean; loading: boolean; error: string; loadOlder(): Promise<void> }
 }
 
 export interface ConversationViewContribution {

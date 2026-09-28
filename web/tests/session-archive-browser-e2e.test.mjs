@@ -72,18 +72,37 @@ async function screenshot(page, name) {
 
 async function previewArchive(page, dialog, sessionId, expectedCount, network, name) {
   const previousWrites = network.filter(entry => entry.method !== 'GET').length
-  const response = page.waitForResponse(value => new URL(value.url()).pathname === `/api/v1/sessions/${sessionId}/archive-events`)
+  const response = page.waitForResponse(value => new URL(value.url()).pathname === `/api/v1/sessions/${sessionId}/archive-history`)
   await dialog.locator(`[data-archived-session="${sessionId}"]`).getByRole('button', { name: '查看历史', exact: true }).click()
   const read = await response
   assert.equal(read.status(), 200)
   assert.equal(read.headers()['cache-control'], 'no-store')
-  assert.equal((await read.json()).length, expectedCount)
+  let result = await read.json()
+  assert.equal(result.events.length, Math.min(200, expectedCount))
+  let sequences = result.events.map(event => event.seq)
   const preview = dialog.locator(`[data-archive-preview="${sessionId}"]`)
-  await preview.getByText(`已读取 ${expectedCount} 条历史事件。`, { exact: true }).waitFor()
+  await preview.getByText(`已读取 ${sequences.length} 条历史事件。`, { exact: true }).waitFor()
+  while (result.next_before_seq !== null) {
+    const before = result.next_before_seq
+    const olderResponse = page.waitForResponse(value => {
+      const url = new URL(value.url())
+      return url.pathname === `/api/v1/sessions/${sessionId}/archive-history` && url.searchParams.get('before_seq') === String(before)
+    })
+    await preview.getByRole('button', { name: '加载更早', exact: true }).click()
+    const olderRead = await olderResponse
+    assert.equal(olderRead.status(), 200)
+    assert.equal(olderRead.headers()['cache-control'], 'no-store')
+    result = await olderRead.json()
+    assert.ok(result.events.length <= 200)
+    assert.ok(result.events.at(-1).seq < before)
+    sequences = [...result.events.map(event => event.seq), ...sequences]
+    await preview.getByText(`已读取 ${sequences.length} 条历史事件。`, { exact: true }).waitFor()
+  }
+  assert.deepEqual(sequences, Array.from({ length: expectedCount }, (_, index) => index))
   assert.equal(await dialog.getByRole('button', { name: '恢复会话', exact: true }).count(), 0)
   assert.equal(await preview.locator('textarea, input').count(), 0)
   await preview.getByRole('button', { name: '原始事件', exact: true }).click()
-  assert.equal(await preview.locator('[data-archive-event]').count(), expectedCount)
+  assert.equal(await preview.locator('[data-archive-event]').count(), Math.min(50, expectedCount))
   await preview.locator('[data-archive-event] summary').first().click()
   await preview.locator('[data-archive-event] pre').first().waitFor()
   assert.ok(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth))
@@ -140,6 +159,7 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
     const session = await local('/sessions', { body: { workspace_id: workspace.workspace_id } })
     const localId = session.identity.session_id
     await local(`/sessions/${localId}/turns`, { body: { input: '/code "archive-retained-history"' } })
+    for (let index = 0; index < 75; index++) await local(`/sessions/${localId}/commands/feedback`, { body: { text: `Archived note ${index}` } })
     const state = await until(() => owner('/state'), value => value.sessions.length === 1, 'Node session discovered')
     const publicId = state.sessions[0].identity.session_id
     const events = await local(`/sessions/${localId}/events`)
@@ -147,6 +167,7 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
     await owner(`/sessions/${publicId}/archive`, { method: 'POST' })
     assert.deepEqual(await admin('/sessions/archived', { tenantId }), [], 'administrator cannot list a private Node archive')
     await assert.rejects(() => admin(`/sessions/${publicId}/archive-events`, { tenantId }))
+    await assert.rejects(() => admin(`/sessions/${publicId}/archive-history`, { tenantId }))
     await assert.rejects(() => admin(`/sessions/${publicId}/restore`, { tenantId, method: 'POST' }))
     const sharing = `/sessions/${publicId}/sharing/user/${adminSession.user.user_id}`
     await owner(sharing, { method: 'PUT', body: { view: true, submit: true, stop: true, configure: true } })
@@ -163,6 +184,7 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
     await owner(sharing, { method: 'DELETE' })
     assert.deepEqual(await admin('/sessions/archived', { tenantId }), [])
     await assert.rejects(() => admin(`/sessions/${publicId}/archive-events`, { tenantId }))
+    await assert.rejects(() => admin(`/sessions/${publicId}/archive-history`, { tenantId }))
     await owner(`/sessions/${publicId}/restore`, { method: 'POST' })
     for (const platform of [false, true]) {
       for (const mobile of [false, true]) {
@@ -198,6 +220,7 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
         assert.deepEqual(await local(`/sessions/${localId}/queue`), queue)
         assert.deepEqual(await request('/sessions/archived'), [])
         await assert.rejects(() => request(`/sessions/${sessionId}/archive-events`), /409/)
+        await assert.rejects(() => request(`/sessions/${sessionId}/archive-history`), /409/)
         const duplicate = await request(`/sessions/${sessionId}/restore`, { method: 'POST' })
         assert.equal(duplicate.identity.session_id, sessionId)
         await screenshot(opened.page, `${artifactName}-restored`)

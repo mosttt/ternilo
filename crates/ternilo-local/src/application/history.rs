@@ -11,6 +11,31 @@ use super::{
 };
 
 impl LocalApplication {
+    pub async fn history(
+        &self,
+        session_id: &str,
+        query: ternilo_protocol::SessionHistoryQuery,
+        archived_only: bool,
+    ) -> Result<ternilo_protocol::SessionEventPage, HarnessError> {
+        query.validate()?;
+        let lifecycle = self.session_lifecycle(session_id).await;
+        let _lifecycle = lifecycle.lock().await;
+        let session = self
+            .state
+            .session(session_id)
+            .await
+            .ok_or_else(|| HarnessError::invalid(format!("unknown session {session_id:?}")))?;
+        if archived_only && session.archived_at_ms.is_none() {
+            return Err(HarnessError::conflict("session is no longer archived"));
+        }
+        if let Some(managed) = self.live.read().await.get(session_id).cloned() {
+            return managed.harness.history(query).await;
+        }
+        JsonlEventStore::new(&self.state.sessions_dir(), &session.identity.session_id)
+            .history(query)
+            .await
+    }
+
     pub async fn events(&self, session_id: &str) -> Result<Vec<SessionEvent>, HarnessError> {
         self.read_session_event_snapshot(session_id, false).await
     }

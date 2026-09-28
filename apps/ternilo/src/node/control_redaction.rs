@@ -70,6 +70,7 @@ fn operation_session(operation: &ApplicationOperation) -> Option<&SessionId> {
         | ApplicationOperation::SessionRestore { session_id }
         | ApplicationOperation::SessionDelete { session_id }
         | ApplicationOperation::SessionEvents { session_id, .. }
+        | ApplicationOperation::SessionHistory { session_id, .. }
         | ApplicationOperation::SessionPlugins { session_id }
         | ApplicationOperation::SessionCommands { session_id }
         | ApplicationOperation::SessionServices { session_id }

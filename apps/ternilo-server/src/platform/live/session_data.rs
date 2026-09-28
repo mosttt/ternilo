@@ -23,18 +23,22 @@ pub(super) async fn send_edge_event_batches(
             .edge
             .is_connected(tenant_id, &session.executor_id)
             .await;
-        let mut events = adapter.events(session).await?;
         if let Some(after) = *cursor {
-            if events.last().is_some_and(|event| event.seq < after)
-                || (events.is_empty() && connected)
-            {
+            let tip = adapter
+                .history(
+                    session,
+                    ternilo_protocol::SessionHistoryQuery {
+                        before_seq: None,
+                        limit: 1,
+                    },
+                )
+                .await?;
+            if connected && tip.events.last().is_none_or(|event| event.seq < after) {
                 *cursor = None;
                 reset = true;
-            } else {
-                events.retain(|event| event.seq > after);
             }
         }
-        events
+        adapter.refresh_event_delta(session, *cursor).await?
     } else {
         adapter.live_event_delta(session, *cursor).await?
     };

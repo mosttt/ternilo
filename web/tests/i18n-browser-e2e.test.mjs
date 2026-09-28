@@ -10,7 +10,7 @@ import { chromium } from 'playwright'
 
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const repository = path.resolve(webRoot, '..')
-const binary = path.join(repository, 'target', 'debug', 'ternilo')
+const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target', 'debug', 'ternilo')
 
 function startTernilo(dataDirectory) {
   const child = spawn(binary, ['serve', '--listen', '127.0.0.1:0', '--data-dir', dataDirectory], {
@@ -111,6 +111,11 @@ test('language preference switches the core workbench, persists across reload, a
           type: 'event_batch', subscription_id: frame.subscription_id,
           session_id: frame.session_id, reset: true, complete: true, events: [], next_seq: 0,
         }))
+        const profile = await api(page, `/sessions/${frame.session_id}/plugins`)
+        liveSocket.send(JSON.stringify({
+          type: 'session_metadata', subscription_id: frame.subscription_id, session_id: frame.session_id,
+          metadata: { read: { inbox: false, stats: false, projection: false, questions: false, profile: true, agent_team: false }, profile },
+        }))
       })
     })
     await page.reload({ waitUntil: 'domcontentloaded' })
@@ -139,19 +144,20 @@ test('language preference switches the core workbench, persists across reload, a
     assert.equal(await page.locator('[data-sidebar-new-session]').getAttribute('aria-label'), 'New Session')
     assert.equal(await page.getByRole('button', { name: 'Settings', exact: true }).isVisible(), true)
     assert.equal(await page.getByText('Put ideas in motion', { exact: true }).isVisible(), true)
-    assert.equal(await page.getByText('Preview', { exact: true }).isVisible(), true)
+    assert.equal(await page.getByRole('button', { name: 'Files', exact: true }).isVisible(), true)
     const input = page.getByRole('textbox', { name: 'Enter task' })
     assert.equal(await input.getAttribute('placeholder'), 'Describe what you want to build')
     await page.setViewportSize({ width: 390, height: 430 })
-    const onboarding = page.locator('[data-model-onboarding]')
-    assert.equal(await onboarding.count(), 0)
+    const onboarding = page.locator('[data-model-onboarding][data-state="empty"]')
+    await onboarding.waitFor()
+    assert.equal(await onboarding.getByText('Configure a model to continue', { exact: true }).isVisible(), true)
     await input.fill('keep this draft')
-    assert.equal(await page.getByRole('button', { name: 'Send' }).isDisabled(), false)
+    assert.equal(await page.getByRole('button', { name: 'Send' }).isDisabled(), true)
     assert.equal(await page.getByRole('button', { name: 'Send' }).evaluate(button => button.getBoundingClientRect().height >= 40), true)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 390)
     await input.fill('')
     await page.setViewportSize({ width: 1280, height: 800 })
-    const model = page.getByRole('button', { name: /Default model/ })
+    const model = page.locator('[data-input-bar] [data-model-picker]')
     await model.click()
     assert.equal(await page.getByText('Model for this session', { exact: true }).isVisible(), true)
     await page.keyboard.press('Escape')

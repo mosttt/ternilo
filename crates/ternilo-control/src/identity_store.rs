@@ -84,6 +84,12 @@ pub struct NativeSessionGrant {
     pub session: IdentitySession,
 }
 
+/// A password verification result that must be revalidated when issuing a session.
+pub struct VerifiedNativeCredentials {
+    user: ControlUser,
+    password_hash: String,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UserInvitationRequest {
@@ -155,18 +161,30 @@ impl ControlStore {
         password: &str,
         now_ms: u64,
     ) -> Result<NativeSessionGrant, HarnessError> {
-        let user = self
-            .authenticate_native_credentials(username, password)
-            .await?;
-        self.create_browser_session(user, now_ms).await
+        let credentials = self.verify_native_credentials(username, password).await?;
+        self.create_native_browser_session(credentials, now_ms)
+            .await
     }
 
     /// Verify credentials separately from the instance access policy.
+    /// For native session issuance, retain the proof from `verify_native_credentials` instead.
     pub async fn authenticate_native_credentials(
         &self,
         username: &str,
         password: &str,
     ) -> Result<ControlUser, HarnessError> {
+        Ok(self
+            .verify_native_credentials(username, password)
+            .await?
+            .user)
+    }
+
+    /// Verify a password without holding database locks during Argon2 work.
+    pub async fn verify_native_credentials(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<VerifiedNativeCredentials, HarnessError> {
         let username = normalize_username(username).map_err(|_| invalid_login())?;
         if password.len() > 1_024 {
             return Err(invalid_login());
@@ -175,11 +193,45 @@ impl ControlStore {
             .bind(&username).fetch_optional(self.database.pool()).await.map_err(database_error)?
             .ok_or_else(invalid_login)?;
         let encoded: String = row.try_get("password_hash").map_err(database_error)?;
-        verify_password(password, encoded).await?;
-        user_from_row(&row)
+        verify_password(password, encoded.clone()).await?;
+        Ok(VerifiedNativeCredentials {
+            user: user_from_row(&row)?,
+            password_hash: encoded,
+        })
     }
 
-    /// Issue a session only after the caller has verified the identity.
+    /// Reject credentials verified before a password reset, even if issuance was delayed.
+    pub async fn create_native_browser_session(
+        &self,
+        credentials: VerifiedNativeCredentials,
+        now_ms: u64,
+    ) -> Result<NativeSessionGrant, HarnessError> {
+        let mut transaction = self.database.begin().await?;
+        lock(
+            &mut transaction,
+            &format!("ternilo:account-role:{}", credentials.user.user_id),
+        )
+        .await?;
+        let current: Option<String> = sqlx::query_scalar(
+            "SELECT user_id FROM control_native_accounts WHERE user_id=$1 AND password_hash=$2",
+        )
+        .bind(credentials.user.user_id.as_str())
+        .bind(&credentials.password_hash)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        if current.is_none() {
+            return Err(invalid_login());
+        }
+        let instance = required_instance(&mut transaction).await?;
+        require_remote_access(&instance, &credentials.user)?;
+        let grant = issue_session(&mut transaction, credentials.user, instance, now_ms).await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(grant)
+    }
+
+    /// Issue a session for an identity authenticated by the trusted caller.
+    /// Password logins must use `create_native_browser_session` to reject reset credentials.
     pub async fn create_browser_session(
         &self,
         user: ControlUser,
@@ -746,7 +798,11 @@ pub(crate) async fn reserve_email_in(
 
 pub(crate) fn validate_registration(registration: &NativeRegistration) -> Result<(), HarnessError> {
     normalize_email(&registration.email)?;
-    if !(8..=1_024).contains(&registration.password.len()) {
+    validate_password(&registration.password)
+}
+
+pub(crate) fn validate_password(password: &str) -> Result<(), HarnessError> {
+    if !(8..=1_024).contains(&password.len()) {
         return Err(HarnessError::invalid(
             "password must contain 8 to 1024 bytes",
         ));

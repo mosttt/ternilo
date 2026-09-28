@@ -959,6 +959,56 @@ impl CloudStore {
             .await
     }
 
+    pub async fn session_history_as(
+        &self,
+        tenant_id: &TenantId,
+        actor_id: &UserId,
+        session_id: &SessionId,
+        query: ternilo_protocol::SessionHistoryQuery,
+    ) -> Result<ternilo_protocol::SessionEventPage, HarnessError> {
+        query.validate()?;
+        session_id.validate()?;
+        let before = query
+            .before_seq
+            .map(|seq| to_i64(seq, "history cursor"))
+            .transpose()?;
+        let mut transaction = self.begin().await?;
+        set_tenant(&mut transaction, tenant_id).await?;
+        {
+            crate::sharing::session_owner_in(
+                &mut transaction,
+                tenant_id,
+                actor_id,
+                session_id,
+                ternilo_control::ResourceAction::View,
+            )
+            .await?;
+        }
+        let rows = sqlx::query(
+            "SELECT event FROM cloud_session_events
+             WHERE tenant_id = $1 AND session_id = $2 AND (CAST($3 AS BIGINT) IS NULL OR seq < $3)
+             ORDER BY seq DESC LIMIT $4",
+        )
+        .bind(tenant_id.as_str())
+        .bind(session_id.as_str())
+        .bind(before)
+        .bind(i64::from(query.limit))
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        transaction.commit().await.map_err(database_error)?;
+        let mut events = rows
+            .into_iter()
+            .map(|row| {
+                row.try_get::<ternilo_storage::Json<SessionEvent>, _>("event")
+                    .map(|event| event.0)
+                    .map_err(database_error)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        events.reverse();
+        Ok(ternilo_protocol::SessionEventPage::new(events))
+    }
+
     async fn session_events_with_access(
         &self,
         tenant_id: &TenantId,

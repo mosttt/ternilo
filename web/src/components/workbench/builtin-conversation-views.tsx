@@ -17,6 +17,7 @@ registerConversationView({
       key={context.sessionId}
       sessionId={context.sessionId}
       events={context.events}
+      history={context.history}
       pendingSubmissions={context.pendingSubmissions}
       projection={context.projection}
       reloadMetadata={context.reloadMetadata}
@@ -41,6 +42,7 @@ registerConversationView({
     <TrajectoryView
       sessionId={context.sessionId}
       events={context.events}
+      history={context.history}
       selection={context.selection}
       onSelect={context.onSelect}
     />

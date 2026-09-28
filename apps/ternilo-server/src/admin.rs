@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod native_password;
+
 use clap::{Parser, Subcommand};
 use ternilo_control::{ControlStore, SecretCipher};
 use ternilo_protocol::HarnessError;
@@ -14,6 +16,8 @@ pub(crate) struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Recover an existing native account without changing its identity or resources.
+    ResetPassword(native_password::Options),
     ResetAuthentication {
         #[arg(long, env = "TERNILO_SERVER_CONFIG")]
         config: Option<std::path::PathBuf>,
@@ -43,6 +47,7 @@ enum Command {
 
 pub(crate) async fn execute(args: Args) -> Result<(), HarnessError> {
     match args.command {
+        Command::ResetPassword(options) => native_password::execute(options).await?,
         Command::ResetAuthentication { config } => {
             let path = config.map_or_else(crate::config::default_config_path, Ok)?;
             let config = crate::config::ServerConfig::read(&path)?;
@@ -53,12 +58,7 @@ pub(crate) async fn execute(args: Args) -> Result<(), HarnessError> {
                 config.max_database_connections,
             )
             .await?;
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|_| HarnessError::execution("system clock is before Unix epoch"))?;
-            let now_ms = u64::try_from(now.as_millis())
-                .map_err(|_| HarnessError::execution("system clock overflow"))?;
-            store.reset_authentication_settings(now_ms).await?;
+            store.reset_authentication_settings(now_ms()?).await?;
             println!(
                 "Saved login settings cleared. Turnstile is disabled; OIDC falls back to deployment configuration. Accounts and passwords are unchanged."
             );
@@ -104,6 +104,13 @@ pub(crate) async fn execute(args: Args) -> Result<(), HarnessError> {
         }
     }
     Ok(())
+}
+
+fn now_ms() -> Result<u64, HarnessError> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| HarnessError::execution("system clock is before Unix epoch"))?;
+    u64::try_from(now.as_millis()).map_err(|_| HarnessError::execution("system clock overflow"))
 }
 
 fn required_configuration(value: String, label: &str) -> Result<String, HarnessError> {

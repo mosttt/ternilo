@@ -13,4 +13,4 @@ for attempt in $(seq 1 60); do
   sleep 1
 done
 export TERNILO_TEST_DATABASE_URL="postgres://postgres:temporary-auth-check@127.0.0.1:$port/ternilo_control_test"
-cargo test --locked -p ternilo-control --test authentication_settings --test oidc_sessions --test edge_workbench_postgres -- --ignored --test-threads=1
+cargo test --locked -p ternilo-control --test authentication_settings --test oidc_sessions --test edge_workbench_postgres --test native_recovery -- --ignored --test-threads=1

@@ -113,6 +113,8 @@ pub(super) fn session_router() -> Router {
                 .push(Router::with_path("restore").post(restore_session))
                 .push(Router::with_path("events").get(session_events))
                 .push(Router::with_path("archive-events").get(archived_session_events))
+                .push(Router::with_path("history").get(session_history))
+                .push(Router::with_path("archive-history").get(archived_session_history))
                 .push(Router::with_path("files/{file_id}/content").get(session_file_content))
                 .push(Router::with_path("plugins").get(session_plugins))
                 .push(Router::with_path("commands").get(session_commands))
@@ -689,6 +691,45 @@ async fn archived_session_events(
             .shared
             .application
             .archived_events(&session_id)
+            .await?,
+    ))
+}
+
+#[handler]
+async fn session_history(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ternilo_protocol::SessionEventPage>, ApiError> {
+    history_page(request, depot, false).await
+}
+
+#[handler]
+async fn archived_session_history(
+    request: &mut Request,
+    depot: &mut Depot,
+    response: &mut salvo_core::prelude::Response,
+) -> Result<Json<ternilo_protocol::SessionEventPage>, ApiError> {
+    response.headers_mut().insert(
+        salvo_core::http::header::CACHE_CONTROL,
+        "no-store".parse().unwrap(),
+    );
+    history_page(request, depot, true).await
+}
+
+async fn history_page(
+    request: &mut Request,
+    depot: &mut Depot,
+    archived: bool,
+) -> Result<Json<ternilo_protocol::SessionEventPage>, ApiError> {
+    let session_id = path_parameter(request, "session_id")?;
+    let query = request
+        .parse_queries::<ternilo_protocol::SessionHistoryQuery>()
+        .map_err(invalid_request)?;
+    Ok(Json(
+        app_state(depot)
+            .shared
+            .application
+            .history(&session_id, query, archived)
             .await?,
     ))
 }

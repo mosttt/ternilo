@@ -60,8 +60,57 @@ pub(super) async fn verify(store: &ControlStore, fixture: &EdgeFixture, mapping:
         .unwrap()
         .is_empty()
     );
+    verify_pages(store, fixture, mapping, &events).await;
     assert_conflicting_event_rejected(store, fixture, mapping, &events[1000]).await;
     assert_batch_atomicity_and_deduplication(store, fixture, mapping, &events[0]).await;
+}
+
+async fn verify_pages(
+    store: &ControlStore,
+    fixture: &EdgeFixture,
+    mapping: &MappingFixture,
+    events: &[SessionEvent],
+) {
+    let edge = store.edge_store();
+    let latest = edge
+        .history(
+            &fixture.tenant_a,
+            &fixture.executor_a,
+            &mapping.node_session,
+            ternilo_protocol::SessionHistoryQuery {
+                before_seq: None,
+                limit: 200,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(latest.events, events[1001..]);
+    assert_eq!(latest.next_before_seq, Some(1005));
+    let older = edge
+        .history(
+            &fixture.tenant_a,
+            &fixture.executor_a,
+            &mapping.node_session,
+            ternilo_protocol::SessionHistoryQuery {
+                before_seq: latest.next_before_seq,
+                limit: 200,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(older.events, events[801..1001]);
+    assert!(
+        edge.history(
+            &fixture.tenant_b,
+            &fixture.executor_a,
+            &mapping.node_session,
+            ternilo_protocol::SessionHistoryQuery::default()
+        )
+        .await
+        .unwrap()
+        .events
+        .is_empty()
+    );
 }
 
 async fn assert_conflicting_event_rejected(

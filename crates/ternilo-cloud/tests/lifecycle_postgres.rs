@@ -422,6 +422,46 @@ async fn assert_archive_restore_contract(
         .session_events_as(tenant, actor, session_id, None, 1000)
         .await
         .unwrap();
+    let page = cloud
+        .session_history_as(
+            tenant,
+            actor,
+            session_id,
+            ternilo_protocol::SessionHistoryQuery {
+                before_seq: None,
+                limit: 2,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(page.events, events[events.len().saturating_sub(2)..]);
+    if let Some(before) = page.next_before_seq {
+        let earlier = cloud
+            .session_history_as(
+                tenant,
+                actor,
+                session_id,
+                ternilo_protocol::SessionHistoryQuery {
+                    before_seq: Some(before),
+                    limit: 1000,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(earlier.events, events[..events.len() - 2]);
+        assert_eq!(earlier.next_before_seq, None);
+    }
+    assert!(
+        cloud
+            .session_history_as(
+                tenant,
+                &ternilo_protocol::UserId::new("unknown-history-reader"),
+                session_id,
+                ternilo_protocol::SessionHistoryQuery::default()
+            )
+            .await
+            .is_err()
+    );
     let restored = cloud
         .restore_session(tenant, actor, session_id, now)
         .await

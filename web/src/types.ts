@@ -966,3 +966,8 @@ export interface SessionServiceSnapshot {
   active_calls: number
   error?: string | null
 }
+
+export interface SessionEventPage {
+  events: SessionEvent[]
+  next_before_seq: number | null
+}

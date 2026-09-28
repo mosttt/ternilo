@@ -378,6 +378,103 @@ impl<'a> EdgeAdapter<'a> {
             .await
     }
 
+    pub(crate) async fn history(
+        &self,
+        mapping: &EdgeSessionRecord,
+        query: ternilo_protocol::SessionHistoryQuery,
+    ) -> Result<ternilo_protocol::SessionEventPage, HarnessError> {
+        query.validate()?;
+        self.require_action(mapping, ResourceAction::View).await?;
+        let mut page = if self
+            .state
+            .edge
+            .is_connected(self.tenant_id, &mapping.executor_id)
+            .await
+        {
+            let value = self
+                .state
+                .edge
+                .call(
+                    self.tenant_id,
+                    &mapping.executor_id,
+                    ApplicationOperation::SessionHistory {
+                        session_id: mapping.node_session_id.clone(),
+                        query,
+                    },
+                )
+                .await?;
+            let mut page: ternilo_protocol::SessionEventPage =
+                decode(value, "Node Session history response")?;
+            self.state
+                .store
+                .edge_store()
+                .project_event_provenance(
+                    self.tenant_id,
+                    &mapping.executor_id,
+                    &mapping.node_session_id,
+                    &mut page.events,
+                )
+                .await?;
+            page
+        } else {
+            self.state
+                .store
+                .edge_store()
+                .history(
+                    self.tenant_id,
+                    &mapping.executor_id,
+                    &mapping.node_session_id,
+                    query,
+                )
+                .await?
+        };
+        self.translate_event_references_from_node(mapping, &mut page.events)
+            .await?;
+        Ok(page)
+    }
+
+    pub(crate) async fn refresh_event_delta(
+        &self,
+        mapping: &EdgeSessionRecord,
+        after_seq: Option<u64>,
+    ) -> Result<Vec<SessionEvent>, HarnessError> {
+        self.require_action(mapping, ResourceAction::View).await?;
+        if !self
+            .state
+            .edge
+            .is_connected(self.tenant_id, &mapping.executor_id)
+            .await
+        {
+            return self.live_event_delta(mapping, after_seq).await;
+        }
+        let value = self
+            .state
+            .edge
+            .call(
+                self.tenant_id,
+                &mapping.executor_id,
+                ApplicationOperation::SessionEvents {
+                    session_id: mapping.node_session_id.clone(),
+                    after_seq,
+                },
+            )
+            .await?;
+        let mut events: Vec<SessionEvent> = decode(value, "Node Session events response")?;
+        self.state
+            .store
+            .edge_store()
+            .project_event_provenance(
+                self.tenant_id,
+                &mapping.executor_id,
+                &mapping.node_session_id,
+                &mut events,
+            )
+            .await?;
+        self.translate_event_references_from_node(mapping, &mut events)
+            .await?;
+        Ok(events)
+    }
+
     pub(crate) async fn events(
         &self,
         mapping: &EdgeSessionRecord,

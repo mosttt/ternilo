@@ -576,6 +576,7 @@ service_contract! {
             async fn append(run_id: RunId, kind: SessionEventKind) -> Result<SessionEvent, HarnessError>;
             async fn events() -> Vec<SessionEvent>;
             async fn events_after(after_seq: Option<u64>) -> Vec<SessionEvent>;
+            async fn history(query: ternilo_protocol::SessionHistoryQuery) -> Result<ternilo_protocol::SessionEventPage, HarnessError>;
             async fn derive_messages() -> Vec<ModelMessage>;
         ],
     }

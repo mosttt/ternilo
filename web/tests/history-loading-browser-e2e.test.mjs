@@ -7,10 +7,10 @@ import path from 'node:path'
 import test from 'node:test'
 import { chromium } from 'playwright'
 import { freePort, repository, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
-import { localApi } from './model-device-fixture.mjs'
+import { localApi, until } from './model-device-fixture.mjs'
 
 
-test('long reasoning history survives desktop, trajectory and mobile reload without partial replay renders', { timeout: 120_000 }, async () => {
+test('bounded history loads recent events, pages older reasoning and resumes Live on desktop and mobile', { timeout: 120_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-history-'))
   const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ?? directory
   await mkdir(artifacts, { recursive: true })
@@ -19,7 +19,7 @@ test('long reasoning history survives desktop, trajectory and mobile reload with
   const data = path.join(directory, 'data')
   const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data]
   let app, browser, page
-  const errors = []
+  const errors = [], subscriptions = [], streamed = []
   try {
     app = startProcess(binary, args)
     await waitForHttp(origin, app)
@@ -38,6 +38,10 @@ test('long reasoning history survives desktop, trajectory and mobile reload with
     api = await localApi(origin)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     page = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    page.on('websocket', socket => {
+      socket.on('framesent', ({ payload }) => { const frame = JSON.parse(String(payload)); if (frame.type === 'subscribe') subscriptions.push(frame) })
+      socket.on('framereceived', ({ payload }) => { const frame = JSON.parse(String(payload)); if (frame.type === 'event_batch') streamed.push(...frame.events) })
+    })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`) })
@@ -51,11 +55,24 @@ test('long reasoning history survives desktop, trajectory and mobile reload with
       assert.equal(createHash('sha256').update(Buffer.from(served)).digest('hex'), createHash('sha256').update(built).digest('hex'))
     }
     assert.equal((await api(`/sessions/${sessionId}/events`)).length, expected.length)
-    await page.locator('[data-turn-process]').click()
+    assert.equal(await page.locator('[data-turn-process]').count(), 0, 'partial history stays expanded')
     const row = page.locator('[data-reasoning-row]')
     await row.getByRole('button').click()
     const text = await row.locator('[data-reasoning-body]').textContent()
-    assert.equal(text, expected.filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''))
+    await until(async () => subscriptions.at(-1), frame => frame?.after_seq === expected.length - 1, 'live resumes after the bounded page')
+    const recent = expected.slice(-200)
+    assert.equal(text, recent.filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''))
+    await page.getByRole('button', { name: '加载更早', exact: true }).click()
+    await until(async () => row.locator('[data-reasoning-body]').textContent(), value => value === expected.slice(-400).filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''), 'older reasoning page')
+    const seen = []
+    let before
+    do {
+      const result = await api(`/sessions/${sessionId}/history?limit=1000${before === undefined ? '' : `&before_seq=${before}`}`)
+      assert.ok(result.events.length <= 1000)
+      seen.unshift(...result.events.map(event => event.seq))
+      before = result.next_before_seq
+    } while (before !== null)
+    assert.deepEqual(seen, expected.map(event => event.seq))
     await row.getByRole('button').click()
     await page.getByRole('tab', { name: '轨迹', exact: true }).click()
     await page.locator('[data-trajectory-state="ready"]').waitFor()
@@ -63,10 +80,13 @@ test('long reasoning history survives desktop, trajectory and mobile reload with
     await page.setViewportSize({ width: 390, height: 844 })
     await page.reload()
     await page.getByText('History preserved.', { exact: true }).waitFor()
-    await page.locator('[data-turn-process]').tap()
+    assert.equal(await page.locator('[data-turn-process]').count(), 0)
     await row.getByRole('button').tap()
     assert.equal(await row.locator('[data-reasoning-body]').textContent(), text)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    const receipt = await api(`/sessions/${sessionId}/commands/feedback`, { body: { text: 'Bounded history live continuity' } })
+    await until(async () => streamed, events => receipt.events.every(event => events.some(item => item.seq === event.seq)), 'new canonical events after paging and reload')
+    assert.deepEqual(streamed.map(event => event.seq), receipt.events.map(event => event.seq))
     await page.screenshot({ path: path.join(artifacts, 'history-mobile.png') })
     assert.deepEqual(errors, [])
   } catch (error) {

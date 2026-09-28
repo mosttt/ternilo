@@ -540,6 +540,29 @@ impl SessionsProvider for SessionLog {
         })
     }
 
+    fn history<'a>(
+        &'a self,
+        _: CallContext<()>,
+        query: ternilo_protocol::SessionHistoryQuery,
+    ) -> Pin<
+        Box<
+            dyn Future<Output = Result<ternilo_protocol::SessionEventPage, HarnessError>>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            query.validate()?;
+            let state = self.state.lock().await;
+            let end = query.before_seq.map_or(state.events.len(), |before| {
+                state.events.partition_point(|event| event.seq < before)
+            });
+            Ok(ternilo_protocol::SessionEventPage::new(
+                state.events[end.saturating_sub(query.limit as usize)..end].to_vec(),
+            ))
+        })
+    }
+
     fn derive_messages<'a>(
         &'a self,
         _: CallContext<()>,

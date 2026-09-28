@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { conversationEvents } from '@/domain/conversation-events'
 import { buildConversationItems, type ConversationItem } from '@/domain/events'
 import { useTranslate } from '@/i18n/provider'
-import type { LocalSession, SessionEvent } from '@/types'
+import type { LocalSession, SessionEvent, SessionEventPage } from '@/types'
 import { AssistantMarkdown } from './chat/assistant-markdown'
 import { WorkspaceDisplayContext } from './workspace-display-context'
 import css from './session-archive-dialog.module.css'
@@ -39,6 +39,10 @@ function HistoryItem({ item }: { item: ConversationItem }) {
 export function SessionArchivePreview({ session, tenantId }: { session: LocalSession; tenantId: string | null }) {
   const translate = useTranslate('sessionArchive')
   const [events, setEvents] = React.useState<SessionEvent[] | null>(null)
+  const [nextBeforeSeq, setNextBeforeSeq] = React.useState<number | null>(null)
+  const [loadingOlder, setLoadingOlder] = React.useState(false)
+  const abortRef = React.useRef<AbortController | null>(null)
+  const chat = useTranslate('chat')
   const [error, setError] = React.useState('')
   const [revision, setRevision] = React.useState(0)
   const [raw, setRaw] = React.useState(false)
@@ -46,14 +50,32 @@ export function SessionArchivePreview({ session, tenantId }: { session: LocalSes
   const sessionId = session.identity.session_id
   React.useEffect(() => {
     const controller = new AbortController()
+    abortRef.current = controller
+    setNextBeforeSeq(null); setLoadingOlder(false)
     setEvents(null); setError(''); setPage(0)
-    void api.request<SessionEvent[]>(`/sessions/${encodeURIComponent(sessionId)}/archive-events`, {
+    void api.request<SessionEventPage>(`/sessions/${encodeURIComponent(sessionId)}/archive-history?limit=200`, {
       headers: tenantId ? { 'x-ternilo-tenant': tenantId } : undefined,
       signal: controller.signal, cache: 'no-store',
-    }).then(result => { if (!controller.signal.aborted) setEvents(result) })
+    }).then(result => { if (!controller.signal.aborted) { setEvents(result.events); setNextBeforeSeq(result.next_before_seq) } })
       .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : String(cause)) })
     return () => controller.abort()
   }, [sessionId, tenantId, revision])
+  const loadOlder = async () => {
+    const signal = abortRef.current?.signal
+    if (nextBeforeSeq === null || loadingOlder || signal?.aborted) return
+    setLoadingOlder(true); setError('')
+    try {
+      const result = await api.request<SessionEventPage>(`/sessions/${encodeURIComponent(sessionId)}/archive-history?limit=200&before_seq=${nextBeforeSeq}`, {
+        headers: tenantId ? { 'x-ternilo-tenant': tenantId } : undefined, signal, cache: 'no-store',
+      })
+      if (signal?.aborted) return
+      setEvents(current => [...result.events, ...(current ?? [])]); setNextBeforeSeq(result.next_before_seq); setPage(0)
+    } catch (cause) {
+      if (!signal?.aborted) { setEvents(null); setError(cause instanceof Error ? cause.message : String(cause)) }
+    } finally {
+      if (!signal?.aborted) setLoadingOlder(false)
+    }
+  }
   const items = React.useMemo(() => buildConversationItems(conversationEvents(events ?? [])), [events])
   const count = raw ? events?.length ?? 0 : items.length
   const lastPage = Math.max(0, Math.ceil(count / 50) - 1)
@@ -70,6 +92,7 @@ export function SessionArchivePreview({ session, tenantId }: { session: LocalSes
     {loading && <p role="status" className={css.status}>{translate('historyLoading')}</p>}
     {error && <p role="alert" className={css.error}>{translate('historyError', { message: error })}</p>}
     {events && <>
+      {nextBeforeSeq !== null && <Button size="sm" variant="outline" disabled={loadingOlder} onClick={() => void loadOlder()}>{chat('chat.loadOlder')}</Button>}
       <p className={css.hint}>{translate('historyCount', { count: events.length })}</p>
       {count === 0 && <p className={css.status}>{translate('historyEmpty')}</p>}
       <WorkspaceDisplayContext.Provider value={session.workspace_path}>

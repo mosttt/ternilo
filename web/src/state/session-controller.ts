@@ -15,6 +15,7 @@ import type {
   Profile,
   SessionCommandReceipt,
   SessionEvent,
+  SessionEventPage,
   SessionInboxSnapshot,
   SessionProjection,
   SessionStats,
@@ -79,6 +80,9 @@ export interface SessionControllerSnapshot {
   activeRunId: string | null
   error: string
   historyError: string
+  nextBeforeSeq: number | null
+  loadingOlder: boolean
+  olderHistoryError: string
   metadataWarning: string
 }
 
@@ -99,6 +103,7 @@ export interface SessionRuntimeActions {
   answerQuestion(questionId: string, answer: UserQuestionAnswer): Promise<void>
   reloadMetadata(): Promise<void>
   retryHistory(): void
+  loadOlderHistory(): Promise<void>
 }
 
 export type SessionRuntime = SessionControllerSnapshot & SessionRuntimeActions
@@ -120,6 +125,9 @@ function initialSnapshot(pendingSubmissions: PendingSubmissionEcho[] = []): Sess
     activeRunId: null,
     error: '',
     historyError: '',
+    nextBeforeSeq: null,
+    loadingOlder: false,
+    olderHistoryError: '',
     metadataWarning: '',
   }
 }
@@ -242,6 +250,7 @@ export class SessionController implements SessionRuntimeActions {
   private metadataFlight: MetadataFlight | null = null
   private inboxFlight: InboxFlight | null = null
   private inboxRevision = 0
+  private historyRevision = 0
 
   constructor(private readonly dependencies: SessionControllerDependencies) {}
 
@@ -321,7 +330,46 @@ export class SessionController implements SessionRuntimeActions {
     const controller = new AbortController()
     this.abortController = controller
     this.updateSnapshot({ loading: true })
-    this.dependencies.live.setSession(sessionId, { afterSeq: null })
+    void this.loadInitialHistory(sessionId, this.generation, controller.signal)
+  }
+
+  private async loadInitialHistory(sessionId: string, generation: number, signal: AbortSignal) {
+    try {
+      const page = await this.dependencies.api.request<SessionEventPage>(
+        `/sessions/${encodeURIComponent(sessionId)}/history?limit=200`, { signal },
+      )
+      if (!this.isCurrent(sessionId, generation, signal)) return
+      this.mergeEvents(sessionId, page.events)
+      this.updateSnapshot({ nextBeforeSeq: page.next_before_seq })
+      this.dependencies.live.setSession(sessionId, { afterSeq: page.events.at(-1)?.seq ?? null })
+    } catch (cause) {
+      if (!this.isCurrent(sessionId, generation, signal)) return
+      this.updateSnapshot({ loadedSessionId: sessionId, loading: false, historyError: errorMessage(cause) })
+    }
+  }
+
+  readonly loadOlderHistory = async () => {
+    const sessionId = this.sessionId
+    const { nextBeforeSeq, loadingOlder } = this.getSnapshot()
+    if (!sessionId || !this.enabled || nextBeforeSeq === null || loadingOlder) return
+    const generation = this.generation
+    const revision = this.historyRevision
+    const signal = this.abortController?.signal
+    this.updateSnapshot({ loadingOlder: true, olderHistoryError: '' })
+    try {
+      const page = await this.dependencies.api.request<SessionEventPage>(
+        `/sessions/${encodeURIComponent(sessionId)}/history?limit=200&before_seq=${nextBeforeSeq}`, { signal },
+      )
+      if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return
+      this.mergeEvents(sessionId, page.events)
+      this.updateSnapshot({ nextBeforeSeq: page.next_before_seq })
+    } catch (cause) {
+      if (this.isCurrent(sessionId, generation, signal) && revision === this.historyRevision) {
+        this.updateSnapshot({ olderHistoryError: errorMessage(cause) })
+      }
+    } finally {
+      if (this.isCurrent(sessionId, generation, signal) && revision === this.historyRevision) this.updateSnapshot({ loadingOlder: false })
+    }
   }
 
   private handleLiveStatus(status: LiveConnectionStatus) {
@@ -354,9 +402,11 @@ export class SessionController implements SessionRuntimeActions {
     if (frame.type === 'event_batch') {
       if (frame.session_id !== sessionId) return
       if (frame.reset) {
+        this.historyRevision += 1
+        this.updateSnapshot({ nextBeforeSeq: null, loadingOlder: false, olderHistoryError: '' })
         this.eventBuffer = createSessionEventBuffer(sessionId)
         this.historyEvents = []
-        this.updateSnapshot({ events: [], historyError: '' })
+        this.updateSnapshot({ events: [], loading: true, historyError: '' })
       }
       if (this.historyEvents !== null) {
         for (const event of frame.events) this.historyEvents.push(event)
@@ -561,10 +611,8 @@ export class SessionController implements SessionRuntimeActions {
     this.historyEvents = null
     const pending = this.pendingBySession.get(sessionId) ?? []
     this.replaceSnapshot({ ...initialSnapshot(pending), liveStatus })
-    this.abortController?.abort()
-    this.abortController = new AbortController()
-    this.updateSnapshot({ loading: true })
-    this.dependencies.live.resubscribe({ afterSeq: null })
+    this.stopTarget()
+    this.startTarget(sessionId)
   }
 
   readonly submit = async (
