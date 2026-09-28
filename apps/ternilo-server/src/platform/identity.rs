@@ -289,12 +289,15 @@ async fn login(
         .await?
         .verify_turnstile(body.turnstile_token.as_deref(), "login")
         .await?;
-    let user = state
+    let credentials = state
         .store
-        .authenticate_native_credentials(&body.username, &body.password)
+        .verify_native_credentials(&body.username, &body.password)
         .await
         .map_err(authentication_error)?;
-    let grant = state.store.create_browser_session(user, now_ms()?).await?;
+    let grant = state
+        .store
+        .create_native_browser_session(credentials, now_ms()?)
+        .await?;
     Ok(Json(browser_grant(state, grant)))
 }
 

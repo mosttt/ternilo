@@ -13,6 +13,7 @@ mod group_store;
 mod identity_sessions;
 mod identity_store;
 mod model_store;
+mod native_recovery;
 mod node_resources;
 mod oidc_sessions;
 mod placement_store;
@@ -44,8 +45,10 @@ pub use identity_sessions::{
 pub use identity_store::{
     AccountLoginMethods, IdentitySession, InstanceMode, InstanceSettings, NativeRegistration,
     NativeSessionGrant, OidcAccountLink, UserInvitationGrant, UserInvitationRequest,
+    VerifiedNativeCredentials,
 };
 pub use model_store::*;
+pub use native_recovery::NativePasswordReset;
 pub use node_resources::{NodeSessionResource, NodeWorkspaceResource};
 pub use oidc_sessions::{OidcRefreshSession, OidcSessionGrant, OidcSessionIdentity};
 pub use registration_store::{

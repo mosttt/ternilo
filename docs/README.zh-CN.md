@@ -26,6 +26,7 @@
 
 - [账号与平台管理](platform-management.md)：单／多用户模式、注册、账号、团队、管理职责与 Worker 页面。
 - [登录与人机验证](server-authentication.md)：在 Server 设置 OAuth 2.0／OIDC、Turnstile、管理密钥及恢复登录。
+- [原生账号密码恢复](account-recovery.md)：通过本机维护命令重置密码，保留原账号和资源。
 - [平台模型服务](model-service.md)：发布模型、分配授权、领取模型 Key、客户端登录与用量。
 - [产品与能力边界](product.md)：两个使用模式、三类共享、页面分工、已有能力与当前限制。
 - [安全模型](security.md)：身份、凭据、审批、操作系统隔离和遥测。

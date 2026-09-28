@@ -4,7 +4,7 @@
 
 Start with the [local quickstart](getting-started.md). To manage computers from another device, continue with [remote access](remote-access.md). Complete a real task first, then configure collaboration, plugins, or managed execution as needed.
 
-The entry pages are available in English and Simplified Chinese. The detailed guides linked below are currently written in Simplified Chinese.
+The entry pages and account recovery guide are available in English and Simplified Chinese. Other detailed guides linked below are currently written in Simplified Chinese.
 
 ## Installation and deployment
 
@@ -28,6 +28,7 @@ The entry pages are available in English and Simplified Chinese. The detailed gu
 
 - [Platform administration](platform-management.md): access modes, registration, accounts, teams, and managed execution.
 - [Authentication and human verification](server-authentication.md): OAuth 2.0/OIDC, Turnstile, secrets, and login recovery.
+- [Native account recovery](account-recovery.en.md): reset an existing password through the local operator CLI while retaining identity and resources.
 - [Platform model service](model-service.md): published models, grants, access keys, client authorization, and usage.
 - [Capabilities and limitations](product.md): deployment modes, resource sharing, supported features, and boundaries.
 - [Security model](security.md): identity, credentials, approvals, operating-system isolation, and telemetry.

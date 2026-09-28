@@ -34,6 +34,7 @@
     "test:web-browser-all": "npm run build && cargo build --manifest-path ../Cargo.toml -p ternilo -p ternilo-server -p ternilo-worker && cargo build --manifest-path ../Cargo.toml -p ternilo-extension --example signed_web_fixture && node scripts/run-browser-acceptance.mjs",
     "test:cloud-container": "npm run build && cargo build --manifest-path ../Cargo.toml -p ternilo-extension --example signed_web_fixture && TERNILO_CLOUD_E2E_CONTAINER=1 node --test tests/cloud-browser-e2e.test.mjs",
     "test:server-accounts-browser": "npm run build && cargo build --manifest-path ../Cargo.toml -p ternilo -p ternilo-server && node --test --test-concurrency=1 tests/server-accounts-nodes-browser-e2e.test.mjs",
+    "test:server-password-recovery-browser": "npm run build && cargo build --locked --manifest-path ../Cargo.toml -p ternilo-server && node --test tests/server-password-recovery-browser-e2e.test.mjs",
     "test:server-oidc-browser": "npm run build && cargo build --manifest-path ../Cargo.toml -p ternilo-server && node --test --test-concurrency=1 tests/server-oidc-link-browser-e2e.test.mjs",
     "test:server-admin-browser": "npm run build && cargo build --manifest-path ../Cargo.toml -p ternilo-server && node --test tests/server-admin-browser-e2e.test.mjs",
     "test:server-groups-browser": "npm run build && cargo build --manifest-path ../Cargo.toml -p ternilo -p ternilo-server && node --test tests/server-groups-browser-e2e.test.mjs",
