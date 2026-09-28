@@ -2,7 +2,7 @@
 
 English · [简体中文](ci-and-core-progress.md)
 
-Status: all CI checks and four-platform packages for `76801de` passed. Recovery, bounded history and unknown-usage reconciliation are merged. Device Provider usage reporting is implemented and validated locally, ready to merge. [Checks for `40c2365`](https://github.com/mosttt/ternilo/actions/runs/36466395897) passed all checks and are finishing Intel macOS packaging.
+Status: the second complete CI run for `40c2365`, including all four package targets, passed. Recovery, bounded history, reconciliation, device usage and native Server model connections are merged. The next candidate removes an obsolete locale key caught by CI and includes authorization revalidation after delayed Node reads.
 
 ## Scope and findings
 
@@ -51,3 +51,5 @@ Follow the [Work execution design](execution-coordination.en.md): separate persi
 
 
 Follow-up CI: `b177e44` passed Rust, platform and authentication gates but its sharing browser test rejected expected console errors from commands/catalog/model-options reads racing explicit revocation. Grant-editor checks now remain on the management page. The active-chat revocation scenario validates the entire denial payload for each scoped read before classifying its exact console entry as expected, retaining stream-stop, UI-clearing and owner-task assertions. Real browser verification passed. [Checks for `40c2365`](https://github.com/mosttt/ternilo/actions/runs/36466395897) are running; the corrected main follows.
+
+CI for `8215c9` correctly rejected the unused `model-service.localUsageUnavailable` key left by the removed placeholder. Both locales are cleaned; i18n and production build checks pass. Device usage also passed 119 Server tests (3 existing environment-dependent ignores), 401 affected library tests, both databases and real browsers. Native model connections passed three unit tests, Clippy and Gemini/Anthropic platform/private file-tool browser workflows.
