@@ -97,6 +97,7 @@ fn retrying_model(delay_ms: u64) -> ProviderModel {
         client: reqwest::Client::new(),
         environment: None,
         attachments: None,
+        sessions: None,
     }
 }
 
@@ -370,6 +371,7 @@ fn responses_request_uses_native_messages_tools_and_reasoning_shape() {
         client: reqwest::Client::new(),
         environment: None,
         attachments: None,
+        sessions: None,
     };
     let body = protocols::request_body(
         &model,

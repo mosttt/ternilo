@@ -290,7 +290,7 @@ impl EdgeStore {
         transaction.commit().await.map_err(database_error)
     }
 
-    pub(super) async fn project_event_provenance_in_transaction(
+    pub(crate) async fn project_event_provenance_in_transaction(
         transaction: &mut Transaction,
         tenant_id: &TenantId,
         executor_id: &ExecutorId,

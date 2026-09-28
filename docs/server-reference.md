@@ -187,7 +187,7 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 ### 统一工作台
 
-`GET /api/v1/sessions/{session_id}/workspace` 返回绑定目录的浏览能力；Server 返回的 `applications` 始终为空。`POST` 的 `kind` 支持 `list` 和 `read`，使用工作区相对路径，要求工作区查看权限（不仅是会话共享）。Server 拒绝所有 `open` 请求，包括资源所有者的请求，不转发到 Node 启动桌面程序；该操作只保留在本机 Ternilo 接口。列表与读取仍发往实际 Node／Worker。当前执行器协议版本为 43，在模型来源证明、逐项设置、定时来源、事件确认及原生模型思考签名的基础上，增加有界历史分页（保留必填的队列编辑版本条件与归档恢复操作）。Server、Node 与 Worker 需要一起升级。
+`GET /api/v1/sessions/{session_id}/workspace` 返回绑定目录的浏览能力；Server 返回的 `applications` 始终为空。`POST` 的 `kind` 支持 `list` 和 `read`，使用工作区相对路径，要求工作区查看权限（不仅是会话共享）。Server 拒绝所有 `open` 请求，包括资源所有者的请求，不转发到 Node 启动桌面程序；该操作只保留在本机 Ternilo 接口。列表与读取仍发往实际 Node／Worker。当前执行器协议版本为 44，在模型来源证明、逐项设置、定时来源、事件确认及原生模型思考签名的基础上，增加设备 Provider 尝试用量事件和有界历史分页（保留必填的队列编辑版本条件与归档恢复操作）。Server、Node 与 Worker 需要一起升级。
 
 `ModelRequest` 必须带当前 `run_id`；Models／ModelGateway 服务合同升至 `@3`，SessionTitles 升至 `@2`，内置与本机目录版本升至 v19。Node 模型网关同时提交实际子会话、原始输入会话和 Server 接受的输入证明，不能再按父会话最新输入推测作者。旧历史仍可读取，但没有运行绑定证明的旧远程输入不能用于新的账号模型调用，应重新提交任务；不会静默冒充其他账号或更换预算。
 
@@ -270,3 +270,5 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 实际部署见 [Docker 与生产部署](deployment.md)，Node 使用见 [远程访问与 Node](remote-access.md)，整体威胁模型见 [安全模型](security.md)。
 
 模型用量核对：`GET /api/v1/admin/models/requests/{request_id}/reconciliations` 读取管理核对记录；`POST /api/v1/admin/models/requests/{request_id}/attempts/{attempt}/reconcile` 由 Owner／Admin 补齐已结束尝试的缺失计数。权限、条件与请求格式见[核对指南](model-usage-reconciliation.md)。
+
+电脑设备报告接口：`GET /api/v1/model-computers/{executor_id}/usage`，使用当前账号和明确的空间上下文，仅电脑所有者可读；共享会话查看权不包含整机用量。可选 `month=YYYY-MM`（UTC）、`query`、`cursor`、`limit`（默认 25，最大 100），返回 `source=device_reported`、`period`、`observations`、`next_cursor`。每条记录包含公开会话 ID、原运行 ID、尝试开始序号、时间、Provider／模型／协议、已验证提交者及可空计数／结束状态；不返回提示词、凭据和原始上游数据。此接口只读已同步的原始记录，不写模型请求账本。覆盖与删除语义见[设备用量](device-provider-usage.md)。

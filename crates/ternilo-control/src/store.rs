@@ -23,6 +23,8 @@ use crate::{
     types::require_bounded,
 };
 
+mod computer_usage;
+pub use computer_usage::{ComputerProviderUsage, ComputerProviderUsagePage};
 mod projects;
 mod usage;
 

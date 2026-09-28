@@ -474,3 +474,100 @@ async fn zero_timeout_keeps_a_stream_open_until_cancelled() {
     assert_eq!(failure.code, ternilo_protocol::ErrorCode::Cancelled);
     assert_eq!(server.await.unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn session_provider_persists_each_attempt_but_connected_servers_keep_their_own_ledger() {
+    use ternilo_kernel::{HarnessSession, HostEnvironment, HostPolicy};
+    use ternilo_protocol::{
+        AgentId, RunId, RunLimits, SessionEventKind, SessionId, SessionIdentity, TenantId, UserId,
+    };
+    for source in ["direct_provider", "connected_server"] {
+        let mut partial_failure = rejected();
+        partial_failure.body =
+            json!({"error":{"message":"temporary error"},"usage":{"prompt_tokens":7}}).to_string();
+        let (url, server) = upstream(vec![partial_failure, completed()]).await;
+        let mut profile = crate::local_profile();
+        let model = profile
+            .plugins
+            .iter_mut()
+            .find(|entry| entry.id == "model")
+            .unwrap();
+        model.kind = KIND.to_owned();
+        model.config = json!({ "provider":"usage-provider","base_url":url,"model":"usage-model","usage_source":source,"retry_base_delay_ms":1,"max_attempts":2 });
+        let session_id = SessionId::new("usage-session");
+        let harness = HarnessSession::boot(
+            &crate::catalog().unwrap(),
+            &profile,
+            HostEnvironment::memory(
+                SessionIdentity {
+                    tenant_id: TenantId::new("local"),
+                    user_id: UserId::new("local-user"),
+                    agent_id: AgentId::new("agent"),
+                    session_id: session_id.clone(),
+                },
+                None,
+                HostPolicy::local(RunLimits::default()),
+            ),
+        )
+        .await
+        .unwrap();
+        let outcome = harness
+            .run(RunId::new("usage-run"), "answer")
+            .await
+            .unwrap();
+        assert_eq!(server.await.unwrap().len(), 2);
+        let starts = outcome
+            .events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                SessionEventKind::ProviderUsageStarted {
+                    source_session_id,
+                    attempt,
+                    route,
+                    ..
+                } => Some((event.seq, source_session_id, *attempt, route)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let finishes = outcome
+            .events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                SessionEventKind::ProviderUsageFinished {
+                    started_seq,
+                    usage,
+                    error_code,
+                    ..
+                } => Some((*started_seq, usage, error_code)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if source == "direct_provider" {
+            assert_eq!(starts.len(), 2);
+            assert_eq!(finishes.len(), 2);
+            for (index, (seq, origin, attempt, route)) in starts.iter().enumerate() {
+                assert_eq!(origin.as_ref(), Some(&session_id));
+                assert_eq!(*attempt as usize, index + 1);
+                assert_eq!(route.provider, "usage-provider");
+                assert_eq!(finishes[index].0, *seq);
+            }
+            assert_eq!(finishes[0].1.as_ref().unwrap().input_tokens, Some(7));
+            assert_eq!(finishes[0].1.as_ref().unwrap().output_tokens, None);
+            assert!(finishes[0].2.is_some());
+            assert_eq!(finishes[1].1.as_ref().unwrap().input_tokens, Some(100));
+            assert_eq!(finishes[1].1.as_ref().unwrap().output_tokens, Some(20));
+            assert_eq!(
+                finishes[1].1.as_ref().unwrap().cached_input_tokens,
+                Some(80)
+            );
+            assert_eq!(finishes[1].1.as_ref().unwrap().reasoning_tokens, Some(10));
+            assert!(finishes[1].2.is_none());
+        } else {
+            assert!(
+                starts.is_empty() && finishes.is_empty(),
+                "official Server model sources are not counted as direct device calls"
+            );
+        }
+        harness.shutdown().await.unwrap();
+    }
+}

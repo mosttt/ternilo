@@ -1,6 +1,6 @@
 # 剩余核心功能实施顺序
 
-状态：账号恢复与历史分页已合入 main 并完成本机验证；未知模型用量核对也已完成，继续推进设备 Provider 用量可见性，同时跟进交付。用户已要求持续推进剩余项，优先 `ternilo` 与 `ternilo-server`，Work 仅保留接入约束。
+状态：账号恢复与历史分页已合入 main 并完成本机验证；未知模型用量核对也已完成，设备 Provider 用量也已实现并通过双库／真实浏览器验证，继续跟进交付和剩余接入缺口。用户已要求持续推进剩余项，优先 `ternilo` 与 `ternilo-server`，Work 仅保留接入约束。
 
 ## 1. 本机维护命令恢复原生账号（已完成）
 
@@ -26,9 +26,9 @@
 
 验收包括大历史首屏、有界响应、向前加载、断线重连、切换会话、重复事件去重、归档／恢复、Server 离线电脑及共享撤权。
 
-## 3. 设备用量与未知用量核对（核对已完成，设备报告实施中）
+## 3. 设备用量与未知用量核对（已完成）
 
-[未知用量核对](model-usage-reconciliation.md)已实现并通过双库／浏览器验收，以下设备用量汇入仍待完成。
+[未知用量核对](model-usage-reconciliation.md)已实现并通过双库／浏览器验收，[设备报告](device-provider-usage.md)也已完成，保留以下实施边界。
 
 先区分设备报告的自有 Provider 使用记录与 Server 已核验的预算账本。设备报告不能变成可任意修改平台预算的依据；Server 网关调用不能因 Node 事件重放而重复计量。沿用稳定请求／尝试标识与既有归属，不按模型名称推断来源。
 
@@ -42,4 +42,4 @@
 
 ## Implementation outline
 
-Native account recovery and bounded history pagination are implemented, validated locally and merged into main. Follow the remaining package builds and continue with device usage plus unknown-usage reconciliation. Preserve identity and resource ownership, revalidate credentials during session issuance, and distinguish device-reported usage from authoritative Server budgets. Test SQLite and restricted PostgreSQL behavior and real CLI/browser workflows. Continue with shared-resource lifecycle, remote SDKs and multi-instance routing afterward; Work remains an explicit integration reservation.
+Native account recovery and bounded history pagination are implemented, validated locally and merged into main. Device Provider observations and unknown-usage reconciliation are also implemented and validated with both databases and real browsers. Follow the remaining package builds and continue closing model connection and lifecycle gaps. Preserve identity and resource ownership, revalidate credentials during session issuance, and distinguish device-reported usage from authoritative Server budgets. Test SQLite and restricted PostgreSQL behavior and real CLI/browser workflows. Continue with shared-resource lifecycle, remote SDKs and multi-instance routing afterward; Work remains an explicit integration reservation.

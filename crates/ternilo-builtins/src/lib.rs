@@ -61,6 +61,7 @@ pub use jobs::KIND as JOB_TOOLS_KIND;
 pub use lsp::KIND as LSP_STDIO_KIND;
 pub use model::{
     ModelAttemptObserver, ModelAttemptReport, ProviderModelRoute, complete_provider_model,
+    normalize_provider_usage,
 };
 pub use model_discovery::{discover_provider_models, parse_openai_model_catalog};
 mod provider_http;

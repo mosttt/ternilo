@@ -88,3 +88,47 @@ pub(super) async fn list(
     }
     Ok(Json(computers))
 }
+
+#[derive(serde::Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+struct UsageQuery {
+    month: Option<String>,
+    query: Option<String>,
+    cursor: Option<String>,
+    limit: Option<u32>,
+}
+
+#[handler]
+pub(super) async fn usage(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ternilo_control::ComputerProviderUsagePage>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let executor = ExecutorId::new(crate::platform::http::path_parameter(
+        request,
+        "executor_id",
+    )?);
+    let query = request
+        .parse_queries::<UsageQuery>()
+        .map_err(crate::platform::http::invalid_request)?;
+    let page = ternilo_control::PageQuery {
+        query: query.query,
+        cursor: query.cursor,
+        limit: query
+            .limit
+            .unwrap_or_else(|| ternilo_control::PageQuery::default().limit),
+    };
+    Ok(Json(
+        app_state(depot)
+            .store
+            .computer_provider_usage(
+                actor(depot),
+                &tenant,
+                &executor,
+                query.month.as_deref(),
+                &page,
+                crate::platform::http::now_ms()?,
+            )
+            .await?,
+    ))
+}

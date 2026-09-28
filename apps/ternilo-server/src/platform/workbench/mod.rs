@@ -130,7 +130,11 @@ pub(crate) fn router() -> Router {
         .push(Router::with_path("state").get(workspace::workbench_state))
         .push(Router::with_path("files").get(files::list_files))
         .push(Router::with_path("model-options").get(model_options::model_options))
-        .push(Router::with_path("model-computers").get(model_computers::list))
+        .push(
+            Router::with_path("model-computers")
+                .get(model_computers::list)
+                .push(Router::with_path("{executor_id}/usage").get(model_computers::usage)),
+        )
         .push(
             Router::with_path("default-model")
                 .get(sessions::get_default_model)

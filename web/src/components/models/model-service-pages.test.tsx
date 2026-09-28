@@ -10,7 +10,7 @@ import { ModelGrants } from './model-grants'
 import { ModelUsage } from './model-usage'
 import type { ModelEntitlement, ModelKey, ModelProvider } from './model-service-api'
 
-const workbench = vi.hoisted(() => ({ platform: true, authRequired: false, loading: false, serverIdentity: { platform_role: 'user', user: { user_id: 'alice', username: 'alice' } }, logout: vi.fn() }))
+const workbench = vi.hoisted(() => ({ tenants: [], platform: true, authRequired: false, loading: false, serverIdentity: { platform_role: 'user', user: { user_id: 'alice', username: 'alice' } }, logout: vi.fn() }))
 vi.mock('@/state/workbench', () => ({ useWorkbench: () => workbench }))
 vi.mock('@/api/client', () => ({ api: { request: vi.fn() } }))
 vi.mock('@/components/workbench/model-picker', () => ({ ModelPicker: () => null, modelLabel: () => '', persistModelSelection: vi.fn() }))
@@ -73,7 +73,8 @@ it('filters usage in the Server API and does not invent device-local totals', as
   expect(api.request).toHaveBeenCalledWith('/model-access/usage?source=user_provider', expect.anything())
   vi.mocked(api.request).mockClear()
   await click(button('设备本地'))
-  expect(host.textContent).toContain('设备本地用量尚未汇总')
+  expect(host.querySelector('[data-computer-usage]')).not.toBeNull()
+  expect(host.textContent).toContain('所选空间没有可查看的自有电脑')
   expect(host.querySelector('[data-model-request]')).toBeNull()
   expect(api.request).not.toHaveBeenCalled()
   await act(async () => navigate('/models?tab=access'))
