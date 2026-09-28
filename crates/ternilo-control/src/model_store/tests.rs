@@ -1,3 +1,6 @@
+#[path = "reconciliation_tests.rs"]
+mod reconciliation_tests;
+
 use sqlx::Executor;
 use ternilo_protocol::{
     ProviderModel, ProviderModelDefaults, ProviderModelSettings, ProviderProfile, ProviderProtocol,
@@ -370,6 +373,7 @@ async fn model_contract(store: &ControlStore, owner_url: &str) {
             .await
             .is_err()
     );
+    reconciliation_tests::reject_pending(store, &owner, &accepted.request.request_id).await;
     let settled = store
         .settle_model_request(&accepted.request.request_id, &known(20, 10), NOW + 1)
         .await
@@ -660,6 +664,16 @@ async fn model_contract(store: &ControlStore, owner_url: &str) {
             .iter()
             .any(|next| next.request_id == request.request_id)
     }));
+    reconciliation_tests::verify(
+        store,
+        &owner,
+        &alice,
+        &bob,
+        &unknown.request.request_id,
+        &accepted.request.request_id,
+        &grant.grant_id,
+    )
+    .await;
     assert!(
         store
             .begin_model_provider_key_rotation(&alice, "upstream", "not-authorized", NOW + 100)

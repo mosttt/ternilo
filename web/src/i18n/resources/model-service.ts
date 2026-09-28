@@ -1,4 +1,16 @@
 export const zh = {
+  reconcileAction: '核对用量',
+  reconcileTitle: '管理员核对用量',
+  reconcileRecords: '核对记录',
+  reconcileDescription: '依据上游记录补齐已结束调用的缺失用量。原调用归属与月份不变，已确定用量不能覆盖。核对会写入审计；请勿填写密码或 API Key。',
+  reconcileHint: '输入与输出 token 必填；缓存和推理为分项，不重复计入总量。预留额度不代表实际消耗。',
+  reconcileReference: '核对依据',
+  reconcileNote: '核对说明',
+  reconcileConfirm: '确认用量并记录核对',
+  reconcileInvalidTokens: '请输入非负整数 token；输入与输出用量不能留空。',
+  reconcileNone: '此请求没有管理员核对记录。',
+  reconciledAttempt: '第 {number} 次尝试 · 已由管理员核对',
+
   catalogTab: '模型',
   connectionsTab: '授权与接入',
   sourceFilter: '模型来源',
@@ -290,6 +302,18 @@ export const zh = {
 } satisfies Record<string, string>
 
 export const en: Record<keyof typeof zh, string> = {
+  reconcileAction: 'Reconcile usage',
+  reconcileTitle: 'Administrative usage reconciliation',
+  reconcileRecords: 'Reconciliation records',
+  reconcileDescription: 'Complete missing usage for finished calls using upstream records. Original ownership and month are preserved; known usage cannot be overwritten. Reconciliation is audited. Do not include passwords or API keys.',
+  reconcileHint: 'Input and output tokens are required. Cache and reasoning are details, not additional totals. Reserved tokens are not actual consumption.',
+  reconcileReference: 'Evidence reference',
+  reconcileNote: 'Reconciliation note',
+  reconcileConfirm: 'Confirm usage and record reconciliation',
+  reconcileInvalidTokens: 'Enter nonnegative integer tokens; input and output usage are required.',
+  reconcileNone: 'This request has no administrative reconciliation records.',
+  reconciledAttempt: 'Attempt {number} · Administratively reconciled',
+
   catalogTab: 'Models',
   connectionsTab: 'Access & connections',
   sourceFilter: 'Model source',

@@ -16,7 +16,11 @@ mod groups;
 mod keys;
 mod ledger;
 mod nodes;
+mod reconciliation;
 mod requests;
+pub use reconciliation::{
+    ModelUsageReconciliation, ModelUsageReconciliationInput, ModelUsageReconciliationResult,
+};
 mod types;
 mod workloads;
 pub use nodes::NodeModelPrincipal;

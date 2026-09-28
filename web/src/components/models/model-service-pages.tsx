@@ -33,7 +33,7 @@ export function ModelAdminPage() {
       <SettingsTabPanel id="publications" active={tab}>{tab === 'publications' && <ModelPublications editable={manageModels} />}</SettingsTabPanel>
       <SettingsTabPanel id="providers" active={tab}>{tab === 'providers' && <ModelProviders editable={manageModels} />}</SettingsTabPanel>
       <SettingsTabPanel id="grants" active={tab}>{tab === 'grants' && <ModelGrants editable={manageGrants} />}</SettingsTabPanel>
-      <SettingsTabPanel id="model-usage" active={tab}>{tab === 'model-usage' && <ModelUsage admin />}</SettingsTabPanel>
+      <SettingsTabPanel id="model-usage" active={tab}>{tab === 'model-usage' && <ModelUsage admin editable={manageGrants} />}</SettingsTabPanel>
     </div>
   </section>
 }
