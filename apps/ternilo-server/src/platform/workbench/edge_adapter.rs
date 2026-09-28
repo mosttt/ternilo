@@ -929,6 +929,24 @@ impl<'a> EdgeAdapter<'a> {
             if let SessionEventKind::UserMessage { references, .. } = &mut event.kind {
                 translate_reference_ids_from_node(mapping, &mappings, references);
             }
+            if let SessionEventKind::ProviderUsageStarted {
+                source_session_id, ..
+            } = &mut event.kind
+            {
+                *source_session_id = source_session_id.as_ref().and_then(|id| {
+                    if id == &mapping.node_session_id {
+                        Some(mapping.session_id.clone())
+                    } else {
+                        mappings
+                            .iter()
+                            .find(|source| {
+                                source.executor_id == mapping.executor_id
+                                    && source.node_session_id == *id
+                            })
+                            .map(|source| source.session_id.clone())
+                    }
+                });
+            }
         }
         Ok(())
     }

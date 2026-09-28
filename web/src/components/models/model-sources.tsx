@@ -36,7 +36,7 @@ export function modelCenterPath(values: Record<string, string>, search = window.
   return `/models?${query}`
 }
 
-function SourcePicker({ label, value, options, onChange, disabled = false }: {
+export function SourcePicker({ label, value, options, onChange, disabled = false }: {
   label: string; value: string; options: Array<{ id: string; name: string }>; onChange(value: string): void; disabled?: boolean
 }) {
   const id = React.useId()

@@ -1,3 +1,6 @@
+#[path = "support/edge_usage.rs"]
+mod edge_usage;
+
 #[path = "support/edge_models.rs"]
 mod edge_models;
 
@@ -55,6 +58,7 @@ async fn edge_contract(store: ControlStore, admin_url: &str, runtime_url: &str) 
     assert_mapping_ownership(&store, &fixture, &mapping).await;
     assert_mapping_conflicts(&store, &fixture, &mapping).await;
     assert_event_cache(&store, &fixture, &mapping).await;
+    edge_usage::verify(&store, &fixture).await;
     edge_uploads::contract(&store, &fixture).await;
     assert_ungrouped_lifecycle(&store, &fixture, &mapping).await;
     assert_shared_mapping_contract(&store, &fixture, &mapping).await;

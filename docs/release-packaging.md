@@ -117,7 +117,7 @@ deploy/docker/release-gate.sh \
 
 完整成功后，门禁输出各步骤日志、`gates.txt`、记录两个生产镜像准确 ID 的 `release.json` 和 `SHA256SUMS`。这条门禁不生成二进制交付压缩包或桌面安装器；这些产物仍需分别构建和验收。
 
-验收必须对应实际程序和协议。当前执行器协议为 `43`，Control schema 为 `14`。客户端／Server 的安装恢复可以独立验证，不必先启动 Worker；Docker 双镜像门禁、优化 release、桌面安装器、其他操作系统、物理手机、PostgreSQL 备份恢复与 Worker 活动任务恢复仍须分别验收，不能由一次本机检查代替。
+验收必须对应实际程序和协议。当前执行器协议为 `44`，Control schema 为 `14`。客户端／Server 的安装恢复可以独立验证，不必先启动 Worker；Docker 双镜像门禁、优化 release、桌面安装器、其他操作系统、物理手机、PostgreSQL 备份恢复与 Worker 活动任务恢复仍须分别验收，不能由一次本机检查代替。
 
 ## 客户端与 Server 安装恢复验证
 

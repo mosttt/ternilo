@@ -1,3 +1,4 @@
+import { ComputerUsage } from './computer-usage'
 import { ModelDevices } from './model-devices'
 import * as React from 'react'
 import { ArrowLeft, ChartNoAxesCombined, KeyRound, LogOut, Settings, Sparkles } from 'lucide-react'
@@ -62,7 +63,7 @@ function ModelAccessPage({ tab }: { tab: string }) {
       {tab === 'usage' && <div className={css.page}>
         <SourceFilters value={usageSource} all onChange={usage_source => navigate(modelCenterPath({ usage_source }, search))} />
         <p className={css.hint}>{t('usageCoverage')}</p>
-        {usageSource === 'device' ? <p className={css.state}>{t('localUsageUnavailable')}</p> : <ModelUsage key={usageSource} source={usageSource === 'account' ? 'user_provider' : usageSource === 'platform' ? 'platform_grant' : undefined} />}
+        {usageSource === 'device' ? <ComputerUsage /> : <ModelUsage key={usageSource} source={usageSource === 'account' ? 'user_provider' : usageSource === 'platform' ? 'platform_grant' : undefined} />}
       </div>}
   </section>
 }

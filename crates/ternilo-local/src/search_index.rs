@@ -443,6 +443,8 @@ pub fn event_category(kind: &ternilo_protocol::SessionEventKind) -> SessionEvent
         | SessionEventKind::WorkspaceExecutionAcquired
         | SessionEventKind::StepStarted { .. }
         | SessionEventKind::ModelRequestStarted { .. }
+        | SessionEventKind::ProviderUsageStarted { .. }
+        | SessionEventKind::ProviderUsageFinished { .. }
         | SessionEventKind::ModelRetryScheduled { .. }
         | SessionEventKind::ModelRetryStarted { .. }
         | SessionEventKind::ModelRetryCancelled { .. }

@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod provider_usage;
+pub use provider_usage::{ProviderUsageRoute, ReportedModelUsage};
 mod model_gateway;
 pub use model_gateway::{ModelGatewayFrame, NodeModelRequest, ScheduleModelOrigin};
 
@@ -2991,6 +2993,19 @@ pub enum SessionEventKind {
     ModelRequestStarted {
         step: u32,
         system_prompt: String,
+    },
+    ProviderUsageStarted {
+        /// Original journal identity survives forks; Server read projections may redact it.
+        source_session_id: Option<SessionId>,
+        step: u32,
+        attempt: u32,
+        route: ProviderUsageRoute,
+    },
+    ProviderUsageFinished {
+        started_seq: u64,
+        usage: Option<ReportedModelUsage>,
+        upstream_request_id: Option<String>,
+        error_code: Option<ErrorCode>,
     },
     ModelRetryScheduled {
         retry_id: String,

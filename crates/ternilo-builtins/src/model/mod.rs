@@ -12,6 +12,9 @@ use ternilo_protocol::{HarnessError, ModelRequest, ModelResponse, ProviderProtoc
 use crate::{factory as make_factory, parse_config};
 
 mod attempt;
+mod session_usage;
+mod usage;
+pub use usage::normalize_provider_usage;
 mod completion;
 mod protocols;
 mod transport;
@@ -30,7 +33,7 @@ pub const KIND: &str = "ternilo.model.openai_compatible";
 component_descriptor! {
     static DESCRIPTOR: () {
         id: "ternilo/builtin-openai-compatible-model@1",
-        requires: [RunEnvironment, Attachments],
+        requires: [RunEnvironment, Attachments, ternilo_kernel::Sessions],
         provides: [Models],
     }
 }
@@ -63,9 +66,20 @@ impl From<ProtocolConfig> for ProviderProtocol {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum UsageSource {
+    #[default]
+    DirectProvider,
+    ConnectedServer,
+}
+
 #[derive(Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ProviderModelConfig {
+    #[serde(default)]
+    #[schemars(skip)]
+    usage_source: UsageSource,
     provider: String,
     base_url: String,
     #[serde(default)]
@@ -148,7 +162,11 @@ pub fn factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: KIND,
-            requires: &["ternilo/run-environment@1", "ternilo/attachments@1"],
+            requires: &[
+                "ternilo/run-environment@1",
+                "ternilo/attachments@1",
+                "ternilo/sessions@1",
+            ],
             provides: &["ternilo/models@3"],
         },
         |value| {
@@ -209,6 +227,12 @@ impl HarnessPlugin for ProviderModelPlugin {
             client: self.client.clone(),
             environment: Some(environment),
             attachments: Some(attachments),
+            sessions: matches!(self.config.usage_source, UsageSource::DirectProvider).then(|| {
+                context
+                    .context()
+                    .service::<ternilo_kernel::Sessions>()
+                    .expect("Provider model declares Sessions")
+            }),
         });
         let route = context.context().clone();
         let scope = context.scope().clone();
@@ -242,6 +266,7 @@ struct ProviderModel {
     client: reqwest::Client,
     environment: Option<RunEnvironmentClient>,
     attachments: Option<AttachmentsClient>,
+    sessions: Option<ternilo_kernel::SessionsClient>,
 }
 
 impl ModelsProvider for ProviderModel {
@@ -259,7 +284,32 @@ impl ModelsProvider for ProviderModel {
         output: Arc<dyn ModelOutput>,
         cancellation: RunCancellation,
     ) -> Pin<Box<dyn Future<Output = Result<ModelResponse, HarnessError>> + Send + 'a>> {
-        Box::pin(self.complete_request(request, output, cancellation, None))
+        Box::pin(async move {
+            let observer: Option<Arc<dyn ModelAttemptObserver>> =
+                if let Some(sessions) = &self.sessions {
+                    let identity = self
+                        .environment
+                        .as_ref()
+                        .expect("session Provider has a run environment")
+                        .identity()
+                        .await;
+                    Some(Arc::new(session_usage::SessionUsageObserver::new(
+                        sessions.clone(),
+                        identity.session_id,
+                        request.run_id.clone(),
+                        request.step,
+                        ternilo_protocol::ProviderUsageRoute {
+                            provider: self.provider.clone(),
+                            model: self.model.clone(),
+                            protocol: self.protocol,
+                        },
+                    )))
+                } else {
+                    None
+                };
+            self.complete_request(request, output, cancellation, observer)
+                .await
+        })
     }
 }
 
@@ -318,6 +368,7 @@ pub async fn complete_provider_model(
         client,
         environment: None,
         attachments: None,
+        sessions: None,
     }
     .complete_request(request, output, cancellation, observer)
     .await

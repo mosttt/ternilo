@@ -381,6 +381,7 @@ pub(super) fn session_profile(
     {
         "ternilo.model.openai_compatible".clone_into(&mut entry.kind);
         entry.config = serde_json::json!({
+            "usage_source": if crate::model_connections::is_connection_provider(&provider) { "connected_server" } else { "direct_provider" },
             "provider": provider,
             "base_url": base_url,
             "model": model,

@@ -22,6 +22,7 @@ fn model(protocol: ProviderProtocol, effort: Option<&str>) -> ProviderModel {
         client: reqwest::Client::new(),
         environment: None,
         attachments: None,
+        sessions: None,
     }
 }
 
