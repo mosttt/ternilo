@@ -116,8 +116,10 @@ for file in \
     examples/wasm-echo-plugin/Cargo.lock examples/wasm-echo-plugin/src/lib.rs \
     crates/ternilo-extension/wit/plugin.wit \
     sdk/python/pyproject.toml sdk/python/src/ternilo/__init__.py sdk/python/src/ternilo/client.py \
-    sdk/python/tests/test_smoke.py sdk/typescript/package.json sdk/typescript/src/client.ts \
-    sdk/typescript/test/smoke.ts; do
+    sdk/python/src/ternilo/server.py sdk/python/tests/test_smoke.py sdk/python/tests/test_server.py \
+    sdk/python/tests/server_smoke.py sdk/typescript/package.json sdk/typescript/package-lock.json \
+    sdk/typescript/tsconfig.json sdk/typescript/src/client.ts sdk/typescript/src/server.ts \
+    sdk/typescript/test/smoke.ts sdk/typescript/test/server.test.ts sdk/typescript/test/server-smoke.ts; do
     mkdir -p "$staging/$name/$(dirname -- "$file")"
     cp "$source_dir/$file" "$staging/$name/$file"
 done

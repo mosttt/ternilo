@@ -118,7 +118,7 @@ node --experimental-strip-types sdk-example.mts
 
 可以在启动参数中增加 `--profile examples/openai-compatible-profile.json`，先填写示例中的模型 ID 并设置它引用的 `OPENAI_API_KEY`；也可以先用网页配置专用数据目录，再停止该目录的服务后交给 SDK 使用。需要操作已有数据时，等待服务完成收尾，再将 `--data-dir` 改为同一路径。
 
-两套 SDK 都管理 child process 生命周期、并发 request 路由和通知订阅，提供 timeout、cancel 和有界 shutdown；高层 `run` 之外仍暴露底层 request/session API，通知可通过 `on_notification`／`onNotification` 回调接收。当前客户端启动本机 stdio 子进程，不提供 Server HTTP／WebSocket 客户端或断线自动重连。
+两套 SDK 都管理 child process 生命周期、并发 request 路由和通知订阅，提供 timeout、cancel 和有界 shutdown；高层 `run` 之外仍暴露底层 request/session API，通知可通过 `on_notification`／`onNotification` 回调接收。`HarnessClient` 启动本机 stdio 子进程；新增 `ServerClient` 直接访问 Server HTTP／Live，支持有界历史、任务队列、游标续接和网络重连，见[Server 远程 SDK](remote-sdks.md)。
 
 `run` 返回后应检查 `status`；业务失败或取消也可以返回结果对象，不能仅因调用未抛异常就认定任务成功。等待超时只结束客户端等待，不自动取消后台 run；需要明确停止时，使用底层 `prompt` 保存 receipt 中的 `run_id`，再调用 `cancel`。`close` 请求 shutdown，并在等待超时后依次终止、强制结束子进程，不保证外部副作用回滚。
 

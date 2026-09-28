@@ -2,6 +2,9 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface, type Interface as ReadLineInterface } from 'node:readline'
 import { resolve } from 'node:path'
 
+export { ServerClient, ServerError } from './server.ts'
+export type { ServerClientOptions, ServerEvent, EventBatch, WatchOptions } from './server.ts'
+
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 export type JsonObject = { [key: string]: JsonValue }
 

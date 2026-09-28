@@ -666,7 +666,8 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
                 self.assertEqual(bundle.extractfile(tool).read(), (DEPLOY / name).read_bytes())
             for path in ("examples/openai-compatible-profile.json", "examples/rhai-echo-extension/extension.rhai",
                          "examples/wasm-echo-plugin/src/lib.rs", "crates/ternilo-extension/wit/plugin.wit",
-                         "sdk/python/src/ternilo/client.py", "sdk/typescript/src/client.ts"):
+                         "sdk/python/src/ternilo/client.py", "sdk/typescript/src/client.ts",
+                         "sdk/python/src/ternilo/server.py", "sdk/typescript/src/server.ts"):
                 self.assertTrue(any(member.name.endswith("/" + path) for member in members), path)
         self.assertTrue(Path(str(archive) + ".sha256").is_file())
         result = subprocess.run(command, env=self.environment, capture_output=True, text=True)

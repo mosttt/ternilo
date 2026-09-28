@@ -6,6 +6,7 @@ from .client import (
     RunResult,
     TransportClosedError,
 )
+from .server import ServerClient, ServerError
 
 __all__ = [
     "HarnessClient",
@@ -14,4 +15,6 @@ __all__ = [
     "RemoteError",
     "RunResult",
     "TransportClosedError",
+    "ServerClient",
+    "ServerError",
 ]

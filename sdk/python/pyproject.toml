@@ -9,5 +9,8 @@ description = "Python client for the Ternilo automation runtime"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 
+[project.optional-dependencies]
+remote = ["websockets>=17.1,<18"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/ternilo"]
