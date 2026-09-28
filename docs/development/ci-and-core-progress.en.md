@@ -2,7 +2,7 @@
 
 English · [简体中文](ci-and-core-progress.md)
 
-Status: in progress. This records implementation work and remaining gaps; [product documentation](../product.md) defines supported behavior.
+Status: local client/Server acceptance passed; the complete GitHub matrix is in progress. This records implementation work and remaining gaps; [product documentation](../product.md) defines supported behavior.
 
 ## Scope and findings
 
@@ -18,13 +18,17 @@ CI now includes LocalApplication, builtins, authorization, RPC/ACP, real Python/
 
 Initial commit `da0d9bf` was pushed to main and started the [first Checks run](https://github.com/mosttt/ternilo/actions/runs/36443218372). Dependency checks passed remotely. Linux exposed a directory-picker test that asserted focus restoration before Radix's unmount timer ran; it now waits for the actual focus condition while preserving the assertion, and its six tests pass locally.
 
+Current code commit `12c1e85` is on GitHub main with the [current Checks run](https://github.com/mosttt/ternilo/actions/runs/36446651439). The first two runs were cancelled after fixes were pushed and replaced by newer runs. Complete platform and artifact acceptance is still pending.
+
 Local checks passed: 148 Web test files / 932 unit tests, seven rich-text tests, TypeScript, i18n, documentation links, production Web build, 30 deployment/release script tests, operations configuration, actionlint, workspace Clippy, dependency license/source/advisory checks, npm audit, and both SDK smoke tests.
 
-The first local browser run used older binaries. Asset hashes and OIDC contracts showed they did not match current sources, so those results are excluded from current-version acceptance. Matching binaries, Rust tests and browser verification are being completed. A workflow file or a successful compilation alone does not establish release acceptance.
+The first local browser run used older binaries. Asset hashes and OIDC contracts showed they did not match current sources, so those results are excluded from current-version acceptance. Matching binaries have since been rebuilt. Rust tests and doctests for the client, Server, Local, Builtins, Authorization, Automation, ACP, Control, Protocol, Kernel, Transport, Transport Store, Storage and plugin CLI all passed. A workflow file or a successful compilation alone does not establish release acceptance.
 
-After rebuilding matching binaries, SDK file operations, five local/account/group/model-service browser scenarios, six OIDC/security/PWA/mobile scenarios, and two delivery plus SQLite/PostgreSQL recovery scenarios passed. Responsive group/model tests now wait for the application's viewport height to synchronize after resize before retaining all geometry and touch-target assertions. The second GitHub run passed Web/deployment/dependency checks and macOS Apple Silicon compilation; Rust and remaining platforms are still being verified.
+After rebuilding matching binaries, SDK file operations, five local/account/group/model-service browser scenarios, six OIDC/security/PWA/mobile scenarios, and two delivery plus SQLite/PostgreSQL recovery scenarios passed. Three additional PostgreSQL tests passed for authentication settings, OIDC sessions and Node routing under restricted runtime grants. Responsive group/model tests now wait for the application's viewport height to synchronize after resize before retaining all geometry and touch-target assertions. The second GitHub run passed Web/deployment/dependency checks and macOS Apple Silicon compilation; the latest commit's complete matrix is still being verified.
 
 CI also caches dependency build artifacts, using a pinned cache Action and the repository's Rust toolchain, with target and Linorun revision separation. Failed jobs retain dependency caches for the next run. Workspace code still undergoes normal Cargo compilation checks.
+
+The final local build included the client, Server, plugin CLI and desktop with `tauri/custom-protocol`. Both native desktop tests passed, covering cold/hot deep links, single-instance forwarding and reuse of a CLI service. The latest GitHub run passed dependency checks and macOS Apple Silicon compilation and saved build caches. Linux, Windows, macOS Intel and subsequent packaging still depend on that run's final results. A subsequent documentation-only commit records this evidence without repeating the complete build; code verification refers to `12c1e85`.
 
 ## Remaining work, in order
 
