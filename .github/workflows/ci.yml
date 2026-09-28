@@ -13,10 +13,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: checks-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 env:
   CARGO_INCREMENTAL: '0'
   CARGO_BUILD_JOBS: '2'
@@ -26,6 +22,9 @@ env:
 
 jobs:
   client-server:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-client-server
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     defaults:
@@ -101,6 +100,9 @@ jobs:
           retention-days: 7
 
   dependencies:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-dependencies
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -119,6 +121,9 @@ jobs:
           npm --prefix web audit --audit-level=high
 
   platforms:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-platforms-${{ matrix.target }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
