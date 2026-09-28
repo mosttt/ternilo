@@ -27,3 +27,12 @@ Work 是个人执行信任边界；同一容器内的工作区不构成多租户
 ## 未实现的能力
 
 节点资源盘点、Work 容器生命周期、用户数量额度、镜像管理及存储恢复均未开放。这些能力需完成独立实现和对应平台验证，才能作为受支持的产品接口发布。
+
+## 接入时复用的边界
+
+- `crates/ternilo-transport` 保持版本化 executor 握手与能力协商。未来接入 Work 时显式定义执行器种类和凭据验证，并升级协议版本；不将现有 `EdgeNode` 或 `CloudWorker` 的身份含义改为 Work。
+- `crates/ternilo-control` 保持账号、资源 owner、实际操作者和模型受益人分离。Work 数量／状态准入在 Server 事务内处理，不依赖网页自行计数。
+- `apps/ternilo-server/src/platform/workbench` 保持统一工作区与会话入口，新增执行位置通过路由适配接入；客户端不接收 container ID、宿主路径或 Docker 操作凭据作为授权依据。
+- `crates/ternilo-local::LocalApplication` 保持会话、工具、队列与取消的公共应用入口。Work 内执行复用应用层，容器创建／启动／停止／重建由容器外的宿主管理层完成。
+
+实现时的首个验收闭环应覆盖：创建持久 Work、绑定工作区并完成一次文件任务、停止和重启后恢复同一资源、撤销授权后拒绝访问。重建与删除卷另行验收；协议不匹配必须显式拒绝。上述均为接入约束，当前没有对应的 Work API 或程序。

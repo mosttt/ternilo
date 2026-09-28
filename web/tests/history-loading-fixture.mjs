@@ -10,4 +10,3 @@ export function history() {
   add('turn_failed', { message: 'History fixture interrupted after receiving output' })
   return events
 }
-

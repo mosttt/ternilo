@@ -3,4 +3,3 @@
 -- but are not owned by a cloud worker run.
 ALTER TABLE cloud_session_events
     DROP CONSTRAINT cloud_session_events_tenant_id_run_id_fkey;
-

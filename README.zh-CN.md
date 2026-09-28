@@ -70,7 +70,7 @@ Linux 执行受限命令还需要 `bubblewrap`。更完整的环境要求和验�
 
 ## 文档与源码
 
-[文档首页](docs/README.zh-CN.md)按安装部署、日常使用、平台管理、开发维护组织。源码中的 `apps/` 是程序入口，`crates/` 是共享模块，`web/` 是工作台，`sdk/` 是客户端，`deploy/` 和 `scripts/` 提供部署与打包工具。`docs/development/` 保存尚未实施的技术设计，不作为已支持功能的说明。
+[文档首页](docs/README.zh-CN.md)按安装部署、日常使用、平台管理、开发维护组织。源码中的 `apps/` 是程序入口，`crates/` 是共享模块，`web/` 是工作台，`sdk/` 是客户端，`deploy/` 和 `scripts/` 提供部署与打包工具。`docs/development/` 保存开发进度、待办和技术设计，不作为已支持功能的说明。
 
 ## 许可证
 

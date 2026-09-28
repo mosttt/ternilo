@@ -224,7 +224,8 @@ describe('DirectoryBrowser navigation', () => {
     await flush()
     expect(document.querySelector('input[aria-label="文件夹名称"]')).toBeNull()
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1)
-    expect(document.activeElement).toBe(trigger)
+    // Radix restores focus in a timer after the nested focus scope unmounts.
+    await vi.waitFor(() => expect(document.activeElement).toBe(trigger))
   })
 
   it('preserves a created folder name, selects it after relist, and keeps create failures nested', async () => {

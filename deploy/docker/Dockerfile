@@ -54,6 +54,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
        done
 
 FROM debian:bookworm-slim AS runtime-base
+LABEL org.opencontainers.image.licenses="Apache-2.0"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends bubblewrap ca-certificates curl git ripgrep tini \
     && mkdir -p /usr/sbin \

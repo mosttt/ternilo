@@ -70,7 +70,7 @@ See [product capabilities and limitations](docs/product.md) for supported behavi
 
 The [documentation index](docs/README.md) organizes installation, everyday use, administration, and development. Entry pages are available in English and Simplified Chinese; detailed guides are currently in Simplified Chinese.
 
-`apps/` contains program entry points, `crates/` shared Rust modules, `web/` the workbench, and `sdk/` client libraries. `deploy/` and `scripts/` provide deployment and packaging tools. `docs/development/` contains technical designs that are not yet implemented.
+`apps/` contains program entry points, `crates/` shared Rust modules, `web/` the workbench, and `sdk/` client libraries. `deploy/` and `scripts/` provide deployment and packaging tools. `docs/development/` records development progress, remaining work and technical designs; it does not define supported product features.
 
 ## License
 

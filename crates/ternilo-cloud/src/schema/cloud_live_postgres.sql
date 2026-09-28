@@ -122,4 +122,3 @@ CREATE TRIGGER cloud_live_control_edge_sessions_update
 AFTER UPDATE ON control_edge_sessions
 FOR EACH ROW WHEN (OLD.workspace_id IS DISTINCT FROM NEW.workspace_id OR OLD.owner_user_id IS DISTINCT FROM NEW.owner_user_id OR (OLD.metadata_json::jsonb - 'updated_at_ms') IS DISTINCT FROM (NEW.metadata_json::jsonb - 'updated_at_ms'))
 EXECUTE FUNCTION ternilo_notify_cloud_live_change('workbench');
-

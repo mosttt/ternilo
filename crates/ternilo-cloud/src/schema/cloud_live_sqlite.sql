@@ -216,4 +216,3 @@ BEGIN
     INSERT INTO cloud_live_changes (kind, tenant_id, user_id, session_id)
     VALUES ('workbench', OLD.tenant_id, OLD.owner_user_id, OLD.session_id);
 END;
-
