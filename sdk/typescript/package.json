@@ -6,10 +6,17 @@
     ".": "./src/client.ts"
   },
   "scripts": {
-    "test": "node --experimental-strip-types test/smoke.ts"
+    "test": "npm run check && node --experimental-strip-types --test test/server.test.ts && node --experimental-strip-types test/smoke.ts",
+    "check": "tsc --noEmit"
   },
   "engines": {
     "node": ">=22.18"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "@types/ws": "^8.18.1",
+    "typescript": "~5.9.3",
+    "ws": "^8.22.0"
+  }
 }

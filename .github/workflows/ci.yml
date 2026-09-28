@@ -63,13 +63,17 @@ jobs:
           cargo test --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-local -p ternilo-builtins -p ternilo-authorization -p ternilo-automation -p ternilo-acp -p ternilo-control -p ternilo-protocol -p ternilo-kernel -p ternilo-transport -p ternilo-transport-store -p ternilo-storage
       - name: Matched client, Server and native desktop
         run: cargo build --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-desktop --features tauri/custom-protocol
-      - name: SDKs against the built client
+      - name: SDKs against the built client and Server
         env:
           TERNILO_BIN: ${{ github.workspace }}/ternilo/target/debug/ternilo
           PYTHONPATH: ${{ github.workspace }}/ternilo/sdk/python/src
         run: |
-          python3 -m unittest discover -s sdk/python/tests
+          python3 -m venv "$RUNNER_TEMP/ternilo-sdk-python"
+          "$RUNNER_TEMP/ternilo-sdk-python/bin/pip" install './sdk/python[remote]'
+          "$RUNNER_TEMP/ternilo-sdk-python/bin/python" -m unittest discover -s sdk/python/tests
+          npm --prefix sdk/typescript ci
           npm --prefix sdk/typescript test
+          TERNILO_E2E_PYTHON="$RUNNER_TEMP/ternilo-sdk-python/bin/python" node --test web/tests/server-sdk-e2e.test.mjs
       - name: Authentication and Node routing with restricted PostgreSQL grants
         run: bash scripts/ci/postgres-auth.sh
       - name: Chromium
