@@ -174,7 +174,7 @@ describe('WorkspaceBrowser creation intent', () => {
       const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === '查看权限…')!
       expect(item).toBeTruthy()
       await act(async () => { item.click(); await Promise.resolve(); await Promise.resolve() })
-      expect(mocks.apiRequest).toHaveBeenCalledWith(path, { signal: expect.any(AbortSignal) })
+      expect(mocks.apiRequest).toHaveBeenCalledWith(path, { signal: expect.any(AbortSignal), headers: { 'x-ternilo-tenant': 'team' } })
       expect(document.querySelector('[data-sharing-effective-access]')?.textContent).toContain('通过权限组“Reviewers”')
       expect(document.querySelector('[data-sharing-candidates]')).toBeNull()
       expect(document.querySelector('[data-sharing-permissions]')).toBeNull()
