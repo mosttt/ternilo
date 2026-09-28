@@ -198,6 +198,21 @@ fn fixture_connection(id: &str) -> ModelConnection {
 #[test]
 fn account_and_platform_sources_keep_distinct_provider_routes_and_ids() {
     let mut connection = fixture_connection("source_identity");
+    let model = connection.session.grants[0].models[0].clone();
+    connection.session.grants[0].models = [
+        ProviderProtocol::OpenAiChatCompletions,
+        ProviderProtocol::OpenAiResponses,
+        ProviderProtocol::DeepSeekResponses,
+        ProviderProtocol::GoogleGemini,
+        ProviderProtocol::AnthropicMessages,
+    ]
+    .into_iter()
+    .map(|protocol| PublishedModel {
+        model_id: format!("{protocol:?}"),
+        protocol,
+        ..model.clone()
+    })
+    .collect();
     let grant = &connection.session.grants[0];
     connection
         .session
@@ -208,13 +223,21 @@ fn account_and_platform_sources_keep_distinct_provider_routes_and_ids() {
             models: grant.models.clone(),
         });
     let profiles = connection.providers();
-    assert_eq!(profiles.len(), 2);
-    assert_ne!(profiles[0].id, profiles[1].id);
-    assert!(profiles[1].base_url.ends_with("/v1/device-account/grant-1"));
-    assert!(profiles[0].base_url.ends_with("/v1/device/grant-1"));
-    for profile in &profiles {
-        assert!(is_connection_provider(&profile.id));
-        profile.validate().unwrap();
+    assert_eq!(profiles.len(), 10);
+    let ids: std::collections::BTreeSet<_> = profiles.iter().map(|profile| &profile.id).collect();
+    assert_eq!(ids.len(), profiles.len());
+    for (platform, account) in profiles[..5].iter().zip(&profiles[5..]) {
+        assert!(account.base_url.ends_with("/v1/device-account/grant-1"));
+        assert!(platform.base_url.ends_with("/v1/device/grant-1"));
+        assert_eq!(platform.protocol, account.protocol);
+        assert_eq!(platform.models, account.models);
+        assert_eq!(platform.models.len(), 1);
+        assert_eq!(platform.api_key_ref, account.api_key_ref);
+        for profile in [platform, account] {
+            assert!(is_connection_provider(&profile.id));
+            profile.validate().unwrap();
+        }
     }
-    assert_eq!(profiles[0].api_key_ref, profiles[1].api_key_ref);
+    connection.remember_providers();
+    assert_eq!(connection.known_providers, profiles);
 }
