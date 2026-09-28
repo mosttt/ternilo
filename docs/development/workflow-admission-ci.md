@@ -1,0 +1,13 @@
+# Workflow 流水线验收的最终容量放行
+
+状态：修复前并发复跑已复现，修复后三项 Workflow activity 测试、1,000 次六路并发复跑及 Local Clippy 全部通过。
+
+`v0.1.0` 的首次 Release 尝试卡在 Rust 阶段。同提交的独立 Checks 和四平台打包此前全部成功，后续主分支的 Rust 检查也正常结束；停止异常作业后，日志显示唯一未结束的测试为 `workflow_pipeline_readmits_each_item_without_a_cross_stage_barrier`。
+
+单独复跑 200 次未复现；六路并发复跑出现末尾 `Fixture::finish` 的三秒等待超时，并因未完成的 blocking Workflow 阻止测试进程退出。临时诊断精确捕获到：两个末阶段结果都已发送，但执行器分两次观察完成状态，第四个子任务先收尾，随后仍对第三个已完成子任务发出合法的 Park／Resume。测试只回应之前的一次 Resume，遗漏最后一轮；产品调度逻辑不需要修改。
+
+验收末尾继续回应容量请求，但只接受测试已明确完成的末阶段子任务，并要求 Resume 之前收到 Park；额外启动子任务仍直接失败。前面的依赖集合、分阶段放行、无跨阶段屏障及最终按输入顺序输出的断言保留。夹具退出时取消受控后端／容量等待并 abort 所拥有任务，避免一次断言失败遗留无主等待。
+
+并发复跑脚本仅用于本机定位和复验，没有固化为 CI 的重复执行策略。现有 CI 继续运行正常 Rust 测试。标签仍固定于原提交；该测试修正进入后续 main，原标签作业按相同源码复跑，不跳过任何门禁，也不修改已经下载验收的产物。
+
+The first tagged Release stalled in a workflow activity test. Concurrent local reproduction showed an unhandled final park/resume after both controlled child results had been sent. Completion can be observed in separate polls; the fixture now services only those explicitly completed final dependencies, preserving stage and output-order assertions. Fixture teardown also cancels its controlled waits. All three activity tests, 1,000 concurrent repetitions and Local Clippy passed. Production scheduling and the immutable release tag are unchanged.
