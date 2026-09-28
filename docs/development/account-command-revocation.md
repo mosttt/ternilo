@@ -6,7 +6,7 @@
 
 为每个新接收的账号输入保存当时的账号状态版本。接收事务与账号状态操作使用同一账号锁；命令去重不能刷新旧版本。每次首次投递和补发都核对当前状态和版本，不符合时永久禁止该命令后续发送。已退出队列的其他账号任务不受影响；解封后新提交取得新版本，可正常执行。
 
-未曾发出的 pending 命令返回明确的拒绝回执。inflight 命令可能已执行，因此仅禁止再次发送，继续保留实际回执接收和原有超时规则，不伪造“已取消”或回滚结果。早于本版本且没有接收证据的持久输入也不重放；历史事件和已经完成的回执保留。禁止重放不是运行中取消。
+pending 命令返回投递拒绝回执，同时保留旧版本可能已经投递过的未知执行状态。inflight 命令可能已执行，干净断开也保留这一状态，因此仅禁止再次发送，继续保留实际回执接收和原有超时规则，不伪造“已取消”或回滚结果。早于本版本且没有接收证据的持久输入也不重放；历史事件和已经完成的回执保留。禁止重放不是运行中取消。
 
 新增 `gateway_input_authorization` schema 1 组件与按租户隔离的附表，不修改 Control 14、Gateway 1 或 executor protocol 44。升级应先停止旧 Server，按现有方式使用 schema owner 初始化后由受限 runtime 运行。
 
@@ -15,3 +15,5 @@
 后续运行中清理必须沿 Server 接收输入的身份追踪队列、当前运行、持续目标和派生子任务。不能取消同会话中其他人的独立输入，也不能把 Node 断线或租约过期当成外部进程已停止。机器离线时，清理请求必须持久保留并展示待确认状态；这需要独立的执行协议和执行端收尾验收，当前改动没有宣称实现。
 
 The journal now records the account status revision at input admission and revalidates it before initial delivery or replay. Ban/unban cannot revive earlier inputs; duplicate admission cannot refresh their authority. Undispatched commands receive denial receipts. Inflight commands retain uncertainty and actual late replies, without fabricated cancellation. Older inputs lacking admission evidence are withheld. Full cancellation across queues, active runs, goals and descendants remains separate work, with offline acknowledgements and independent local tasks preserved.
+
+补充重连审查发现旧 release() 会把 inflight 改成 pending，现改为仅结束本次投递租约，保留已发送事实。当前有效连接可提交被禁止补发命令的真实迟到回执，旧 fencing token 仍被拒绝。兼容旧库 pending 记录时，错误不宣称此前从未执行。双库契约补充干净断开、换租约、无再次投递和迟到回执验收。

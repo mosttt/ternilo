@@ -100,6 +100,15 @@ async fn contract(fixture: &Fixture) {
             .unwrap(),
         vec![inflight.clone()]
     );
+    let disconnected = input(fixture, &session, member, "00-disconnected");
+    journal.enqueue(&route, &disconnected).await.unwrap();
+    assert_eq!(
+        journal
+            .claim(&route, &lease, fixture.now, 10, 1)
+            .await
+            .unwrap(),
+        vec![disconnected.clone()]
+    );
     let pending = input(fixture, &session, member, "01-pending");
     let after_unban = input(fixture, &session, member, "02-before-unban");
     let healthy = input(fixture, &session, owner, "99-owner");
@@ -149,7 +158,7 @@ async fn contract(fixture: &Fixture) {
             .unwrap()
             .unwrap();
         assert!(
-            matches!(reply.outcome, CommandOutcome::Error { error } if error.code == ternilo_protocol::ErrorCode::PolicyDenied && error.message.contains("not dispatched"))
+            matches!(reply.outcome, CommandOutcome::Error { error } if error.code == ternilo_protocol::ErrorCode::PolicyDenied && error.message.contains("prior execution is not confirmed"))
         );
     }
     assert!(
@@ -179,6 +188,51 @@ async fn contract(fixture: &Fixture) {
         .complete(&route, &lease, &healthy_reply, fixture.now + 12)
         .await
         .unwrap();
+    journal.release(&route, &lease).await.unwrap();
+    let old_lease = lease;
+    let lease = journal
+        .acquire(&route, "new-connection", fixture.now + 20, 20_000)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        journal
+            .claim(&route, &lease, fixture.now + 20, 10, 1)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        journal
+            .reply(&route, &disconnected.command_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "clean disconnect must preserve the already-sent state"
+    );
+    let received = CommandReply::success(
+        disconnected.command_id.clone(),
+        fixture.now + 21,
+        json!({"actual":"after reconnect"}),
+    );
+    assert!(
+        journal
+            .complete(&route, &old_lease, &received, fixture.now + 21)
+            .await
+            .is_err(),
+        "stale gateway is still fenced"
+    );
+    journal
+        .complete(&route, &lease, &received, fixture.now + 21)
+        .await
+        .unwrap();
+    assert_eq!(
+        journal
+            .reply(&route, &disconnected.command_id)
+            .await
+            .unwrap(),
+        Some(received)
+    );
     drop(journal);
     let reopened = GatewayJournal::open(store.database().clone())
         .await
