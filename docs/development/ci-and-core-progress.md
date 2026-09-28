@@ -2,7 +2,7 @@
 
 [English](ci-and-core-progress.en.md) · 简体中文
 
-状态：`76801de` 的全部 CI 检查及四平台安装包均已通过；账号恢复与有界历史已合入 main，下一步为模型用量核对。此文件记录开发事实与未完成项，正式支持范围见[产品说明](../product.md)。
+状态：`76801de` 的全部 CI 检查及四平台安装包均已通过；账号恢复与有界历史已合入 main，未知模型用量核对也已合入，下一步为设备 Provider 用量可见性。此文件记录开发事实与未完成项，正式支持范围见[产品说明](../product.md)。
 
 ## 本轮目标
 
@@ -45,7 +45,7 @@ GitHub Linux 实际交付物已下载并通过全部 SHA256 校验；Apache／�
 1. **P0：首次 CI 与实际交付验证。** 确认本次 GitHub 的干净检出、四平台构建和 Linux 浏览器／恢复结果；失败优先修复。桌面签名、安装／卸载和真实平台运行验收仍须分别完成，源码编译不能替代。证据：`.github/workflows/ci.yml`、`.github/workflows/packages.yml`、[CI 说明](../ci-release.md)。
 2. **已完成：原生账号凭据恢复。** 本机维护命令保留身份和资源，撤销旧原生／已绑定 OIDC 站内会话；双库及真实浏览器验收通过。使用方式见[账号恢复](../account-recovery.md)。邮箱自助恢复仍属后续能力。
 3. **已完成：长历史读取闭环。** 默认读取最近 200 条，按游标补读较早事件，实时游标保持独立；归档共享／撤销／恢复及离线缓存均已验证。Cloud 派生统计仍需完整回放。见[实施记录](bounded-session-history.md)。
-4. **P1：模型用量完整性。** Server 已有平台／自备模型账本和预算；设备直接调用 Provider 的用量未汇总到 Server，未知用量也缺少完整的核对操作流程。后续验证离线重连去重、原操作者与预算来源、迟到用量及未知消耗保留。证据：`apps/ternilo-server/src/platform/models/gateway/tests.rs`、[模型服务](../model-service.md)。
+4. **P1：模型用量完整性（部分完成）。** [未知用量核对](model-usage-reconciliation.md)已完成，Owner／Admin 可按上游记录补齐缺失计数并保留不可变审计，双库／真实浏览器验收通过。设备直接调用 Provider 的用量仍未汇总到 Server。后续验证离线重连去重、原操作者与预算来源、迟到用量及未知消耗保留。证据：`apps/ternilo-server/src/platform/models/gateway/tests.rs`、[模型服务](../model-service.md)。
 5. **P2：协作资源生命周期。** 工作区／会话共享与权限组已实现，项目级继承、资源所有权交接及账号停用后的完整任务清理仍缺失；必须明确正在执行任务、共享撤销和文件归属的语义。证据：[产品限制](../product.md)、`crates/ternilo-control/src/account_status_store/tests.rs`。
 6. **P2：远程自动化与扩容。** 当前 SDK 仅启动本机 stdio 子进程；Server HTTP／WebSocket SDK 和重连尚未提供。Server 的 Node 连接及通知仍在单进程内，多副本必须先实现连接持有者路由和通知同步。证据：[自动化](../automation.md)、`apps/ternilo-server/src/platform/edge/connection.rs`、[部署边界](../deployment.md)。
 

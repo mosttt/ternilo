@@ -2,7 +2,7 @@
 
 English · [简体中文](ci-and-core-progress.md)
 
-Status: all CI checks and four-platform packages for `76801de` passed. The [Checks run for `b177e44`](https://github.com/mosttt/ternilo/actions/runs/36463338780) is now validating the merged recovery and history changes. Native account recovery and bounded history are merged into main after local validation; model usage reconciliation is next.
+Status: all CI checks and four-platform packages for `76801de` passed. The [Checks run for `b177e44`](https://github.com/mosttt/ternilo/actions/runs/36463338780) is now validating the merged recovery and history changes. Native account recovery and bounded history are merged into main after local validation; unknown-usage reconciliation is also merged after database/browser validation; direct Provider usage visibility is next.
 
 ## Scope and findings
 
