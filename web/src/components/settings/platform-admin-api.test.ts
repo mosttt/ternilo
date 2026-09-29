@@ -104,13 +104,13 @@ describe('Control platform administration API', () => {
       }],
     ])
     expect(launch.command).toContain('--token "owned-node-secret"' )
-    expect(launch.command).toContain('--node-id "member-laptop"' )
+    expect(launch.command).toContain('--node-id="member-laptop"' )
     expect(launch.command).not.toContain('owned-one-time-secret')
   })
 
   it('generates a single-line command usable by Bash, PowerShell and CMD and rejects shell expansions', () => {
     const command = nodeLaunchCommand('https://control.example', 'home-node', 'ternilo_node_safe-token')
-    expect(command).toBe('ternilo serve --gateway-url "wss://control.example/api/v1/executors/connect" --node-id "home-node" --token "ternilo_node_safe-token"')
+    expect(command).toBe('ternilo serve --gateway-url "wss://control.example/api/v1/executors/connect" --node-id="home-node" --token "ternilo_node_safe-token"')
     for (const unsafe of ['node";echo', '$HOME', '%PATH%', '`id`', "node's-secret", 'node\nsecret']) {
       expect(() => nodeLaunchCommand('https://control.example', unsafe, 'credential')).toThrow()
       expect(() => nodeLaunchCommand('https://control.example', 'home', unsafe)).toThrow()
@@ -148,4 +148,11 @@ describe('Control platform administration API', () => {
       ['/tenants/tenant%20%2F%20one/audit?limit=125'],
     ])
   })
+})
+
+it('validates shell arguments before issuing a one-time credential and supports Unicode Node IDs', async () => {
+  const request = vi.spyOn(api, 'request')
+  await expect(createOwnedNodeLaunch('tenant-a', { executorId: 'host%PATH%', origin: 'https://server.example' })).rejects.toThrow('unsupported characters')
+  expect(request).not.toHaveBeenCalled()
+  expect(nodeLaunchCommand('https://server.example', '-家庭电脑', 'ternilo_node_example')).toContain('--node-id="-家庭电脑"')
 })

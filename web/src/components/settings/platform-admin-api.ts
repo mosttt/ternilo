@@ -145,7 +145,7 @@ export interface NodeLaunchCommand {
 
 function commandArgument(value: string) {
   // These generated arguments need no shell-specific interpolation or escaping.
-  if (!/^[A-Za-z0-9._:/\[\]-]+$/.test(value)) throw new Error('Node launch arguments contain unsupported characters')
+  if (!/^[\p{L}\p{N}._:/\[\]-]+$/u.test(value)) throw new Error('Node launch arguments contain unsupported characters')
   return `"${value}"`
 }
 
@@ -157,7 +157,7 @@ export function nodeLaunchCommand(
   const gateway = new URL('/api/v1/executors/connect', origin)
   gateway.protocol = gateway.protocol === 'https:' ? 'wss:' : 'ws:'
   const insecure = gateway.protocol === 'ws:' ? ' --allow-insecure-gateway' : ''
-  return `ternilo serve --gateway-url ${commandArgument(gateway.toString())} --node-id ${commandArgument(executorId)} --token ${commandArgument(credentialToken)}${insecure}`
+  return `ternilo serve --gateway-url ${commandArgument(gateway.toString())} --node-id=${commandArgument(executorId)} --token ${commandArgument(credentialToken)}${insecure}`
 }
 
 /**
@@ -183,6 +183,7 @@ async function createNodeLaunchForResource(
   enrollmentResource: 'enrollments' | 'my-computer-enrollments',
   input: { executorId: string; projectId?: string; origin?: string },
 ): Promise<NodeLaunchCommand> {
+  commandArgument(input.executorId)
   const created = await api.request<{ enrollment: EnrollmentGrant }>(
     tenantResource(tenantId, enrollmentResource),
     {
