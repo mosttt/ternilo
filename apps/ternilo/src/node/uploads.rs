@@ -148,7 +148,18 @@ mod tests {
                 .await
                 .unwrap();
         }
-        application.shutdown().await.unwrap();
+        application.close().await.unwrap();
+        drop(application);
+        let application = Arc::new(
+            LocalApplication::open(
+                ternilo_local::catalog().unwrap(),
+                ternilo_local::local_profile(),
+                HostPolicy::local(RunLimits::default()),
+                data.path().to_path_buf(),
+            )
+            .await
+            .unwrap(),
+        );
         let scope = ExecutorScope {
             tenant_id: TenantId::new("tenant"),
             user_id: UserId::new("owner"),
@@ -217,6 +228,7 @@ mod tests {
         );
         resumed.abort();
         let _ = resumed.await;
+        application.close().await.unwrap();
         drop(application);
         let reopened = LocalApplication::open(
             ternilo_local::catalog().unwrap(),
@@ -234,7 +246,7 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        reopened.shutdown().await.unwrap();
+        reopened.close().await.unwrap();
     }
 
     async fn frame(receiver: &mut mpsc::Receiver<ExecutorFrame>) -> ExecutorFrame {

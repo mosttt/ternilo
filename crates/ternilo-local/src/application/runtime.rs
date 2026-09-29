@@ -56,11 +56,31 @@ impl LocalApplication {
                 failures.push(error.to_string());
             }
         }
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(HarnessError::execution(format!(
+                "local session shutdown failed: {}",
+                failures.join("; ")
+            )))
+        }
+    }
+
+    /// Finish shutdown and close storage after all external adapters have drained.
+    pub async fn close(&self) -> Result<(), HarnessError> {
+        let mut failures = self
+            .shutdown()
+            .await
+            .err()
+            .map(|error| error.to_string())
+            .into_iter()
+            .collect::<Vec<_>>();
         // Await SQLite worker closure before callers release or move the data directory.
         for result in [
             self.session_archive.close().await,
             self.agent_team.close().await,
             self.inbox.close().await,
+            self.preferences.close().await,
         ] {
             if let Err(error) = result {
                 failures.push(error.to_string());
@@ -70,7 +90,7 @@ impl LocalApplication {
             Ok(())
         } else {
             Err(HarnessError::execution(format!(
-                "local session shutdown failed: {}",
+                "close local application: {}",
                 failures.join("; ")
             )))
         }

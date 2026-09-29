@@ -296,10 +296,11 @@ pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
     commands.close();
     let shutdown = application.shutdown().await;
     commands.wait().await;
+    let closed = application.close().await;
     drop(application);
     drop(registration);
     result?;
-    shutdown
+    shutdown.and(closed)
 }
 
 fn register(data_dir: &Path, connection: &ServiceConnection) -> Result<Registration, HarnessError> {

@@ -193,7 +193,7 @@ async fn fork_copies_only_a_complete_turn_prefix_and_archive_keeps_it_durable() 
         archived.archived_at_ms
     );
 
-    application.shutdown().await.unwrap();
+    application.close().await.unwrap();
     drop(application);
     let reopened = open_test_application(data_dir.clone()).await;
     let restored = reopened.state.session(&source_id).await.unwrap();
@@ -205,7 +205,7 @@ async fn fork_copies_only_a_complete_turn_prefix_and_archive_keeps_it_durable() 
         Some(restored.identity.session_id)
     );
     assert_eq!(reopened.events(&latest_child_id).await.unwrap(), continued);
-    reopened.shutdown().await.unwrap();
+    reopened.close().await.unwrap();
     drop(reopened);
     tokio::fs::remove_dir_all(data_dir).await.unwrap();
     tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
@@ -278,7 +278,7 @@ async fn fork_opens_a_long_history_without_per_event_index_transactions() {
     );
     assert_eq!(copied, seed);
 
-    application.shutdown().await.unwrap();
+    application.close().await.unwrap();
     drop(application);
     tokio::fs::remove_dir_all(data_dir).await.unwrap();
     tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
