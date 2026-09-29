@@ -26,6 +26,12 @@ pub(crate) struct LocalSessionArchive {
 }
 
 impl LocalSessionArchive {
+    pub(crate) async fn close(&self) -> Result<(), HarnessError> {
+        let index = self.index.close().await;
+        let projections = self.projections.close().await;
+        index.and(projections)
+    }
+
     pub(crate) async fn open(
         state: Arc<LocalState>,
         inbox: Arc<crate::inbox::LocalInboxStore>,

@@ -74,6 +74,14 @@ pub(crate) struct LocalSearchIndex {
 }
 
 impl LocalSearchIndex {
+    pub(crate) async fn close(&self) -> Result<(), HarnessError> {
+        self.connection
+            .clone()
+            .close()
+            .await
+            .map_err(|error| HarnessError::execution(format!("close local database: {error}")))
+    }
+
     pub(crate) async fn open(
         path: &Path,
         inbox: std::sync::Arc<crate::inbox::LocalInboxStore>,

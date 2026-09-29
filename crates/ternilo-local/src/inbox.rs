@@ -55,6 +55,14 @@ pub(crate) struct LocalInboxStore {
 }
 
 impl LocalInboxStore {
+    pub(crate) async fn close(&self) -> Result<(), HarnessError> {
+        self.connection
+            .clone()
+            .close()
+            .await
+            .map_err(|error| HarnessError::execution(format!("close local database: {error}")))
+    }
+
     pub(crate) async fn open(
         path: &Path,
         invalidations: broadcast::Sender<LocalInvalidationNotification>,

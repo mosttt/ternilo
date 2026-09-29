@@ -152,11 +152,6 @@ async fn shutdown_cancels_slow_run_joins_fifo_drivers_and_preserves_pending_occu
         1,
         "shutdown joins every FIFO driver that owns the application data lock"
     );
-    let inbox = application.session_inbox(&session_id).await.unwrap();
-    assert!(inbox.paused);
-    assert_eq!(inbox.items.len(), 1);
-    assert_eq!(inbox.items[0].id, queued.id);
-    assert_eq!(inbox.items[0].placement, SubmissionPlacement::Queued);
     assert!(
         application
             .submit_session(&session_id, submission("too late"))
@@ -169,6 +164,8 @@ async fn shutdown_cancels_slow_run_joins_fifo_drivers_and_preserves_pending_occu
     let restored = open_application(&root.path().join("data")).await;
     let inbox = restored.session_inbox(&session_id).await.unwrap();
     assert!(inbox.paused, "cancellation pause survives restart");
+    assert_eq!(inbox.items.len(), 1);
+    assert_eq!(inbox.items[0].placement, SubmissionPlacement::Queued);
     assert_eq!(inbox.items[0].id, queued.id);
     let resumed_model = super::test_model::TestModel::start().await;
     resumed_model.install(&restored, &session_id).await.unwrap();

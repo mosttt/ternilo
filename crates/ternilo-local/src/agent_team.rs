@@ -254,6 +254,14 @@ impl AgentTeamProvider for LocalAgentTeamProvider {
 }
 
 impl LocalAgentTeamStore {
+    pub(crate) async fn close(&self) -> Result<(), HarnessError> {
+        self.connection
+            .clone()
+            .close()
+            .await
+            .map_err(|error| HarnessError::execution(format!("close local database: {error}")))
+    }
+
     pub(crate) async fn open(path: &Path) -> Result<Self, HarnessError> {
         let connection = Connection::open(path).await.map_err(|error| {
             HarnessError::execution(format!(

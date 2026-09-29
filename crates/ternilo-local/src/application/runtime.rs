@@ -56,6 +56,16 @@ impl LocalApplication {
                 failures.push(error.to_string());
             }
         }
+        // Await SQLite worker closure before callers release or move the data directory.
+        for result in [
+            self.session_archive.close().await,
+            self.agent_team.close().await,
+            self.inbox.close().await,
+        ] {
+            if let Err(error) = result {
+                failures.push(error.to_string());
+            }
+        }
         if failures.is_empty() {
             Ok(())
         } else {
