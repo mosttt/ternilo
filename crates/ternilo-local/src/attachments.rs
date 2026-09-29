@@ -234,22 +234,7 @@ impl LocalAttachments {
                 ))
             })?;
         set_private_file(&path).await?;
-        tokio::fs::File::open(&self.reader.objects)
-            .await
-            .map_err(|error| {
-                HarnessError::execution(format!(
-                    "open attachment object directory {}: {error}",
-                    self.reader.objects.display()
-                ))
-            })?
-            .sync_all()
-            .await
-            .map_err(|error| {
-                HarnessError::execution(format!(
-                    "sync attachment object directory {}: {error}",
-                    self.reader.objects.display()
-                ))
-            })
+        crate::persistence::sync_parent_directory(&path).await
     }
 }
 

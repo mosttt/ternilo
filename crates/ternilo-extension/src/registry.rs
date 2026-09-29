@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::OpenOptions,
     io::Write as _,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -757,9 +756,9 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), HarnessError> {
     temporary.persist(path).map_err(|error| {
         HarnessError::execution(format!("commit extension file {}: {error}", path.display()))
     })?;
-    OpenOptions::new()
-        .read(true)
-        .open(parent)
+    #[cfg(unix)]
+    std::fs::File::open(parent)
         .and_then(|directory| directory.sync_all())
-        .map_err(|error| HarnessError::execution(format!("sync extension directory: {error}")))
+        .map_err(|error| HarnessError::execution(format!("sync extension directory: {error}")))?;
+    Ok(())
 }

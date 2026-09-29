@@ -237,22 +237,7 @@ impl JsonlEventStore {
                 ))
             })?;
             drop(file);
-            tokio::fs::File::open(parent)
-                .await
-                .map_err(|error| {
-                    HarnessError::execution(format!(
-                        "open session log directory {}: {error}",
-                        parent.display()
-                    ))
-                })?
-                .sync_all()
-                .await
-                .map_err(|error| {
-                    HarnessError::execution(format!(
-                        "sync session log directory {}: {error}",
-                        parent.display()
-                    ))
-                })
+            crate::persistence::sync_parent_directory(&self.path).await
         }
         .await;
         if committed.is_err() {

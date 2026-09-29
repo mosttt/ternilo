@@ -30,25 +30,37 @@ pub async fn atomic_replace(path: &Path, bytes: &[u8], private: bool) -> Result<
     if private {
         set_private_permissions(path).await?;
     }
-    let parent = path
-        .parent()
-        .ok_or_else(|| HarnessError::execution(format!("{} has no parent", path.display())))?;
-    tokio::fs::File::open(parent)
-        .await
-        .map_err(|error| {
-            HarnessError::execution(format!(
-                "open state directory {}: {error}",
-                parent.display()
-            ))
-        })?
-        .sync_all()
-        .await
-        .map_err(|error| {
-            HarnessError::execution(format!(
-                "sync state directory {}: {error}",
-                parent.display()
-            ))
-        })
+    sync_parent_directory(path).await
+}
+
+// POSIX directory fsync persists the rename. Windows does not support opening
+// directories as ordinary files; the file itself was flushed before its rename.
+pub(crate) async fn sync_parent_directory(path: &Path) -> Result<(), HarnessError> {
+    #[cfg(unix)]
+    {
+        let parent = path
+            .parent()
+            .ok_or_else(|| HarnessError::execution(format!("{} has no parent", path.display())))?;
+        tokio::fs::File::open(parent)
+            .await
+            .map_err(|error| {
+                HarnessError::execution(format!(
+                    "open state directory {}: {error}",
+                    parent.display()
+                ))
+            })?
+            .sync_all()
+            .await
+            .map_err(|error| {
+                HarnessError::execution(format!(
+                    "sync state directory {}: {error}",
+                    parent.display()
+                ))
+            })?;
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
 }
 
 #[cfg(unix)]

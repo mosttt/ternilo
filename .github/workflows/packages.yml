@@ -70,6 +70,19 @@ jobs:
       - name: Desktop installers
         working-directory: ternilo/apps/ternilo-desktop
         run: npm exec --yes --package @tauri-apps/cli@2.12.0 -- tauri build --ci --target "$RUST_TARGET" --bundles "$BUNDLES" -- --locked
+      - name: Windows executable subsystem
+        if: runner.os == 'Windows'
+        run: |
+          python - "$RUST_TARGET" <<'PY'
+          import pathlib, struct, sys
+          directory = pathlib.Path("target") / sys.argv[1] / "release"
+          for name, expected in [("ternilo-desktop", 2), ("ternilo", 3), ("ternilo-server", 3)]:
+              data = (directory / (name + ".exe")).read_bytes()
+              header = struct.unpack_from("<I", data, 0x3c)[0]
+              assert data[header:header + 4] == b"PE\0\0"
+              subsystem = struct.unpack_from("<H", data, header + 24 + 68)[0]
+              assert subsystem == expected, (name, subsystem, expected)
+          PY
       - name: Portable client and Server packages
         env:
           VERSION: ${{ steps.info.outputs.version }}

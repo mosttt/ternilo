@@ -157,9 +157,17 @@ jobs:
       - run: cargo check --locked --target "$RUST_TARGET" -p ternilo -p ternilo-server -p ternilo-desktop -p ternilo-local -p ternilo-sandbox-windows --all-targets
         env:
           RUST_TARGET: ${{ matrix.target }}
-      - name: Windows workspace boundaries
-        if: runner.os == 'Windows'
-        run: cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::workspace_browser
+      - name: Platform workspace boundaries and persistence
+        run: |
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::workspace_browser
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib state::tests
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib providers::tests
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib credentials::tests
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib model_connections::tests
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib presets::tests
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib attachments::tests
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::tests::forks
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-extension --lib registry
         env:
           RUST_TARGET: ${{ matrix.target }}
 
