@@ -1,6 +1,5 @@
 # CI 与客户端／Server 闭环进度
 
-[English](ci-and-core-progress.en.md) · 简体中文
 
 状态：两轮完整 CI 与四平台打包通过；首个发布标签 `v0.1.0` 已固定在 `0ce6ba4` 并推送。该提交的检查及四平台打包全部通过；[Release 工作流](https://github.com/mosttt/ternilo/actions/runs/36487885237)正在验证并生成实际产物，尚未生成 Release。远程 SDK 已合入，项目共享通过本机最终验收；这两项后续开发不在首个标签快照中。
 
@@ -42,12 +41,12 @@ GitHub Linux 实际交付物已下载并通过全部 SHA256 校验；Apache／�
 
 以下为代码与文档共同证实的缺口，不是已承诺交付的功能。不存在 `todo!` 不代表产品已经闭环。
 
-1. **P0：首次 CI 与实际交付验证。** 确认本次 GitHub 的干净检出、四平台构建和 Linux 浏览器／恢复结果；失败优先修复。桌面签名、安装／卸载和真实平台运行验收仍须分别完成，源码编译不能替代。证据：`.github/workflows/ci.yml`、`.github/workflows/packages.yml`、[CI 说明](../ci-release.md)。
-2. **已完成：原生账号凭据恢复。** 本机维护命令保留身份和资源，撤销旧原生／已绑定 OIDC 站内会话；双库及真实浏览器验收通过。使用方式见[账号恢复](../account-recovery.md)。邮箱自助恢复仍属后续能力。
+1. **P0：首次 CI 与实际交付验证。** 确认本次 GitHub 的干净检出、四平台构建和 Linux 浏览器／恢复结果；失败优先修复。桌面签名、安装／卸载和真实平台运行验收仍须分别完成，源码编译不能替代。证据：`.github/workflows/ci.yml`、`.github/workflows/packages.yml`、[CI 说明](../zh-CN/ci-release.md)。
+2. **已完成：原生账号凭据恢复。** 本机维护命令保留身份和资源，撤销旧原生／已绑定 OIDC 站内会话；双库及真实浏览器验收通过。使用方式见[账号恢复](../zh-CN/account-recovery.md)。邮箱自助恢复仍属后续能力。
 3. **已完成：长历史读取闭环。** 默认读取最近 200 条，按游标补读较早事件，实时游标保持独立；归档共享／撤销／恢复及离线缓存均已验证。Cloud 派生统计仍需完整回放。见[实施记录](bounded-session-history.md)。
-4. **已完成：模型用量完整性。** [未知用量核对](model-usage-reconciliation.md)已完成，Owner／Admin 可按上游记录补齐缺失计数并保留不可变审计，双库／真实浏览器验收通过。[设备 Provider 报告](device-provider-usage.md)独立于 Server 预算展示，双库与真实浏览器已验证离线补传／去重、分叉、共享提交者、权限及未知计数。证据：`apps/ternilo-server/src/platform/models/gateway/tests.rs`、[模型服务](../model-service.md)。
-5. **P2：协作资源生命周期。** 工作区／会话共享与权限组已实现，[项目共享继承](project-sharing.md)通过双库和真实浏览器验收。资源所有权交接及账号停用后的完整任务清理仍缺失；必须明确正在执行任务、共享撤销和文件归属的语义。证据：[产品限制](../product.md)、`crates/ternilo-control/src/account_status_store/tests.rs`。
-6. **P2：远程自动化与扩容。** 本地 stdio SDK 已有；[远程 SDK](remote-server-sdks.md)新增 HTTP／Live、分页和断线重连，真实 Server／Node 验收已通过并合入 main。Server 的 Node 连接及通知仍在单进程内，多副本必须先实现连接持有者路由和通知同步。证据：[自动化](../automation.md)、`apps/ternilo-server/src/platform/edge/connection.rs`、[部署边界](../deployment.md)。
+4. **已完成：模型用量完整性。** [未知用量核对](model-usage-reconciliation.md)已完成，Owner／Admin 可按上游记录补齐缺失计数并保留不可变审计，双库／真实浏览器验收通过。[设备 Provider 报告](device-provider-usage.md)独立于 Server 预算展示，双库与真实浏览器已验证离线补传／去重、分叉、共享提交者、权限及未知计数。证据：`apps/ternilo-server/src/platform/models/gateway/tests.rs`、[模型服务](../zh-CN/model-service.md)。
+5. **P2：协作资源生命周期。** 工作区／会话共享与权限组已实现，[项目共享继承](project-sharing.md)通过双库和真实浏览器验收。资源所有权交接及账号停用后的完整任务清理仍缺失；必须明确正在执行任务、共享撤销和文件归属的语义。证据：[产品限制](../zh-CN/product.md)、`crates/ternilo-control/src/account_status_store/tests.rs`。
+6. **P2：远程自动化与扩容。** 本地 stdio SDK 已有；[远程 SDK](remote-server-sdks.md)新增 HTTP／Live、分页和断线重连，真实 Server／Node 验收已通过并合入 main。Server 的 Node 连接及通知仍在单进程内，多副本必须先实现连接持有者路由和通知同步。证据：[自动化](../zh-CN/automation.md)、`apps/ternilo-server/src/platform/edge/connection.rs`、[部署边界](../zh-CN/deployment.md)。
 
 本轮新增 CI 覆盖 Local／内置工具／授权／RPC／ACP、真实 Python／TypeScript SDK、权限组与独立模型服务浏览器流程，以及 PostgreSQL Node 路由。后续功能优先服务单个 Server 管理本地机器和 VPS，不以 Work 或跨 Server 扩容作为前置工作。
 

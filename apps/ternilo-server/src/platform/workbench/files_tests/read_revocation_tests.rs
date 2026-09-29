@@ -157,3 +157,101 @@ async fn revoking_a_share_during_a_node_read_withholds_history_and_event_deltas(
     handle.stop_graceful(Some(Duration::from_secs(1)));
     serving.await.unwrap();
 }
+
+#[tokio::test]
+async fn revoking_workspace_access_during_a_preview_withholds_the_file_bytes() {
+    let fixture = Fixture::new("sqlite::memory:", None).await;
+    let (session, credential) = fixture
+        .edge_session_with_credential("delayed-preview")
+        .await;
+    let collaborator = fixture.collaborator().await;
+    for (kind, id) in [
+        (ResourceKind::Session, session.session_id.as_str()),
+        (ResourceKind::Workspace, session.workspace_id.as_str()),
+    ] {
+        fixture
+            .state
+            .store
+            .set_resource_share(
+                &fixture.owner.session.user,
+                &fixture.tenant,
+                kind,
+                id,
+                &collaborator.session.user.user_id,
+                Some(ResourcePermissions {
+                    view: true,
+                    ..ResourcePermissions::default()
+                }),
+                fixture.now,
+            )
+            .await
+            .unwrap();
+    }
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = salvo_core::Server::new(TcpAcceptor::try_from(listener).unwrap());
+    let handle = server.handle();
+    let router = crate::platform::web_router(fixture.state.clone());
+    let serving = tokio::spawn(async move { server.try_serve(router).await.unwrap() });
+    let (mut socket, _) = super::transport_tests::connect_upload_node(
+        address,
+        &session.executor_id,
+        &credential,
+        "1234567890abcdef1234567890abcdef",
+    )
+    .await;
+    let client = reqwest::Client::new();
+    let reading = client
+        .post(format!(
+            "http://{address}/api/v1/sessions/{}/workspace",
+            session.session_id
+        ))
+        .bearer_auth(&collaborator.access_token)
+        .header("x-ternilo-tenant", fixture.tenant.as_str())
+        .json(&serde_json::json!({"kind":"read","path":"private.txt"}))
+        .send();
+    let revoke_and_reply = async {
+        let ControlFrame::Command { command } =
+            super::transport_tests::next_frame(&mut socket).await
+        else {
+            panic!("expected preview command");
+        };
+        fixture
+            .state
+            .store
+            .set_resource_share(
+                &fixture.owner.session.user,
+                &fixture.tenant,
+                ResourceKind::Workspace,
+                session.workspace_id.as_str(),
+                &collaborator.session.user.user_id,
+                None,
+                fixture.now + 1,
+            )
+            .await
+            .unwrap();
+        socket.send(Message::Text(serde_json::to_string(&ExecutorFrame::Reply {
+            reply: CommandReply::success(command.command_id, now_ms().unwrap(), serde_json::json!({
+                "path":"private.txt", "bytes":20, "media_type":"text/plain", "encoding":"utf8",
+                "content":"private delayed bytes", "truncated":false
+            }))
+        }).unwrap().into())).await.unwrap();
+    };
+    let (response, ()) = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        tokio::join!(reading, revoke_and_reply)
+    })
+    .await
+    .expect("preview revocation completes");
+    let response = response.unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::FORBIDDEN);
+    assert!(
+        !response
+            .text()
+            .await
+            .unwrap()
+            .contains("private delayed bytes")
+    );
+    drop(socket);
+    handle.stop_graceful(None);
+    serving.await.unwrap();
+}

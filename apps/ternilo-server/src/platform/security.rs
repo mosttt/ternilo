@@ -133,6 +133,7 @@ impl LoginRuntime {
 
 #[derive(Default)]
 pub(super) struct SecurityState {
+    pub(super) trusted_proxy_ips: Vec<std::net::IpAddr>,
     fallback: LoginSettings,
     allow_insecure: bool,
     cache: Mutex<Option<Arc<LoginRuntime>>>,
@@ -141,6 +142,7 @@ pub(super) struct SecurityState {
 impl SecurityState {
     pub(super) fn from_config(config: &crate::config::ServerConfig) -> Self {
         Self {
+            trusted_proxy_ips: config.trusted_proxy_ips.clone(),
             fallback: LoginSettings {
                 public_url: config.public_url.clone().unwrap_or_default(),
                 oidc: config.oidc.as_ref().map(|oidc| OidcSettings {

@@ -649,7 +649,7 @@ test('unified Server browser drives its enrolled Node and local web observes the
     await settings.getByRole('button', { name: '生成启动命令', exact: true }).click()
     const launch = remotePage.getByRole('dialog', { name: '启动 Ternilo Node' })
     const command = await launch.locator('[data-node-launch-command]').textContent()
-    const nodeToken = /TERNILO_LOCAL_TOKEN='([^']+)'/.exec(command)?.[1]
+    const nodeToken = /--token "([^"\s]+)"/.exec(command)?.[1]
     assert.ok(nodeToken)
     await launch.getByRole('button', { name: '我已保存，关闭', exact: true }).click()
     await settings.getByRole('button', { name: '返回工作台', exact: true }).click()

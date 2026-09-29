@@ -45,7 +45,7 @@ describe('Control platform administration API', () => {
       } })
       .mockResolvedValueOnce({ credential: {
         credential_id: 'credential-1', executor_id: 'home', project_id: 'project-a',
-        token: "node's-secret",
+        token: 'ternilo_node_test-secret',
       } })
 
     const result = await createNodeLaunch('tenant-a', {
@@ -60,8 +60,9 @@ describe('Control platform administration API', () => {
       '/enrollments/consume',
       { method: 'POST', body: { token: 'one-time-secret' } },
     ])
-    expect(result.command).toContain("TERNILO_LOCAL_TOKEN='node'\\''s-secret' ternilo serve")
-    expect(result.command).toContain("--gateway-url 'ws://control.example:8080/api/v1/executors/connect'")
+    expect(result.command).toContain('ternilo serve')
+    expect(result.command).toContain('--token "ternilo_node_test-secret"')
+    expect(result.command).toContain('--gateway-url "ws://control.example:8080/api/v1/executors/connect"' )
     expect(result.command).toContain('--allow-insecure-gateway')
     expect(result.command).not.toContain('--relay-url')
     expect(result.command).not.toContain('--allow-insecure-relay')
@@ -102,9 +103,18 @@ describe('Control platform administration API', () => {
         body: { token: 'owned-one-time-secret' },
       }],
     ])
-    expect(launch.command).toContain("TERNILO_LOCAL_TOKEN='owned-node-secret' ternilo serve")
-    expect(launch.command).toContain("--node-id 'member-laptop'")
+    expect(launch.command).toContain('--token "owned-node-secret"' )
+    expect(launch.command).toContain('--node-id "member-laptop"' )
     expect(launch.command).not.toContain('owned-one-time-secret')
+  })
+
+  it('generates a single-line command usable by Bash, PowerShell and CMD and rejects shell expansions', () => {
+    const command = nodeLaunchCommand('https://control.example', 'home-node', 'ternilo_node_safe-token')
+    expect(command).toBe('ternilo serve --gateway-url "wss://control.example/api/v1/executors/connect" --node-id "home-node" --token "ternilo_node_safe-token"')
+    for (const unsafe of ['node";echo', '$HOME', '%PATH%', '`id`', "node's-secret", 'node\nsecret']) {
+      expect(() => nodeLaunchCommand('https://control.example', unsafe, 'credential')).toThrow()
+      expect(() => nodeLaunchCommand('https://control.example', 'home', unsafe)).toThrow()
+    }
   })
 
   it('omits the plaintext-websocket opt-in for a TLS Control origin', () => {

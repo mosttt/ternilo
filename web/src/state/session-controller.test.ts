@@ -236,7 +236,7 @@ describe('session controller live transport', async () => {
       stats, projection, questions: [], effectiveProfile: profile, agentTeam: team,
     })
     expect(controller.getSnapshot().events.map(item => item.seq)).toEqual([0, 1])
-    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=200'])
+    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=1000'])
     controller.dispose()
   })
 
@@ -567,7 +567,7 @@ describe('session controller live transport', async () => {
       type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
       complete: true, events: [event(2, { run_id: 'active-run', type: 'turn_cancelled' })], next_seq: 3,
     })
-    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=200', '/sessions/session/queue'])
+    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=1000', '/sessions/session/queue'])
     if (liveFirst) publishInbox(null)
     rejectRead(new Error('selected Ternilo node is offline'))
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -601,7 +601,7 @@ describe('session controller live transport', async () => {
     })
     await flush()
 
-    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=200'])
+    expect(api.calls.map(call => call.path)).toEqual(['/sessions/session/history?limit=1000'])
     expect(controller.getSnapshot()).toMatchObject({ activeRunId: 'active-run', busy: true })
     controller.dispose()
   })

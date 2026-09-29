@@ -1,6 +1,6 @@
 # 原生账号恢复实施记录
 
-状态：已实现并完成分支验证，等待合入。用户指南见[密码恢复](../account-recovery.md)及其[英文版](../account-recovery.en.md)。
+状态：已实现并完成分支验证，等待合入。用户指南见[密码恢复](../zh-CN/account-recovery.md)及其[英文版](../en/account-recovery.md)。
 
 `ternilo-server admin reset-password` 使用已有私有配置和隐藏输入／标准输入，为现有原生账号更新密码。账号身份、角色、状态、个人空间、项目、电脑和模型授权不变。密码哈希、本站原生与 OIDC 会话撤销、运维审计在同一事务提交。
 

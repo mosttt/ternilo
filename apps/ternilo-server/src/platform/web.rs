@@ -180,7 +180,7 @@ async fn web_security_headers(
     headers.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
-            "default-src 'none'; script-src 'self'; style-src 'self'; style-src-elem 'self' 'sha256-nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=' 'sha256-441zG27rExd4/il+NvIqyL8zFx5XmyNQtE381kSkUJk=' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; manifest-src 'self'",
+            "default-src 'none'; script-src 'self'; style-src 'self'; style-src-elem 'self' 'sha256-nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=' 'sha256-441zG27rExd4/il+NvIqyL8zFx5XmyNQtE381kSkUJk=' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; manifest-src 'self'",
         ),
     );
     if app_state(depot)
@@ -196,7 +196,10 @@ async fn web_security_headers(
                 "script-src 'self'",
                 "script-src 'self' https://challenges.cloudflare.com",
             )
-            + "; frame-src https://challenges.cloudflare.com";
+            .replace(
+                "frame-src 'self' blob:",
+                "frame-src 'self' blob: https://challenges.cloudflare.com",
+            );
         if let Ok(value) = HeaderValue::from_str(&policy) {
             headers.insert(header::CONTENT_SECURITY_POLICY, value);
         }

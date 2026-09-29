@@ -109,7 +109,7 @@ jobs:
           name: server-image-metadata
           path: image-metadata/server-image.txt
           if-no-files-found: error
-  draft-release:
+  publish-release:
     if: startsWith(github.ref, 'refs/tags/')
     needs: [version, packages, server-image]
     runs-on: ubuntu-24.04
@@ -134,14 +134,27 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           printf 'version=%s\ncommit=%s\nlinorun=%s\n' "$VERSION" "$GITHUB_SHA" "$(cat ternilo/.github/linorun-revision)" > artifacts/SOURCE
+          cp ternilo/deploy/docker/compose.server.yml artifacts/compose.server.yml
+          sed 's|(../en/docker-compose.md)|(docker-compose.en.md)|g' ternilo/docs/zh-CN/docker-compose.md > artifacts/docker-compose.md
+          sed 's|(../zh-CN/docker-compose.md)|(docker-compose.md)|g' ternilo/docs/en/docker-compose.md > artifacts/docker-compose.en.md
           python3 ternilo/scripts/ci/release-info.py --checksums artifacts
-      - name: Create draft release
+      - name: Upload and publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
+          IMAGE: ${{ needs.version.outputs.image }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          printf '%s\n\n' 'Client and Server binaries, desktop installers, and the tested Server image digest are attached.' 'Desktop installers are unsigned; automatic updates remain disabled. Review platform installation and signing before publishing this draft.' > release-notes.md
+          if [ -f "ternilo/docs/zh-CN/releases/$VERSION.md" ] && [ -f "ternilo/docs/en/releases/$VERSION.md" ]; then
+            cat "ternilo/docs/zh-CN/releases/$VERSION.md" > release-notes.md
+            printf '\n---\n\n' >> release-notes.md
+            cat "ternilo/docs/en/releases/$VERSION.md" >> release-notes.md
+          else
+            printf '%s\n\n' 'Client and Server binaries, desktop installers, and the tested Server image digest are attached.' 'Desktop installers are unsigned; automatic updates remain disabled.' 'Download compose.server.yml and docker-compose.md to deploy the published image without a local build.' > release-notes.md
+          fi
+          printf 'Server image: `%s:%s` (linux/amd64).\n' "$IMAGE" "$VERSION" >> release-notes.md
           flags=()
           if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" artifacts/* --verify-tag --draft --title "Ternilo $GITHUB_REF_NAME" --notes-file release-notes.md "${flags[@]}"
+          gh release edit "$GITHUB_REF_NAME" --draft=false

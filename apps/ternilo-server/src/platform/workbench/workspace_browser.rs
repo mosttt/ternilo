@@ -48,8 +48,8 @@ async fn execute(
         .session(&session_id)
         .await?;
     let workspace_id = match &target {
-        SessionTarget::Cloud(session) => &session.workspace_id,
-        SessionTarget::Edge(session) => &session.workspace_id,
+        SessionTarget::Cloud(session) => session.workspace_id.clone(),
+        SessionTarget::Edge(session) => session.workspace_id.clone(),
     };
     let access = state
         .store
@@ -98,6 +98,15 @@ async fn execute(
     if is_info {
         value["applications"] = json!([]);
     }
-    access.require(ResourceAction::View)?;
+    state
+        .store
+        .resource_access(
+            user,
+            &tenant,
+            ResourceKind::Workspace,
+            workspace_id.as_str(),
+        )
+        .await?
+        .require(ResourceAction::View)?;
     Ok(Json(value))
 }

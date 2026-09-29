@@ -29,6 +29,10 @@ pub struct NativeBrowserSession {
     pub created_at_ms: u64,
     pub expires_at_ms: u64,
     pub is_current: bool,
+    pub user_agent: Option<String>,
+    pub first_ip: Option<String>,
+    pub last_ip: Option<String>,
+    pub last_active_at_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -63,6 +67,14 @@ impl ControlStore {
                     created_at_ms: unsigned(row.try_get("created_at_ms").map_err(database_error)?)?,
                     expires_at_ms: unsigned(row.try_get("expires_at_ms").map_err(database_error)?)?,
                     is_current: current_hash.as_ref() == Some(&stored_hash),
+                    user_agent: row.try_get("user_agent").map_err(database_error)?,
+                    first_ip: row.try_get("first_ip").map_err(database_error)?,
+                    last_ip: row.try_get("last_ip").map_err(database_error)?,
+                    last_active_at_ms: row
+                        .try_get::<Option<i64>, _>("last_active_at_ms")
+                        .map_err(database_error)?
+                        .map(unsigned)
+                        .transpose()?,
                 })
             })
             .collect::<Result<Vec<_>, HarnessError>>()?;
@@ -177,7 +189,7 @@ async fn active_sessions_in(
     actor: &ControlUser,
     now_ms: u64,
 ) -> Result<Vec<AnyRow>, HarnessError> {
-    sqlx::query("SELECT token_hash, created_at_ms, expires_at_ms FROM control_browser_sessions WHERE user_id = $1 AND revoked_at_ms IS NULL AND expires_at_ms > $2 ORDER BY created_at_ms DESC, token_hash")
+    sqlx::query("SELECT s.token_hash, s.created_at_ms, s.expires_at_ms, d.user_agent, d.first_ip, d.last_ip, d.last_active_at_ms FROM control_browser_sessions s LEFT JOIN control_browser_session_details d ON d.token_hash = s.token_hash WHERE s.user_id = $1 AND s.revoked_at_ms IS NULL AND s.expires_at_ms > $2 ORDER BY s.created_at_ms DESC, s.token_hash")
         .bind(actor.user_id.as_str()).bind(timestamp(now_ms)?)
         .fetch_all(&mut **transaction).await.map_err(database_error)
 }

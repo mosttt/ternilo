@@ -59,7 +59,7 @@ async function enroll(page, server, id, directory, environment, upstream, proces
   await page.getByRole('button', { name: '生成启动命令', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '启动 Ternilo Node' })
   const command = await dialog.locator('[data-node-launch-command]').textContent()
-  const token = /TERNILO_LOCAL_TOKEN='([^']+)'/.exec(command)?.[1]
+  const token = /--token "([^"\s]+)"/.exec(command)?.[1]
   assert.ok(token)
   await dialog.getByRole('button', { name: '我已保存，关闭', exact: true }).click()
   const origin = `http://127.0.0.1:${await freePort()}`

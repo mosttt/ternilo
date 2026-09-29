@@ -84,7 +84,7 @@ async fn turnstile_cannot_be_bypassed_by_direct_native_requests_and_disabling_ta
         page.headers()["content-security-policy"]
             .to_str()
             .unwrap()
-            .contains("frame-src https://challenges.cloudflare.com")
+            .contains("frame-src 'self' blob: https://challenges.cloudflare.com")
     );
     let mut disabled = turnstile(1);
     disabled["turnstile"] = Value::Null;

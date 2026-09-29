@@ -17,10 +17,13 @@ struct Fixture {
 
 impl Fixture {
     async fn new() -> Self {
-        let store =
-            ControlStore::connect("sqlite::memory:", None, SecretCipher::from_key([73; 32]), 1)
-                .await
-                .unwrap();
+        Self::with_database("sqlite::memory:", None).await
+    }
+
+    async fn with_database(url: &str, migration: Option<&str>) -> Self {
+        let store = ControlStore::connect(url, migration, SecretCipher::from_key([73; 32]), 1)
+            .await
+            .unwrap();
         let owner = store
             .initialize_owner(
                 &NativeRegistration {
@@ -137,7 +140,7 @@ async fn lists_only_owned_active_sessions_with_safe_stable_ids_and_current_marke
     assert!(!listed.sessions[1].is_current);
     assert_eq!(listed.sessions[1].created_at_ms, 2_000);
     let value = serde_json::to_value(&listed).unwrap();
-    assert_eq!(value["sessions"][0].as_object().unwrap().len(), 4);
+    assert_eq!(value["sessions"][0].as_object().unwrap().len(), 8);
     let encoded = value.to_string();
     for grant in [&fixture.owner, &fixture.member, &newer, &revoked, &expired] {
         let stored_hash = Sha256::digest(grant.access_token.as_bytes()).iter().fold(
@@ -465,4 +468,109 @@ async fn ban_still_revokes_native_sessions_and_unban_does_not_restore_them() {
             .sessions
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn session_activity_preserves_first_source_throttles_updates_and_rejects_other_accounts() {
+    activity_contract(Fixture::new().await).await;
+}
+
+async fn activity_contract(fixture: Fixture) {
+    let actor = &fixture.member.session.user;
+    let token = &fixture.member.access_token;
+    let first = Some("192.0.2.10".parse().unwrap());
+    fixture
+        .store
+        .record_browser_session_activity(actor, token, Some("test browser"), first, 4_000)
+        .await
+        .unwrap();
+    fixture
+        .store
+        .record_browser_session_activity(actor, token, Some("changed browser"), first, 5_000)
+        .await
+        .unwrap();
+    let listed = fixture.list(&fixture.member, 5_000).await;
+    let details = &listed.sessions[0];
+    assert_eq!(details.first_ip.as_deref(), Some("192.0.2.10"));
+    assert_eq!(details.user_agent.as_deref(), Some("test browser"));
+    assert_eq!(details.last_active_at_ms, Some(4_000));
+    let changed = Some("2001:db8::1".parse().unwrap());
+    fixture
+        .store
+        .record_browser_session_activity(&fixture.owner.session.user, token, None, changed, 6_000)
+        .await
+        .unwrap();
+    assert_eq!(
+        fixture.list(&fixture.member, 6_000).await.sessions[0]
+            .last_ip
+            .as_deref(),
+        Some("192.0.2.10")
+    );
+    fixture
+        .store
+        .record_browser_session_activity(actor, token, None, changed, 7_000)
+        .await
+        .unwrap();
+    let details = &fixture.list(&fixture.member, 7_000).await.sessions[0];
+    assert_eq!(details.first_ip.as_deref(), Some("192.0.2.10"));
+    assert_eq!(details.last_ip.as_deref(), Some("2001:db8::1"));
+    assert_eq!(details.last_active_at_ms, Some(7_000));
+    fixture
+        .store
+        .record_browser_session_activity(actor, token, None, changed, 68_000)
+        .await
+        .unwrap();
+    assert_eq!(
+        fixture.list(&fixture.member, 68_000).await.sessions[0].last_active_at_ms,
+        Some(68_000)
+    );
+    fixture
+        .store
+        .logout_native_session(token, 69_000)
+        .await
+        .unwrap();
+    fixture
+        .store
+        .record_browser_session_activity(actor, token, None, first, 70_000)
+        .await
+        .unwrap();
+    let last: i64 =
+        sqlx::query_scalar("SELECT MAX(last_active_at_ms) FROM control_browser_session_details")
+            .fetch_one(fixture.store.database().pool())
+            .await
+            .unwrap();
+    assert_eq!(last, 68_000);
+}
+
+#[path = "support/postgres.rs"]
+mod postgres_runtime;
+
+#[tokio::test]
+#[ignore = "requires TERNILO_TEST_DATABASE_URL pointing to a disposable PostgreSQL database"]
+async fn postgres_browser_activity_uses_production_runtime_grants() {
+    let admin_url = std::env::var("TERNILO_TEST_DATABASE_URL").unwrap();
+    assert!(admin_url.contains("ternilo_control_test"));
+    let admin = sqlx::PgPool::connect(&admin_url).await.unwrap();
+    sqlx::raw_sql("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+        .execute(&admin)
+        .await
+        .unwrap();
+    postgres_runtime::prepare_role(
+        &admin,
+        "ternilo_session_details_test",
+        "session-details-password",
+    )
+    .await;
+    let mut runtime = admin_url
+        .parse::<sqlx::any::AnyConnectOptions>()
+        .unwrap()
+        .database_url;
+    runtime
+        .set_username("ternilo_session_details_test")
+        .unwrap();
+    runtime
+        .set_password(Some("session-details-password"))
+        .unwrap();
+    activity_contract(Fixture::with_database(runtime.as_str(), Some(&admin_url)).await).await;
+    admin.close().await;
 }

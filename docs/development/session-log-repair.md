@@ -6,6 +6,5 @@
 
 五项测试覆盖只读检查、备份内容和 Unix 权限、后续追加的连续序号、完整末行缺换行、损坏中间／完整记录拒绝、目录锁及 UTF-8 多字节截断。真实 CLI／浏览器流程检查在线维护拒绝、离线预览和应用、备份精确相等、恢复后页面历史、接口事件与新事件追加。
 
-Formal instructions: [中文](../session-log-repair.md) / [English](../session-log-repair.en.md). This is offline, explicitly applied repair of an incomplete final record, with a durable original backup. It neither skips damaged complete records nor replays interrupted work. Validation covers byte preservation, sequence continuity, writer exclusion and actual browser recovery.
 
 浏览器验证同时检查页面、控制台和 HTTP 响应；修复后原有五条历史逐条一致，新增反馈事件保持连续序号，最终截图已检查。测试夹具曾省略 UserMessage 的规范化空 references／attachments 字段，现按正式事件结构提供，保留完整事件深比较。

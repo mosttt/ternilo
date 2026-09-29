@@ -242,10 +242,8 @@ test('PWA installs, upgrades, opens an explicit credential-free offline shell, a
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true)
 
     await context.setOffline(false)
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-      offlineAlert.getByRole('button', { name: '重试连接' }).click(),
-    ])
+    await offlineAlert.getByRole('button', { name: '重试连接' }).click()
+    await page.waitForFunction(() => window.__TERNILO_BOOT__?.offline !== true)
     await page.getByText('visible-online-workspace', { exact: true }).first().waitFor()
     assert.equal(await page.locator('[data-offline-shell]').count(), 0)
     assert.deepEqual(pageErrors, [])

@@ -28,7 +28,8 @@ export async function installPackages(directory, sources, environment, checks) {
     await mkdir(input)
     for (const name of names) await symlink(path.resolve(sources[name]), path.join(input, name))
     await execute(path.join(repository, 'scripts/package-release.sh'), ['--no-build', '--component', component, '--version', 'installation-validation', '--target-name', `${process.platform}-${process.arch}`, '--bin-dir', input, '--output-dir', output], { env: environment, cwd: directory, timeout: 120_000 })
-    const archive = (await readdir(output)).find(name => name.startsWith(`ternilo-${component}-`) && name.endsWith('.tar.gz'))
+    const prefix = component === 'local' ? 'ternilo-' : `ternilo-${component}-`
+    const archive = (await readdir(output)).find(name => name.startsWith(`${prefix}installation-validation-`) && name.endsWith('.tar.gz'))
     const checksum = await readFile(path.join(output, `${archive}.sha256`), 'utf8')
     assert.equal(checksum.trim().split(/\s+/)[0], await digest(path.join(output, archive)))
     await execute('tar', ['-xzf', path.join(output, archive), '-C', installation], { env: environment })
@@ -105,6 +106,7 @@ export async function openSession(browser, origin, sessionId, credentials, evide
 }
 
 export async function captureLayouts(page, artifacts, name) {
+  await page.bringToFront()
   for (const width of [1366, 390, 320]) {
     await page.setViewportSize({ width, height: 900 })
     await page.mouse.move(width - 4, 4)
@@ -114,6 +116,7 @@ export async function captureLayouts(page, artifacts, name) {
       if (await close.count()) await close.click()
       await page.locator('[data-app-sidebar-column][inert]').waitFor({ state: 'attached' })
     }
+    await page.locator('[data-input-bar] textarea').focus()
     await page.keyboard.press('Escape')
     await page.waitForFunction(() => !document.querySelector('[data-radix-popper-content-wrapper]'))
     await page.evaluate(async () => {

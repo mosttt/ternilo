@@ -1,0 +1,25 @@
+# Architecture
+
+`ternilo` owns the local application and adapts it to CLI, local Web, JSON-RPC, ACP and a remotely connected Node. `ternilo-server` supplies the authenticated remote entry point, accounts, resources, routing and model services. `ternilo-worker` optionally executes managed jobs. Desktop is a native shell around the local application; Work container lifecycle is a reserved design, not an implemented fourth execution product.
+
+## Layers and data ownership
+
+The protocol crate defines product identities, commands, events and validation. The kernel composes capabilities and executes Agent turns. Linorun supplies component lifecycle and service routing. Built-in and external plugins contribute tools, prompts, skills, models and runtimes subject to host policy.
+
+`LocalApplication` is the shared local service boundary. It owns workspaces, sessions, providers, credentials, presets, attachments and extension inventory. Its data directory is exclusively locked by one service. Project directories are separate from that state directory; multiple independently configured services may run on the same computer.
+
+Durable session events are the history source. Search indexes and projection checkpoints accelerate reads without replacing the events. History reads are bounded and support backward pagination; live cursors are independent from historical pagination. Forks copy a completed history prefix and preserve their own identity. Queue submissions and results are persisted so reconnects do not replay completed external actions.
+
+## Execution and models
+
+Profiles compose plugin configuration. A host policy defines permissions and maximum limits that a plugin cannot loosen. Workspace access, process sandboxing, approvals and model authorization are distinct checks. Large outputs and attachments are stored as artifacts rather than forced into every model context.
+
+Device providers remain on the execution computer. Account providers and published platform models are resolved through Server. A run records its selected model and authorization; a same-named model from another source is not an automatic fallback. Shared and scheduled work preserves the original submitter identity and rechecks current permissions.
+
+## Remote paths
+
+The Node opens an outbound authenticated WebSocket. Server associates the connection with a registered executor and routes authorized workspace/session commands to it. Server stores received metadata/events for remote viewing; actual computer files remain on the Node. Routing and result authorization are checked against current account and resource state, including after remote waits.
+
+SQLite and PostgreSQL implement the same product storage contract. Component schemas are initialized explicitly; an incompatible existing schema is rejected rather than guessed or silently rewritten. Transactions protect admission, account status, quotas and immutable audit records. PostgreSQL deployment separates schema ownership from restricted runtime access.
+
+Managed Workers claim durable work and execute in restricted child processes. Leases, fencing and durable results distinguish retries from uncertain external outcomes. The planned Work container product builds on existing executor/resource boundaries but does not yet supply container lifecycle or quotas. See [Server reference](server-reference.md), [security](security.md) and [Worker](worker.md).

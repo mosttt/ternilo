@@ -27,7 +27,7 @@
 .ledgerRow[data-status="error"],
 .virtualRow[data-status="error"] { --turn-accent: color-mix(in srgb, var(--destructive) 28%, var(--surface-layer-1)); }
 
-.virtualCanvas { position: relative; width: 100%; }
+.virtualCanvas { position: relative; width: 100%; overflow-anchor: none; }
 
 .virtualRow {
   position: absolute;

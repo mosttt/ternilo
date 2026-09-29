@@ -147,7 +147,7 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
       oldDocument.waitForResponse(response => response.request().resourceType() === 'document'),
       oldDocument.getByRole('button', { name: '退出登录', exact: true }).click(),
     ])
-    assert.match(refreshedDocument.headers()['content-security-policy'], /frame-src https:\/\/challenges.cloudflare.com/)
+    assert.match(refreshedDocument.headers()['content-security-policy'], /frame-src 'self' blob: https:\/\/challenges.cloudflare.com/)
     await oldDocument.getByLabel('用户名', { exact: true }).waitFor()
     await oldDocument.close()
     await execute(binary, ['admin', 'reset-authentication', '--config', configPath], { cwd: repository })

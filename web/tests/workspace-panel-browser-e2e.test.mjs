@@ -98,6 +98,7 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     for (const origin of [localOrigin, application.origin]) for (const asset of ['app.js', 'app.css']) {
       assert.equal(createHash('sha256').update(Buffer.from(await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer())).digest('hex'), createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex'))
     }
+    await page.addInitScript(() => { if (window === window.top) localStorage.setItem('ternilo.theme', 'dark') })
     await page.goto(localOrigin)
     await page.locator(`[data-sidebar-session-row][data-session-id="${session.identity.session_id}"] [data-sidebar-session-button]`).click()
     const toggle = page.locator('[data-workspace-toggle]')
@@ -189,6 +190,9 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     const download = await downloadPromise
     assert.equal(download.suggestedFilename(), 'main.rs')
     assert.equal(await readFile(await download.path(), 'utf8'), await readFile(path.join(folder, 'src/main.rs'), 'utf8'))
+    await panel.getByRole('tab', { name: '文件', exact: true }).click()
+    await panel.locator('[data-workspace-entry="image.png"]').click()
+    await until(() => panel.locator('[data-workspace-preview="image.png"] img').evaluate(image => image.complete && image.naturalWidth > 0), Boolean, 'Server image decode under CSP')
     if (artifacts) await page.screenshot({ path: path.join(artifacts, 'workspace-server-owner.png'), animations: 'disabled' })
     await page.setViewportSize({ width: 390, height: 844 })
     await until(() => panel.getAttribute('role'), role => role === 'dialog', 'owner mobile workspace browser')

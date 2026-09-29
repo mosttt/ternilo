@@ -107,9 +107,11 @@ export const TrajectoryLedger = React.forwardRef<TrajectoryLedgerHandle, {
   const virtualizer = useVirtualizer({
     count: virtualized ? rows.length : 0,
     getScrollElement: () => scrollElement,
-    estimateSize: index => rows[index]?.kind === 'record'
-      && typeof matchMedia === 'function'
-      && matchMedia('(max-width: 760px)').matches ? 52 : 30,
+    estimateSize: index => {
+      const compact = (rootRef.current?.clientWidth ?? window.innerWidth) <= 760
+      if (!compact) return 36
+      return rows[index]?.kind === 'record' ? 52 : rows[index]?.kind === 'turn' ? 44 : 34
+    },
     overscan: VIRTUAL_OVERSCAN,
     scrollMargin,
     getItemKey: index => rows[index]?.key ?? index,
@@ -120,10 +122,15 @@ export const TrajectoryLedger = React.forwardRef<TrajectoryLedgerHandle, {
     const scroller = root?.closest<HTMLElement>('.conversation-scroll') ?? null
     setScrollElement(scroller)
     if (!root || !scroller) return
+    let measuredWidth = root.clientWidth
     const measure = () => {
       const next = root.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
       setScrollMargin(next)
-      virtualizer.measure()
+      // Row measurement changes the canvas height; only width changes invalidate heights.
+      if (root.clientWidth !== measuredWidth) {
+        measuredWidth = root.clientWidth
+        virtualizer.measure()
+      }
     }
     measure()
     const observer = new ResizeObserver(measure)

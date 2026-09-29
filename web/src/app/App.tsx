@@ -48,7 +48,7 @@ import { FilesPage } from "@/components/files/files-page";
 import { navigate, usePathname } from "./navigation";
 
 function applyStoredTheme() {
-  const theme = (localStorage.getItem(storage.theme) ?? "dark") as ThemePreference;
+  const theme = (localStorage.getItem(storage.theme) ?? "system") as ThemePreference;
   applyThemePreference(theme);
 }
 
@@ -250,7 +250,7 @@ function WorkbenchShell({ runtime }: { runtime: SessionRuntime }) {
   React.useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
     const listener = () => {
-      if ((localStorage.getItem(storage.theme) ?? "dark") === "system")
+      if ((localStorage.getItem(storage.theme) ?? "system") === "system")
         applyStoredTheme();
     };
     media.addEventListener("change", listener);

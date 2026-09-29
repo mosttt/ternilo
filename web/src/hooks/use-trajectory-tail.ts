@@ -7,10 +7,11 @@ export function useTrajectoryTail(sessionId: string, revision: number) {
   const rootRef = React.useRef<HTMLDivElement>(null)
   const stateRef = React.useRef<TrajectoryFollowState>({ pinned: persistedFollow.get(sessionId) ?? false, observedScrollTop: 0 })
   const scrollRef = React.useRef<HTMLElement | null>(null)
+  const touchingRef = React.useRef(false)
 
   const scrollToTail = React.useCallback(() => {
     const scroller = scrollRef.current
-    if (!scroller || !stateRef.current.pinned) return
+    if (!scroller || !stateRef.current.pinned || touchingRef.current) return
     scroller.scrollTop = scroller.scrollHeight
     stateRef.current.observedScrollTop = scroller.scrollTop
   }, [])
@@ -25,6 +26,7 @@ export function useTrajectoryTail(sessionId: string, revision: number) {
     }
     if (!root || !scroller) return
 
+    touchingRef.current = false
     let readerIntent = false
     let intentFrame = 0
     let followFrame = 0
@@ -36,6 +38,12 @@ export function useTrajectoryTail(sessionId: string, revision: number) {
       readerIntent = true
       clearIntentSoon()
     }
+    const onTouchStart = () => {
+      touchingRef.current = true
+      markIntent()
+      cancelAnimationFrame(followFrame)
+    }
+    const onTouchEnd = () => { touchingRef.current = false }
     const onPointerDown = (event: PointerEvent) => {
       const bounds = scroller.getBoundingClientRect()
       if (event.clientX >= bounds.right - 18) markIntent()
@@ -45,14 +53,14 @@ export function useTrajectoryTail(sessionId: string, revision: number) {
     }
     const scheduleFollow = () => {
       cancelAnimationFrame(followFrame)
-      followFrame = requestAnimationFrame(scrollToTail)
+      if (!touchingRef.current) followFrame = requestAnimationFrame(scrollToTail)
     }
     const onScroll = () => {
       const decision = updateTrajectoryFollow(stateRef.current, {
         scrollTop: scroller.scrollTop,
         scrollHeight: scroller.scrollHeight,
         clientHeight: scroller.clientHeight,
-        readerIntent,
+        readerIntent: touchingRef.current || readerIntent,
       })
       stateRef.current = decision
       persistedFollow.set(sessionId, decision.pinned)
@@ -62,7 +70,9 @@ export function useTrajectoryTail(sessionId: string, revision: number) {
 
     scroller.addEventListener('scroll', onScroll)
     scroller.addEventListener('wheel', markIntent, { passive: true })
-    scroller.addEventListener('touchstart', markIntent, { passive: true })
+    scroller.addEventListener('touchstart', onTouchStart, { passive: true })
+    scroller.addEventListener('touchend', onTouchEnd, { passive: true })
+    scroller.addEventListener('touchcancel', onTouchEnd, { passive: true })
     scroller.addEventListener('pointerdown', onPointerDown)
     scroller.addEventListener('keydown', onKeyDown)
     const observer = new ResizeObserver(() => {
@@ -83,7 +93,9 @@ export function useTrajectoryTail(sessionId: string, revision: number) {
       observer.disconnect()
       scroller.removeEventListener('scroll', onScroll)
       scroller.removeEventListener('wheel', markIntent)
-      scroller.removeEventListener('touchstart', markIntent)
+      scroller.removeEventListener('touchstart', onTouchStart)
+      scroller.removeEventListener('touchend', onTouchEnd)
+      scroller.removeEventListener('touchcancel', onTouchEnd)
       scroller.removeEventListener('pointerdown', onPointerDown)
       scroller.removeEventListener('keydown', onKeyDown)
       scrollRef.current = null

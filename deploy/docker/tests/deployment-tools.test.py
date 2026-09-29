@@ -9,6 +9,7 @@ import runpy
 import subprocess
 import sys
 import tarfile
+import zipfile
 import tempfile
 import threading
 import unittest
@@ -651,17 +652,17 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
                    "--bin-dir", str(binaries), "--output-dir", str(self.directory / "release")]
         result = subprocess.run(command, env=self.environment, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        archive = self.directory / "release/ternilo-test-1-test-host.tar.gz"
+        archive = self.directory / "release/ternilo-all-test-1-test-host.tar.gz"
         with tarfile.open(archive) as bundle:
             members = bundle.getmembers()
             self.assertTrue(any(member.name.endswith("/bin/ternilo-server") and member.mode & 0o111 for member in members))
             self.assertFalse(any("/secrets/" in member.name or "/docs/development" in member.name or member.name.endswith("/.env") for member in members))
             self.assertTrue(any(member.name.endswith("/.env.server.example") for member in members))
-            for name in ("README.md", "README.zh-CN.md", "docs/README.md", "docs/README.zh-CN.md",
+            for name in ("README.md", "README.zh-CN.md", "docs/en/README.md", "docs/zh-CN/README.md",
                          "THIRD_PARTY_NOTICES.md", "licenses/web-interface.MIT"):
-                self.assertEqual(bundle.extractfile(f"ternilo-test-1-test-host/{name}").read(), (ROOT / name).read_bytes())
+                self.assertEqual(bundle.extractfile(f"ternilo-all-test-1-test-host/{name}").read(), (ROOT / name).read_bytes())
             for name in ("cloud-rotate-credentials.sh", "rotate-credentials.py"):
-                tool = bundle.getmember(f"ternilo-test-1-test-host/deploy/docker/{name}")
+                tool = bundle.getmember(f"ternilo-all-test-1-test-host/deploy/docker/{name}")
                 self.assertTrue(tool.mode & 0o111)
                 self.assertEqual(bundle.extractfile(tool).read(), (DEPLOY / name).read_bytes())
             for path in ("examples/openai-compatible-profile.json", "examples/rhai-echo-extension/extension.rhai",
@@ -697,7 +698,7 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
                     command += ["--component", "local"]
                 result = subprocess.run(command, env=environment, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                prefix = f"ternilo-{component}-scope-test-test-host"
+                prefix = f"{'ternilo' if component == 'local' else 'ternilo-' + component}-scope-test-test-host"
                 with tarfile.open(self.directory / f"release/{prefix}.tar.gz") as bundle:
                     members = bundle.getmembers()
                     actual = {Path(member.name).name for member in members
@@ -725,9 +726,22 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         (binaries / "ternilo-sandbox-windows.exe").chmod(0o700)
         result = subprocess.run(command, env=self.environment, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        with tarfile.open(next((self.directory / "release").glob("*.tar.gz"))) as bundle:
-            binaries = {Path(member.name).name for member in bundle.getmembers() if member.isfile() and "/bin/" in member.name}
+        archive = self.directory / "release/ternilo-windows-test-x86_64-pc-windows-msvc.zip"
+        with zipfile.ZipFile(archive) as bundle:
+            self.assertIsNone(bundle.testzip())
+            binaries = {Path(member.filename).name for member in bundle.infolist() if not member.is_dir() and "/bin/" in member.filename}
             self.assertEqual(binaries, {"ternilo.exe", "ternilo-plugin.exe", "ternilo-sandbox-windows.exe"})
+            prefix = archive.stem
+            self.assertEqual(bundle.read(prefix + "/bin/ternilo.exe"), b"windows-fixture")
+            self.assertEqual(bundle.read(prefix + "/LICENSE"), (ROOT / "LICENSE").read_bytes())
+            self.assertIn(b"(START-HERE.en.md)", bundle.read(prefix + "/START-HERE.md"))
+            self.assertIn(b"(START-HERE.md)", bundle.read(prefix + "/START-HERE.en.md"))
+            for language in ("zh-CN", "en"):
+                self.assertIn(prefix + "/docs/" + language + "/getting-started.md", bundle.namelist())
+            self.assertFalse(any("/docs/development/" in name or name.endswith("/.env") for name in bundle.namelist()))
+        self.assertEqual(Path(str(archive) + ".sha256").read_text().split()[0], hashlib.sha256(archive.read_bytes()).hexdigest())
+        repeated = subprocess.run(command, env=self.environment, capture_output=True, text=True)
+        self.assertNotEqual(repeated.returncode, 0)
 
     def test_release_component_help_validation_and_missing_local_plugin(self):
         script = str(ROOT / "scripts/package-release.sh")

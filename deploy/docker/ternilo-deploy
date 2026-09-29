@@ -119,7 +119,7 @@ def initialize(args):
     if marker.exists():
         deployment_values(args)
     else:
-        image = explicit_image(args.image)
+        image = explicit_image(args.image or env_values(source / ".env.server.example")["TERNILO_IMAGE"])
         target.mkdir(parents=True, exist_ok=True)
         if any(target.iterdir()):
             fail("Initialization requires an empty directory or an existing Server deployment.")

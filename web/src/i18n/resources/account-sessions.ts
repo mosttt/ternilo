@@ -1,9 +1,17 @@
 export const zh = {
   title: '浏览器登录会话',
-  description: '查看本账号尚未过期的原生登录会话。撤销后，对应登录将失效。',
+  description: '查看本账号尚未过期的原生登录会话。最后活动按已认证 HTTP 请求记录，通常每分钟更新一次。撤销后，对应登录将失效。',
   oidcNotice: '当前通过 OIDC 登录。这里只管理本账号保存在 Server 的原生会话；撤销操作不会退出当前 OIDC 登录，也不会结束身份提供方的外部会话。',
   session: '登录会话 {id}',
   current: '当前会话',
+  unknownDevice: '未知设备／浏览器',
+  hostnameUnavailable: '主机名：浏览器不提供此信息',
+  firstIp: '首次来源 IP：{ip}',
+  lastIp: '最近来源 IP：{ip}',
+  lastActive: '最后活动：{time}',
+  notRecorded: '尚未记录',
+  technicalDetails: '浏览器标识与会话 ID',
+
   created: '登录时间：{time}',
   expires: '到期时间：{time}',
   loading: '正在加载登录会话…',
@@ -26,10 +34,18 @@ export const zh = {
 
 export const en: Record<keyof typeof zh, string> = {
   title: 'Browser sign-in sessions',
-  description: 'Review this account’s unexpired native sign-in sessions. Revoking a session ends its access.',
+  description: 'Review this account’s unexpired native sign-in sessions. Activity reflects authenticated HTTP requests, normally updated once per minute. Revoking a session ends its access.',
   oidcNotice: 'You are signed in through OIDC. Only this account’s native sessions stored on Server are managed here. Revoking them does not sign you out of OIDC or end external sessions at your identity provider.',
   session: 'Sign-in session {id}',
   current: 'Current session',
+  unknownDevice: 'Unknown device / browser',
+  hostnameUnavailable: 'Hostname: not provided by the browser',
+  firstIp: 'First source IP: {ip}',
+  lastIp: 'Latest source IP: {ip}',
+  lastActive: 'Last activity: {time}',
+  notRecorded: 'Not recorded',
+  technicalDetails: 'Browser identifier and session ID',
+
   created: 'Signed in: {time}',
   expires: 'Expires: {time}',
   loading: 'Loading sign-in sessions…',

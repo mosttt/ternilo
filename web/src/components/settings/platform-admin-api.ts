@@ -143,8 +143,10 @@ export interface NodeLaunchCommand {
   executorId: string
 }
 
-function shellQuote(value: string) {
-  return `'${value.replaceAll("'", "'\\''")}'`
+function commandArgument(value: string) {
+  // These generated arguments need no shell-specific interpolation or escaping.
+  if (!/^[A-Za-z0-9._:/\[\]-]+$/.test(value)) throw new Error('Node launch arguments contain unsupported characters')
+  return `"${value}"`
 }
 
 export function nodeLaunchCommand(
@@ -154,8 +156,8 @@ export function nodeLaunchCommand(
 ) {
   const gateway = new URL('/api/v1/executors/connect', origin)
   gateway.protocol = gateway.protocol === 'https:' ? 'wss:' : 'ws:'
-  const insecure = gateway.protocol === 'ws:' ? ' \\\n  --allow-insecure-gateway' : ''
-  return `TERNILO_LOCAL_TOKEN=${shellQuote(credentialToken)} ternilo serve \\\n  --gateway-url ${shellQuote(gateway.toString())} \\\n  --node-id ${shellQuote(executorId)}${insecure}`
+  const insecure = gateway.protocol === 'ws:' ? ' --allow-insecure-gateway' : ''
+  return `ternilo serve --gateway-url ${commandArgument(gateway.toString())} --node-id ${commandArgument(executorId)} --token ${commandArgument(credentialToken)}${insecure}`
 }
 
 /**

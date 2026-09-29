@@ -10,6 +10,7 @@ mod edge_models;
 mod edge_store;
 mod fork_access;
 mod group_store;
+mod identity_session_details;
 mod identity_sessions;
 mod identity_store;
 mod model_store;

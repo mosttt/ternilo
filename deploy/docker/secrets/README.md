@@ -8,4 +8,4 @@ Server 的数据库连接和主密钥保存在私有数据卷中的 `server.json
 
 Worker 在自己的私有数据卷中保存 `worker.json`，其中只有专属接入凭据和执行配置。它不需要数据库密码、Server 主密钥或模型 API Key。自己的电脑和 VPS 在“用户设置 → 我的机器”中接入；自备模型在用户模型设置中配置。
 
-运行凭据和备份不要提交到仓库。恢复 Server 时，数据库与原主密钥必须来自同一份匹配备份。完整操作见[部署指南](../../../docs/deployment.md)和[Worker 部署](../../../docs/worker.md)。
+运行凭据和备份不要提交到仓库。恢复 Server 时，数据库与原主密钥必须来自同一份匹配备份。完整操作见[部署指南](../../../docs/zh-CN/deployment.md)和[Worker 部署](../../../docs/zh-CN/worker.md)。

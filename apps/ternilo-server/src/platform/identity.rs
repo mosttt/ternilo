@@ -19,6 +19,7 @@ use super::{
 
 const MAX_IDENTITY_BODY_BYTES: u64 = 16 * 1024;
 
+pub(super) mod session_details;
 mod sessions;
 
 pub(crate) fn router() -> Router {
@@ -236,11 +237,16 @@ fn browser_session(state: &AppState, session: IdentitySession) -> BrowserSession
     }
 }
 
-fn browser_grant(state: &AppState, grant: NativeSessionGrant) -> BrowserSessionGrant {
-    BrowserSessionGrant {
+async fn browser_grant(
+    state: &AppState,
+    request: &Request,
+    grant: NativeSessionGrant,
+) -> Result<BrowserSessionGrant, ApiError> {
+    session_details::record(state, request, &grant.session.user, &grant.access_token).await?;
+    Ok(BrowserSessionGrant {
         access_token: grant.access_token,
         session: browser_session(state, grant.session),
-    }
+    })
 }
 
 #[handler]
@@ -270,7 +276,7 @@ async fn setup(
         .store
         .initialize_owner(&registration, now_ms()?)
         .await?;
-    Ok(Json(browser_grant(state, grant)))
+    Ok(Json(browser_grant(state, request, grant).await?))
 }
 
 #[handler]
@@ -298,7 +304,7 @@ async fn login(
         .store
         .create_native_browser_session(credentials, now_ms()?)
         .await?;
-    Ok(Json(browser_grant(state, grant)))
+    Ok(Json(browser_grant(state, request, grant).await?))
 }
 
 #[handler]
@@ -333,9 +339,10 @@ async fn register(
     Ok(Json(RegistrationResult {
         status: registration.status,
         user_id: registration.user_id,
-        session: registration
-            .session
-            .map(|grant| browser_grant(state, grant)),
+        session: match registration.session {
+            Some(grant) => Some(browser_grant(state, request, grant).await?),
+            None => None,
+        },
     }))
 }
 
@@ -481,5 +488,5 @@ async fn accept_invitation(
         .store
         .accept_user_invitation(&body.token, &registration, now_ms()?)
         .await?;
-    Ok(Json(browser_grant(state, grant)))
+    Ok(Json(browser_grant(state, request, grant).await?))
 }

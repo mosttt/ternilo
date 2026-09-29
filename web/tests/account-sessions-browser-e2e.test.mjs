@@ -36,13 +36,20 @@ function observe(page, label, origin, report) {
   const responseStatuses = new WeakMap()
   report.live[label] = connections
   page.on('pageerror', error => report.errors.push(`${label}: ${error.message}`))
-  page.on('console', message => { if (message.type() === 'error') report.errors.push(`${label} console: ${message.text()}`) })
+  const revoked = () => connections.some(connection => connection.frames.some(frame => frame.type === 'error' && frame.code === 'policy_denied'))
+  page.on('console', message => {
+    if (message.type() !== 'error') return
+    if (revoked() && message.text().includes('401') && message.location().url.endsWith('/api/v1/auth/session')) return
+    report.errors.push(`${label} console: ${message.text()}`)
+  })
   page.on('response', response => {
     const url = new URL(response.url())
     if (url.origin !== origin) return
     responseStatuses.set(response.request(), response.status())
     report.network.push({ page: label, method: response.request().method(), path: url.pathname, status: response.status() })
-    if (response.status() >= 400) report.errors.push(`${label} HTTP ${response.status()}: ${url.pathname}`)
+    if (response.status() === 401 && url.pathname === '/api/v1/auth/session' && revoked()) {
+      report.expectedNetwork.push({ page: label, path: url.pathname, status: 401 })
+    } else if (response.status() >= 400) report.errors.push(`${label} HTTP ${response.status()}: ${url.pathname}`)
   })
   page.on('requestfailed', request => {
     const pathname = new URL(request.url()).pathname
@@ -182,6 +189,18 @@ test('self-service browser sessions preserve account boundaries and external OID
     assert.equal(await page.locator('[data-account-email]').textContent(), 'sessions-member@example.test')
     assert.equal(await sessions.locator('[data-account-session]').count(), 3)
     assert.equal(await sessions.locator('[data-current-session]').count(), 1)
+    const currentRow = sessions.locator('[data-account-session]').filter({ has: page.locator('[data-current-session]') })
+    assert.match(await currentRow.textContent(), /首次来源 IP：127\.0\.0\.1/)
+    assert.match(await currentRow.textContent(), /最近来源 IP：127\.0\.0\.1/)
+    assert.match(await currentRow.textContent(), /最后活动：/)
+    assert.match(await currentRow.textContent(), /Chrome/)
+    assert.match(await currentRow.textContent(), /主机名：浏览器不提供此信息/)
+    const sessionDetails = await serverRequest(origin, '/auth/sessions', { token: current.access_token })
+    const currentDetails = sessionDetails.sessions.find(session => session.is_current)
+    assert.equal(currentDetails.first_ip, '127.0.0.1')
+    assert.equal(currentDetails.last_ip, '127.0.0.1')
+    assert.ok(currentDetails.last_active_at_ms >= currentDetails.created_at_ms)
+    assert.match(currentDetails.user_agent, /Chrome/)
     const memberSessionIds = await sessions.locator('[data-account-session]').evaluateAll(elements => elements.map(element => element.getAttribute('data-account-session')))
 
     for (const width of [1440, 390, 320]) {

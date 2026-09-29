@@ -80,6 +80,7 @@ async fn authenticate_user(
         .map_err(authentication_error)?;
     let mut session = state.store.identity_session(user).await?;
     session.expires_at_ms = expires_at_ms;
+    super::identity::session_details::record(state, request, &session.user, token).await?;
     Ok(session)
 }
 

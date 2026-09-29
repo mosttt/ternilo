@@ -247,7 +247,7 @@ async function createEnrollmentThroughUi(page, nodeId, projectId) {
   assert.match(command, /ternilo serve/)
   assert.match(command, /--gateway-url 'ws:\/\/127\.0\.0\.1:\d+\/api\/v1\/executors\/connect'/)
   assert.match(command, new RegExp(`--node-id '${nodeId}'`))
-  const credential = /TERNILO_LOCAL_TOKEN='([^']+)'/.exec(command)?.[1]
+  const credential = /--token "([^"\s]+)"/.exec(command)?.[1]
   assert.ok(credential)
   await launch.getByRole('button', { name: '复制命令' }).click()
   await launch.getByRole('button', { name: '已复制' }).waitFor()
@@ -275,7 +275,7 @@ async function createOwnedEnrollmentThroughUi(page, nodeId, projectId) {
   const command = await launch.locator('[data-node-launch-command]').textContent() ?? ''
   assert.match(command, /ternilo serve/)
   assert.match(command, new RegExp(`--node-id '${nodeId}'`))
-  const credential = /TERNILO_LOCAL_TOKEN='([^']+)'/.exec(command)?.[1]
+  const credential = /--token "([^"\s]+)"/.exec(command)?.[1]
   assert.ok(credential)
   await launch.getByRole('button', { name: '我已保存，关闭' }).click()
   await launch.waitFor({ state: 'detached' })

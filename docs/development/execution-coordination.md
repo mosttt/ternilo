@@ -1,6 +1,5 @@
 # Work 资源与执行边界
 
-[English](execution-coordination.en.md) · 简体中文
 
 状态：设计预留，未实现。现有 Node／executor 身份、版本化传输、工作区路由和模型授权是接入边界。当前没有独立 Work 程序、管理页面、数据库资源或 Docker 调度器。
 
@@ -24,7 +23,7 @@ Work 是个人执行信任边界；同一容器内的工作区不构成多租户
 
 停止任务、确认真实进程退出、释放执行名额和删除持久存储是不同操作。租约到期不替代退出证明；重连不重放未知副作用；未知模型消耗不自动退款。
 
-现有 `ternilo-worker` 按任务启动子进程及 Bubblewrap，是独立的可选托管执行器，不实现“一 Work 一 Docker”模型。它的部署与运行方式见[Worker 指南](../worker.md)。
+现有 `ternilo-worker` 按任务启动子进程及 Bubblewrap，是独立的可选托管执行器，不实现“一 Work 一 Docker”模型。它的部署与运行方式见[Worker 指南](../zh-CN/worker.md)。
 
 ## 未实现的能力
 

@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::Write,
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
 };
 
@@ -21,6 +21,8 @@ pub(crate) struct ServerConfig {
     pub secret_master_key: String,
     pub setup_token_hash: Option<String>,
     pub public_url: Option<String>,
+    #[serde(default)]
+    pub trusted_proxy_ips: Vec<IpAddr>,
     pub oidc: Option<OidcSettings>,
     pub max_database_connections: u32,
     pub managed_execution_enabled: bool,
@@ -55,6 +57,9 @@ pub(crate) struct ServeOptions {
     pub setup_token: Option<String>,
     #[arg(long, env = "TERNILO_SERVER_PUBLIC_URL")]
     pub public_url: Option<String>,
+    /// Exact proxy addresses allowed to supply X-Forwarded-For client addresses.
+    #[arg(long, env = "TERNILO_SERVER_TRUSTED_PROXY_IPS", value_delimiter = ',')]
+    pub trusted_proxy_ips: Vec<IpAddr>,
     #[arg(long, env = "TERNILO_SERVER_MAX_DATABASE_CONNECTIONS")]
     pub max_database_connections: Option<u32>,
     #[arg(long, env = "TERNILO_SERVER_OIDC_ISSUER")]
@@ -85,6 +90,7 @@ impl ServerConfig {
             secret_master_key,
             setup_token_hash: None,
             public_url: None,
+            trusted_proxy_ips: Vec::new(),
             oidc: None,
             max_database_connections: 16,
             managed_execution_enabled: false,
@@ -221,6 +227,9 @@ impl ServeOptions {
         }
         if let Some(value) = self.public_url {
             config.public_url = Some(value);
+        }
+        if !self.trusted_proxy_ips.is_empty() {
+            config.trusted_proxy_ips = self.trusted_proxy_ips;
         }
         if let Some(value) = self.max_database_connections {
             config.max_database_connections = value;

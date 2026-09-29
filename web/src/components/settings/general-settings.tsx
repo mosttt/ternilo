@@ -34,7 +34,7 @@ export function GeneralSettings() {
   const t = useTranslate('settings')
   const builtins = useTranslate('builtins')
   const conversation = useTranslate('conversation')
-  const [theme, setTheme] = React.useState(() => localStorage.getItem(storage.theme) ?? 'dark')
+  const [theme, setTheme] = React.useState(() => localStorage.getItem(storage.theme) ?? 'system')
   const transcriptView = useTranscriptView()
   const [busyEnter, setBusyEnter] = React.useState(() => readBusyEnterBehavior(localStorage))
   const [contentFontSize, setContentFontSize] = React.useState(() => readContentFontSize(localStorage))

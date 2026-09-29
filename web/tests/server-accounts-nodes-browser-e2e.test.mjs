@@ -191,7 +191,7 @@ async function enrollNode(page, origin, node, processes) {
   await settings.getByRole('button', { name: '生成启动命令', exact: true }).click()
   const launch = page.getByRole('dialog', { name: '启动 Ternilo Node' })
   const command = await launch.locator('[data-node-launch-command]').textContent()
-  const token = /TERNILO_LOCAL_TOKEN='([^']+)'/.exec(command)?.[1]
+  const token = /--token "([^"\s]+)"/.exec(command)?.[1]
   assert.ok(token)
   await launch.getByRole('button', { name: '我已保存，关闭', exact: true }).click()
   await closeSettings(page)

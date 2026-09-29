@@ -209,6 +209,7 @@ impl ControlStore {
             .await?;
         crate::authentication_settings::initialize(database).await?;
         crate::project_sharing::initialize(database).await?;
+        crate::identity_session_details::initialize(database).await?;
         crate::oidc_sessions::initialize(database).await
     }
 
@@ -1099,7 +1100,7 @@ impl ControlStore {
             require_bounded(project_id, "project id", 128)?;
         }
         let enrollment_id = random_identifier("enr");
-        let token = random_token("kne");
+        let token = random_token("ternilo_enroll");
         let token_hash = token_hash(&token).to_vec();
         let expires_at_ms = now_ms.saturating_add(duration_ms(ttl)?);
         let now = to_i64(now_ms, "enrollment timestamp")?;
@@ -1263,7 +1264,7 @@ impl ControlStore {
             return Err(HarnessError::invalid("invalid enrollment token"));
         }
         let credential_id = random_identifier("ncr");
-        let credential_token = random_token("knc");
+        let credential_token = random_token("ternilo_node");
         let mut transaction = self.database.begin().await?;
         let hash = token_hash(enrollment_token).to_vec();
         let tenant = token_tenant(&mut transaction, &hash, true).await?;

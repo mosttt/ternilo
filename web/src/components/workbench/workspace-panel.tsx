@@ -121,7 +121,11 @@ function FilePreview({ sessionId, path, revision }: { sessionId: string; path: s
   const html = React.useMemo(() => {
     if (!file || file.encoding !== 'utf8' || !rendered || !renderable) return ''
     const content = /\.(md|markdown)$/i.test(path) ? renderMarkdown(file.content, { copy: chatT('message.copy'), copyCode: chatT('message.copyCode'), taskCompleted: chatT('message.taskCompleted'), taskPending: chatT('message.taskPending') }) : file.content
-    const clean = DOMPurify.sanitize(content, { FORBID_TAGS: ['button', 'iframe', 'form'] })
+    const clean = DOMPurify.sanitize(content, {
+      FORBID_TAGS: ['button', 'iframe', 'form', 'style', 'link', 'meta', 'base'],
+      FORBID_ATTR: ['srcset', 'style'],
+      ALLOWED_URI_REGEXP: /^(?:#|data:image\/(?:png|jpeg|gif|webp);base64,)/i,
+    })
     return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'"><style>html{color-scheme:light dark}body{margin:18px;background:${palette.background};color:${palette.foreground};font:14px/1.7 system-ui;overflow-wrap:anywhere}pre{overflow:auto;padding:12px;background:rgba(128,128,128,.08)}code{font-family:monospace}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #888;padding:6px}a{color:#679efe}</style></head><body>${clean}</body></html>`
   }, [file, rendered, renderable, path, palette, chatT])
   if (result.error) return <div className={css.note} role="alert">{result.error}</div>
@@ -139,7 +143,7 @@ function FilePreview({ sessionId, path, revision }: { sessionId: string; path: s
       ? <><div className={css.safety}>{t('workspace.safePreview')}</div><iframe className={css.documentFrame} title={t('preview', { name: path })} sandbox="" srcDoc={html} /></>
       : <div className={css.code} onClick={event => { if ((event.target as HTMLElement).closest('.markdown-copy')) void copyText(file.content).catch(cause => setError(String(cause))) }}><StreamingCodeBlock code={file.content} lang={path.split('.').at(-1)} copyLabel={t('workspace.copy')} copyAria={t('workspace.copy')} /></div>
       : file.media_type.startsWith('image/') && objectUrl ? <div className={css.image}><img src={objectUrl} alt={path} /></div>
-      : file.media_type === 'application/pdf' && objectUrl ? <iframe className={css.documentFrame} title={t('preview', { name: path })} src={objectUrl} />
+      : file.media_type === 'application/pdf' && objectUrl ? <iframe className={css.documentFrame} title={t('preview', { name: path })} sandbox="" src={objectUrl} />
       : <div className={css.note}>{t('workspace.unsupported')}</div>}
   </div>
 }

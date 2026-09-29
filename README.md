@@ -10,10 +10,10 @@ Ternilo is an AI assistant that works with project files, runs commands, and pre
 
 | What you need | What to run | Start here |
 |---|---|---|
-| Work on this computer | `ternilo` | [Local quickstart](docs/getting-started.md) |
-| Access your computers from a phone or another device | `ternilo` + `ternilo-server` | [Remote access](docs/remote-access.md) |
-| Collaborate and share model access | A Server in multi-user mode with resource permissions | [Deployment](docs/deployment.md), [platform administration](docs/platform-management.md) |
-| Provide managed execution | A Server with managed execution enabled and an optional `ternilo-worker` | [Worker deployment](docs/worker.md) |
+| Work on this computer | `ternilo` | [Local quickstart](docs/en/getting-started.md) |
+| Access your computers from a phone or another device | `ternilo` + `ternilo-server` | [Remote access](docs/en/remote-access.md) |
+| Collaborate and share model access | A Server in multi-user mode with resource permissions | [Deployment](docs/en/deployment.md), [platform administration](docs/en/platform-management.md) |
+| Provide managed execution | A Server with managed execution enabled and an optional `ternilo-worker` | [Worker deployment](docs/en/worker.md) |
 
 Both single-user and multi-user modes support personal computers and cloud VPS instances, with SQLite or PostgreSQL. A VPS can run the ordinary `ternilo` client; a Worker is optional. The planned Work container model is separate from the existing Worker.
 
@@ -29,9 +29,9 @@ Open the address printed in the terminal, choose a workspace folder, and add a m
 
 The local web interface listens only on loopback. For remote access, your computer connects outbound to a Server, where you sign in. The desktop application connects to the same local service; closing a browser or desktop window does not stop running tasks.
 
-Available binary packages and images are listed in the repository's release records. You can also [build component packages](docs/release-packaging.md) yourself. Running a package does not require Rust, Node.js, or Linorun source code.
+Available binary packages and images are listed in the repository's release records. You can also [build component packages](docs/en/release-packaging.md) yourself. Running a package does not require Rust, Node.js, or Linorun source code.
 
-[GitHub CI and releases](docs/ci-release.md) cover checks, client and Server binaries, desktop installers, and the Server container image. Main-branch builds produce candidate artifacts; version tags run the release checks, publish the Server image, and create a draft release.
+[GitHub CI and releases](docs/en/ci-release.md) cover checks, client and Server binaries, desktop installers, and the Server container image. Main-branch builds produce candidate artifacts; version tags run the release checks, publish the Server image, and publish the release after uploading all assets.
 
 ### Run from source
 
@@ -51,7 +51,7 @@ npm --prefix web run build
 cargo run --locked -p ternilo -- serve
 ```
 
-File search requires `ripgrep` (`rg`) on `PATH`. Linux also requires `bubblewrap` for confined commands. See the [development guide](docs/contributing.md) for platform requirements and validation commands.
+File search requires `ripgrep` (`rg`) on `PATH`. Linux also requires `bubblewrap` for confined commands. See the [development guide](docs/en/contributing.md) for platform requirements and validation commands.
 
 ## Features
 
@@ -64,11 +64,11 @@ File search requires `ripgrep` (`rg`) on `PATH`. Linux also requires `bubblewrap
 - Server-managed accounts, computers, teams, resource sharing, model grants, usage, and auditing.
 - A shared foundation for web, desktop, PWA, CLI, JSON-RPC, ACP, and Python/TypeScript SDKs.
 
-See [product capabilities and limitations](docs/product.md) for supported behavior and boundaries. Validate capacity against your own hardware and workloads before deployment.
+See [product capabilities and limitations](docs/en/product.md) for supported behavior and boundaries. Validate capacity against your own hardware and workloads before deployment.
 
 ## Documentation and source
 
-The [documentation index](docs/README.md) organizes installation, everyday use, administration, and development. Entry pages are available in English and Simplified Chinese; detailed guides are currently in Simplified Chinese.
+The [documentation index](docs/en/README.md) organizes installation, everyday use, administration, and development. Formal guides are available under `docs/en/` and `docs/zh-CN/`; development records currently remain Chinese-only.
 
 `apps/` contains program entry points, `crates/` shared Rust modules, `web/` the workbench, and `sdk/` client libraries. `deploy/` and `scripts/` provide deployment and packaging tools. `docs/development/` records development progress, remaining work and technical designs; it does not define supported product features.
 

@@ -10,10 +10,10 @@ Ternilo 是能读写项目文件、执行命令并保留工作过程的 AI 助�
 
 | 你的需要 | 要运行的程序 | 从这里开始 |
 |---|---|---|
-| 在当前电脑完成任务 | `ternilo` | [本地快速开始](docs/getting-started.md) |
-| 从手机或其他电脑访问自己的机器 | `ternilo` + `ternilo-server` | [远程访问](docs/remote-access.md) |
-| 多人使用、共享模型和工作 | 同一个 Server 开启多用户模式，按资源授权 | [部署](docs/deployment.md)、[平台管理](docs/platform-management.md) |
-| 平台提供隔离的执行环境 | 在 Server 上启用托管执行，再接入 `ternilo-worker` | [Worker 部署](docs/worker.md) |
+| 在当前电脑完成任务 | `ternilo` | [本地快速开始](docs/zh-CN/getting-started.md) |
+| 从手机或其他电脑访问自己的机器 | `ternilo` + `ternilo-server` | [远程访问](docs/zh-CN/remote-access.md) |
+| 多人使用、共享模型和工作 | 同一个 Server 开启多用户模式，按资源授权 | [部署](docs/zh-CN/deployment.md)、[平台管理](docs/zh-CN/platform-management.md) |
+| 平台提供隔离的执行环境 | 在 Server 上启用托管执行，再接入 `ternilo-worker` | [Worker 部署](docs/zh-CN/worker.md) |
 
 单用户和多用户都能管理本地电脑与云端 VPS，都能选择 SQLite 或 PostgreSQL。Worker 是可选组件；自己的 VPS 可以直接运行普通 `ternilo`。Work 容器模型是独立的预留设计，不等同于现有 Worker。
 
@@ -29,9 +29,9 @@ Ternilo 是能读写项目文件、执行命令并保留工作过程的 AI 助�
 
 本地网页只监听回环地址。需要远程访问时，由电脑主动连接 Server，再通过 Server 的登录入口访问。桌面应用也连接同一个本地服务；关闭网页或窗口不会停止已经开始的任务。
 
-二进制安装包与镜像的可用版本以仓库发行记录为准。也可以按[构建交付包](docs/release-packaging.md)生成独立的本地、Server 或 Worker 安装包；运行这些包无需 Rust、Node.js 或 Linorun 源码。
+二进制安装包与镜像的可用版本以仓库发行记录为准。也可以按[构建交付包](docs/zh-CN/release-packaging.md)生成独立的本地、Server 或 Worker 安装包；运行这些包无需 Rust、Node.js 或 Linorun 源码。
 
-仓库已提供[GitHub CI 与发行流程](docs/ci-release.md)：分别检查、构建四平台客户端／Server 及桌面包，并验收和发布 Server 镜像。主分支生成候选产物；版本标签经过检查后发布 Server 镜像并生成 Release 草稿。
+仓库已提供[GitHub CI 与发行流程](docs/zh-CN/ci-release.md)：分别检查、构建四平台客户端／Server 及桌面包，并验收和发布 Server 镜像。主分支生成候选产物；版本标签经过检查后发布 Server 镜像并上传完整附件并公开 Release。
 
 ### 从源码运行
 
@@ -53,7 +53,7 @@ npm --prefix web run build
 cargo run --locked -p ternilo -- serve
 ```
 
-文件搜索需要在 `PATH` 中提供 `ripgrep`（`rg`）。Linux 执行受限命令还需要 `bubblewrap`。更完整的环境要求和验证方式见[开发指南](docs/contributing.md)。
+文件搜索需要在 `PATH` 中提供 `ripgrep`（`rg`）。Linux 执行受限命令还需要 `bubblewrap`。更完整的环境要求和验证方式见[开发指南](docs/zh-CN/contributing.md)。
 
 ## 可以做什么
 
@@ -66,11 +66,11 @@ cargo run --locked -p ternilo -- serve
 - 在 Server 管理账号、机器、团队、工作区／会话共享、模型授权、用量和审计。
 - 通过网页、桌面、PWA、CLI、JSON-RPC、ACP、Python 或 TypeScript SDK 使用同一套能力。
 
-支持范围和限制见[产品与能力边界](docs/product.md)。部署前应根据实际硬件和工作负载验证容量。
+支持范围和限制见[产品与能力边界](docs/zh-CN/product.md)。部署前应根据实际硬件和工作负载验证容量。
 
 ## 文档与源码
 
-[文档首页](docs/README.zh-CN.md)按安装部署、日常使用、平台管理、开发维护组织。源码中的 `apps/` 是程序入口，`crates/` 是共享模块，`web/` 是工作台，`sdk/` 是客户端，`deploy/` 和 `scripts/` 提供部署与打包工具。`docs/development/` 保存开发进度、待办和技术设计，不作为已支持功能的说明。
+[文档首页](docs/zh-CN/README.md)按安装部署、日常使用、平台管理、开发维护组织。源码中的 `apps/` 是程序入口，`crates/` 是共享模块，`web/` 是工作台，`sdk/` 是客户端，`deploy/` 和 `scripts/` 提供部署与打包工具。`docs/development/` 保存开发进度、待办和技术设计，不作为已支持功能的说明。
 
 ## 许可证
 

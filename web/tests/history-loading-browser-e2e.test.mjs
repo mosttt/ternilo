@@ -60,10 +60,10 @@ test('bounded history loads recent events, pages older reasoning and resumes Liv
     await row.getByRole('button').click()
     const text = await row.locator('[data-reasoning-body]').textContent()
     await until(async () => subscriptions.at(-1), frame => frame?.after_seq === expected.length - 1, 'live resumes after the bounded page')
-    const recent = expected.slice(-200)
+    const recent = expected.slice(-5000)
     assert.equal(text, recent.filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''))
     await page.getByRole('button', { name: '加载更早', exact: true }).click()
-    await until(async () => row.locator('[data-reasoning-body]').textContent(), value => value === expected.slice(-400).filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''), 'older reasoning page')
+    await until(async () => row.locator('[data-reasoning-body]').textContent(), value => value === expected.slice(-10000).filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''), 'older reasoning page')
     const seen = []
     let before
     do {

@@ -7,7 +7,7 @@
 - [CI 与客户端／Server 闭环进度](ci-and-core-progress.md)：本轮许可证、持续集成、验证结果和后续优先级。
 - [剩余核心功能实施顺序](remaining-core-plan.md)：账号恢复、历史分页、用量及后续协作能力的实现边界与验收目标。
 
-已支持的功能见[产品说明](../product.md)，模块职责见[架构](../architecture.md)，开发和验证命令见[开发指南](../contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。
+已支持的功能见[产品说明](../zh-CN/product.md)，模块职责见[架构](../zh-CN/architecture.md)，开发和验证命令见[开发指南](../zh-CN/contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。
 
 - [有界会话历史 / Bounded session history](bounded-session-history.md)
 

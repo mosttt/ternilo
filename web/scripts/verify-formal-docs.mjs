@@ -23,6 +23,15 @@ const files = [
   ...markdownFiles(docsRoot),
 ]
 const failures = []
+const languages = ['zh-CN', 'en']
+const languageFiles = languages.map(language => new Set(markdownFiles(path.join(docsRoot, language))
+  .map(file => path.relative(path.join(docsRoot, language), file))))
+for (const name of new Set([...languageFiles[0], ...languageFiles[1]])) {
+  for (const [index, language] of languages.entries()) {
+    if (!languageFiles[index].has(name)) failures.push(`docs/${language}: missing translated guide ${name}`)
+  }
+}
+
 
 function githubSlug(value) {
   return value

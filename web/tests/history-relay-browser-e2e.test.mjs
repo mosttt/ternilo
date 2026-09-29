@@ -86,7 +86,7 @@ test('Local and Server page a long journal, resume a suffix and retain bounded o
     await page.getByText('History preserved.', { exact: true }).waitFor({ timeout: 120_000 })
     assert.equal(await page.locator('[data-turn-process]').count(), 0, 'partial history stays expanded')
     await page.locator('[data-reasoning-row]').getByRole('button').tap()
-    assert.equal(await page.locator('[data-reasoning-body]').textContent(), expected.slice(-200).filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''))
+    assert.equal(await page.locator('[data-reasoning-body]').textContent(), expected.slice(-5000).filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''))
     await page.screenshot({ path: path.join(artifacts, 'server-history-mobile.png') })
     assert.deepEqual(errors, [])
     await page.close()

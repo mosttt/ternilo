@@ -42,7 +42,7 @@ beforeEach(() => {
   vi.mocked(listOwnedComputers).mockResolvedValue([computer])
   vi.mocked(listPlatformProjects).mockResolvedValue([project])
   vi.mocked(createOwnedNodeLaunch).mockResolvedValue({
-    command: 'TERNILO_LOCAL_TOKEN=secret ternilo serve --node-id home-node',
+    command: 'ternilo serve --token secret --node-id home-node',
     executorId: 'home-node',
   })
   vi.mocked(revokeOwnedComputer).mockResolvedValue(undefined)
@@ -153,7 +153,7 @@ describe('Platform computer states', () => {
       executorId: 'member-laptop',
       projectId: undefined,
     })
-    expect(document.querySelector('[data-node-launch-command]')?.textContent).toContain('TERNILO_LOCAL_TOKEN=secret')
+    expect(document.querySelector('[data-node-launch-command]')?.textContent).toContain('--token secret')
 
     await settle(() => button('吊销电脑', host).click())
     expect(document.body.textContent).toContain('吊销这台电脑？')

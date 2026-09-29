@@ -333,11 +333,26 @@ export class SessionController implements SessionRuntimeActions {
     void this.loadInitialHistory(sessionId, this.generation, controller.signal)
   }
 
+  private async readHistoryBatch(sessionId: string, signal?: AbortSignal, before?: number): Promise<SessionEventPage> {
+    const pageSize = 1_000
+    const read = (cursor?: number) => this.dependencies.api.request<SessionEventPage>(
+      `/sessions/${encodeURIComponent(sessionId)}/history?limit=${pageSize}${cursor === undefined ? '' : `&before_seq=${cursor}`}`, { signal },
+    )
+    let page = await read(before)
+    const events = [...page.events]
+    const latest = page.events.at(-1)?.seq ?? 0
+    const budget = before === undefined && latest < 10_000 ? 10_000 : 5_000
+    while (page.next_before_seq !== null && page.events.length === pageSize && events.length < budget) {
+      if (signal?.aborted) break
+      page = await read(page.next_before_seq)
+      events.unshift(...page.events)
+    }
+    return { events, next_before_seq: page.next_before_seq }
+  }
+
   private async loadInitialHistory(sessionId: string, generation: number, signal: AbortSignal) {
     try {
-      const page = await this.dependencies.api.request<SessionEventPage>(
-        `/sessions/${encodeURIComponent(sessionId)}/history?limit=200`, { signal },
-      )
+      const page = await this.readHistoryBatch(sessionId, signal)
       if (!this.isCurrent(sessionId, generation, signal)) return
       this.mergeEvents(sessionId, page.events)
       this.updateSnapshot({ nextBeforeSeq: page.next_before_seq })
@@ -357,9 +372,7 @@ export class SessionController implements SessionRuntimeActions {
     const signal = this.abortController?.signal
     this.updateSnapshot({ loadingOlder: true, olderHistoryError: '' })
     try {
-      const page = await this.dependencies.api.request<SessionEventPage>(
-        `/sessions/${encodeURIComponent(sessionId)}/history?limit=200&before_seq=${nextBeforeSeq}`, { signal },
-      )
+      const page = await this.readHistoryBatch(sessionId, signal, nextBeforeSeq)
       if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return
       this.mergeEvents(sessionId, page.events)
       this.updateSnapshot({ nextBeforeSeq: page.next_before_seq })

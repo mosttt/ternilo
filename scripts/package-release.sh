@@ -80,11 +80,13 @@ done
 mkdir -p "$output_dir"
 output_dir=$(CDPATH= cd -- "$output_dir" && pwd)
 prefix=ternilo
-if [ "$component" != all ]; then
+if [ "$component" != local ]; then
     prefix="ternilo-$component"
 fi
+extension=tar.gz
+if [ "$binary_suffix" = .exe ]; then extension=zip; fi
 name="$prefix-$version-$target_name"
-archive="$output_dir/$name.tar.gz"
+archive="$output_dir/$name.$extension"
 if [ -e "$archive" ] || [ -e "$archive.sha256" ]; then
     echo "Release output already exists: $archive" >&2
     exit 1
@@ -127,13 +129,27 @@ cp -R "$source_dir/docs/." "$staging/$name/docs/"
 rm -rf "$staging/$name/docs/development"
 cp "$source_dir/README.md" "$source_dir/README.zh-CN.md" "$source_dir/LICENSE" "$source_dir/THIRD_PARTY_NOTICES.md" "$staging/$name/"
 cp -R "$source_dir/licenses" "$staging/$name/"
+sed 's|(../en/binaries.md)|(START-HERE.en.md)|g' "$source_dir/docs/zh-CN/binaries.md" > "$staging/$name/START-HERE.md"
+sed 's|(../zh-CN/binaries.md)|(START-HERE.md)|g' "$source_dir/docs/en/binaries.md" > "$staging/$name/START-HERE.en.md"
 printf '%s\n' "version=$version" "target=$target_name" "component=$component" "binaries=$binary_names" > "$staging/$name/RELEASE"
-tar -C "$staging" -czf "$archive" "$name"
-if command -v sha256sum >/dev/null 2>&1; then
-    (cd "$output_dir" && sha256sum "$name.tar.gz") > "$archive.sha256"
+if [ "$extension" = zip ]; then
+    python3 - "$staging" "$name" "$archive" <<'PYZIP'
+from pathlib import Path
+import sys
+import zipfile
+root = Path(sys.argv[1])
+with zipfile.ZipFile(sys.argv[3], "x", compression=zipfile.ZIP_DEFLATED) as archive:
+    for entry in sorted((root / sys.argv[2]).rglob("*")):
+        archive.write(entry, entry.relative_to(root).as_posix())
+PYZIP
 else
-    (cd "$output_dir" && shasum -a 256 "$name.tar.gz") > "$archive.sha256"
+    tar -C "$staging" -czf "$archive" "$name"
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+    (cd "$output_dir" && sha256sum "$name.$extension") > "$archive.sha256"
+else
+    (cd "$output_dir" && shasum -a 256 "$name.$extension") > "$archive.sha256"
 fi
 printf 'Created %s\nChecksum %s\n' "$archive" "$archive.sha256"
 printf 'Component %s; binaries: %s\n' "$component" "$binary_names"
-printf '%s\n' 'Shared documentation may describe other components. Install those binaries separately; build/load the versioned image for Docker deployment.'
+printf '%s\n' 'Shared documentation may describe other components. Install those binaries separately; Server Docker deployment pulls the published image.'

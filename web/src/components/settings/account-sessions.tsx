@@ -10,6 +10,10 @@ interface BrowserSession {
   created_at_ms: number
   expires_at_ms: number
   is_current: boolean
+  user_agent?: string | null
+  first_ip?: string | null
+  last_ip?: string | null
+  last_active_at_ms?: number | null
 }
 
 interface BrowserSessions {
@@ -20,6 +24,20 @@ interface BrowserSessions {
 interface SessionRevocation {
   revoked_count: number
   current_revoked: boolean
+}
+
+function describeDevice(agent: string | null | undefined) {
+  if (!agent) return null
+  const system = /Windows NT/.test(agent) ? 'Windows' : /Android/.test(agent) ? 'Android'
+    : /iPhone|iPad|iPod/.test(agent) ? 'iOS / iPadOS' : /Macintosh|Mac OS X/.test(agent) ? 'macOS'
+      : /Linux/.test(agent) ? 'Linux' : null
+  const browser = /(?:Edg|EdgA|EdgiOS)\/([\d.]+)/.exec(agent)?.[1]
+  const firefox = /(?:Firefox|FxiOS)\/([\d.]+)/.exec(agent)?.[1]
+  const chrome = /(?:Chrome|CriOS)\/([\d.]+)/.exec(agent)?.[1]
+  const safari = /Version\/([\d.]+).*Safari/.exec(agent)?.[1]
+  const name = browser ? `Edge ${browser}` : firefox ? `Firefox ${firefox}`
+    : chrome ? `Chrome ${chrome}` : safari ? `Safari ${safari}` : null
+  return [system, name].filter(Boolean).join(' · ') || null
 }
 
 export function AccountSessions() {
@@ -111,8 +129,18 @@ export function AccountSessions() {
             <span>{translate('session', { id: session.session_id.slice(-8) })}</span>
             {session.is_current && <span className="rounded-md bg-muted px-2 py-1 text-xs" data-current-session="">{translate('current')}</span>}
           </div>
+          <p className="break-words text-sm">{describeDevice(session.user_agent) ?? translate('unknownDevice')}</p>
+          <p className="break-words text-xs text-muted-foreground">{translate('hostnameUnavailable')}</p>
+          <p className="break-words text-xs text-muted-foreground">{translate('firstIp', { ip: session.first_ip ?? translate('notRecorded') })}</p>
+          <p className="break-words text-xs text-muted-foreground">{translate('lastIp', { ip: session.last_ip ?? translate('notRecorded') })}</p>
+          <p className="break-words text-xs text-muted-foreground">{translate('lastActive', { time: session.last_active_at_ms == null ? translate('notRecorded') : formatTime(session.last_active_at_ms) })}</p>
           <p className="break-words text-xs text-muted-foreground">{translate('created', { time: formatTime(session.created_at_ms) })}</p>
           <p className="break-words text-xs text-muted-foreground">{translate('expires', { time: formatTime(session.expires_at_ms) })}</p>
+          {session.user_agent && <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">{translate('technicalDetails')}</summary>
+            <p className="mt-1 break-all">{session.user_agent}</p>
+            <p className="mt-1 break-all">{session.session_id}</p>
+          </details>}
         </div>
         <Button type="button" className="min-h-10 shrink-0" variant="outline" disabled={busy || loading} onClick={() => choose(session)}>{translate(session.is_current ? 'revokeCurrent' : 'revoke')}</Button>
       </li>)}
