@@ -115,7 +115,7 @@ test('account device login discovers multiple grants and runs local tasks withou
     await approval.getByRole('dialog').waitFor({ state: 'hidden' })
     await approval.screenshot({ path: path.join(artifacts, 'device-directory-320.png') })
     const stored = await readFile(path.join(data, 'model-connections.json'), 'utf8')
-    assert.ok(!stored.includes('kmd_'), 'connection metadata contains no bearer credentials')
+    assert.ok(!stored.includes('ter_d_'), 'connection metadata contains no bearer credentials')
     assert.ok(upstream.calls.length >= 4)
     assert.deepEqual(errors, [])
   } catch (error) {

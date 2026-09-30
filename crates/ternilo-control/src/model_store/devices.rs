@@ -33,7 +33,7 @@ impl ControlStore {
         now: u64,
     ) -> Result<ModelDeviceAuthorization, HarnessError> {
         validate_text(name, "device name", 120)?;
-        let device_code = random_token("kda");
+        let device_code = random_token("ter_c");
         let raw: String = rand::random::<[u8; 8]>()
             .into_iter()
             .map(|byte| char::from(ALPHABET[usize::from(byte & 31)]))

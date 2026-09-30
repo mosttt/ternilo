@@ -99,7 +99,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
     page.on('request', request => {
       if (linking && new URL(request.url()).pathname === '/api/v1/auth/session') {
         const bearer = request.headers().authorization ?? ''
-        if (bearer && !bearer.startsWith('Bearer kns_')) prematureOidcSessions.push('OIDC login preceded explicit account binding')
+        if (bearer && !bearer.startsWith('Bearer ter_a_')) prematureOidcSessions.push('OIDC login preceded explicit account binding')
       }
     })
     const settings = await openAccountSettings(page)

@@ -1,4 +1,5 @@
 export const zh = {
+  'picker.workspace.nameConflict': '这个项目中已有同名工作区，请修改工作区名称。',
   'picker.project.restricted': '这台电脑只能在“{name}”项目中运行。可切回该项目，或选择其他电脑；仅创建项目不受此限制。',
   'picker.scope': "归属：{name}",
   'picker.refresh': "刷新",
@@ -204,6 +205,7 @@ export const en = {
   'picker.project.restricted': 'This computer can only run in “{name}”. Choose that project or another computer. Creating a project record is still allowed.',
   'picker.scope': "Belongs to: {name}",
   'picker.refresh': "Refresh",
+  'picker.workspace.nameConflict': 'A workspace with this name already exists in this project. Choose another name.',
   'picker.executor.connect': "Connect a computer",
   'picker.executor.unavailable': "Selected computer is unavailable",
   'picker.directory': "Working folder",

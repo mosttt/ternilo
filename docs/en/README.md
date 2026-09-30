@@ -48,3 +48,5 @@ Documentation is organized around usage and maintenance tasks. Unimplemented tec
 Commands assume the repository or extracted package root unless stated otherwise. Replace example domains, paths, accounts, and secrets with your own values; they do not identify public services.
 
 - [Reconcile unknown model usage](model-usage-reconciliation.md): complete missing counters with administrative evidence and immutable audit.
+
+- [Identifiers and credentials](identifiers.md): current prefixes and their purposes.

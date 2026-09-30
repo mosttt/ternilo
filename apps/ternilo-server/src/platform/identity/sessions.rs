@@ -19,7 +19,7 @@ async fn authentication(
     state: &AppState,
 ) -> Result<BrowserSessionAuthentication, ApiError> {
     let token = bearer_token(request)?;
-    if token.starts_with("kns_") {
+    if token.starts_with("ter_a_") {
         return Ok(BrowserSessionAuthentication::NativeToken(token.to_owned()));
     }
     let (principal, _) = crate::platform::auth::authenticate_oidc_identity(state, token)

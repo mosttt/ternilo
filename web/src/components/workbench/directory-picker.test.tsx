@@ -3,11 +3,13 @@ import { selectChoice, setupChoiceSelect } from '@/test/choice-select'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
+import type { Workspace } from '@/types'
 import { LocaleProvider } from '@/i18n/provider'
 import { DirectoryPicker } from './directory-picker'
 
 const workbench = vi.hoisted(() => ({
   platform: true,
+  snapshot: { workspaces: [] as Workspace[], sessions: [] },
   currentTenantRole: 'owner',
   currentTenantId: 'personal',
   tenants: [{ tenant_id: 'personal', display_name: 'Personal' }],
@@ -40,6 +42,7 @@ beforeEach(() => {
   HTMLElement.prototype.hasPointerCapture = vi.fn(() => false)
   HTMLElement.prototype.setPointerCapture = vi.fn()
   HTMLElement.prototype.releasePointerCapture = vi.fn()
+  workbench.snapshot.workspaces = []
   workbench.currentTenantRole = 'owner'
   workbench.serverIdentity.instance = { mode: 'single_user', managed_execution_enabled: false }
   vi.spyOn(api, 'request').mockImplementation(async (path, options) => {
@@ -160,4 +163,35 @@ describe('Server workspace setup', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(api.request).not.toHaveBeenCalled()
   })
+})
+
+it('keeps the computer-specific name when reopening a registered folder', async () => {
+  workbench.snapshot.workspaces = [
+    { workspace_id: 'offline-workspace', title: 'demo', project_id: 'project', node_id: 'offline-computer', path: '此电脑 / demo', status: 'offline', created_at_ms: 1, updated_at_ms: 1 },
+    { workspace_id: 'registered-workspace', title: 'demo (my-vps)', project_id: 'project', node_id: 'my-vps', path: '此电脑 / demo (my-vps)', status: 'online', created_at_ms: 1, updated_at_ms: 1 },
+  ]
+  await mount()
+  await chooseDirectory()
+  expect((document.getElementById('workspace-name') as HTMLInputElement).value).toBe('demo (my-vps)')
+  await settle(() => button('打开并开始会话').click())
+  expect(workbench.createWorkspace).toHaveBeenCalledWith({ project_id: 'project', name: 'demo (my-vps)', placement: 'local_node', executor_id: 'my-vps', path: '/projects/demo' })
+})
+
+it('disambiguates another computer’s folder name and does not poll while open or after an error', async () => {
+  vi.useFakeTimers()
+  try {
+    workbench.snapshot.workspaces = [{ workspace_id: 'offline-workspace', title: 'demo', project_id: 'project', node_id: 'offline-computer', path: '/projects/demo', status: 'offline', created_at_ms: 1, updated_at_ms: 1 }]
+    await mount()
+    await chooseDirectory()
+    expect((document.getElementById('workspace-name') as HTMLInputElement).value).toBe('demo (my-vps)')
+    await fill('workspace-name', 'demo')
+    workbench.createWorkspace.mockRejectedValueOnce(new Error('workspace name already exists in this project'))
+    await settle(() => button('打开并开始会话').click())
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe('这个项目中已有同名工作区，请修改工作区名称。')
+    const before = vi.mocked(api.request).mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+    expect(api.request).toHaveBeenCalledTimes(before)
+    await settle(() => button('刷新').click())
+    expect(api.request).toHaveBeenCalledTimes(before + 2)
+  } finally { vi.useRealTimers() }
 })

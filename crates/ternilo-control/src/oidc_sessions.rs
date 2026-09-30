@@ -120,11 +120,11 @@ impl ControlStore {
             return Err(HarnessError::invalid("OIDC session expiry is invalid"));
         }
         let session_id = random_identifier("oidc");
-        let access_token = random_token("kno");
+        let access_token = random_token("ter_o");
         let refresh_token = identity
             .upstream_refresh_token
             .as_ref()
-            .map(|_| random_token("knr"));
+            .map(|_| random_token("ter_r"));
         let expires_at_ms = if refresh_token.is_some() {
             refresh_expires_at_ms
         } else {
@@ -186,7 +186,7 @@ impl ControlStore {
         binding: &str,
         now_ms: u64,
     ) -> Result<(OidcPrincipal, u64), HarnessError> {
-        if !token.starts_with("kno_") || token.len() > 128 {
+        if !token.starts_with("ter_o_") || token.len() > 128 {
             return Err(expired());
         }
         let row = sqlx::query("SELECT session_id, nonce, ciphertext, access_expires_at_ms FROM control_oidc_sessions WHERE token_hash = $1 AND binding = $2 AND access_expires_at_ms > $3 AND expires_at_ms > $3")
@@ -206,7 +206,7 @@ impl ControlStore {
         binding: &str,
         now_ms: u64,
     ) -> Result<OidcRefreshSession, HarnessError> {
-        if !token.starts_with("knr_") || token.len() > 128 {
+        if !token.starts_with("ter_r_") || token.len() > 128 {
             return Err(expired());
         }
         let row = sqlx::query("SELECT session_id, nonce, ciphertext, expires_at_ms FROM control_oidc_sessions WHERE refresh_hash = $1 AND binding = $2 AND expires_at_ms > $3")

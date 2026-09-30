@@ -2,7 +2,7 @@
 
 [English](../en/binaries.md)
 
-客户端产品和启动命令都叫 `ternilo`，客户端压缩包统一使用 `ternilo-<版本>-<平台>`。`ternilo-local` 是 Rust 内部模块和旧压缩包的名称，不是另一个客户端。Windows 便携包为 ZIP；Linux／macOS 命令行包为 tar.gz。桌面安装器分别是 Windows EXE／MSI、macOS DMG、Linux DEB／AppImage。
+客户端产品和启动命令都叫 `ternilo`，客户端压缩包统一使用 `ternilo-<版本>-<平台>`。Windows 便携包为 ZIP；Linux／macOS 命令行包为 tar.gz。桌面安装器分别是 Windows EXE／MSI、macOS DMG、Linux DEB／AppImage。
 
 | 程序 | 用途 | 普通用户怎样使用 |
 |---|---|---|

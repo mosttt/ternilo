@@ -272,7 +272,7 @@ impl CloudStore {
     ) -> Result<WorkerCredentialGrant, HarnessError> {
         worker_id.validate()?;
         validate_storage_id(storage_id)?;
-        let token = format!("knw_{}", URL_SAFE_NO_PAD.encode(random::<[u8; 32]>()));
+        let token = format!("ter_w_{}", URL_SAFE_NO_PAD.encode(random::<[u8; 32]>()));
         let mut transaction = self.begin().await?;
         let changed = sqlx::query("INSERT INTO cloud_worker_credentials(worker_id,token_hash,storage_id,root_id,created_at_ms,revoked_at_ms) VALUES($1,$2,$3,NULL,$4,NULL) ON CONFLICT(worker_id) DO NOTHING")
             .bind(worker_id.as_str()).bind(token_hash(&token)).bind(storage_id).bind(to_i64(now_ms,"worker credential time")?)

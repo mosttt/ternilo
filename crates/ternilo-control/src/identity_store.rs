@@ -482,7 +482,7 @@ impl ControlStore {
             .ok_or_else(|| HarnessError::invalid("invitation expiry overflow"))?;
         let grant = UserInvitationGrant {
             invitation_id: random_identifier("inv"),
-            token: random_token("kni"),
+            token: random_token("ter_i"),
             expires_at_ms,
             tenant_id: request.tenant_id.clone(),
             role: request.role,
@@ -876,7 +876,7 @@ pub(crate) async fn issue_session(
     )
     .await?;
     crate::account_store::require_active_account_in(transaction, &user.user_id).await?;
-    let access_token = random_token("kns");
+    let access_token = random_token("ter_a");
     let expires_at_ms = now_ms
         .checked_add(SESSION_TTL_MS)
         .ok_or_else(|| HarnessError::invalid("session expiry overflow"))?;

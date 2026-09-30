@@ -62,7 +62,7 @@ impl ControlStore {
             ));
         }
         let key_id = random_identifier("mky");
-        let token = random_token("kmk");
+        let token = random_token("ter_m");
         let prefix = &token[..12];
         sqlx::query("INSERT INTO control_model_keys(key_id,token_hash,token_prefix,user_id,grant_id,name,model_ids_json,monthly_tokens,max_concurrent_requests,expires_at_ms,created_at_ms) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)")
             .bind(&key_id).bind(hex(&token_hash(&token))).bind(prefix).bind(actor.user_id.as_str()).bind(&input.grant_id).bind(input.name.trim()).bind(json_text(&input.model_ids)?).bind(input.monthly_tokens.map(number).transpose()?).bind(input.max_concurrent_requests.map(i64::from)).bind(input.expires_at_ms.map(number).transpose()?).bind(number(now_ms)?).execute(&mut *tx).await.map_err(database_error)?;
@@ -202,7 +202,7 @@ pub(super) async fn authenticate_in(
     raw_key: &str,
     now_ms: u64,
 ) -> Result<ModelKeyRecord, ModelAccessError> {
-    if !raw_key.starts_with("kmk_") || raw_key.len() > 256 {
+    if !raw_key.starts_with("ter_m_") || raw_key.len() > 256 {
         return Err(unauthorized());
     }
     let row = sqlx::query("SELECT k.*,g.name AS grant_name FROM control_model_keys k JOIN control_model_grants g ON g.grant_id=k.grant_id WHERE k.token_hash=$1")

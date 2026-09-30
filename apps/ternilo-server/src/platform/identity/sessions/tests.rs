@@ -134,7 +134,7 @@ impl Fixture {
         for (method, path) in [
             ("GET", "sessions"),
             ("POST", "sessions/revoke-others"),
-            ("DELETE", "sessions/knbs_unknown"),
+            ("DELETE", "sessions/ter_s_unknown"),
         ] {
             let response = self.request(method, path, token).await;
             assert_eq!(response.status_code, Some(status), "{method} {path}");
@@ -153,7 +153,7 @@ async fn sessions_require_current_login_and_public_ids_are_not_credentials() {
     let fixture = Fixture::new().await;
     fixture.denied(None, StatusCode::UNAUTHORIZED).await;
     fixture
-        .denied(Some("kns_invalid"), StatusCode::UNAUTHORIZED)
+        .denied(Some("ter_a_invalid"), StatusCode::UNAUTHORIZED)
         .await;
     fixture
         .denied(Some("external.jwt.invalid"), StatusCode::UNAUTHORIZED)
@@ -163,7 +163,7 @@ async fn sessions_require_current_login_and_public_ids_are_not_credentials() {
     let sessions = listed["sessions"].as_array().unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0]["is_current"], true);
-    assert_eq!(sessions[0].as_object().unwrap().len(), 4);
+    assert_eq!(sessions[0].as_object().unwrap().len(), 8);
     let public_id = sessions[0]["session_id"].as_str().unwrap();
     fixture
         .denied(Some(public_id), StatusCode::UNAUTHORIZED)
@@ -192,7 +192,7 @@ async fn assert_revoke_isolation(fixture: &Fixture) {
         assert_eq!(response.status_code, Some(StatusCode::CONFLICT));
         let cross: Value = response.take_json().await.unwrap();
         let mut unknown = fixture
-            .request("DELETE", "sessions/knbs_unknown", Some(token))
+            .request("DELETE", "sessions/ter_s_unknown", Some(token))
             .await;
         assert_eq!(cross, unknown.take_json::<Value>().await.unwrap());
     }

@@ -448,6 +448,53 @@ mod tests {
                 2
             );
         }
+        let registered = store.list_workspaces(&owner, &tenant).await.unwrap();
+        let first = registered
+            .iter()
+            .find(|item| item.executor_id.as_ref() == Some(&nodes[0]))
+            .unwrap();
+        let second = registered
+            .iter()
+            .find(|item| item.executor_id.as_ref() == Some(&nodes[1]))
+            .unwrap();
+        let collision = store
+            .create_local_workspace(
+                &owner,
+                &tenant,
+                &second.project_id,
+                &first.name,
+                (&nodes[1], &workspaces[0].workspace_id),
+                111,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(collision.code, ternilo_protocol::ErrorCode::Conflict);
+        assert_eq!(
+            collision.message,
+            "workspace name already exists in this project"
+        );
+        let collision = store
+            .rename_owned_workspace(&owner, &tenant, &second.workspace_id, &first.name, 111)
+            .await
+            .unwrap_err();
+        assert_eq!(collision.code, ternilo_protocol::ErrorCode::Conflict);
+        let reopened = store
+            .create_local_workspace(
+                &owner,
+                &tenant,
+                &second.project_id,
+                "Project (vps)",
+                (&nodes[1], &workspaces[0].workspace_id),
+                111,
+            )
+            .await
+            .unwrap();
+        assert_eq!(reopened.workspace_id, second.workspace_id);
+        assert_eq!(reopened.executor_id.as_ref(), Some(&nodes[1]));
+        assert_eq!(
+            store.list_workspaces(&owner, &tenant).await.unwrap().len(),
+            2
+        );
         let mappings = store
             .list_owned_edge_sessions(&owner, &tenant)
             .await

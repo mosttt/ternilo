@@ -125,7 +125,7 @@ pub(in crate::model_store) async fn authenticate_in(
     token: &str,
     now: u64,
 ) -> Result<ModelDeviceIdentity, ModelAccessError> {
-    if !token.starts_with("kmd_") || token.len() > 256 {
+    if !token.starts_with("ter_d_") || token.len() > 256 {
         return Err(unauthorized());
     }
     let row = sqlx::query("SELECT d.*,u.username FROM control_model_devices d JOIN control_users u ON u.user_id=d.user_id WHERE d.token_hash=$1")

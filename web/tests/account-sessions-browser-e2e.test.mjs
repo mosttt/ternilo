@@ -197,6 +197,8 @@ test('self-service browser sessions preserve account boundaries and external OID
     assert.match(await currentRow.textContent(), /主机名：浏览器不提供此信息/)
     const sessionDetails = await serverRequest(origin, '/auth/sessions', { token: current.access_token })
     const currentDetails = sessionDetails.sessions.find(session => session.is_current)
+    assert.match(current.access_token, /^ter_a_/)
+    assert.match(currentDetails.session_id, /^ter_s_/)
     assert.equal(currentDetails.first_ip, '127.0.0.1')
     assert.equal(currentDetails.last_ip, '127.0.0.1')
     assert.ok(currentDetails.last_active_at_ms >= currentDetails.created_at_ms)
@@ -272,7 +274,7 @@ test('self-service browser sessions preserve account boundaries and external OID
 
     const nativeForOidc = await serverRequest(origin, '/auth/login', { body: credentials })
     const oidcLogin = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/session'
-      && !response.request().headers().authorization?.startsWith('Bearer kns_'))
+      && !response.request().headers().authorization?.startsWith('Bearer ter_a_'))
     await page.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
     const oidcResponse = await oidcLogin
     assert.equal(oidcResponse.status(), 200)

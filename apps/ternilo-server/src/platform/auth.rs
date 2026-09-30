@@ -32,7 +32,7 @@ pub(crate) async fn authenticate_token(
     state: &AppState,
     token: &str,
 ) -> Result<(ControlUser, Option<u64>), HarnessError> {
-    if token.starts_with("kns_") {
+    if token.starts_with("ter_a_") {
         let (user, expiry) = state
             .store
             .authenticate_native_token(token, now_ms()?)
@@ -52,7 +52,7 @@ pub(crate) async fn authenticate_oidc_identity(
     token: &str,
 ) -> Result<(OidcPrincipal, Option<u64>), HarnessError> {
     let runtime = state.security.current(&state.store).await?;
-    if token.starts_with("kno_") {
+    if token.starts_with("ter_o_") {
         let web = runtime
             .web_auth
             .as_ref()

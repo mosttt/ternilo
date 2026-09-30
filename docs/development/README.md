@@ -9,6 +9,10 @@
 
 已支持的功能见[产品说明](../zh-CN/product.md)，模块职责见[架构](../zh-CN/architecture.md)，开发和验证命令见[开发指南](../zh-CN/contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。
 
-- [有界会话历史 / Bounded session history](bounded-session-history.md)
+- [有界会话历史](bounded-session-history.md)
 
-- [未知模型用量核对 / Unknown usage reconciliation](model-usage-reconciliation.md)
+- [未知模型用量核对](model-usage-reconciliation.md)
+
+- [发行反馈与交付结果](release-feedback.md)：当前修复、验证和发行状态。
+- [Windows 持久化与桌面入口](windows-persistence-desktop.md)：平台行为与退出边界。
+- [浏览器会话详情](browser-session-details.md)：账号隔离、活动记录与来源 IP。

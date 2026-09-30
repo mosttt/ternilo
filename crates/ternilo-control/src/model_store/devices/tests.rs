@@ -178,7 +178,7 @@ async fn contract(store: &ControlStore) {
             }
         })
         .unwrap();
-    assert!(token.starts_with("kmd_"));
+    assert!(token.starts_with("ter_d_"));
     assert_eq!(session.identity.user_id, actor.user_id);
     assert_eq!(session.grants[0].grant_id, grant);
     assert_eq!(session.grants[0].models[0].model_id, "model");

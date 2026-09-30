@@ -55,6 +55,27 @@ async fn sqlite_edge_workbench_follows_the_same_contract() {
 async fn edge_contract(store: ControlStore, admin_url: &str, runtime_url: &str) {
     let fixture = create_fixture(&store).await;
     let mapping = create_mappings(&store, &fixture).await;
+    let original = store
+        .resolve_owned_workspace(&fixture.alice, &fixture.tenant_a, &fixture.workspace_a)
+        .await
+        .unwrap();
+    let error = store
+        .create_local_workspace(
+            &fixture.alice,
+            &fixture.tenant_a,
+            &original.project_id,
+            &original.name,
+            (&fixture.executor_a, &WorkspaceId::new("another-directory")),
+            fixture.now + 9,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::Conflict);
+    assert_eq!(
+        error.message,
+        "workspace name already exists in this project"
+    );
+
     assert_mapping_ownership(&store, &fixture, &mapping).await;
     assert_mapping_conflicts(&store, &fixture, &mapping).await;
     assert_event_cache(&store, &fixture, &mapping).await;

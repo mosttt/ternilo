@@ -26,7 +26,7 @@ Server 默认使用用户名和密码登录，也可选配 OIDC。单用户模�
 接入更多机器时重复上述步骤，为每台使用不同 ID 和独立凭据。此处不需要配置数据库、再创建一套模型设置或复制项目文件。
 
 ```text
-ternilo serve --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home" --token "ternilo_node_REPLACE_WITH_YOUR_TOKEN"
+ternilo serve --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home" --token "ter_n_REPLACE_WITH_YOUR_TOKEN"
 ```
 
 此单行参数形式适用于 Bash、PowerShell 和 CMD；将 Token 替换为页面实际显示的值。长期服务仍可使用下面的环境配置文件。
@@ -51,8 +51,8 @@ ternilo serve --gateway-url "wss://agent.example.com/api/v1/executors/connect" -
 可以同时运行多个实例，并全部连接同一个 Server。每个实例分别设置监听端口、数据目录、Node ID 和该 Node 的凭据。在“我的机器”中分别登记 `home-a` 与 `home-b`，然后在两个终端执行：
 
 ```text
-ternilo serve --listen 127.0.0.1:3210 --data-dir "./ternilo-data-a" --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home-a" --token "ternilo_node_REPLACE_WITH_TOKEN_A"
-ternilo serve --listen 127.0.0.1:3211 --data-dir "./ternilo-data-b" --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home-b" --token "ternilo_node_REPLACE_WITH_TOKEN_B"
+ternilo serve --listen 127.0.0.1:3210 --data-dir "./ternilo-data-a" --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home-a" --token "ter_n_REPLACE_WITH_TOKEN_A"
+ternilo serve --listen 127.0.0.1:3211 --data-dir "./ternilo-data-b" --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home-b" --token "ter_n_REPLACE_WITH_TOKEN_B"
 ```
 
 相对数据目录以启动时的当前目录为基准；长期运行建议改成固定绝对路径。两个本地网页分别访问 `http://127.0.0.1:3210` 和 `http://127.0.0.1:3211`。它们的会话、模型、预设和凭据分别保存，Server 中显示为两个 Node。不要共用数据目录；同一 Node 身份重复连接会替换之前的连接。多个实例可以选择相同项目目录，但同一用户并行修改同一文件仍可能冲突，应按任务划分目录或 Git worktree。

@@ -25,3 +25,5 @@ See [collaboration](collaboration.md), [models](models.md), [settings](settings.
 ## History loading
 
 Streamed text fragments, tool events and status records count as underlying events, not visible messages. Histories below 10,000 events load completely. Larger histories initially load the latest 5,000 events and offer **Load earlier** in batches of up to 5,000. Each API request remains bounded to 1,000 events; the interface combines consecutive pages. Loading old events does not rewind the independent live cursor.
+
+Workspace display names are unique within the same account and project. When another computer opens a same-named folder, the dialog adds the computer identifier, such as `Pictures (d)`. This does not rename the directory or remove the offline computer's workspace/history. A manually duplicated name produces an explicit validation message. The dialog loads project/computer lists when opened and refreshes them on request, without continuous polling.

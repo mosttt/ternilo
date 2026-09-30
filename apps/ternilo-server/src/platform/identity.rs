@@ -60,7 +60,7 @@ async fn native_binding_auth(
 ) {
     if request.method() == Method::POST {
         let result = bearer_token(request).and_then(|token| {
-            if token.starts_with("kns_") {
+            if token.starts_with("ter_a_") {
                 Ok(())
             } else {
                 Err(HarnessError::policy(
@@ -390,9 +390,9 @@ async fn logout(
     let token = bearer_token(request)?;
     let state = app_state(depot);
     // A paused account must still be able to discard its native session.
-    if token.starts_with("kns_") {
+    if token.starts_with("ter_a_") {
         state.store.logout_native_session(token, now_ms()?).await?;
-    } else if token.starts_with("kno_") {
+    } else if token.starts_with("ter_o_") {
         state.store.revoke_oidc_session(token).await?;
     } else {
         auth::authenticate_token(state, token)
@@ -439,7 +439,7 @@ async fn link_oidc(
         .store
         .link_native_oidc(actor(depot), &principal, now_ms()?)
         .await;
-    if body.access_token.starts_with("kno_") {
+    if body.access_token.starts_with("ter_o_") {
         state.store.revoke_oidc_session(&body.access_token).await?;
     }
     Ok(Json(result?))

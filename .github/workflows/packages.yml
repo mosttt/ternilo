@@ -83,6 +83,10 @@ jobs:
               subsystem = struct.unpack_from("<H", data, header + 24 + 68)[0]
               assert subsystem == expected, (name, subsystem, expected)
           PY
+      - name: Desktop background service lifecycle
+        env:
+          VERSION: ${{ steps.info.outputs.version }}
+        run: python scripts/ci/desktop-service-smoke.py --desktop "target/$RUST_TARGET/release/ternilo-desktop$BINARY_SUFFIX" --expected-version "$VERSION"
       - name: Portable client and Server packages
         env:
           VERSION: ${{ steps.info.outputs.version }}

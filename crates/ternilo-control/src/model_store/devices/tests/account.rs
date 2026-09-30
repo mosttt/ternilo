@@ -269,7 +269,7 @@ async fn future_and_isolation(store: &ControlStore, owner: &ControlUser, limited
     assert_future_models_follow_device_scope(store, owner, &all, limited, now).await;
     assert!(
         store
-            .list_device_account_models("knm_not-a-device", "device-upstream", now + 6001)
+            .list_device_account_models("ter_m_not-a-device", "device-upstream", now + 6001)
             .await
             .is_err()
     );

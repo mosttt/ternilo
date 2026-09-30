@@ -99,7 +99,7 @@ pub(crate) async fn initialize(mut options: InitOptions) -> Result<SetupOutcome,
         ));
     }
     let setup_token = format!(
-        "knsetup_{}",
+        "ter_b_{}",
         URL_SAFE_NO_PAD.encode(rand::random::<[u8; 32]>())
     );
     let secret_master_key = options

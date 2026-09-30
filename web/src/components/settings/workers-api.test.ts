@@ -20,7 +20,7 @@ describe('Worker management requests', () => {
   })
 
   it('quotes both the independent credential and Server URL without database configuration', () => {
-    expect(workerSetupCommand('https://server.example', 'knw_one')).toBe("TERNILO_WORKER_TOKEN='knw_one' ternilo-worker init \\\n  --server-url 'https://server.example'")
+    expect(workerSetupCommand('https://server.example', 'ter_w_one')).toBe("TERNILO_WORKER_TOKEN='ter_w_one' ternilo-worker init \\\n  --server-url 'https://server.example'")
     const command = workerSetupCommand("https://server.example/path'$(id)", "token'`id`")
     expect(command).toContain("'token'\\''`id`'")
     expect(command).toContain("'https://server.example/path'\\''$(id)'")

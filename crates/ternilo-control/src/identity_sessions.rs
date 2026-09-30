@@ -160,7 +160,7 @@ impl ControlStore {
                 let exists: Option<String> = sqlx::query_scalar("SELECT token_hash FROM control_browser_sessions WHERE user_id = $1 AND token_hash = $2 AND revoked_at_ms IS NULL AND expires_at_ms > $3")
                     .bind(actor.user_id.as_str()).bind(&stored_hash).bind(timestamp(now_ms)?)
                     .fetch_optional(&mut *transaction).await.map_err(database_error)?;
-                if !token.starts_with("kns_") || exists.is_none() {
+                if !token.starts_with("ter_a_") || exists.is_none() {
                     return Err(HarnessError::policy(
                         "browser session is invalid or expired",
                     ));
@@ -200,7 +200,7 @@ fn public_session_id(actor: &ControlUser, stored_hash: &str) -> String {
     digest.update(actor.user_id.as_str().as_bytes());
     digest.update(b"\0");
     digest.update(stored_hash.as_bytes());
-    format!("knbs_{}", hex(&digest.finalize()))
+    format!("ter_s_{}", hex(&digest.finalize()))
 }
 
 fn timestamp(value: u64) -> Result<i64, HarnessError> {

@@ -85,20 +85,20 @@ describe('Instance Worker settings', () => {
   it('creates, copies and clears a one-time credential without saving it in browser storage', async () => {
     await mount()
     vi.mocked(api.request).mockImplementation(async (_path, options) => {
-      if (options?.method === 'POST') { records = [record('worker-01')]; return { worker_id: 'worker-01', storage_id: 'worker-01', token: 'knw_once_secret' } as never }
+      if (options?.method === 'POST') { records = [record('worker-01')]; return { worker_id: 'worker-01', storage_id: 'worker-01', token: 'ter_w_once_secret' } as never }
       return [...records] as never
     })
     await settle(() => input('instance-worker-id', 'worker-01'))
     await settle(() => button('生成接入命令').click())
     expect(api.request).toHaveBeenCalledWith('/admin/workers', { method: 'POST', body: { worker_id: 'worker-01' } })
-    expect(document.querySelector('[data-worker-setup-command]')?.textContent).toContain('knw_once_secret')
+    expect(document.querySelector('[data-worker-setup-command]')?.textContent).toContain('ter_w_once_secret')
     await settle(() => button('复制配置命令').click())
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("TERNILO_WORKER_TOKEN='knw_once_secret'"))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("TERNILO_WORKER_TOKEN='ter_w_once_secret'"))
     await settle(() => button('我已保存，关闭').click())
     expect(document.querySelector('[data-worker-launch-dialog]')).toBeNull()
-    expect(document.body.textContent).not.toContain('knw_once_secret')
+    expect(document.body.textContent).not.toContain('ter_w_once_secret')
     for (const storage of [window.localStorage, window.sessionStorage]) {
-      for (let index = 0; index < storage.length; index++) expect(storage.getItem(storage.key(index)!)).not.toContain('knw_once_secret')
+      for (let index = 0; index < storage.length; index++) expect(storage.getItem(storage.key(index)!)).not.toContain('ter_w_once_secret')
     }
   })
 

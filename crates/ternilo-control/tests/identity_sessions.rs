@@ -81,7 +81,7 @@ impl Fixture {
         );
         assert_eq!(
             self.store
-                .revoke_browser_session(actor, authentication, "knbs_unknown", now)
+                .revoke_browser_session(actor, authentication, "ter_s_unknown", now)
                 .await
                 .unwrap_err()
                 .code,
@@ -154,7 +154,7 @@ async fn lists_only_owned_active_sessions_with_safe_stable_ids_and_current_marke
         assert!(!encoded.contains(&stored_hash));
     }
     for session in &listed.sessions {
-        assert!(session.session_id.starts_with("knbs_"));
+        assert!(session.session_id.starts_with("ter_s_"));
         assert!(
             fixture
                 .store
@@ -197,7 +197,7 @@ async fn revocation_is_scoped_to_the_authenticated_account_even_for_the_owner() 
             .unwrap_err();
         let unknown = fixture
             .store
-            .revoke_browser_session(&actor.session.user, &native(actor), "knbs_missing", 3_000)
+            .revoke_browser_session(&actor.session.user, &native(actor), "ter_s_missing", 3_000)
             .await
             .unwrap_err();
         assert_eq!(cross_account.code, ErrorCode::Conflict);

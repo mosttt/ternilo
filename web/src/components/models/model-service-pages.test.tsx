@@ -16,9 +16,9 @@ vi.mock('@/api/client', () => ({ api: { request: vi.fn() } }))
 vi.mock('@/components/workbench/model-picker', () => ({ ModelPicker: () => null, modelLabel: () => '', persistModelSelection: vi.fn() }))
 
 const entitlement: ModelEntitlement = { grant: { grant_id: 'grant-one', allow_resource_sharing: true, name: 'Development shared budget', subject: { kind: 'group', id: 'global-group' }, subject_name: 'Developers', model_ids: ['alpha', 'beta'], quota: { month: '2026-09', limit_tokens: 10_000, used_tokens: 500, reserved_tokens: 100, active_requests: 0, max_concurrent_requests: 2 }, expires_at_ms: null, revoked_at_ms: null, created_at_ms: 1, updated_at_ms: 1 }, models: ['alpha', 'beta'].map(id => ({ model_id: id, display_name: id.toUpperCase(), protocol: 'openai-chat-completions', defaults: { context_window: 64_000, max_output_tokens: 4_000 } })) }
-const key: ModelKey = { key_id: 'key-one', user_id: 'alice', name: 'Laptop', token_prefix: 'knm_fixture', grant_id: 'grant-one', grant_name: 'Development shared budget', model_ids: ['alpha'], monthly_tokens: null, max_concurrent_requests: null, expires_at_ms: null, revoked_at_ms: null, created_at_ms: 1, last_used_at_ms: null }
+const key: ModelKey = { key_id: 'key-one', user_id: 'alice', name: 'Laptop', token_prefix: 'ter_m_fixture', grant_id: 'grant-one', grant_name: 'Development shared budget', model_ids: ['alpha'], monthly_tokens: null, max_concurrent_requests: null, expires_at_ms: null, revoked_at_ms: null, created_at_ms: 1, last_used_at_ms: null }
 const provider: ModelProvider = { profile: { id: 'upstream', display_name: 'Private upstream', base_url: 'https://upstream.example/v1', protocol: 'openai-chat-completions', api_key_ref: null, defaults: { context_window: 64_000, max_output_tokens: 4_000 }, models: [{ id: 'alpha', settings: { mode: 'inherit' } }], timeout_ms: 30_000, max_attempts: 1, retry_base_delay_ms: 250 }, enabled: true, has_api_key: true, created_at_ms: 1, updated_at_ms: 1 }
-const secret = 'knm_only-visible-once-fixture'
+const secret = 'ter_m_only-visible-once-fixture'
 let host: HTMLDivElement
 let root: Root
 

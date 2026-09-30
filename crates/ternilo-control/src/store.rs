@@ -684,29 +684,31 @@ impl ControlStore {
             .bind(node_workspace_id.as_str())
             .fetch_optional(&mut *transaction)
             .await
-            .map_err(database_error)?;
+            .map_err(workspace_write_error)?;
             if let Some(existing) = existing {
                 if existing
                     .try_get::<String, _>("owner_user_id")
-                    .map_err(database_error)?
+                    .map_err(workspace_write_error)?
                     != actor.user_id.as_str()
                     || existing
                         .try_get::<String, _>("project_id")
-                        .map_err(database_error)?
+                        .map_err(workspace_write_error)?
                         != spec.project_id
                 {
                     return Err(HarnessError::policy(
                         "workspace is already bound to another owner or project",
                     ));
                 }
-                let id: String = existing.try_get("workspace_id").map_err(database_error)?;
+                let id: String = existing
+                    .try_get("workspace_id")
+                    .map_err(workspace_write_error)?;
                 let row = sqlx::query(
                     "UPDATE control_workspaces SET name = $3, updated_at_ms = $4, unregistered_at_ms = NULL
                      WHERE tenant_id = $1 AND workspace_id = $2
                      RETURNING tenant_id, workspace_id, project_id, owner_user_id, name,
                                placement, storage, executor_id, executor_workspace_id, created_at_ms, updated_at_ms",
                 ).bind(tenant_id.as_str()).bind(&id).bind(spec.name).bind(now)
-                    .fetch_one(&mut *transaction).await.map_err(database_error)?;
+                    .fetch_one(&mut *transaction).await.map_err(workspace_write_error)?;
                 append_audit(
                     &mut transaction,
                     tenant_id,
@@ -720,7 +722,7 @@ impl ControlStore {
                     now_ms,
                 )
                 .await?;
-                transaction.commit().await.map_err(database_error)?;
+                transaction.commit().await.map_err(workspace_write_error)?;
                 return workspace_from_row(&row);
             }
         }
@@ -744,7 +746,7 @@ impl ControlStore {
         .bind(now)
         .execute(&mut *transaction)
         .await
-        .map_err(database_error)?;
+        .map_err(workspace_write_error)?;
         append_audit(
             &mut transaction,
             tenant_id,
@@ -765,7 +767,7 @@ impl ControlStore {
             now_ms,
         )
         .await?;
-        transaction.commit().await.map_err(database_error)?;
+        transaction.commit().await.map_err(workspace_write_error)?;
 
         Ok(WorkspaceRecord {
             tenant_id: tenant_id.clone(),
@@ -1100,7 +1102,7 @@ impl ControlStore {
             require_bounded(project_id, "project id", 128)?;
         }
         let enrollment_id = random_identifier("enr");
-        let token = random_token("ternilo_enroll");
+        let token = random_token("ter_e");
         let token_hash = token_hash(&token).to_vec();
         let expires_at_ms = now_ms.saturating_add(duration_ms(ttl)?);
         let now = to_i64(now_ms, "enrollment timestamp")?;
@@ -1264,7 +1266,7 @@ impl ControlStore {
             return Err(HarnessError::invalid("invalid enrollment token"));
         }
         let credential_id = random_identifier("ncr");
-        let credential_token = random_token("ternilo_node");
+        let credential_token = random_token("ter_n");
         let mut transaction = self.database.begin().await?;
         let hash = token_hash(enrollment_token).to_vec();
         let tenant = token_tenant(&mut transaction, &hash, true).await?;
@@ -3891,6 +3893,21 @@ fn from_i32(value: i32, label: &str) -> Result<u32, HarnessError> {
 #[allow(clippy::needless_pass_by_value)]
 pub(crate) fn database_error(error: sqlx::Error) -> HarnessError {
     HarnessError::execution(format!("control database error: {error}"))
+}
+
+pub(crate) fn workspace_write_error(error: sqlx::Error) -> HarnessError {
+    if error.as_database_error().is_some_and(|failure| {
+        failure.is_unique_violation()
+            && (failure.constraint() == Some("control_workspaces_registered_name")
+                || failure
+                    .message()
+                    .contains("control_workspaces_registered_name")
+                || failure.message().contains("control_workspaces.name"))
+    }) {
+        HarnessError::conflict("workspace name already exists in this project")
+    } else {
+        database_error(error)
+    }
 }
 
 #[allow(clippy::needless_pass_by_value)]

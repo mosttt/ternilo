@@ -16,7 +16,7 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
   createSessionAfter: boolean
 }) {
   const { createWorkspace, createSession, notify, currentWorkspace, currentTenantRole,
-    currentTenantId, tenants, serverIdentity } = useWorkbench()
+    currentTenantId, tenants, serverIdentity, snapshot } = useWorkbench()
   const t = useTranslate('workspace')
   const managedExecution = serverIdentity?.instance.managed_execution_enabled === true
   const canCreateProject = currentTenantRole === 'owner' || currentTenantRole === 'admin'
@@ -37,6 +37,7 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
   const initialized = React.useRef(false)
   const createdWorkspace = React.useRef<Workspace | null>(null)
   const initialWorkspace = React.useRef(currentWorkspace)
+  const suggestedName = React.useRef('')
   const selectedExecutor = executors.find(executor => executor.executor_id === executorId)
   const projectRestricted = placement === 'local_node' && Boolean(selectedExecutor?.project_id && selectedExecutor.project_id !== projectId)
   const boundProjectName = projects.find(project => project.project_id === selectedExecutor?.project_id)?.name ?? selectedExecutor?.project_id
@@ -45,9 +46,10 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
   const canSubmit = !loading && !saving && !projectRestricted && projectReady && Boolean(name.trim())
     && (placement === 'cloud' ? managedExecution : Boolean(selectedExecutor?.connected && path))
 
-  const load = React.useCallback(async (initial = false, quiet = false) => {
+  const load = React.useCallback(async (initial = false) => {
     const sequence = ++requestId.current
-    if (!quiet) { setLoading(true); setError('') }
+    setLoading(true)
+    setError('')
     try {
       const [projectResponse, executorResponse] = await Promise.all([
         api.request<{ projects: ProjectRecord[] }>('/projects'),
@@ -70,7 +72,7 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
           ?? permitted[0]?.project_id ?? (canCreateProject && !target?.project_id ? NEW_PROJECT : ''))
       }
     } catch (cause) {
-      if (!quiet && sequence === requestId.current) setError(cause instanceof Error ? cause.message : String(cause))
+      if (sequence === requestId.current) setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       if (sequence === requestId.current) setLoading(false)
     }
@@ -82,23 +84,13 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
     initialized.current = false
     setPath('')
     setName('')
+    suggestedName.current = ''
     setProjectName('')
     setBrowserOpen(false)
     createdWorkspace.current = null
     void load(true)
     return () => { requestId.current += 1 }
   }, [open, load])
-
-  React.useEffect(() => {
-    if (!open || browserOpen || saving || placement !== 'local_node') return
-    let stopped = false
-    let timer = window.setTimeout(refresh, 1_500)
-    async function refresh() {
-      await load(false, true)
-      if (!stopped) timer = window.setTimeout(refresh, 1_500)
-    }
-    return () => { stopped = true; window.clearTimeout(timer) }
-  }, [open, browserOpen, saving, placement, load])
 
   const changeExecutor = (id: string) => {
     const target = executors.find(item => item.executor_id === id)
@@ -113,9 +105,19 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
     if (value === 'local_node' && selectedExecutor?.project_id) setProjectId(selectedExecutor.project_id)
   }
   const choosePath = async (value: string) => {
-    const suggested = folderName(value)
-    setName(current => !current || current === folderName(path) ? suggested : current)
-    setProjectName(current => !current || current === folderName(path) ? suggested : current)
+    const folder = folderName(value)
+    const names = new Set(snapshot.workspaces.filter(workspace => workspace.project_id === projectId
+      && workspace.access?.is_owner !== false && workspace.node_id !== executorId).map(workspace => workspace.title))
+    let suggested = folder
+    if (names.has(suggested)) {
+      const base = `${folder} (${executorId})`
+      suggested = base
+      for (let number = 2; names.has(suggested); number++) suggested = `${base} (${number})`
+    }
+    const previous = suggestedName.current
+    setName(current => !current || current === previous ? suggested : current)
+    suggestedName.current = suggested
+    setProjectName(current => !current || current === folderName(path) ? folder : current)
     setPath(value)
     createdWorkspace.current = null
   }
@@ -149,7 +151,8 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
       onOpenChange(false)
       notify(t(placement === 'cloud' ? 'picker.cloud.created' : 'picker.local.connected', { name: workspace.title }))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setError(cause instanceof Error && cause.message === 'workspace name already exists in this project'
+        ? t('picker.workspace.nameConflict') : cause instanceof Error ? cause.message : String(cause))
     } finally {
       submitting.current = false
       setSaving(false)

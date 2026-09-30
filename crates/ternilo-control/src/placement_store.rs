@@ -10,7 +10,7 @@ use crate::{
     resource_access_in,
     store::{
         append_audit, database_error, from_i64, require_action, set_tenant, to_i64,
-        workspace_from_row,
+        workspace_from_row, workspace_write_error,
     },
     types::require_bounded,
 };
@@ -114,7 +114,7 @@ impl ControlStore {
         .bind(now)
         .fetch_optional(&mut *transaction)
         .await
-        .map_err(database_error)?
+        .map_err(workspace_write_error)?
         .ok_or_else(workspace_not_found)?;
         append_audit(
             &mut transaction,
@@ -129,7 +129,7 @@ impl ControlStore {
             now_ms,
         )
         .await?;
-        transaction.commit().await.map_err(database_error)?;
+        transaction.commit().await.map_err(workspace_write_error)?;
         workspace_from_row(&row)
     }
 

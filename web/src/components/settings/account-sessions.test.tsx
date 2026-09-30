@@ -12,8 +12,8 @@ const workbench = vi.hoisted(() => ({
 }))
 vi.mock('@/state/workbench', () => ({ useWorkbench: () => workbench }))
 
-const current = { session_id: 'knbs_current', created_at_ms: 1_700_000_000_000, expires_at_ms: 1_700_604_800_000, is_current: true }
-const other = { session_id: 'knbs_other', created_at_ms: 1_700_000_001_000, expires_at_ms: 1_700_604_801_000, is_current: false }
+const current = { session_id: 'ter_s_current', created_at_ms: 1_700_000_000_000, expires_at_ms: 1_700_604_800_000, is_current: true }
+const other = { session_id: 'ter_s_other', created_at_ms: 1_700_000_001_000, expires_at_ms: 1_700_604_801_000, is_current: false }
 let root: Root
 let host: HTMLDivElement
 
@@ -75,7 +75,7 @@ describe('Account browser sessions', () => {
     await act(async () => button('撤销当前会话').click())
     vi.mocked(api.request).mockResolvedValueOnce({ revoked_count: 1, current_revoked: true })
     await act(async () => button('撤销当前会话', dialog()).click())
-    expect(api.request).toHaveBeenLastCalledWith('/auth/sessions/knbs_current', { method: 'DELETE' })
+    expect(api.request).toHaveBeenLastCalledWith('/auth/sessions/ter_s_current', { method: 'DELETE' })
     expect(workbench.logout).toHaveBeenCalledOnce()
   })
 
@@ -85,7 +85,7 @@ describe('Account browser sessions', () => {
     vi.mocked(api.request).mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
     vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'native', sessions: [current] })
     await act(async () => button('撤销会话', dialog()).click())
-    expect(api.request).toHaveBeenCalledWith('/auth/sessions/knbs_other', { method: 'DELETE' })
+    expect(api.request).toHaveBeenCalledWith('/auth/sessions/ter_s_other', { method: 'DELETE' })
     expect(host.querySelectorAll('[data-account-session]')).toHaveLength(1)
     expect(host.textContent).toContain('已撤销 1 个登录会话')
     expect(button('撤销其他会话').disabled).toBe(true)
@@ -151,9 +151,9 @@ describe('Account browser sessions', () => {
     expect(host.querySelectorAll('[data-account-session]')).toHaveLength(0)
     expect(dialog()).toBeNull()
     expect(host.textContent).toContain('正在加载登录会话')
-    await act(async () => resolveList({ current_login: 'native', sessions: [{ ...current, session_id: 'knbs_second-account' }] }))
-    expect(host.querySelector('[data-account-session="knbs_second-account"]')).not.toBeNull()
-    expect(host.querySelector('[data-account-session="knbs_current"]')).toBeNull()
+    await act(async () => resolveList({ current_login: 'native', sessions: [{ ...current, session_id: 'ter_s_second-account' }] }))
+    expect(host.querySelector('[data-account-session="ter_s_second-account"]')).not.toBeNull()
+    expect(host.querySelector('[data-account-session="ter_s_current"]')).toBeNull()
     expect(workbench.logout).not.toHaveBeenCalled()
   })
 
@@ -163,8 +163,8 @@ describe('Account browser sessions', () => {
     await render()
     workbench.serverIdentity.user.user_id = 'second'
     await render()
-    await act(async () => resolveList({ current_login: 'native', sessions: [{ ...other, session_id: 'knbs_stale' }] }))
-    expect(host.querySelector('[data-account-session="knbs_stale"]')).toBeNull()
+    await act(async () => resolveList({ current_login: 'native', sessions: [{ ...other, session_id: 'ter_s_stale' }] }))
+    expect(host.querySelector('[data-account-session="ter_s_stale"]')).toBeNull()
     await act(async () => button('撤销当前会话').click())
     let resolveRevoke!: (value: unknown) => void
     vi.mocked(api.request).mockImplementationOnce(() => new Promise(resolve => { resolveRevoke = resolve }) as never)

@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/binaries.md)
 
-The client product and command are both `ternilo`; portable client archives use `ternilo-<version>-<target>`. `ternilo-local` is an internal Rust module and a legacy archive name, not a separate client. Windows archives use ZIP; Linux/macOS CLI archives use tar.gz. Desktop installers use EXE/MSI, DMG and DEB/AppImage respectively.
+The client product and command are both `ternilo`; portable client archives use `ternilo-<version>-<target>`. Windows archives use ZIP; Linux/macOS CLI archives use tar.gz. Desktop installers use EXE/MSI, DMG and DEB/AppImage respectively.
 
 | Executable | Purpose | Usage |
 |---|---|---|

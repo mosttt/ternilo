@@ -37,7 +37,7 @@ impl ControlStore {
         ip: Option<IpAddr>,
         now_ms: u64,
     ) -> Result<(), HarnessError> {
-        if !token.starts_with("kns_") {
+        if !token.starts_with("ter_a_") {
             return Ok(());
         }
         let now =

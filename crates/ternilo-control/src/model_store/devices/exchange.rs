@@ -18,7 +18,7 @@ impl ControlStore {
         code: &str,
         now: u64,
     ) -> Result<ModelDevicePoll, HarnessError> {
-        if !code.starts_with("kda_") || code.len() > 256 {
+        if !code.starts_with("ter_c_") || code.len() > 256 {
             return Ok(ModelDevicePoll::Expired);
         }
         let hash = hex(&token_hash(code));
@@ -87,7 +87,7 @@ impl ControlStore {
                 .map_err(database_error)?,
         )?;
         let key_id = random_identifier("mdv");
-        let token = random_token("kmd");
+        let token = random_token("ter_d");
         sqlx::query("INSERT INTO control_model_devices(device_id,token_hash,user_id,device_name,scope_json,created_at_ms,limits_json) VALUES($1,$2,$3,$4,$5,$6,$7)")
             .bind(&key_id).bind(hex(&token_hash(&token))).bind(user.as_str()).bind(row.try_get::<String, _>("device_name").map_err(database_error)?).bind(json_text(&scope)?).bind(number(now)?)
             .bind(json_text(&limits)?)

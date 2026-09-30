@@ -199,7 +199,7 @@ async fn open_registration_and_account_invitation_are_exclusive() {
         accepted["access_token"]
             .as_str()
             .unwrap()
-            .starts_with("kns_")
+            .starts_with("ter_a_")
     );
     assert_eq!(
         body(
