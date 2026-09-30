@@ -1,10 +1,10 @@
 # 发行反馈与交付状态
 
-当前准备交付 `v0.1.1`，优先完成客户端、Server 和 Desktop 的实际使用与发行闭环。源码修复和新增换电脑浏览器回归已通过；对应提交的 CI、四平台产物和 Server 镜像尚待验收。
+`v0.1.1` 已公开交付，客户端、Server 与 Desktop 的本轮使用反馈和发行闭环已完成。正式发行源码为 `05251cbc13ae32f2a2161e098a0febfcc9db35e5`，包含 28 个附件；后续主分支只修复两处浏览器验收夹具，程序源码保持一致。
 
 ## 当前结果
 
-- 工作区、Desktop 与 Compose 版本统一为 `0.1.1`。Compose 默认拉取 `ghcr.io/mosttt/ternilo-server:0.1.1`，无需本地构建；该版本镜像随 Release 作业发布。
+- 工作区、Desktop 与 Compose 版本统一为 `0.1.1`。Compose 默认拉取 `ghcr.io/mosttt/ternilo-server:0.1.1`，无需本地构建；该版本镜像已公开，匿名拉取通过。
 - 客户端归档命名为 `ternilo-版本-平台`，Server 为 `ternilo-server-版本-平台`。Windows 使用 ZIP，Linux／macOS CLI 使用 tar.gz，Desktop 提供各平台安装器。许可、来源和校验信息随交付物提供。
 - 正式文档在源码与便携包中统一放在 `docs/zh-CN/`、`docs/en/`；开发记录仅保留中文，放在 `docs/development/`，不进入发行包。下载说明解释插件 CLI 与 Windows 沙箱辅助程序的用途。
 - 主题默认跟随系统，并响应系统主题变化。Node 启动命令使用适合 Bash、PowerShell 和 CMD 的单行 CLI 参数；中文 Node ID 可用，名称参数采用 `--node-id="..."`，命令无法安全表示的字符在登记前校验。
@@ -21,14 +21,12 @@
 
 已通过本地客户端／Local 235 项测试、前端 948 项测试、Clippy、依赖安全检查、部署／打包工具 23 项测试，以及正式和开发文档链接检查。Windows、macOS Intel／Apple Silicon 持久化检查已通过。
 
-SQLite 与受限 PostgreSQL 的会话详情、相关三项 PostgreSQL 认证／路由检查已通过。实际浏览器已验证登录会话详情与撤销、OIDC、3 万条本地／Server／离线历史、PNG 与隔离 HTML 预览、权限撤销后的文件拒绝、未授权目录及越界拒绝、手机轨迹触摸滚动、主题、PWA 和多实例连接。安装包解压、SDK／插件、账号／模型／历史与快照恢复验收已通过。Linux Desktop 后台服务实际验收已通过。
+SQLite 与受限 PostgreSQL 的会话详情、相关三项 PostgreSQL 认证／路由检查已通过。实际浏览器已验证登录会话详情与撤销、OIDC、3 万条本地／Server／离线历史、PNG 与隔离 HTML 预览、权限撤销后的文件拒绝、未授权目录及越界拒绝、手机轨迹触摸滚动、主题、PWA 和多实例连接。安装包解压、SDK／插件、账号／模型／历史与快照恢复验收已通过。四平台 Desktop 后台服务实际验收全部通过，Windows PE GUI／CLI subsystem 校验通过。
 
-新增简写命名和工作区冲突修改已通过针对性的单元测试、SQLite 与受限 PostgreSQL 检查，以及原生登录、OIDC、模型设备授权和换电脑的实际浏览器验收。换电脑回归包含旧电脑离线、同名目录默认名称、409 提示后重试、再次打开保持名称及没有列表轮询；目录弹窗单元测试 11 项通过。最新 Clippy、948 项完整 Web 测试、类型检查、构建与文档门禁通过；undici 锁定 8.11.2，npm audit 报告 0 个漏洞。交付版本以其对应的完整 CI 和发行产物验收为准。
+新增简写命名和工作区冲突修改已通过针对性的单元测试、SQLite 与受限 PostgreSQL 检查，以及原生登录、OIDC、模型设备授权和换电脑的实际浏览器验收。换电脑回归包含旧电脑离线、同名目录默认名称、409 提示后重试、再次打开保持名称及没有列表轮询；目录弹窗单元测试 11 项通过。最新 Clippy、948 项完整 Web 测试、类型检查、构建与文档门禁通过；undici 锁定 8.11.2，npm audit 报告 0 个漏洞。[最新 main 检查](https://github.com/mosttt/ternilo/actions/runs/36668292476)全部 9 项作业成功。[正式 Release 作业](https://github.com/mosttt/ternilo/actions/runs/36662208818)已成功。全部 28 个公开附件已下载，本地 SHA、GitHub API 摘要、清单、来源提交与固定 Linorun 版本一致；八个便携归档的平台头、程序集合、双语文档和六个桌面安装器检查通过。公开镜像的版本／来源／许可与摘要匹配，匿名 Compose 无本地构建、初始化、浏览器登录及 down/up 后身份保留通过，控制台和网络错误为空。正式下载的 Linux 二进制再次通过同名离线电脑切换与工作区预览／共享／权限拒绝的浏览器验收。
 
 ## 待完成项
 
-1. 完成当前提交的 CI 和四平台发行作业，确认 Desktop 后台服务在 Windows 和两种 macOS 架构通过。
-2. 发布并验收 `v0.1.1` 的实际附件与公开 Server 镜像，核对来源、校验和、ZIP 文档布局、匿名镜像拉取及 Compose 初始化／登录／重启持久化。
-3. 资源所有权交接、账号停用后的完整任务清理与跨 Server 扩容继续按项目计划推进；Work 保持必要设计预留。
+资源所有权交接、账号停用后的完整任务清理与跨 Server 扩容继续按项目计划推进；Work 保持必要设计预留。
 
 构建安装器不等于发行者签名或所有物理设备的安装验收。Desktop 安装器目前未签名／公证，自动更新关闭；Server 镜像目前发布 Linux amd64。
