@@ -1,14 +1,10 @@
-# 设备 Provider 用量 / Device Provider usage
+# 设备 Provider 用量
 
-状态：采集、Server 查询和网页已实现；单元、双库、Clippy 与真实浏览器闭环验证通过。 / Status: collection, Server queries and UI implemented; unit, dual-database, Clippy and real browser validation passed.
+状态：采集、Server 查询和网页已实现；单元、双库、Clippy 与真实浏览器闭环验证通过。
 
 目标是让 Server 显示已登记电脑直接调用 Provider 的设备报告，保留未知计数、原始调用位置和稳定尝试身份。它与 Server 已核验的额度账本分开，不新增扣款、不把同名模型当成相同来源，也不因离线重放或分叉历史重复计数。
 
-Show device-reported direct Provider usage from enrolled computers, retaining unknown counters, original call location and stable attempt identity. Keep these observations separate from Server's authoritative quota ledger. They must not create budget charges, infer source from model names, or duplicate calls during offline replay or history forks.
-
 当前代码事实：HTTP Provider 已有逐次尝试回调；Server 使用该回调结算账本，但本机普通 Provider 没有持久化逐次失败／重试用量。仅依赖 `AssistantMessage.response.usage` 会遗漏中断和部分失败，也会把复制的会话历史误认为新调用。电脑的 canonical 事件已按序号持久同步到 Server，适合承载独立的开始／结束事实；可复用当前事件缓存，不把观测写入模型请求账本。
-
-Current code already has per-attempt HTTP callbacks, used by Server settlement. Ordinary local Providers do not persist failed/retried attempt usage. Assistant response usage alone misses interruptions and can count copied history as new calls. Canonical Node events already replicate durably by sequence and can carry separate started/finished observations without entering the model-request ledger.
 
 实施约束：
 
@@ -18,8 +14,6 @@ Current code already has per-attempt HTTP callbacks, used by Server settlement. 
 - Server 按当前账号可访问的自有电脑读取已同步记录，离线仍可查看；网页明确设备报告来源和覆盖边界，不能把尚未同步／旧版本没有记录解释为零调用。
 - 通过真实本机／Server／Node 测试重试、未知用量、离线重连去重、分叉和网关来源区分；复核共享与撤权边界。
 
-Implementation must capture calls at the actual Provider layer, exclude official Server gateway sources, preserve source-session identity through forks, share protocol normalization, retain unknown counters, and omit secrets/prompt/raw upstream data. Server reads synchronized observations for authorized owned computers, including while offline. UI coverage must be explicit. Validate retries, incomplete usage, offline replay, forks, gateway source separation and access revocation with real binaries and browsers.
-
 ## 实现与验证
 
 在 Provider 插件的逐次尝试回调中追加开始／完成事件，五种协议复用同一计数归一化逻辑；内部 `usage_source` 将正式 Server 连接与本地 Provider 分开。无需新增数据库表，Server 使用已复制事件和原始会话映射进行有界分页查询。`source_session_id` 保留分叉前位置；普通 Server 事件读取转换成有权访问的公开 ID 或清空。执行器协议从 43 升至 44，需同步升级。
@@ -27,7 +21,5 @@ Implementation must capture calls at the actual Provider layer, exclude official
 新增 `GET /model-computers/{executor_id}/usage` 只允许电脑所有者，以 UTC 月份、稳定时间／会话／序号游标分页，标题与提交者只从既有可信数据投影。Web 明确当前页统计、未知计数、离线覆盖和设备报告来源，切换账号／空间时取消旧请求并清空旧数据。
 
 已验证：真实 HTTP 上游 503 后重试的独立部分计数、正式 Server 来源排除；SQLite／受限 PostgreSQL 原始位置与分叉去重、分页、迟到完成、重复复制、未知计数、伪造账号投影、所有权与租户隔离、无账本写入；12 项受影响 Web 测试及类型／翻译检查。浏览器测试覆盖真实进程离线补传、重启重放、分叉、新提交者和手机页面，已通过，桌面／390／320 像素无水平溢出、控制台或网络错误。
-
-Provider callbacks now persist start/finish events and share five-protocol counter normalization. Server pages existing replicated events without new tables or ledger writes. Origin session identity excludes copied forks. Executor protocol is 44. Owner-only reporting retains verified submitters and unknown values; Web cancels stale account/space reads. HTTP retry/source tests, SQLite/restricted PostgreSQL contracts, 12 affected Web tests, type/i18n and Clippy checks passed; real browser validation passed for offline synchronization, restart replay, fork exclusion, shared submitters, owner-only access and desktop/390/320-pixel layouts.
 
 真实浏览器首轮测试遗漏工作台 `/state` 发现步骤，未建立公开 Session 映射，因此 Server 正确忽略尚属本机私有的日志。测试按实际页面初始化顺序先完成发现，再运行在线／离线任务；无需打开会话，已有映射的后续记录自动补传。401 项受影响 Rust 库测试通过（149 Builtins、195 Local、36 Protocol、21 Transport），另有 1 项环境相关 Local 测试保留既有忽略。

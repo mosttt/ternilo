@@ -1,6 +1,6 @@
 # 原生账号恢复实施记录
 
-状态：已实现并完成分支验证，等待合入。用户指南见[密码恢复](../zh-CN/account-recovery.md)及其[英文版](../en/account-recovery.md)。
+状态：已合入 main，双库、真实 CLI 与浏览器验收通过。用户指南见[密码恢复](../zh-CN/account-recovery.md)及其[英文版](../en/account-recovery.md)。
 
 `ternilo-server admin reset-password` 使用已有私有配置和隐藏输入／标准输入，为现有原生账号更新密码。账号身份、角色、状态、个人空间、项目、电脑和模型授权不变。密码哈希、本站原生与 OIDC 会话撤销、运维审计在同一事务提交。
 
@@ -17,11 +17,3 @@
 - Control／Server 全目标 Clippy、TypeScript、49 项 API／实时连接／工作台状态测试、i18n、文档链接与工作流语法检查。
 
 CI 已加入新浏览器入口与 PostgreSQL 恢复契约。该功能不提供邮件找回、外部 IdP 凭据恢复、自助密码更改或 MFA，也不通过密码重置自动解封账号或取消已经接受的任务。
-
-## English
-
-Implemented and validated on the feature branch, pending merge. The operator CLI resets an existing native password while preserving identity and resources. Password replacement, native/OIDC site-session revocation and audit commit atomically. Native session issuance revalidates the password proof under the account lock, rejecting verification completed before a reset.
-
-Browser verification also identified and fixed missing client reauthentication after a connection-level policy rejection. The client checks its identity through the existing HTTP authentication flow, retaining the distinction between invalid credentials and valid accounts restricted by policy.
-
-Validation passed for SQLite and restricted PostgreSQL recovery contracts, existing identity/PostgreSQL regressions, real CLI/browser recovery, five existing account/sharing/OIDC/security browser scenarios, scoped Clippy, TypeScript, 49 frontend state/API tests, i18n, documentation and workflow checks. Email recovery, external IdP recovery, self-service password changes and MFA remain outside this feature.

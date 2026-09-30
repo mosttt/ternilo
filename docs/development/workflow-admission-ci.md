@@ -9,5 +9,3 @@
 验收末尾继续回应容量请求，但只接受测试已明确完成的末阶段子任务，并要求 Resume 之前收到 Park；额外启动子任务仍直接失败。前面的依赖集合、分阶段放行、无跨阶段屏障及最终按输入顺序输出的断言保留。夹具退出时取消受控后端／容量等待并 abort 所拥有任务，避免一次断言失败遗留无主等待。
 
 并发复跑脚本仅用于本机定位和复验，没有固化为 CI 的重复执行策略。现有 CI 继续运行正常 Rust 测试。标签仍固定于原提交；该测试修正进入后续 main，原标签作业按相同源码复跑，不跳过任何门禁，也不修改已经下载验收的产物。
-
-The first tagged Release stalled in a workflow activity test. Concurrent local reproduction showed an unhandled final park/resume after both controlled child results had been sent. Completion can be observed in separate polls; the fixture now services only those explicitly completed final dependencies, preserving stage and output-order assertions. Fixture teardown also cancels its controlled waits. All three activity tests, 1,000 concurrent repetitions and Local Clippy passed. Production scheduling and the immutable release tag are unchanged.

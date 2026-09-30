@@ -39,7 +39,3 @@
 ## 后续 P2
 
 项目共享继承已实现并通过双库及真实浏览器验收，见[项目共享记录](project-sharing.md)。Server 远程 SDK 已合入 main。[账号命令投递](account-command-revocation.md)已补齐停用后禁止旧输入重放；完整运行中清理、资源交接及多实例路由／通知仍需继续处理。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。
-
-## Implementation outline
-
-Native account recovery and bounded history pagination are implemented, validated locally and merged into main. Device Provider observations and unknown-usage reconciliation are also implemented and validated with both databases and real browsers. Follow the remaining package builds and continue closing model connection and lifecycle gaps. Preserve identity and resource ownership, revalidate credentials during session issuance, and distinguish device-reported usage from authoritative Server budgets. Test SQLite and restricted PostgreSQL behavior and real CLI/browser workflows. Continue with shared-resource lifecycle, remote SDKs and multi-instance routing afterward; Work remains an explicit integration reservation.
