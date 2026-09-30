@@ -122,6 +122,7 @@ impl LocalApplication {
         self.stopping.check()?;
         request.validate()?;
         provenance.validate()?;
+        self.account_authorizations.check(Some(&provenance)).await?;
         if self.state.session(session_id).await.is_none() {
             return Err(HarnessError::invalid(format!(
                 "unknown session {session_id:?}"
@@ -160,6 +161,10 @@ impl LocalApplication {
         {
             let lifecycle = self.session_lifecycle(session_id).await;
             let _lifecycle = lifecycle.lock().await;
+            let _admission = self.account_authorizations.input_admission().await;
+            self.account_authorizations
+                .check(item.provenance.as_ref())
+                .await?;
             self.inbox.enqueue(session_id, item.clone()).await?;
             self.state.mark_session_started(session_id, now).await?;
             self.invalidate(
@@ -305,6 +310,18 @@ impl LocalApplication {
         let _driver_guard = driver.lock().await;
         loop {
             self.stopping.check()?;
+            if let Some(item) = self.inbox.first_queued(session_id).await?
+                && let Err(error) = self
+                    .account_authorizations
+                    .check(item.provenance.as_ref())
+                    .await
+            {
+                if error.code == ternilo_protocol::ErrorCode::PolicyDenied {
+                    self.inbox.remove_queued(session_id, &item.id).await?;
+                    continue;
+                }
+                return Ok(());
+            }
             // Profile changes remove the runtime before committing the new selection.
             // A queue driver must acquire the lifecycle lock before booting a replacement.
             let managed = self.addressable_session(session_id).await?;
@@ -336,16 +353,24 @@ impl LocalApplication {
                     },
                 )
                 .await;
+            let revoked = self
+                .account_authorizations
+                .check(item.provenance.as_ref())
+                .await
+                .is_err_and(|error| error.code == ternilo_protocol::ErrorCode::PolicyDenied);
             if result.is_err() {
                 self.settle_session_inbox(
                     session_id,
                     &managed.harness.events().await,
-                    result.as_ref().is_err_and(HarnessError::is_cancelled),
+                    result.as_ref().is_err_and(HarnessError::is_cancelled) && !revoked,
                 )
                 .await?;
             }
             match result {
                 Ok(_) => {
+                    self.inbox.finish(session_id, &item.id).await?;
+                }
+                Err(_) if revoked => {
                     self.inbox.finish(session_id, &item.id).await?;
                 }
                 Err(error) if error.is_cancelled() => {

@@ -6,6 +6,10 @@ mod host;
 mod input_references;
 mod plugin;
 mod profile;
+mod run_authorization;
+pub use run_authorization::{
+    ExecutionResourceControl, ExecutionResourceRegistry, RunAuthorization,
+};
 mod services;
 mod tool_source;
 mod workspace_execution;

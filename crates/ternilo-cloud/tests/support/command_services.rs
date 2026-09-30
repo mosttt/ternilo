@@ -52,6 +52,7 @@ impl Fixture<'_> {
                     tenant_id: self.session.tenant_id.clone(),
                     user_id: self.owner.user_id.clone(),
                 },
+                input_authorization: None,
                 issued_at_ms: now,
                 expires_at_ms: now + 1_000,
                 body: ExecutorCommandBody::Application { request },

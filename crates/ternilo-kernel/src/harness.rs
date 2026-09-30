@@ -789,6 +789,18 @@ impl HarnessSession {
         self.sessions.append(run_id, kind).await
     }
 
+    /// Append a change only while the event snapshot used to derive it is still current.
+    pub async fn append_event_if_next_seq(
+        &self,
+        next_seq: u64,
+        run_id: RunId,
+        kind: SessionEventKind,
+    ) -> Result<Option<SessionEvent>, HarnessError> {
+        self.sessions
+            .append_if_next_seq(next_seq, run_id, kind)
+            .await
+    }
+
     pub async fn skill_catalog(&self) -> Result<SkillCatalogSnapshot, HarnessError> {
         self.skills
             .as_ref()

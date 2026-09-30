@@ -31,7 +31,8 @@ pub(crate) fn router() -> Router {
                 .get(list_accounts)
                 .push(Router::with_path("{user_id}/role").patch(set_account_role))
                 .push(Router::with_path("{user_id}/review").post(review_account))
-                .push(Router::with_path("{user_id}/status").post(set_account_status)),
+                .push(Router::with_path("{user_id}/status").post(set_account_status))
+                .push(Router::with_path("{user_id}/node-cleanup").get(node_cleanup)),
         )
         .push(
             Router::with_path("instance")
@@ -259,4 +260,18 @@ async fn set_account_status(
         state.cloud_events.reauthenticate_user(&user_id);
     }
     Ok(Json(account))
+}
+
+#[handler]
+async fn node_cleanup(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Vec<ternilo_control::AccountNodeCleanup>>, ApiError> {
+    let user_id = UserId::new(path_parameter(request, "user_id")?);
+    Ok(Json(
+        app_state(depot)
+            .store
+            .account_node_cleanup(actor(depot), &user_id)
+            .await?,
+    ))
 }

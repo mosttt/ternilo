@@ -212,14 +212,18 @@ async fn register_terminal_tool(
 impl ToolHandler for TerminalTool {
     fn execute<'a>(
         &'a self,
-        _: ToolExecutionContext,
+        context: ToolExecutionContext,
         arguments: Value,
     ) -> Pin<Box<dyn Future<Output = Result<ToolOutput, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
             let result = match self.operation {
                 Operation::Open => {
                     let arguments: OpenArguments = parse_arguments(arguments)?;
-                    serde_json::to_value(self.terminals.open(arguments.name).await?)
+                    serde_json::to_value(
+                        self.terminals
+                            .open(context.run_id.clone(), arguments.name)
+                            .await?,
+                    )
                 }
                 Operation::Send => {
                     let arguments: SendArguments = parse_arguments(arguments)?;

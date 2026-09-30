@@ -247,6 +247,16 @@ pub(super) async fn execute_command(
                 "command scope does not match the gateway-assigned node scope",
             ));
         }
+        if application.account_server_binding().await.is_some()
+            && let Some(provenance) = &command.input_provenance
+        {
+            let authorization = command.input_authorization.as_ref().ok_or_else(|| {
+                HarnessError::policy("account command has no trusted acceptance authorization")
+            })?;
+            application
+                .record_account_input_authorization(provenance, authorization)
+                .await?;
+        }
         match command.body {
             ExecutorCommandBody::Application { request } => {
                 handle_application_with_provenance(

@@ -36,6 +36,7 @@ mod identity;
 mod live;
 mod model_gateway;
 mod models;
+mod node_cleanup;
 mod security;
 mod state;
 mod web;
@@ -181,6 +182,7 @@ fn web_router(state: AppState) -> Router {
         .push(worker_api::management_router())
         .push(model_gateway::router())
         .push(model_gateway::node_router())
+        .push(node_cleanup::router())
         .push(Router::with_path("health").get(health))
         .push(api_router())
 }

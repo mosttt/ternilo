@@ -23,3 +23,9 @@ Native browser session management uses `GET /api/v1/auth/sessions`, `DELETE /api
 Authentication settings use owner-only `GET/PUT /api/v1/admin/instance/authentication`. `/auth/config` returns public login metadata. Administrative account, team, enrollment and model APIs enforce their own roles. Model device authorization and model grants are separate from browser login sessions and Node credentials.
 
 Live transport supplies authenticated state/events and uses independent cursors from bounded history paging. SDKs should follow [remote SDKs](remote-sdks.md) rather than assume mutations are safely retryable. For complete wire definitions consult `crates/ternilo-protocol/` and the route modules under `apps/ternilo-server/src/platform/` in the source tree.
+
+## Node cleanup confirmation
+
+`POST /api/v1/executors/cleanup/sync` synchronizes account authority and cleanup requests using the Node credential and its local `storage_instance_id`. `GET /api/v1/executors/cleanup` reads that credential's snapshot; `POST` submits a receipt matching request, revocation revision and storage identity. This channel does not restore normal access for revoked credentials.
+
+`GET /api/v1/admin/accounts/{user_id}/node-cleanup` exposes cleanup status to authorized account readers. `pending` remains unconfirmed; `confirmed` records the Node's durable receipt for supervised work. `detail` is null or one of `process_state_unknown`, `process_exit_pending`, `session_busy`, `cleanup_failed`. Raw diagnostics stay in Node logs instead of uploading machine directory paths.

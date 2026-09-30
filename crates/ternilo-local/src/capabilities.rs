@@ -531,12 +531,16 @@ impl ShellProvider for LocalShell {
     fn execute<'a>(
         &'a self,
         _: CallContext<()>,
+        run_id: ternilo_protocol::RunId,
         request: ShellRequest,
     ) -> Pin<Box<dyn Future<Output = Result<ShellResult, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
             if request.command.trim().is_empty() {
                 return Err(HarnessError::invalid("shell command must not be empty"));
             }
+            self.environment
+                .check_run_authorization(run_id.clone())
+                .await?;
             let timeout_ms = request.timeout_ms.clamp(100, 600_000);
             let permissions = self.environment.permissions().await;
             let direct = request.full_access || permissions.allows_full_access();
@@ -589,6 +593,7 @@ impl ShellProvider for LocalShell {
                 MAX_SHELL_CAPTURE_BYTES,
                 request.stdin.as_deref(),
                 Some(lease),
+                Some((self.environment.clone(), run_id)),
             )
             .await?
             {
@@ -757,7 +762,7 @@ async fn capture_command(
     max_capture_bytes: usize,
     stdin: Option<&str>,
 ) -> Result<CaptureResult, HarnessError> {
-    capture_command_owned(command, timeout_ms, max_capture_bytes, stdin, None).await
+    capture_command_owned(command, timeout_ms, max_capture_bytes, stdin, None, None).await
 }
 
 async fn capture_command_owned(
@@ -766,7 +771,30 @@ async fn capture_command_owned(
     max_capture_bytes: usize,
     stdin: Option<&str>,
     lease: Option<WorkspaceExecutionLease>,
+    ownership: Option<(RunEnvironmentClient, ternilo_protocol::RunId)>,
 ) -> Result<CaptureResult, HarnessError> {
+    let (stop, mut stopped) = tokio::sync::watch::channel(false);
+    let (completed, completion) = tokio::sync::watch::channel(None);
+    let held_lease = Arc::new(std::sync::Mutex::new(lease));
+    let control = Arc::new(CaptureControl {
+        stop: stop.clone(),
+        completion,
+        _lease: held_lease.clone(),
+    });
+    let _stop_on_drop = CaptureStopOnDrop(stop);
+    let mut admission = CaptureAdmission(Some(completed.clone()));
+    if let Some((environment, run_id)) = ownership {
+        environment.check_run_authorization(run_id.clone()).await?;
+        let id = format!("process-{:032x}", rand::random::<u128>());
+        environment
+            .register_execution_resource(run_id, id, control)
+            .await?;
+    }
+    if *stopped.borrow() {
+        return Err(HarnessError::cancelled(
+            "command was revoked before process creation",
+        ));
+    }
     command
         .kill_on_drop(true)
         .stdin(if stdin.is_some() {
@@ -776,14 +804,9 @@ async fn capture_command_owned(
         })
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    crate::process_group::configure(command);
-    let mut child = command
-        .spawn()
+    let (mut child, process_group) = crate::process_group::spawn(command)
         .map_err(|error| HarnessError::execution(format!("start command: {error}")))?;
-    let process_id = child
-        .id()
-        .ok_or_else(|| HarnessError::execution("started command has no process id"))?;
-    let process_group = crate::process_group::ManagedProcessGroup::new(process_id);
+    admission.0 = None;
     let stdout = child
         .stdout
         .take()
@@ -794,10 +817,8 @@ async fn capture_command_owned(
         .ok_or_else(|| HarnessError::execution("command stderr is unavailable"))?;
     let mut child_stdin = child.stdin.take();
     let stdin = stdin.map(str::to_owned);
-    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
     // The independent supervisor retains ownership while cancellation reaps the process.
     let supervisor = tokio::spawn(async move {
-        let _lease = lease;
         let capture = async {
             let write_stdin = async {
                 if let (Some(mut child_stdin), Some(stdin)) = (child_stdin.take(), stdin) {
@@ -829,18 +850,61 @@ async fn capture_command_owned(
                 Ok(Err(error)) => Err(HarnessError::execution(format!("capture command output: {error}"))),
                 Err(_) => Ok(CaptureResult::TimedOut),
             },
-            _ = stopped => Err(HarnessError::cancelled("command capture was cancelled")),
+            _ = stopped.changed() => Err(HarnessError::cancelled("command capture was cancelled")),
         };
         process_group.terminate();
         let _ = child.start_kill();
         let _ = child.wait().await;
+        let cleanup = process_group.wait_quiescent().await;
+        if cleanup.is_ok() {
+            held_lease.lock().expect("process lease lock").take();
+        }
+        completed.send_replace(Some(cleanup.map_err(|error| error.to_string())));
         outcome
     });
-    let outcome = supervisor
+    admission.0 = None;
+    supervisor
         .await
-        .map_err(|error| HarnessError::execution(format!("supervise command: {error}")))?;
-    drop(stop);
-    outcome
+        .map_err(|error| HarnessError::execution(format!("supervise command: {error}")))?
+}
+
+struct CaptureStopOnDrop(tokio::sync::watch::Sender<bool>);
+impl Drop for CaptureStopOnDrop {
+    fn drop(&mut self) {
+        self.0.send_replace(true);
+    }
+}
+struct CaptureAdmission(Option<tokio::sync::watch::Sender<Option<Result<(), String>>>>);
+impl Drop for CaptureAdmission {
+    fn drop(&mut self) {
+        if let Some(completion) = self.0.take() {
+            completion.send_replace(Some(Ok(())));
+        }
+    }
+}
+struct CaptureControl {
+    _lease: Arc<std::sync::Mutex<Option<WorkspaceExecutionLease>>>,
+    stop: tokio::sync::watch::Sender<bool>,
+    completion: tokio::sync::watch::Receiver<Option<Result<(), String>>>,
+}
+impl ternilo_kernel::ExecutionResourceControl for CaptureControl {
+    fn stop<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(), HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            self.stop.send_replace(true);
+            let mut completion = self.completion.clone();
+            loop {
+                if let Some(result) = completion.borrow().clone() {
+                    return result.map_err(HarnessError::execution);
+                }
+                completion.changed().await.map_err(|_| {
+                    HarnessError::unavailable("process supervisor ended without a cleanup receipt")
+                })?;
+            }
+        })
+    }
+    fn is_finished(&self) -> bool {
+        matches!(&*self.completion.borrow(), Some(Ok(())))
+    }
 }
 
 async fn capture_stream<R>(mut stream: R, max_capture_bytes: usize) -> io::Result<CapturedStream>

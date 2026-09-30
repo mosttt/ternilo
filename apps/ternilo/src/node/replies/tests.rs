@@ -20,6 +20,7 @@ async fn concurrent_duplicate_commands_share_one_cached_reply() {
             tenant_id: ternilo_protocol::TenantId::new("tenant"),
             user_id: ternilo_protocol::UserId::new("user"),
         },
+        input_authorization: None,
         issued_at_ms: 1,
         expires_at_ms: u64::MAX,
         body: ExecutorCommandBody::Application {
@@ -88,6 +89,7 @@ async fn workspace_location_reply_is_not_persisted_in_the_node_command_cache() {
                 tenant_id: ternilo_protocol::TenantId::new("tenant"),
                 user_id: ternilo_protocol::UserId::new("owner"),
             },
+            input_authorization: None,
             issued_at_ms: 1,
             expires_at_ms: u64::MAX,
             body: ExecutorCommandBody::Application { request: operation },
@@ -135,6 +137,7 @@ async fn completed_command_reply_survives_node_transport_reopen() {
             tenant_id: ternilo_protocol::TenantId::new("tenant"),
             user_id: ternilo_protocol::UserId::new("user"),
         },
+        input_authorization: None,
         issued_at_ms: 1,
         expires_at_ms: u64::MAX,
         body: ExecutorCommandBody::Application {
@@ -170,6 +173,7 @@ async fn file_downloads_share_inflight_work_without_retaining_reply_bodies() {
             tenant_id: ternilo_protocol::TenantId::new("tenant"),
             user_id: ternilo_protocol::UserId::new("user"),
         },
+        input_authorization: None,
         issued_at_ms: 1,
         expires_at_ms: u64::MAX,
         body: ExecutorCommandBody::Application {

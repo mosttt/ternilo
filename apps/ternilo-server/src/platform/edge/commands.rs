@@ -135,10 +135,22 @@ impl EdgeGateway {
         } else {
             None
         };
+        let input_authorization = match &input_provenance {
+            Some(InputProvenance {
+                author: InputAuthor::Account { user_id, .. },
+                ..
+            }) => Some(
+                self.store
+                    .node_input_authorization(&connected.principal, user_id)
+                    .await?,
+            ),
+            _ => None,
+        };
         let command = ExecutorCommand {
             command_id,
             scope: connected.scope,
             input_provenance,
+            input_authorization,
             issued_at_ms: now,
             expires_at_ms: now.saturating_add(30 * 60 * 1_000),
             body,

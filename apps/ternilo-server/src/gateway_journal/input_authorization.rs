@@ -61,6 +61,15 @@ pub(super) async fn accept(
     }
     if inserted {
         let revision: i64 = row.try_get("status_revision").map_err(database_error)?;
+        if let Some(authorization) = &command.input_authorization
+            && authorization.status_revision
+                != u64::try_from(revision)
+                    .map_err(|_| HarnessError::execution("negative input authorization revision"))?
+        {
+            return Err(HarnessError::conflict(
+                "input account authorization changed; submit again",
+            ));
+        }
         sqlx::query("INSERT INTO gateway_input_authorizations (tenant_id, command_id, user_id, status_revision) VALUES ($1, $2, $3, $4)")
             .bind(route.tenant_id.as_str()).bind(command.command_id.as_str()).bind(user_id.as_str()).bind(revision)
             .execute(&mut **tx).await.map_err(database_error)?;

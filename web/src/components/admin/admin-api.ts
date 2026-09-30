@@ -82,3 +82,20 @@ export function canManageWorkers(role?: PlatformRole) {
 export function isPlatformStaff(role?: PlatformRole) {
   return role === 'owner' || role === 'admin' || role === 'operator' || role === 'auditor'
 }
+
+export interface AccountNodeCleanup {
+  tenant_id: string
+  executor_id: string
+  request: {
+    request_id: string
+    status_revision: number
+    created_at_ms: number
+    state: 'pending' | 'confirmed'
+    detail: string | null
+    confirmed_at_ms: number | null
+  }
+}
+
+export function getAccountNodeCleanup(userId: string, signal?: AbortSignal) {
+  return api.request<AccountNodeCleanup[]>(`/admin/accounts/${encodeURIComponent(userId)}/node-cleanup`, { signal })
+}

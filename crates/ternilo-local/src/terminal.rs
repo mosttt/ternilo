@@ -12,6 +12,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use crate::process_group::Child;
 use linorun_core::{Activation, CallContext, ComponentContext, ComponentDescriptor, effect};
 use linorun_macros::component_descriptor;
 use serde::Deserialize;
@@ -24,8 +25,8 @@ use ternilo_kernel::{
 use ternilo_protocol::{HarnessError, TerminalId, TerminalRead, TerminalSnapshot, TerminalStatus};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
-    process::{Child, ChildStdin, Command},
-    sync::{Mutex, Notify, oneshot},
+    process::{ChildStdin, Command},
+    sync::{Mutex, Notify, watch},
 };
 
 pub const LOCAL_TERMINALS_KIND: &str = "ternilo.terminals.local";
@@ -154,7 +155,7 @@ struct TerminalEntry {
     process_id: u32,
     process_group: Arc<crate::process_group::ManagedProcessGroup>,
     exit_status: Mutex<Option<Result<ExitStatus, String>>>,
-    stop: std::sync::Mutex<Option<oneshot::Sender<()>>>,
+    stop: watch::Sender<bool>,
     process: Mutex<Option<tokio::task::JoinHandle<()>>>,
     stdin: Mutex<ChildStdin>,
     output: Mutex<OutputBuffer>,
@@ -232,7 +233,15 @@ impl OutputBuffer {
 }
 
 impl LocalTerminals {
-    async fn open(&self, name: Option<String>) -> Result<TerminalSnapshot, HarnessError> {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "register ownership before spawning and publish the terminal only after its supervisor is installed"
+    )]
+    async fn open(
+        &self,
+        run_id: ternilo_protocol::RunId,
+        name: Option<String>,
+    ) -> Result<TerminalSnapshot, HarnessError> {
         let name = name
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -249,14 +258,34 @@ impl LocalTerminals {
             .acquire_workspace(RunCancellation::new())
             .await?;
         let mut command = self.shell_command().await?;
-        let mut child = command
-            .spawn()
+        self.environment
+            .check_run_authorization(run_id.clone())
+            .await?;
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        let (completion, finished) = watch::channel(None);
+        let held_lease = Arc::new(std::sync::Mutex::new(Some(lease)));
+        let control = Arc::new(TerminalControl {
+            stop: stop_sender.clone(),
+            finished,
+            _lease: held_lease.clone(),
+        });
+        let mut admission = TerminalAdmission(Some(completion.clone()));
+        let resource_id = format!("terminal-{:032x}", rand::random::<u128>());
+        self.environment
+            .register_execution_resource(run_id, resource_id, control)
+            .await?;
+        if *stop_receiver.borrow() {
+            return Err(HarnessError::cancelled(
+                "terminal revoked before process creation",
+            ));
+        }
+        let (mut child, process_group) = crate::process_group::spawn(&mut command)
             .map_err(|error| HarnessError::execution(format!("start terminal shell: {error}")))?;
+        admission.0 = None;
         let process_id = child
             .id()
             .ok_or_else(|| HarnessError::execution("terminal process has no ID"))?;
-        let process_group = Arc::new(crate::process_group::ManagedProcessGroup::new(process_id));
-        let (stop_sender, stop_receiver) = oneshot::channel();
+        let process_group = Arc::new(process_group);
         let stdin = child
             .stdin
             .take()
@@ -280,7 +309,7 @@ impl LocalTerminals {
             process_id,
             process_group: Arc::clone(&process_group),
             exit_status: Mutex::new(None),
-            stop: std::sync::Mutex::new(Some(stop_sender)),
+            stop: stop_sender,
             process: Mutex::new(None),
             stdin: Mutex::new(stdin),
             output: Mutex::new(OutputBuffer::default()),
@@ -301,8 +330,10 @@ impl LocalTerminals {
             process_group,
             stop_receiver,
             Arc::downgrade(&entry),
-            lease,
+            held_lease,
+            completion,
         ));
+        admission.0 = None;
         *entry.process.lock().await = Some(process);
         {
             let mut entries = self.entries.lock().await;
@@ -543,9 +574,10 @@ impl TerminalsProvider for LocalTerminals {
     fn open<'a>(
         &'a self,
         _: CallContext<()>,
+        run_id: ternilo_protocol::RunId,
         name: Option<String>,
     ) -> Pin<Box<dyn Future<Output = Result<TerminalSnapshot, HarnessError>> + Send + 'a>> {
-        Box::pin(async move { self.open(name).await })
+        Box::pin(async move { self.open(run_id, name).await })
     }
 
     fn send<'a>(
@@ -621,13 +653,14 @@ where
 async fn supervise_process(
     mut child: Child,
     process_group: Arc<crate::process_group::ManagedProcessGroup>,
-    stop: oneshot::Receiver<()>,
+    mut stop: watch::Receiver<bool>,
     entry: Weak<TerminalEntry>,
-    _lease: WorkspaceExecutionLease,
+    lease: Arc<std::sync::Mutex<Option<WorkspaceExecutionLease>>>,
+    completion: watch::Sender<Option<Result<(), String>>>,
 ) {
     let status = tokio::select! {
         result = child.wait() => result,
-        _ = stop => {
+        _ = stop.changed() => {
             #[cfg(windows)]
             if let Some(pid) = child.id() { let _ = signal_process(pid, TerminalSignal::Terminate).await; }
             process_group.terminate();
@@ -636,6 +669,7 @@ async fn supervise_process(
         }
     };
     process_group.terminate();
+    let cleanup = process_group.wait_quiescent().await;
     if let Some(entry) = entry.upgrade() {
         let readers = std::mem::take(&mut *entry.readers.lock().await);
         for mut reader in readers {
@@ -650,32 +684,59 @@ async fn supervise_process(
         *entry.exit_status.lock().await = Some(status.map_err(|error| error.to_string()));
         entry.notify.notify_waiters();
     }
+    if cleanup.is_ok() {
+        lease.lock().expect("terminal lease lock").take();
+    }
+    completion.send_replace(Some(cleanup.map_err(|error| error.to_string())));
 }
 
 impl Drop for TerminalEntry {
     fn drop(&mut self) {
         self.process_group.terminate();
         // Dropping the sender wakes the independent process supervisor.
-        self.stop
-            .get_mut()
-            .expect("terminal stop lock poisoned")
-            .take();
+        self.stop.send_replace(true);
         for reader in self.readers.get_mut().drain(..) {
             reader.abort();
         }
     }
 }
 
+struct TerminalAdmission(Option<watch::Sender<Option<Result<(), String>>>>);
+impl Drop for TerminalAdmission {
+    fn drop(&mut self) {
+        if let Some(completion) = self.0.take() {
+            completion.send_replace(Some(Ok(())));
+        }
+    }
+}
+struct TerminalControl {
+    _lease: Arc<std::sync::Mutex<Option<WorkspaceExecutionLease>>>,
+    stop: watch::Sender<bool>,
+    finished: watch::Receiver<Option<Result<(), String>>>,
+}
+impl ternilo_kernel::ExecutionResourceControl for TerminalControl {
+    fn stop<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(), HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            self.stop.send_replace(true);
+            let mut finished = self.finished.clone();
+            loop {
+                if let Some(result) = finished.borrow().clone() {
+                    return result.map_err(HarnessError::execution);
+                }
+                finished.changed().await.map_err(|_| {
+                    HarnessError::unavailable("terminal supervisor ended without a cleanup receipt")
+                })?;
+            }
+        })
+    }
+    fn is_finished(&self) -> bool {
+        matches!(&*self.finished.borrow(), Some(Ok(())))
+    }
+}
+
 async fn terminate(entry: &TerminalEntry) {
     entry.process_group.terminate();
-    if let Some(stop) = entry
-        .stop
-        .lock()
-        .expect("terminal stop lock poisoned")
-        .take()
-    {
-        let _ = stop.send(());
-    }
+    entry.stop.send_replace(true);
     if let Some(process) = entry.process.lock().await.take() {
         let _ = process.await;
     }

@@ -976,7 +976,7 @@ pub(crate) async fn run_turn(
     request: &mut Request,
     depot: &mut Depot,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
-    run_turn_inner(request, depot, None).await
+    Box::pin(run_turn_inner(request, depot, None)).await
 }
 
 #[handler]
@@ -986,7 +986,7 @@ pub(crate) async fn run_skill_turn(
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
     let skill = path_parameter(request, "skill_name")?;
     validate_skill(&skill)?;
-    run_turn_inner(request, depot, Some(skill)).await
+    Box::pin(run_turn_inner(request, depot, Some(skill))).await
 }
 
 async fn run_turn_inner(

@@ -47,12 +47,28 @@ pub async fn open_local_application_with_limits(
     data_dir: PathBuf,
     limits: RunLimits,
 ) -> Result<Arc<LocalApplication>, HarnessError> {
+    open_local_application_with_options(
+        profile,
+        data_dir,
+        limits,
+        ternilo_local::LocalApplicationOpenOptions::default(),
+    )
+    .await
+}
+
+pub async fn open_local_application_with_options(
+    profile: Profile,
+    data_dir: PathBuf,
+    limits: RunLimits,
+    options: ternilo_local::LocalApplicationOpenOptions,
+) -> Result<Arc<LocalApplication>, HarnessError> {
     Ok(Arc::new(
-        LocalApplication::open(
+        LocalApplication::open_with_options(
             ternilo_local::catalog()?,
             profile,
             HostPolicy::local(limits),
             data_dir,
+            options,
         )
         .await?,
     ))

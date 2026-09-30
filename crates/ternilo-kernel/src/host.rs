@@ -788,6 +788,8 @@ pub struct HostEnvironment {
     identity: SessionIdentity,
     workspace: Option<WorkspaceBinding>,
     workspace_execution: Option<Arc<dyn WorkspaceExecution>>,
+    run_authorization: Option<Arc<dyn crate::RunAuthorization>>,
+    execution_resources: Option<Arc<dyn crate::ExecutionResourceRegistry>>,
     execution_admission: Option<(RunId, Arc<dyn ExecutionAdmission>)>,
     input_reference_resolver: Option<Arc<dyn InputReferenceResolver>>,
     session_mode: SessionMode,
@@ -852,6 +854,8 @@ impl HostEnvironment {
             identity,
             workspace,
             workspace_execution: None,
+            run_authorization: None,
+            execution_resources: None,
             execution_admission: None,
             input_reference_resolver: None,
             session_mode: SessionMode::Execute,
@@ -888,6 +892,24 @@ impl HostEnvironment {
     #[must_use]
     pub fn with_workspace_execution(mut self, execution: Arc<dyn WorkspaceExecution>) -> Self {
         self.workspace_execution = Some(execution);
+        self
+    }
+
+    #[must_use]
+    pub fn with_run_authorization(
+        mut self,
+        authorization: Arc<dyn crate::RunAuthorization>,
+    ) -> Self {
+        self.run_authorization = Some(authorization);
+        self
+    }
+
+    #[must_use]
+    pub fn with_execution_resources(
+        mut self,
+        registry: Arc<dyn crate::ExecutionResourceRegistry>,
+    ) -> Self {
+        self.execution_resources = Some(registry);
         self
     }
 
@@ -999,6 +1021,32 @@ impl AttachmentsProvider for HostEnvironment {
 }
 
 impl RunEnvironmentProvider for HostEnvironment {
+    fn register_execution_resource<'a>(
+        &'a self,
+        _: CallContext<()>,
+        run_id: RunId,
+        resource_id: String,
+        control: Arc<dyn crate::ExecutionResourceControl>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            match &self.execution_resources {
+                Some(registry) => registry.register(run_id, resource_id, control).await,
+                None => Ok(()),
+            }
+        })
+    }
+    fn check_run_authorization<'a>(
+        &'a self,
+        _: CallContext<()>,
+        run_id: RunId,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            match &self.run_authorization {
+                Some(authorization) => authorization.check(&run_id).await,
+                None => Ok(()),
+            }
+        })
+    }
     fn begin_activity<'a>(
         &'a self,
         _: CallContext<()>,

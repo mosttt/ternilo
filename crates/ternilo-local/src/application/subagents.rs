@@ -38,6 +38,7 @@ impl LocalApplication {
         provenance: InputProvenance,
     ) -> Result<SubagentSnapshot, HarnessError> {
         provenance.validate()?;
+        self.account_authorizations.check(Some(&provenance)).await?;
         self.validate_device_input(session_id, Some(&provenance))
             .await?;
         subagent_id.validate()?;
@@ -96,6 +97,8 @@ impl LocalApplication {
 
     pub(super) fn subagent_session_host(&self) -> Arc<dyn SubagentSessionHost> {
         Arc::new(LocalSubagentSessionHost {
+            execution_resources: Arc::clone(&self.execution_resources),
+            account_authorizations: Arc::clone(&self.account_authorizations),
             directory_coordinator: self.directory_coordinator.clone(),
             directory_account_owner: Arc::clone(&self.directory_account_owner),
             catalog: Arc::clone(&self.catalog),
@@ -198,6 +201,8 @@ impl LocalApplication {
 
 #[derive(Clone)]
 struct LocalSubagentSessionHost {
+    execution_resources: Arc<crate::execution_resources::ExecutionResources>,
+    account_authorizations: Arc<crate::account_authorizations::AccountAuthorizations>,
     directory_coordinator: crate::DirectoryCoordinator,
     directory_account_owner: Arc<std::sync::RwLock<Option<ternilo_protocol::UserId>>>,
     catalog: Arc<Catalog>,
@@ -339,6 +344,17 @@ impl LocalSubagentSessionHost {
         .with_model_gateway(self.server_models.for_session(id.to_owned()))
         .with_session_mode(session.mode)
         .with_workspace_execution(execution)
+        .with_run_authorization(Arc::new(
+            super::account_authorizations::AccountRunAuthorization {
+                origins: super::model_origins::InputOrigins::new(
+                    Arc::clone(&self.state),
+                    self.live.clone(),
+                ),
+                accounts: Arc::clone(&self.account_authorizations),
+                session_id: id.to_owned(),
+            },
+        ))
+        .with_execution_resources(self.execution_resources.for_session(id.to_owned()))
         .with_input_reference_resolver(input_references)
         .with_attachment_resolver(attachments)
         .with_session_archive(session_archive)

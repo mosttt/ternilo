@@ -3,7 +3,9 @@
 mod server_models;
 pub use server_models::{ModelInputOrigin, ServerModelGateway};
 
+mod account_authorizations;
 mod agent_team;
+pub use account_authorizations::{LocalApplicationOpenOptions, LocalServerBinding};
 mod application;
 mod attachments;
 mod authorization;
@@ -11,6 +13,7 @@ mod capabilities;
 mod credentials;
 mod directory;
 mod event_store;
+mod execution_resources;
 mod extensions;
 mod inbox;
 mod interaction;

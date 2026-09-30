@@ -15,8 +15,9 @@ use linorun_macros::component_descriptor;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use ternilo_kernel::{
-    Agents, AgentsClient, HarnessPlugin, PluginFactory, PluginManifest, Sessions, SessionsClient,
-    ToolExecutionContext, ToolHandler, ToolRegistration, Tools,
+    Agents, AgentsClient, HarnessPlugin, PluginFactory, PluginManifest, RunEnvironment,
+    RunEnvironmentClient, Sessions, SessionsClient, ToolExecutionContext, ToolHandler,
+    ToolRegistration, Tools,
 };
 use ternilo_protocol::{
     AgentInput, HarnessError, RunId, ScheduleChange, ScheduleId, ScheduleRecord, ScheduleRule,
@@ -31,7 +32,7 @@ pub const KIND: &str = "ternilo.tool.schedule";
 component_descriptor! {
     static DESCRIPTOR: () {
         id: "ternilo/builtin-schedule@1",
-        requires: [Sessions, Tools, Agents],
+        requires: [Sessions, Tools, Agents, RunEnvironment],
         provides: [],
     }
 }
@@ -57,7 +58,12 @@ pub fn factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: KIND,
-            requires: &["ternilo/sessions@1", "ternilo/tools@1", "ternilo/agents@3"],
+            requires: &[
+                "ternilo/sessions@1",
+                "ternilo/tools@1",
+                "ternilo/agents@3",
+                "ternilo/run-environment@1",
+            ],
             provides: &[],
         },
         |value| {
@@ -96,11 +102,16 @@ impl HarnessPlugin for SchedulePlugin {
             .service::<Agents>()
             .expect("schedule plugin declares Agents");
         let config = self.config.clone();
+        let environment = context
+            .context()
+            .service::<RunEnvironment>()
+            .expect("schedule plugin declares RunEnvironment");
         Activation::Once(Box::pin(async move {
             let events = sessions.events().await;
             let active = fold_schedules(&events)
                 .map_err(|error| linorun_core::ActivationFailure::user(error.to_string()))?;
             let runtime = Arc::new(ScheduleRuntime {
+                environment,
                 sessions,
                 agents,
                 active: Mutex::new(active),
@@ -143,6 +154,7 @@ impl HarnessPlugin for SchedulePlugin {
 }
 
 struct ScheduleRuntime {
+    environment: RunEnvironmentClient,
     sessions: SessionsClient,
     agents: AgentsClient,
     active: Mutex<BTreeMap<ScheduleId, ScheduleRecord>>,
@@ -241,33 +253,39 @@ impl ScheduleRuntime {
 
     async fn delete(&self, run_id: RunId, id: ScheduleId) -> Result<bool, HarnessError> {
         let mut active = self.active.lock().await;
-        if !active.contains_key(&id) {
-            return Ok(false);
+        loop {
+            let events = self.sessions.events().await;
+            *active = fold_schedules(&events)?;
+            if !active.contains_key(&id) {
+                return Ok(false);
+            }
+            if self
+                .sessions
+                .append_if_next_seq(
+                    next_event_seq(&events)?,
+                    run_id.clone(),
+                    SessionEventKind::ScheduleChanged {
+                        change: ScheduleChange::Delete { id: id.clone() },
+                    },
+                )
+                .await?
+                .is_some()
+            {
+                break;
+            }
         }
-        self.sessions
-            .append(
-                run_id,
-                SessionEventKind::ScheduleChanged {
-                    change: ScheduleChange::Delete { id: id.clone() },
-                },
-            )
-            .await?;
         active.remove(&id);
         drop(active);
         self.notify.notify_one();
         Ok(true)
     }
 
-    async fn list(&self) -> Vec<ScheduleRecord> {
-        let mut records = self
-            .active
-            .lock()
-            .await
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+    async fn list(&self) -> Result<Vec<ScheduleRecord>, HarnessError> {
+        let mut active = self.active.lock().await;
+        *active = fold_schedules(&self.sessions.events().await)?;
+        let mut records = active.values().cloned().collect::<Vec<_>>();
         records.sort_by_key(|record| (record.scheduled_at_ms, record.id.clone()));
-        records
+        Ok(records)
     }
 
     async fn drive(self: Arc<Self>) {
@@ -296,25 +314,70 @@ impl ScheduleRuntime {
                         return;
                     }
                     let _ = self.dispatch_one().await;
+                    // An unsynchronized account leaves its timer pending without spinning.
+                    tokio::select! {
+                        () = tokio::time::sleep(Duration::from_secs(1)) => {},
+                        () = self.notify.notified() => {},
+                    }
                 }
             }
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keep authorized selection and sequence-checked dispatch under one runtime lock"
+    )]
     async fn dispatch_one(&self) -> Result<(), HarnessError> {
         let accepted_at_ms = now_ms()?;
         let mut active = self.active.lock().await;
-        let Some(record) = active
+        let events = self.sessions.events().await;
+        *active = fold_schedules(&events)?;
+        let mut due = active
             .values()
             .filter(|record| record.scheduled_at_ms <= accepted_at_ms)
-            .min_by_key(|record| (record.scheduled_at_ms, record.id.clone()))
             .cloned()
-        else {
+            .collect::<Vec<_>>();
+        due.sort_by_key(|record| (record.scheduled_at_ms, record.id.clone()));
+        let mut authorized = None;
+        for record in due {
+            let created = events.iter().find(|event| {
+                matches!(&event.kind, SessionEventKind::ScheduleChanged { change: ScheduleChange::Create { schedule } } if schedule.id == record.id)
+            }).ok_or_else(|| HarnessError::policy("schedule has no creation event"))?;
+            match self
+                .environment
+                .check_run_authorization(created.run_id.clone())
+                .await
+            {
+                Ok(()) => {
+                    authorized = Some((record, created.seq));
+                    break;
+                }
+                Err(error) if error.code == ternilo_protocol::ErrorCode::PolicyDenied => {
+                    if self
+                        .sessions
+                        .append_if_next_seq(
+                            next_event_seq(&events)?,
+                            created.run_id.clone(),
+                            SessionEventKind::ScheduleChanged {
+                                change: ScheduleChange::Delete {
+                                    id: record.id.clone(),
+                                },
+                            },
+                        )
+                        .await?
+                        .is_some()
+                    {
+                        active.remove(&record.id);
+                    }
+                    return Ok(());
+                }
+                Err(_) => {}
+            }
+        }
+        let Some((record, created_seq)) = authorized else {
             return Ok(());
         };
-        let created_seq = self.sessions.events().await.iter().find_map(|event| {
-            matches!(&event.kind, SessionEventKind::ScheduleChanged { change: ScheduleChange::Create { schedule } } if schedule.id == record.id).then_some(event.seq)
-        }).ok_or_else(|| HarnessError::policy("schedule has no creation event"))?;
         let run_id = RunId::new(format!("schedule-run-{}-{accepted_at_ms}", record.id));
         let next_scheduled_at_ms = match record.rule {
             ScheduleRule::Every { every_seconds } => Some(next_occurrence(
@@ -324,9 +387,10 @@ impl ScheduleRuntime {
             )?),
             ScheduleRule::After { .. } | ScheduleRule::At => None,
         };
-        let dispatch = self
+        let Some(dispatch) = self
             .sessions
-            .append(
+            .append_if_next_seq(
+                next_event_seq(&events)?,
                 RunId::new(format!(
                     "schedule-dispatch-event-{}-{accepted_at_ms}",
                     record.id
@@ -340,7 +404,10 @@ impl ScheduleRuntime {
                     },
                 },
             )
-            .await?;
+            .await?
+        else {
+            return Ok(());
+        };
         if let Some(next) = next_scheduled_at_ms {
             let mut advanced = record.clone();
             advanced.scheduled_at_ms = next;
@@ -382,6 +449,17 @@ impl ScheduleRuntime {
 
 pub fn has_pending_schedules(events: &[SessionEvent]) -> Result<bool, HarnessError> {
     fold_schedules(events).map(|active| !active.is_empty())
+}
+
+fn next_event_seq(events: &[SessionEvent]) -> Result<u64, HarnessError> {
+    events
+        .len()
+        .try_into()
+        .map_err(|_| HarnessError::execution("session sequence exceeds u64"))
+}
+
+pub fn pending_schedules(events: &[SessionEvent]) -> Result<Vec<ScheduleRecord>, HarnessError> {
+    fold_schedules(events).map(|active| active.into_values().collect())
 }
 
 fn fold_schedules(
@@ -503,7 +581,7 @@ impl ToolHandler for ScheduleTool {
                 Operation::List => Value::Array(
                     self.runtime
                         .list()
-                        .await
+                        .await?
                         .iter()
                         .map(|record| schedule_view(record, now))
                         .collect::<Result<Vec<_>, _>>()?,

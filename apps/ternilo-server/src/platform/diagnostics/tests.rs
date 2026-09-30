@@ -45,6 +45,7 @@ async fn diagnostics_contract(database: Database) {
                         tenant_id: route.tenant_id.clone(),
                         user_id: UserId::new("owner"),
                     },
+                    input_authorization: None,
                     issued_at_ms: 1,
                     expires_at_ms: 101,
                     body: ExecutorCommandBody::Application {

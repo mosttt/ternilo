@@ -4,6 +4,7 @@ use ternilo_protocol::{
     AgentId, PermissionPreset, PluginEntry, RunLimits, SessionId, SessionIdentity, TenantId,
     UserId, WorkspaceBinding, WorkspaceId,
 };
+use tokio::sync::oneshot;
 
 linorun_macros::component_descriptor! {
     static TEST_TERMINALS: () {
@@ -83,7 +84,13 @@ async fn terminal_service(root: &std::path::Path) -> (HarnessSession, TerminalsC
 async fn terminal_close_preserves_shell_state_then_stops_background_descendants() {
     let root = tempfile::tempdir().unwrap();
     let (harness, terminals) = terminal_service(root.path()).await;
-    let terminal = terminals.open(Some("persistent".to_owned())).await.unwrap();
+    let terminal = terminals
+        .open(
+            ternilo_protocol::RunId::new("terminal-test"),
+            Some("persistent".to_owned()),
+        )
+        .await
+        .unwrap();
     terminals
         .send(
             terminal.terminal_id.clone(),
@@ -120,7 +127,10 @@ async fn terminal_close_preserves_shell_state_then_stops_background_descendants(
 async fn terminal_runtime_teardown_stops_commands_after_send_wait_expires() {
     let root = tempfile::tempdir().unwrap();
     let (harness, terminals) = terminal_service(root.path()).await;
-    let terminal = terminals.open(None).await.unwrap();
+    let terminal = terminals
+        .open(ternilo_protocol::RunId::new("terminal-test"), None)
+        .await
+        .unwrap();
     let output = terminals
         .send(
             terminal.terminal_id,
@@ -142,7 +152,10 @@ async fn terminal_runtime_teardown_stops_commands_after_send_wait_expires() {
 async fn terminal_supervisor_stops_descendants_when_the_shell_exits() {
     let root = tempfile::tempdir().unwrap();
     let (harness, terminals) = terminal_service(root.path()).await;
-    let terminal = terminals.open(None).await.unwrap();
+    let terminal = terminals
+        .open(ternilo_protocol::RunId::new("terminal-test"), None)
+        .await
+        .unwrap();
     let output = terminals
         .send(
             terminal.terminal_id.clone(),

@@ -106,6 +106,7 @@ async fn accepted_commands_survive_disconnect_and_finish_durable_replies_before_
             },
         }),
         scope: scope.clone(),
+        input_authorization: None,
         issued_at_ms: now_ms().unwrap(),
         expires_at_ms: now_ms().unwrap() + 60_000,
         body: ExecutorCommandBody::Application {

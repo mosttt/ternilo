@@ -982,6 +982,7 @@ impl ReactAgent {
         .await?;
         let admission = async {
             cancellation.check()?;
+            self.environment.check_run_authorization(run_id.clone()).await?;
             let available = tokio::select! {
                 biased;
                 () = cancellation.cancelled() => return Err(HarnessError::cancelled("run was cancelled")),

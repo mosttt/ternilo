@@ -317,6 +317,16 @@ impl GatewayJournal {
                 command.issued_at_ms,
             )
             .await?;
+            if let Some(authorization) = &command.input_authorization {
+                EdgeStore::record_node_input_authorization_in(
+                    &mut transaction,
+                    &route.tenant_id,
+                    &route.executor_id,
+                    provenance,
+                    authorization,
+                )
+                .await?;
+            }
         }
         transaction.commit().await.map_err(database_error)
     }
@@ -720,6 +730,7 @@ mod tests {
                 tenant_id: route.tenant_id.clone(),
                 user_id: UserId::new("owner"),
             },
+            input_authorization: None,
             issued_at_ms: 100,
             expires_at_ms: 5_000,
             body: ExecutorCommandBody::Application {

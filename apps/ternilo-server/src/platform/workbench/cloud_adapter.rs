@@ -490,6 +490,7 @@ impl<'a> CloudAdapter<'a> {
                 &CloudSessionCommandDraft {
                     session_id: session.session_id.clone(),
                     command: ExecutorCommand {
+                        input_authorization: None,
                         input_provenance: None,
                         command_id: command_id.clone(),
                         scope: ExecutorScope {

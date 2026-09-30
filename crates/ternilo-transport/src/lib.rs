@@ -16,7 +16,13 @@ use ternilo_protocol::{
     TenantId, UserAnswer, UserId, WorkspaceId, WorkspaceRequest, validate_agent_preset_id,
 };
 
-pub const EXECUTOR_PROTOCOL_VERSION: u32 = 44;
+pub const EXECUTOR_PROTOCOL_VERSION: u32 = 45;
+
+mod cleanup;
+pub use cleanup::{
+    NodeAccountAuthorization, NodeCleanupReceipt, NodeCleanupRequest, NodeCleanupSnapshot,
+    NodeCleanupState, NodeInputAuthorization,
+};
 
 macro_rules! transport_id {
     ($name:ident) => {
@@ -1092,6 +1098,8 @@ pub struct ExecutorCommand {
     pub scope: ExecutorScope,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_provenance: Option<ternilo_protocol::InputProvenance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_authorization: Option<NodeInputAuthorization>,
     pub issued_at_ms: u64,
     pub expires_at_ms: u64,
     pub body: ExecutorCommandBody,
@@ -1103,6 +1111,16 @@ impl ExecutorCommand {
         self.scope.validate()?;
         if let Some(provenance) = &self.input_provenance {
             provenance.validate()?;
+        }
+        if self.input_authorization.is_some()
+            && !matches!(
+                self.input_provenance.as_ref().map(|value| &value.author),
+                Some(ternilo_protocol::InputAuthor::Account { .. })
+            )
+        {
+            return Err(HarnessError::invalid(
+                "account authorization requires account input provenance",
+            ));
         }
         if self.expires_at_ms <= self.issued_at_ms {
             return Err(HarnessError::invalid(
@@ -1398,6 +1416,7 @@ mod tests {
                     tenant_id: TenantId::new("tenant-a"),
                     user_id: UserId::new("user-a"),
                 },
+                input_authorization: None,
                 issued_at_ms: 10,
                 expires_at_ms: 20,
                 body: ExecutorCommandBody::Application {
@@ -1414,7 +1433,7 @@ mod tests {
 
     #[test]
     fn executor_live_capabilities_have_an_explicit_versioned_wire() {
-        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 44);
+        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 45);
         let mut peer = ExecutorHello {
             protocol_version: 40,
             executor_id: ExecutorId::new("native-model-peer"),
