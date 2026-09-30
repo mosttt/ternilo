@@ -218,10 +218,12 @@ async fn serve(state: AppState, mut socket: WebSocket) {
                     continue;
                 }
                 let rescan = matches!(
-                    notification,
+                    &notification,
                     Ok(CloudLiveNotification::Rescan)
                         | Err(broadcast::error::RecvError::Lagged(_))
-                );
+                ) || matches!(&notification,
+                    Ok(CloudLiveNotification::ResourcesChanged { tenant_id: changed })
+                        if changed == &tenant_id);
                 let closed = matches!(notification, Err(broadcast::error::RecvError::Closed));
                 if closed { break }
                 if rescan {

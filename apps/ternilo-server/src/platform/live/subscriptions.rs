@@ -296,6 +296,9 @@ pub(super) fn matching_dirty(
             Some(dirty)
         }
         CloudLiveNotification::Rescan => Some(all_dirty()),
+        CloudLiveNotification::ResourcesChanged { tenant_id: changed } if changed == *tenant_id => {
+            Some(all_dirty())
+        }
         _ => None,
     }
 }

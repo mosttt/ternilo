@@ -1,6 +1,6 @@
 # 剩余核心功能实施顺序
 
-状态：v0.1.2 已发布，包含 28 项附件。本轮 v0.1.3 候选完成 Node 账号任务清理、进程监督、完成回执及 OIDC 来源校验；Node／Server／浏览器闭环与本机回归已通过，正在完成平台 CI 和发行准备。优先 `ternilo` 与 `ternilo-server`，Work 保留独立接入约束。
+状态：v0.1.2 已发布，包含 28 项附件。本轮 v0.1.3 候选完成 Node 账号任务清理、进程监督、完成回执、OIDC 来源校验和跨 Server 共享权限通知；Node／Server／浏览器闭环与本机回归已通过，正在完成平台 CI 和发行准备。优先 `ternilo` 与 `ternilo-server`，Work 保留独立接入约束。
 
 ## 1. 本机维护命令恢复原生账号（已完成）
 
@@ -38,4 +38,4 @@
 
 ## 后续 P2
 
-项目共享继承和 Server 远程 SDK 已完成。[账号命令投递](account-command-revocation.md)禁止停用后旧输入重放；托管运行取消按当前执行授权账号处理。[Node 清理](node-account-cleanup.md)已实现持久撤销、启动授权屏障、选择性执行收尾及实际完成回执。此阶段发布验收后，继续推进资源交接与多实例路由／通知。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。
+项目共享继承和 Server 远程 SDK 已完成。[账号命令投递](account-command-revocation.md)禁止停用后旧输入重放；托管运行取消按当前执行授权账号处理。[Node 清理](node-account-cleanup.md)已实现持久撤销、启动授权屏障、选择性执行收尾及实际完成回执。[跨 Server 共享权限通知](resource-notifications.md)已通过双库和双 Server 浏览器验收。此阶段发布验收后，继续推进资源交接与跨实例 Node 命令路由；通知已共享不代表 Node 连接和调用已能跨进程转发。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。

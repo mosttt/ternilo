@@ -27,4 +27,4 @@ cargo test --locked -p ternilo-server --bin ternilo-server postgres_account_deli
 
 docker exec "$container" createdb -U postgres ternilo_cloud_test
 export TERNILO_CLOUD_TEST_DATABASE_URL="postgres://postgres:temporary-auth-check@127.0.0.1:$port/ternilo_cloud_test"
-cargo test --locked -p ternilo-cloud --test account_cleanup --test batch_authors -- --ignored --test-threads=1
+cargo test --locked -p ternilo-cloud --test account_cleanup --test batch_authors --test resource_notifications -- --ignored --test-threads=1

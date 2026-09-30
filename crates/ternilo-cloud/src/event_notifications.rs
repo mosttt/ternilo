@@ -24,7 +24,7 @@ struct SessionEventNotification {
 struct LiveInvalidationNotification {
     kind: String,
     tenant_id: String,
-    user_id: String,
+    user_id: Option<String>,
     session_id: Option<String>,
 }
 
@@ -32,6 +32,9 @@ struct LiveInvalidationNotification {
 /// must re-read canonical rows after notifications, rescans, or receiver lag.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CloudLiveNotification {
+    ResourcesChanged {
+        tenant_id: TenantId,
+    },
     Session {
         tenant_id: TenantId,
         user_id: Option<UserId>,
@@ -222,7 +225,7 @@ impl LiveChange {
             invalidation_signal(LiveInvalidationNotification {
                 kind: self.kind,
                 tenant_id: self.tenant_id,
-                user_id: self.user_id?,
+                user_id: self.user_id,
                 session_id: self.session_id,
             })
         }
@@ -314,7 +317,10 @@ fn invalidation_signal(
     notification: LiveInvalidationNotification,
 ) -> Option<CloudLiveNotification> {
     let tenant_id = TenantId::new(notification.tenant_id);
-    let user_id = UserId::new(notification.user_id);
+    if notification.kind == "resources" {
+        return Some(CloudLiveNotification::ResourcesChanged { tenant_id });
+    }
+    let user_id = UserId::new(notification.user_id?);
     let session_id = notification.session_id.map(SessionId::new);
     match notification.kind.as_str() {
         "inbox" => Some(CloudLiveNotification::Session {
@@ -418,7 +424,7 @@ mod tests {
         let inbox = invalidation_signal(LiveInvalidationNotification {
             kind: "inbox".to_owned(),
             tenant_id: "tenant".to_owned(),
-            user_id: "user".to_owned(),
+            user_id: Some("user".to_owned()),
             session_id: Some("session".to_owned()),
         })
         .expect("known live notification");
@@ -431,7 +437,7 @@ mod tests {
         let questions = invalidation_signal(LiveInvalidationNotification {
             kind: "questions".to_owned(),
             tenant_id: "tenant".to_owned(),
-            user_id: "user".to_owned(),
+            user_id: Some("user".to_owned()),
             session_id: Some("session".to_owned()),
         })
         .expect("known live notification");
@@ -444,7 +450,7 @@ mod tests {
         let session = invalidation_signal(LiveInvalidationNotification {
             kind: "session".to_owned(),
             tenant_id: "tenant".to_owned(),
-            user_id: "user".to_owned(),
+            user_id: Some("user".to_owned()),
             session_id: Some("session".to_owned()),
         })
         .expect("known live notification");
@@ -457,7 +463,7 @@ mod tests {
         let activity = invalidation_signal(LiveInvalidationNotification {
             kind: "activity".to_owned(),
             tenant_id: "tenant".to_owned(),
-            user_id: "user".to_owned(),
+            user_id: Some("user".to_owned()),
             session_id: Some("session".to_owned()),
         })
         .expect("known live notification");

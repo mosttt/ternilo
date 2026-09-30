@@ -144,6 +144,11 @@ fn dirty_notifications_are_owner_and_session_isolated() {
     assert!(matching_dirty(notification(), &tenant, &user, &session).is_some());
     assert!(matching_dirty(notification(), &TenantId::new("tenant-b"), &user, &session,).is_none());
     assert!(matching_dirty(notification(), &tenant, &user, &SessionId::new("session-b")).is_none());
+    let resources = || CloudLiveNotification::ResourcesChanged {
+        tenant_id: tenant.clone(),
+    };
+    assert!(matching_dirty(resources(), &tenant, &user, &session).is_some());
+    assert!(matching_dirty(resources(), &TenantId::new("tenant-b"), &user, &session).is_none());
 }
 
 #[test]

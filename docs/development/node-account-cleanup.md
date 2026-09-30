@@ -36,4 +36,6 @@ Server 只接受清理原因代码，原始诊断保留在电脑端日志，避�
 
 原因代码的双库验证和实际网页中文显示已通过。Node 清理与 OIDC 来源浏览器验收已加入 CI；OIDC 测试域名通过 Chromium 的解析规则连接隔离 Server，同时覆盖 HTTP 与 WebSocket。
 
+Windows 的 `Child::drop` 显式终止 Job Object，再释放主进程句柄，避免后代进程仍在运行。原生 Windows CI 已通过八轮“主动终止／丢弃句柄”父子进程检查。TransportStore 测试夹具包含当前协议的输入授权字段，六项回归及全工作区 Clippy 已通过。
+
 剩余工作：完整平台 CI 和 v0.1.3 发行产物验收。Node 排队编辑仍保留原输入作者；编辑转授权是独立语义，不随本次清理隐式改变。

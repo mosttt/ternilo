@@ -1266,6 +1266,13 @@ async fn initialize_database(database: &Database) -> Result<(), HarnessError> {
             include_str!("schema/account_cleanup_postgres.sql"),
         )
         .await?;
+    let resource_notifications = match database.backend() {
+        ternilo_storage::Backend::Sqlite => include_str!("schema/resource_live_sqlite.sql"),
+        ternilo_storage::Backend::Postgres => include_str!("schema/resource_live_postgres.sql"),
+    };
+    database
+        .initialize("resource_live", 1, resource_notifications, "")
+        .await?;
     crate::maintenance::initialize_database(database).await
 }
 
