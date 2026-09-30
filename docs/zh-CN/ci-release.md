@@ -8,7 +8,7 @@
 |---|---|---|
 | `Checks` | PR、main 推送、手动；发行时复用 | Web、文档、Rust、部署脚本、依赖门禁；真实浏览器、Linux 原生桌面、SQLite／PostgreSQL 恢复；Windows／两种 macOS 架构编译检查。main 推送和手动检查成功后调用打包；PR 只保留截图，不发布二进制 |
 | `Build packages` | 手动；发行时复用 | 各平台 release 二进制、桌面安装器与 SHA256；仅上传 Actions artifacts，不创建 Release 或推送镜像 |
-| `Release` | `v*` 标签、手动 | 版本检查 → `Checks` → `Build packages` → Server 镜像构建与验收；只有匹配版本标签才推送 GHCR、上传全部附件并公开 GitHub Release |
+| `Release` | `v*` 标签、手动 | 版本检查后并行执行 `Checks`、`Build packages` 与 Server 镜像构建／验收；全部通过后，只有匹配版本标签才推送 GHCR、上传全部附件并公开 GitHub Release |
 
 在 GitHub Actions 页面手动运行 `Build packages` 可以独立取得构建产物；未经过完整 `Checks` 的手动包只能当作候选。手动运行 `Release` 并选择分支时，完成全部验证和构建，但不发布。选择版本标签时等同于标签发行。
 
@@ -18,7 +18,7 @@ Rust 缓存包含依赖的编译结果，按工具链、构建环境、目标平
 
 检查按工作流、分支／PR、事件及具体作业控制并发；同一范围的新提交会取消过时的检查。四平台打包分别排队，已经开始的构建继续完成，后续保留最新候选。新提交的检查无需等待旧提交的安装器构建。Release 标签流程仍按标签串行，发布权限和门禁不变。
 
-`Release` 复用检查时显式跳过其末尾打包，由发行工作流统一调用一次 `Build packages`，避免同一次发行重复构建四个平台。
+`Release` 复用检查时显式跳过其末尾打包，由发行工作流统一调用一次 `Build packages`。检查、四平台包和镜像构建可以并行；镜像推送与 Release 公开仍等待全部检查和构建成功。候选构建作业没有发布权限。
 
 二进制及安装器矩阵：
 
@@ -43,7 +43,7 @@ GHCR 上传仅在镜像作业取得 `packages: write`，使用 GitHub 自带的 
 
 ## Server 镜像
 
-当前发行镜像仅为 `linux/amd64`。`Release` 用同一源码和固定 Linorun 构建 `deploy/docker/Dockerfile` 的 `server` target，然后用新建的独立卷验证初始化、原生登录、实例设置、嵌入网页、只读根文件系统、UID 10001 和重启后的身份持久化。失败不推送；成功后直接推送这份已验证镜像，不重新构建另一份。
+当前发行镜像仅为 `linux/amd64`。`Release` 用同一源码和固定 Linorun 构建 `deploy/docker/Dockerfile` 的 `server` target，然后用新建的独立卷验证初始化、原生登录、实例设置、嵌入网页、只读根文件系统、UID 10001 和重启后的身份持久化。验证后的镜像以 Actions artifact 暂存一天。发布作业等待全部检查及四平台打包通过，加载镜像并核对其 image ID 与构建作业的验证结果一致，再推送这份已测试的镜像。候选过期后需要重新构建；失败不推送。
 
 镜像地址自动采用仓库所有者的小写名称，例如仓库由 `mosttt` 持有时为 `ghcr.io/mosttt/ternilo-server:<版本>`。另推送 `sha-<完整源码提交>` 标签，不更新漂移的 `latest`。`server-image.txt` 记录 registry digest，部署时优先固定该 digest。
 
