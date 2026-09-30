@@ -61,6 +61,14 @@ impl Child {
     }
 }
 
+impl Drop for Child {
+    fn drop(&mut self) {
+        // Terminate the job explicitly before Tokio drops the leader. Closing
+        // the wrapper alone must not leave its descendants running.
+        let _ = self.inner.start_kill();
+    }
+}
+
 pub fn spawn(command: &mut Command) -> io::Result<(Child, ManagedProcessGroup)> {
     let observer = Arc::new(win32job::Job::create().map_err(io::Error::other)?);
     let mut wrapped = CommandWrap::from(std::mem::replace(command, Command::new("")));
@@ -102,7 +110,8 @@ mod tests {
 
     #[tokio::test]
     async fn job_kill_and_drop_both_wait_for_the_command_and_its_descendant() {
-        for kill in [true, false] {
+        for attempt in 0..8 {
+            let kill = attempt % 2 == 0;
             let (mut child, group) = spawn(
                 Command::new("cmd.exe")
                     .args(["/D", "/C", "ping -n 120 127.0.0.1 >NUL"])
@@ -123,7 +132,9 @@ mod tests {
                 child.wait().await.unwrap();
             }
             drop(child);
-            group.wait_quiescent().await.unwrap();
+            group.wait_quiescent().await.unwrap_or_else(|error| {
+                panic!("job cleanup failed on attempt {attempt} (explicit kill: {kill}): {error}")
+            });
             assert!(group.observer.query_process_id_list().unwrap().is_empty());
         }
     }

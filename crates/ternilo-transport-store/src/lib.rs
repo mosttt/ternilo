@@ -1138,6 +1138,7 @@ mod tests {
         ExecutorCommand {
             command_id: CommandId::new(id),
             input_provenance: None,
+            input_authorization: None,
             scope: ExecutorScope {
                 tenant_id: TenantId::new("tenant"),
                 user_id: UserId::new("user"),
