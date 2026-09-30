@@ -37,7 +37,7 @@ async function changeStatus(page, origin, user, action) {
   await page.getByRole('menuitem', { name: labels[action], exact: true }).click()
   const dialog = page.getByRole('dialog', { name: titles[action], exact: true })
   if (action === 'unban') await dialog.getByText(/已取消的任务不会自动恢复/).waitFor()
-  else await dialog.getByText(/排队托管任务会取消，运行中的托管任务会请求停止/).waitFor()
+  else await dialog.getByText(/托管任务和电脑任务将取消或请求停止，电脑收尾以实际确认结果为准/).waitFor()
   const response = page.waitForResponse(response => response.request().method() === 'POST'
     && new URL(response.url()).pathname === `/api/v1/admin/accounts/${user.account.user_id}/status`)
   await dialog.getByRole('button', { name: labels[action], exact: true }).click()
