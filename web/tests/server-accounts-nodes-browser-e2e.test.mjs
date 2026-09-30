@@ -432,7 +432,7 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   let verifiedReads = 0
   const verificationFailures = []
   const scopedRead = url => url.origin === origin && (
-    ['queue', 'commands', 'history', 'stats', 'projection', 'plugins'].some(resource => url.pathname === `/api/v1${sessionPath}/${resource}`)
+    ['queue', 'commands', 'history', 'stats', 'projection', 'plugins', 'workspace'].some(resource => url.pathname === `/api/v1${sessionPath}/${resource}`)
     || ['/api/v1/catalog', '/api/v1/model-options'].includes(url.pathname) && url.searchParams.get('session_id') === sessionId)
   await member.route(scopedRead, async route => {
     if (route.request().method() !== 'GET') { await route.continue(); return }
@@ -469,7 +469,7 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   }, { endpoint: `${origin}/api/v1${sessionPath}/queue`, token, tenantId })
   assert.equal(hiddenRead.status, 400)
   assert.deepEqual(hiddenRead.body, { error: { code: 'invalid_input', message: 'session does not exist' } }, 'revoked browser reads reveal no queue data')
-  for (const endpoint of [`${sessionPath}/commands`, `/catalog${targetQuery}`, `/model-options${targetQuery}`]) {
+  for (const endpoint of [`${sessionPath}/commands`, `${sessionPath}/workspace`, `/catalog${targetQuery}`, `/model-options${targetQuery}`]) {
     const deniedRead = await member.evaluate(async ({ url, headers }) => {
       const response = await fetch(url, { headers })
       return { status: response.status, body: await response.json() }
@@ -485,7 +485,7 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   await until(() => jsonRequest(node.origin, `/sessions/${localSessionId}/queue`, node.token), value => value.active_run_id == null, 'owner task finishes after sharing is revoked')
   await member.unrouteAll({ behavior: 'wait' })
   assert.deepEqual(verificationFailures, [])
-  assert.ok(verifiedReads >= 4, 'all explicit revoked reads were checked before browser delivery')
+  assert.ok(verifiedReads >= 5, 'all explicit revoked reads were checked before browser delivery')
   console.log(`Verified ${verifiedReads} scoped read(s) denied after session sharing was revoked.`)
   member.off('websocket', observe)
 }
