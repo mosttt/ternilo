@@ -97,7 +97,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: browser-evidence-${{ github.run_id }}
+          name: browser-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ternilo-browser-evidence/**/*.png
           if-no-files-found: ignore
           retention-days: 7
