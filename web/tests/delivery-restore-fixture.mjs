@@ -116,7 +116,7 @@ export async function captureLayouts(page, artifacts, name) {
       if (await close.count()) await close.click()
       await page.locator('[data-app-sidebar-column][inert]').waitFor({ state: 'attached' })
     }
-    await page.locator('[data-input-bar] textarea').focus()
+    await page.locator('[data-input-bar] textarea').click()
     await page.keyboard.press('Escape')
     await page.waitForFunction(() => !document.querySelector('[data-radix-popper-content-wrapper]'))
     await page.evaluate(async () => {
