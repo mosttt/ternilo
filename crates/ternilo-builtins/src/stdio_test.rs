@@ -195,19 +195,36 @@ while :; do
   case "$body" in *'"method":"exit"'*) exit 0 ;; esac
   id=$(printf '%s' "$body" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
   [ -n "$id" ] || continue
+  called=false
   case "$body" in
     *'"method":"initialize"'*)
       if [ "$TERNILO_STDIO_PROTOCOL" = mcp ]; then
         result="{\"protocolVersion\":\"$TERNILO_STDIO_MCP_VERSION\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{\"name\":\"fixture\",\"version\":\"1\"}}"
       else result='{"capabilities":{}}'; fi ;;
-    *'"method":"tools/list"'*) result='{"tools":[{"name":"echo","description":"fixture","inputSchema":{"type":"object"}}]}' ;;
+    *'"method":"tools/list"'*)
+      printf x >> "$TERNILO_STDIO_DIRECTORY/lists"
+      result='{"tools":[{"name":"echo","description":"fixture","inputSchema":{"type":"object"}}]}'
+      if [ -f "$TERNILO_STDIO_DIRECTORY/request" ]; then
+        case "$TERNILO_STDIO_MODE" in
+          list_changed|list_changed_during_call)
+            result='{"tools":[{"name":"echo_v2","description":"updated fixture","inputSchema":{"type":"object","properties":{"value":{"type":"string"}}}}]}' ;;
+          list_changed_invalid)
+            result='{"tools":[{"name":"echo","inputSchema":{"type":"object"}},{"name":"echo","inputSchema":{"type":"object"}}]}' ;;
+        esac
+      fi ;;
     *'"method":"shutdown"'*) result=null ;;
     *)
+      called=true
       touch "$TERNILO_STDIO_DIRECTORY/request"
       printf x >> "$TERNILO_STDIO_DIRECTORY/calls"
+      printf '%s' "$body" > "$TERNILO_STDIO_DIRECTORY/last_request"
       case "$TERNILO_STDIO_MODE" in
         hang_call) sleep 30; exit 0 ;;
         fail_call) exit 0 ;;
+        list_changed_during_call)
+          printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}'
+          touch "$TERNILO_STDIO_DIRECTORY/notification"
+          while [ ! -f "$TERNILO_STDIO_DIRECTORY/release" ]; do sleep 0.01; done ;;
       esac
       if [ "$TERNILO_STDIO_PROTOCOL" = mcp ]; then
         result='{"content":[{"type":"text","text":"fixture result"}]}'
@@ -216,6 +233,12 @@ while :; do
   reply="{\"jsonrpc\":\"2.0\",\"id\":$id,\"result\":$result}"
   if [ "$TERNILO_STDIO_PROTOCOL" = mcp ]; then printf '%s\n' "$reply"
   else printf 'Content-Length: %s\r\n\r\n%s' "${#reply}" "$reply"; fi
-  if [ "$TERNILO_STDIO_MODE" = exit_after_reply ] && [ -f "$TERNILO_STDIO_DIRECTORY/request" ]; then exit 0; fi
+  if [ "$TERNILO_STDIO_PROTOCOL" = mcp ] && [ -f "$TERNILO_STDIO_DIRECTORY/request" ]; then
+    case "$TERNILO_STDIO_MODE:$body" in
+      list_changed:*'"method":"tools/call"'*|list_changed_invalid:*'"method":"tools/call"'*)
+        printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}' ;;
+    esac
+  fi
+  if [ "$TERNILO_STDIO_MODE" = exit_after_reply ] && [ "$called" = true ]; then exit 0; fi
 done
 "#;

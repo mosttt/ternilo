@@ -26,6 +26,8 @@ pub(super) struct McpShared {
 struct McpState {
     status: SessionServiceStatus,
     generation: u64,
+    tools_revision: u64,
+    reconnects: u32,
     closed: bool,
     active_calls: u32,
     startup: Option<RunCancellation>,
@@ -49,6 +51,8 @@ impl McpSource {
                 state: Mutex::new(McpState {
                     status: SessionServiceStatus::Idle,
                     generation: 0,
+                    tools_revision: 0,
+                    reconnects: 0,
                     closed: false,
                     active_calls: 0,
                     startup: None,
@@ -92,7 +96,11 @@ impl McpSource {
             SessionServiceStatus::Stopped if !explicit => {
                 return Ok(Preparation::Cached(Vec::new()));
             }
-            SessionServiceStatus::Failed if !explicit => {
+            SessionServiceStatus::Failed
+                if !explicit
+                    && (state.reconnects >= self.config.reconnect_attempts
+                        || state.active_calls != 0) =>
+            {
                 if state.definitions.is_empty() {
                     return Err(state.unavailable());
                 }
@@ -106,11 +114,16 @@ impl McpSource {
         if state.active_calls != 0 {
             return Err(HarnessError::conflict("MCP service still has active calls"));
         }
+        if explicit {
+            state.reconnects = 0;
+            state.definitions.clear();
+        } else if state.status == SessionServiceStatus::Failed {
+            state.reconnects += 1;
+        }
         let cancellation = RunCancellation::new();
         state.generation += 1;
         state.status = SessionServiceStatus::Starting;
         state.startup = Some(cancellation.clone());
-        state.definitions.clear();
         state.error = None;
         Ok(Preparation::Start(state.generation, cancellation))
     }
@@ -125,6 +138,18 @@ impl McpSource {
             () = cancellation.cancelled() => return Err(HarnessError::cancelled("MCP startup was cancelled")),
             guard = self.shared.lifecycle.lock() => guard,
         };
+        if let Err(error) = self.refresh_tools(&cancellation).await {
+            if !explicit && !error.is_cancelled() {
+                let state = self.shared.state.lock().expect("MCP state lock poisoned");
+                if state.status == SessionServiceStatus::Failed
+                    && !state.closed
+                    && !state.definitions.is_empty()
+                {
+                    return Ok(self.registrations(&state));
+                }
+            }
+            return Err(error);
+        }
         let (generation, startup) = match self.begin_start(explicit)? {
             Preparation::Start(generation, startup) => (generation, startup),
             Preparation::Cached(registrations) => return Ok(registrations),
@@ -140,13 +165,14 @@ impl McpSource {
             () = startup.cancelled() => Err(HarnessError::cancelled("MCP startup was stopped")),
             result = self.connect(generation, startup.clone()) => result,
         };
-        let result = result.and_then(|(server, definitions)| {
+        let result = result.and_then(|(server, definitions, tools_revision)| {
             let mut state = self.shared.state.lock().expect("MCP state lock poisoned");
             if state.closed || startup.is_cancelled() || cancellation.is_cancelled() {
                 return Err(HarnessError::cancelled("MCP startup was cancelled"));
             }
             state.server = Some(server);
             state.definitions = definitions;
+            state.tools_revision = tools_revision;
             state.startup = None;
             state.status = SessionServiceStatus::Running;
             Ok(self.registrations(&state))
@@ -156,14 +182,71 @@ impl McpSource {
             self.shared.stop_process().await?;
         }
         attempt.completed = true;
+        if !explicit && result.as_ref().is_err_and(|error| !error.is_cancelled()) {
+            let state = self.shared.state.lock().expect("MCP state lock poisoned");
+            if !state.definitions.is_empty() {
+                return Ok(self.registrations(&state));
+            }
+        }
         result
+    }
+
+    async fn refresh_tools(&self, cancellation: &RunCancellation) -> Result<(), HarnessError> {
+        let refresh = {
+            let mut state = self.shared.state.lock().expect("MCP state lock poisoned");
+            state.observe_exit();
+            state
+                .server
+                .as_ref()
+                .filter(|server| {
+                    state.status == SessionServiceStatus::Running
+                        && !state.closed
+                        && state.active_calls == 0
+                        && server.tools_revision() != state.tools_revision
+                })
+                .map(|server| {
+                    (
+                        Arc::clone(server),
+                        state.generation,
+                        server.tools_revision(),
+                    )
+                })
+        };
+        let Some((server, generation, revision)) = refresh else {
+            return Ok(());
+        };
+        let result = tokio::select! {
+            biased;
+            () = cancellation.cancelled() => return Err(HarnessError::cancelled("MCP tool refresh was cancelled")),
+            result = super::discover_tools(&server, &self.config) => result,
+        };
+        let definitions = match result {
+            Ok(definitions) => definitions,
+            Err(error) => {
+                self.shared.fail_start(generation, error.to_string());
+                self.shared.stop_process().await?;
+                return Err(error);
+            }
+        };
+        let mut state = self.shared.state.lock().expect("MCP state lock poisoned");
+        if state.generation == generation
+            && state.status == SessionServiceStatus::Running
+            && !state.closed
+            && state.active_calls == 0
+        {
+            // Invalidate previously captured schemas only after all current calls finish.
+            state.generation += 1;
+            state.definitions = definitions;
+            state.tools_revision = revision;
+        }
+        Ok(())
     }
 
     async fn connect(
         &self,
         generation: u64,
         cancellation: RunCancellation,
-    ) -> Result<(Arc<McpServer>, Vec<McpDefinition>), HarnessError> {
+    ) -> Result<(Arc<McpServer>, Vec<McpDefinition>, u64), HarnessError> {
         self.shared.stop_process().await?;
         let mut command = super::prepare_command(&self.environment, &self.config).await?;
         let lease = self
@@ -185,8 +268,9 @@ impl McpSource {
             state.process = Some(transport.process.control());
         }
         let server = Arc::new(super::initialize_mcp(transport, &self.config).await?);
+        let revision = server.tools_revision();
         let definitions = super::discover_tools(&server, &self.config).await?;
-        Ok((server, definitions))
+        Ok((server, definitions, revision))
     }
 
     async fn stop_source(&self, force: bool) -> Result<(), HarnessError> {
@@ -406,6 +490,9 @@ impl Drop for PendingMcpCall {
                 state.error = Some(error);
             }
             self.server.request_stop();
+        } else {
+            // A completed RPC proves progress; a handshake alone must not reset the retry budget.
+            state.reconnects = 0;
         }
     }
 }

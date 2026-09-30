@@ -19,12 +19,17 @@ MCP stdio starts a configured server and exposes its declared tools through the 
     "env_refs": {"SERVICE_API_KEY": "PROJECT_SERVICE_API_KEY"},
     "cwd": "/projects/example",
     "startup_timeout_ms": 15000,
-    "tool_call_timeout_ms": 60000
+    "tool_call_timeout_ms": 60000,
+    "reconnect_attempts": 0
   }
 }
 ```
 
 Omitting `cwd` uses the session workspace. Child environments are cleared except for basic system variables, explicit `env` and credential references resolved by the host. Tool calls still pass through Plan-mode, permission, hook and approval checks. An MCP server is not authorized to bypass those checks because it is external.
+
+After `notifications/tools/list_changed`, the next tool preparation refreshes the catalog once active calls finish, keeps the same process and invalidates handlers captured from the old schema. A failed refresh stops the service and records its error in background-service status; native tools remain available.
+
+`reconnect_attempts` defaults to `0` and accepts integers from `0` through `10`. When enabled, later task preparations may reconnect a failed service within that budget. Failed or cancelled tool calls are never replayed. A completed tool RPC or an explicit restart replenishes the budget; a successful handshake alone does not. A manually stopped service requires an explicit start.
 
 LSP stdio similarly configures a language-server executable and workspace-specific environment. Install the required executable on the execution host. Inspect/start/stop registered services through the application. A temporary manual stop and permanently disabling a plugin have different lifetimes.
 

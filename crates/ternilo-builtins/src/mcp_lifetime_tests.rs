@@ -114,9 +114,14 @@ struct SourceFixture {
 
 impl SourceFixture {
     async fn new(mode: &str, timeout_ms: u64) -> Self {
+        Self::with_reconnect(mode, timeout_ms, 0).await
+    }
+
+    async fn with_reconnect(mode: &str, timeout_ms: u64, reconnect_attempts: u32) -> Self {
         let process = StdioFixture::new();
-        let config: McpConfig =
-            serde_json::from_value(configuration(&process, mode, timeout_ms)).unwrap();
+        let mut value = configuration(&process, mode, timeout_ms);
+        value["reconnect_attempts"] = reconnect_attempts.into();
+        let config: McpConfig = serde_json::from_value(value).unwrap();
         let admission = Arc::new(Admission::default());
         let directory = PathBuf::from(config.cwd.as_ref().unwrap());
         let (runtime, environment) = environment_client(environment(
@@ -615,5 +620,228 @@ async fn exited_server_cannot_leave_idle_descendant_writers() {
         .await;
     fixture.process.assert_stopped().await;
     wait_for(|| fixture.source.snapshot().status == SessionServiceStatus::Failed).await;
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn list_changed_refreshes_schemas_on_the_same_process_and_invalidates_old_handlers() {
+    let fixture = SourceFixture::new("list_changed", 2000).await;
+    let original = fixture.tools().await;
+    let pid = fixture.leader();
+    original[0]
+        .handler
+        .execute(tool_context(), serde_json::json!({}))
+        .await
+        .unwrap();
+    let refreshed = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let tools = fixture.tools().await;
+            if tools[0].spec.name == "mcp__fixture__echo_v2" {
+                break tools;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(fixture.leader(), pid);
+    assert_eq!(refreshed[0].spec.description, "updated fixture");
+    assert_eq!(
+        refreshed[0].spec.input_schema["properties"]["value"]["type"],
+        "string"
+    );
+    assert_eq!(
+        std::fs::read(fixture.directory.join("lists"))
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(
+        original[0]
+            .handler
+            .execute(tool_context(), serde_json::json!({}))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        fixture.process.calls(),
+        1,
+        "a stale handler must not issue a call with an old schema"
+    );
+    refreshed[0]
+        .handler
+        .execute(tool_context(), serde_json::json!({"value":"new-schema"}))
+        .await
+        .unwrap();
+    let request: Value =
+        serde_json::from_slice(&std::fs::read(fixture.directory.join("last_request")).unwrap())
+            .unwrap();
+    assert_eq!(request["params"]["name"], "echo_v2");
+    assert_eq!(fixture.process.calls(), 2);
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn list_changed_defers_schema_replacement_until_active_calls_finish() {
+    let fixture = SourceFixture::new("list_changed_during_call", 2000).await;
+    let original = fixture.tools().await;
+    let handler = Arc::clone(&original[0].handler);
+    let call =
+        tokio::spawn(async move { handler.execute(tool_context(), serde_json::json!({})).await });
+    fixture.process.ready("notification").await;
+    assert_eq!(fixture.source.snapshot().active_calls, 1);
+    assert_eq!(fixture.tools().await[0].spec, original[0].spec);
+    assert_eq!(
+        std::fs::read(fixture.directory.join("lists"))
+            .unwrap()
+            .len(),
+        1,
+        "discovery waits until the current call completes"
+    );
+    std::fs::write(fixture.directory.join("release"), b"").unwrap();
+    assert_eq!(call.await.unwrap().unwrap().content, "fixture result");
+    let refreshed = fixture.tools().await;
+    assert_eq!(refreshed[0].spec.name, "mcp__fixture__echo_v2");
+    assert_eq!(fixture.source.snapshot().active_calls, 0);
+    assert!(
+        original[0]
+            .handler
+            .execute(tool_context(), serde_json::json!({}))
+            .await
+            .is_err()
+    );
+    assert_eq!(fixture.process.calls(), 1);
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn an_invalid_changed_catalog_stops_the_server_and_disables_old_handlers() {
+    let fixture = SourceFixture::new("list_changed_invalid", 2000).await;
+    let original = fixture.tools().await;
+    original[0]
+        .handler
+        .execute(tool_context(), serde_json::json!({}))
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            assert_eq!(fixture.tools().await[0].spec, original[0].spec);
+            if fixture.source.snapshot().status == SessionServiceStatus::Failed {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(
+        fixture
+            .source
+            .snapshot()
+            .error
+            .unwrap()
+            .contains("colliding tool names")
+    );
+    assert_eq!(
+        fixture.source.snapshot().status,
+        SessionServiceStatus::Failed
+    );
+    fixture.process.assert_stopped().await;
+    let pid = fixture.leader();
+    assert!(
+        original[0]
+            .handler
+            .execute(tool_context(), serde_json::json!({}))
+            .await
+            .is_err()
+    );
+    assert_eq!(fixture.tools().await[0].spec, original[0].spec);
+    assert_eq!(
+        fixture.leader(),
+        pid,
+        "the default policy does not reconnect"
+    );
+    assert_eq!(fixture.process.calls(), 1);
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn configured_reconnect_is_bounded_and_never_replays_failed_calls() {
+    let fixture = SourceFixture::with_reconnect("fail_call", 2000, 2).await;
+    let mut tools = fixture.tools().await;
+    let mut pid = fixture.leader();
+    for attempt in 0..3 {
+        assert!(
+            tools[0]
+                .handler
+                .execute(tool_context(), serde_json::json!({}))
+                .await
+                .is_err()
+        );
+        fixture.process.assert_stopped().await;
+        let calls = fixture.process.calls();
+        assert_eq!(calls, attempt + 1);
+        let next = fixture.tools().await;
+        assert_eq!(
+            fixture.process.calls(),
+            calls,
+            "reconnection never repeats an earlier tool RPC"
+        );
+        if attempt < 2 {
+            assert_ne!(fixture.leader(), pid);
+            assert!(
+                tools[0]
+                    .handler
+                    .execute(tool_context(), serde_json::json!({}))
+                    .await
+                    .is_err()
+            );
+            assert_eq!(
+                fixture.source.snapshot().status,
+                SessionServiceStatus::Running
+            );
+        } else {
+            assert_eq!(fixture.leader(), pid);
+            assert_eq!(
+                fixture.source.snapshot().status,
+                SessionServiceStatus::Failed
+            );
+        }
+        pid = fixture.leader();
+        tools = next;
+    }
+    for _ in 0..3 {
+        fixture.tools().await;
+    }
+    assert_eq!(fixture.leader(), pid);
+    assert_eq!(fixture.process.calls(), 3);
+    fixture.source.start(RunCancellation::new()).await.unwrap();
+    assert_ne!(
+        fixture.leader(),
+        pid,
+        "manual start resets an exhausted budget"
+    );
+    fixture.source.stop().await.unwrap();
+    assert!(
+        fixture.tools().await.is_empty(),
+        "manual stop suppresses automatic reconnect"
+    );
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn a_completed_call_replenishes_reconnect_budget_but_a_handshake_does_not() {
+    let fixture = SourceFixture::with_reconnect("exit_after_reply", 2000, 1).await;
+    for _ in 0..3 {
+        let tools = fixture.tools().await;
+        tools[0]
+            .handler
+            .execute(tool_context(), serde_json::json!({}))
+            .await
+            .unwrap();
+        fixture.process.assert_stopped().await;
+        wait_for(|| fixture.source.snapshot().status == SessionServiceStatus::Failed).await;
+    }
+    assert_eq!(fixture.process.calls(), 3);
     fixture.finish().await;
 }

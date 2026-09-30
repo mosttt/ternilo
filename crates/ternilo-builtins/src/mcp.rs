@@ -3,7 +3,10 @@ use std::{
     future::Future,
     io,
     pin::Pin,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -63,6 +66,9 @@ struct McpConfig {
     startup_timeout_ms: u64,
     #[serde(default = "default_call_timeout")]
     tool_call_timeout_ms: u64,
+    #[serde(default)]
+    #[schemars(range(max = 10))]
+    reconnect_attempts: u32,
 }
 
 const fn default_startup_timeout() -> u64 {
@@ -91,9 +97,10 @@ pub fn factory() -> PluginFactory {
                 || config.command.trim().is_empty()
                 || config.startup_timeout_ms == 0
                 || config.tool_call_timeout_ms == 0
+                || config.reconnect_attempts > 10
             {
                 return Err(HarnessError::composition(
-                    "MCP stdio requires server_name matching [A-Za-z0-9_-]{1,32}, command, and positive timeouts",
+                    "MCP stdio requires server_name matching [A-Za-z0-9_-]{1,32}, command, positive timeouts, and reconnect_attempts at most 10",
                 ));
             }
             Ok(Arc::new(McpPlugin { config }))
@@ -106,14 +113,28 @@ struct McpPlugin {
     config: McpConfig,
 }
 
-type McpClient = RunningService<RoleClient, ()>;
+#[derive(Clone)]
+struct McpNotifications(Arc<AtomicU64>);
+
+impl rmcp::ClientHandler for McpNotifications {
+    async fn on_tool_list_changed(&self, _: rmcp::service::NotificationContext<RoleClient>) {
+        self.0.fetch_add(1, Ordering::AcqRel);
+    }
+}
+
+type McpClient = RunningService<RoleClient, McpNotifications>;
 
 struct McpServer {
     client: Arc<McpClient>,
     process: ProcessControl,
+    tools_revision: Arc<AtomicU64>,
 }
 
 impl McpServer {
+    fn tools_revision(&self) -> u64 {
+        self.tools_revision.load(Ordering::Acquire)
+    }
+
     fn request_stop(&self) {
         self.client.cancellation_token().cancel();
         self.process.request_stop();
@@ -247,9 +268,10 @@ async fn initialize_mcp(
     config: &McpConfig,
 ) -> Result<McpServer, HarnessError> {
     let process = transport.process.control();
+    let tools_revision = Arc::new(AtomicU64::new(0));
     let client = tokio::time::timeout(
         Duration::from_millis(config.startup_timeout_ms),
-        ().serve(transport),
+        McpNotifications(Arc::clone(&tools_revision)).serve(transport),
     )
     .await
     .map_err(|_| {
@@ -267,6 +289,7 @@ async fn initialize_mcp(
     Ok(McpServer {
         client: Arc::new(client),
         process,
+        tools_revision,
     })
 }
 
@@ -433,6 +456,27 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn automatic_reconnect_is_opt_in_and_bounded_in_configuration() {
+        let mut config = serde_json::json!({"server_name": "fixture", "command": "fixture"});
+        assert_eq!(
+            serde_json::from_value::<McpConfig>(config.clone())
+                .unwrap()
+                .reconnect_attempts,
+            0
+        );
+        let factory = factory();
+        assert!(factory.build(config.clone()).is_ok());
+        config["reconnect_attempts"] = 10.into();
+        assert!(factory.build(config.clone()).is_ok());
+        config["reconnect_attempts"] = 11.into();
+        assert!(factory.build(config).is_err());
+        assert_eq!(
+            factory.config_schema["properties"]["reconnect_attempts"]["maximum"].as_f64(),
+            Some(10.0)
+        );
+    }
 
     #[test]
     fn public_names_are_stable_qualified_and_bounded() {

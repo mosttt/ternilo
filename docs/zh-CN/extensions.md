@@ -69,12 +69,17 @@ Extension 卡片的开关显示 composed effective Profile，而不是只查看 
     },
     "cwd": "/projects/example",
     "startup_timeout_ms": 15000,
-    "tool_call_timeout_ms": 60000
+    "tool_call_timeout_ms": 60000,
+    "reconnect_attempts": 0
   }
 }
 ```
 
 省略 `cwd` 时使用会话工作区。子进程先清空环境，只保留基础系统变量、显式 `env` 和由宿主凭据 store 解析的 `env_refs`。MCP 工具进入共享 permission、Plan、Hook 和审批链。
+
+收到 `notifications/tools/list_changed` 后，下一次工具准备会在当前调用结束后刷新工具目录，沿用原进程并使旧 schema 的 handler 失效。目录刷新失败会停止服务，具体错误显示在后台服务状态中，其他原生工具仍可使用。
+
+`reconnect_attempts` 默认为 `0`，可设置为 `0` 到 `10` 的整数。启用后，失败服务在后续任务准备时进行有限次数重连，不会自动重发已失败或取消的工具调用。实际完成工具 RPC 或手动重新启动会恢复重连预算；单纯连接成功不会恢复预算。手动停止后保持停止，需要显式启动。
 
 ### LSP stdio
 
