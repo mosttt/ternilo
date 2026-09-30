@@ -1,21 +1,20 @@
 # 开发进度与技术设计
 
-本目录记录开发进度、验证结果、未完成项及尚未实施的资源模型与接口约束，不进入二进制交付包。设计方案不代表已支持的功能。
+本目录记录开发进度、验证结果、未完成项及尚未实施的资源模型与接口约束，仅保留中文，不进入二进制交付包。设计方案不代表已支持的功能。
 
-- [Work 资源与执行边界](execution-coordination.md)：托管电脑、容器归属、节点绑定与现有执行接口的衔接。
-- [原生账号恢复实施记录](native-account-recovery.md)：维护命令、会话撤销一致性与双库／浏览器验收。
-- [CI 与客户端／Server 闭环进度](ci-and-core-progress.md)：本轮许可证、持续集成、验证结果和后续优先级。
-- [剩余核心功能实施顺序](remaining-core-plan.md)：账号恢复、历史分页、用量及后续协作能力的实现边界与验收目标。
-
-已支持的功能见[产品说明](../zh-CN/product.md)，模块职责见[架构](../zh-CN/architecture.md)，开发和验证命令见[开发指南](../zh-CN/contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。
-
-- [有界会话历史](bounded-session-history.md)
-
-- [未知模型用量核对](model-usage-reconciliation.md)
-
+- [CI 与客户端／Server 闭环进度](ci-and-core-progress.md)：许可证、持续集成、验证结果和后续优先级。
+- [剩余核心功能实施顺序](remaining-core-plan.md)：核心流程与后续协作能力的实现边界。
 - [发行反馈与交付结果](release-feedback.md)：当前修复、验证和发行状态。
+- [原生账号恢复](native-account-recovery.md)：维护命令、会话撤销一致性与双库／浏览器验收。
+- [有界会话历史](bounded-session-history.md)：分页、实时续读及归档读取。
+- [未知模型用量核对](model-usage-reconciliation.md)：用量来源、账本核对和幂等性。
 - [Windows 持久化与桌面入口](windows-persistence-desktop.md)：平台行为与退出边界。
 - [浏览器会话详情](browser-session-details.md)：账号隔离、活动记录与来源 IP。
 - [MCP 目录刷新与可选重连](mcp-refresh-reconnect.md)：通知处理、调用边界和有限重连预算。
-- [账号任务清理](account-task-cleanup.md)：托管执行授权、作者批次隔离和执行端确认边界。
-- [Node 账号清理实施边界](node-account-cleanup.md)：离线撤销、启动屏障、选择性收尾和实际完成回执。
+- [账号任务清理](account-task-cleanup.md)：托管执行授权、作者批次隔离和执行端确认。
+- [Node 账号清理](node-account-cleanup.md)：离线撤销、启动屏障、选择性收尾和实际完成回执。
+- [OIDC 来源与公网地址](oidc-browser-origin.md)：浏览器加密能力、回调来源与错误配置恢复。
+- [跨 Server 共享权限通知](resource-notifications.md)：持久失效提示、双 Server 验收与资源交接约束。
+- [Work 资源与执行边界](execution-coordination.md)：托管电脑、容器归属、节点绑定与现有执行接口的衔接。
+
+已支持的功能见[产品说明](../zh-CN/product.md)，模块职责见[架构](../zh-CN/architecture.md)，开发和验证命令见[开发指南](../zh-CN/contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。
