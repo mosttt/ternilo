@@ -8,6 +8,10 @@
 
 启用后填写 Server 公网 HTTPS 根地址、Issuer、Client ID 和 Scopes。Scopes 必须包含 `openid`。在身份提供方登记页面显示的回调地址，例如 `https://ternilo.example.com/auth/callback`。网页登录不需要填写 Audience；“高级兼容设置”中的 Audience 只用于仍直接携带上游 JWT access token 的旧 API 客户端，一般留空。
 
+公网地址必须是浏览器实际访问的地址。`0.0.0.0` 和 `::` 只用于监听，不能作为公网或回调地址。将 Server 放在提供有效证书的 HTTPS 反向代理后，填写代理对外的地址；只在设置中将 `http` 改成 `https` 不会启用 TLS。浏览器地址、Server 公网地址和已登记的回调地址必须使用相同协议、主机及端口。
+
+浏览器使用 Web Crypto 生成 PKCE。普通 HTTP IP／域名页面缺少此能力时，登录入口会提示改用 HTTPS，不会发起授权跳转。页面与回调地址不同源时也会在跳转前提示，因为登录状态只保存在当前来源的 sessionStorage。已经保存的无效公网地址会停用组织登录；密码登录仍保留，所有者可修正设置，已启用的 Turnstile 校验不会被绕过。
+
 这里接入支持 OpenID Connect discovery、JWKS、签名 ID Token 的身份提供方，使用授权码和 S256 PKCE。上游 access token 可以是不透明字符串；Server 校验 ID Token 的签名、Issuer、Client ID 对应的 Audience、时间、nonce、azp 和存在时的 at_hash，并将 UserInfo 的 sub 与已验证身份严格匹配。当前只接受非对称签名，不支持对称签名或加密 ID Token。仅有普通 OAuth 接口、没有 OIDC ID Token 的服务商仍需专门适配。
 
 Server 成功校验后签发本站短期 OIDC 会话及可轮换的刷新凭据，而不是把上游令牌当成本站登录凭据。浏览器仅在当前标签页 sessionStorage 保存本站凭据；上游 refresh token 加密存入数据库，不返回浏览器。刷新会校验新 ID Token（若提供）及 UserInfo 的身份一致性，单次消费本站刷新凭据；并发重复刷新、退出登录后的刷新和账号封禁后的旧凭据均被拒绝。刷新会话最长七天，短期访问会话不超过一小时，且不超过上游返回的相关有效期。

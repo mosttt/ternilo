@@ -130,7 +130,7 @@ describe('Management page OIDC return paths', () => {
   })
 
   it('retains only Files filters across login and discards stale cursors, unknown query fields and fragments', async () => {
-    vi.stubGlobal('location', { pathname: '/files', search: '?session_id=session%2Fa&query=release+notes&cursor=old&redirect=https://evil.test', assign: vi.fn() })
+    vi.stubGlobal('location', { origin: 'https://app.test', pathname: '/files', search: '?session_id=session%2Fa&query=release+notes&cursor=old&redirect=https://evil.test', assign: vi.fn() })
     vi.stubGlobal('crypto', { getRandomValues: (value: Uint8Array) => value.fill(7), subtle: { digest: async () => new ArrayBuffer(32) } })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: true,
@@ -146,5 +146,51 @@ describe('Management page OIDC return paths', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ access_token: 'access', expires_in: 3600 }))))
     await initializeOidcSession()
     expect(history.replaceState).toHaveBeenCalledWith({}, '', '/files?workspace_id=workspace-a&session_id=session%2Fa&kind=generated&query=release+notes')
+  })
+})
+
+describe('OIDC browser prerequisites', () => {
+  function configure(redirect = 'https://app.test/auth/callback') {
+    vi.stubGlobal('location', { origin: 'https://app.test', pathname: '/', search: '', assign: vi.fn() })
+    vi.stubGlobal('crypto', { getRandomValues: (value: Uint8Array) => value.fill(7), subtle: { digest: async () => new ArrayBuffer(32) } })
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      oidc_enabled: true,
+      oidc: { authorization_endpoint: 'https://identity.test/authorize', client_id: 'client', redirect_uri: redirect, scope: 'openid' },
+    })))
+    vi.stubGlobal('fetch', fetchMock)
+    sessionStorage.setItem('ternilo.oidc.access', 'existing-session')
+    return fetchMock
+  }
+
+  it('reports unavailable browser cryptography before requests or session changes', async () => {
+    const fetchMock = configure()
+    vi.stubGlobal('crypto', { getRandomValues: vi.fn() })
+    await expect(beginOidcLogin()).rejects.toMatchObject({ failure: 'secure_context_required' })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(location.assign).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('ternilo.oidc.access')).toBe('existing-session')
+    expect(sessionStorage.getItem('ternilo.oidc.verifier')).toBeNull()
+  })
+
+  it.each(['http://app.test/auth/callback', 'https://other.test/auth/callback', 'https://app.test:4321/auth/callback'])('rejects a different callback origin: %s', async callback => {
+    configure(callback)
+    await expect(beginOidcLogin()).rejects.toMatchObject({ failure: 'origin_mismatch' })
+    expect(location.assign).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('ternilo.oidc.access')).toBe('existing-session')
+    expect(sessionStorage.getItem('ternilo.oidc.verifier')).toBeNull()
+  })
+
+  it('does not start a new authorization after logout during PKCE calculation', async () => {
+    configure()
+    let finish!: (digest: ArrayBuffer) => void
+    const digest = vi.fn(() => new Promise<ArrayBuffer>(resolve => { finish = resolve }))
+    vi.stubGlobal('crypto', { getRandomValues: (value: Uint8Array) => value.fill(7), subtle: { digest } })
+    const login = beginOidcLogin()
+    await vi.waitFor(() => expect(digest).toHaveBeenCalledOnce())
+    clearOidcSession()
+    finish(new ArrayBuffer(32))
+    await expect(login).rejects.toMatchObject({ failure: 'expired' })
+    expect(location.assign).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('ternilo.oidc.verifier')).toBeNull()
   })
 })

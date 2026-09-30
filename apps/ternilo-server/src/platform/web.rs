@@ -302,6 +302,15 @@ pub(super) fn validate_public_url(
 ) -> Result<String, HarnessError> {
     let parsed = reqwest::Url::parse(value)
         .map_err(|error| HarnessError::invalid(format!("parse public URL: {error}")))?;
+    if parsed.host_str().is_some_and(|host| {
+        host.trim_matches(['[', ']'])
+            .parse::<IpAddr>()
+            .is_ok_and(|address| address.is_unspecified())
+    }) {
+        return Err(HarnessError::invalid(
+            "public URL must use a reachable hostname or IP address, not a wildcard listening address",
+        ));
+    }
     let loopback = parsed.host_str().is_some_and(|host| {
         host.eq_ignore_ascii_case("localhost")
             || host
@@ -389,5 +398,8 @@ mod tests {
         );
         assert!(validate_public_url("https://cloud.example.com/path", false).is_err());
         assert!(validate_public_url("https://user@cloud.example.com", false).is_err());
+        for address in ["https://0.0.0.0:4321", "https://[::]:4321", "https://0"] {
+            assert!(validate_public_url(address, false).is_err());
+        }
     }
 }

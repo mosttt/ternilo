@@ -27,6 +27,16 @@ export interface ServerSecuritySettings {
 const emptyOidc: OidcSettings = { issuer: '', audience: '', client_id: '', scopes: 'openid profile email', token_auth_method: 'none', has_client_secret: false }
 const endpoint = '/admin/instance/authentication'
 
+function validPublicOrigin(value: string) {
+  try {
+    const url = new URL(value.trim())
+    const loopback = url.hostname === 'localhost' || url.hostname === '[::1]' || /^127(?:\.\d+){3}$/.test(url.hostname)
+    return (url.protocol === 'https:' || (url.protocol === 'http:' && loopback))
+      && url.hostname !== '0.0.0.0' && url.hostname !== '[::]'
+      && !url.username && !url.password && !url.search && !url.hash && url.pathname === '/'
+  } catch { return false }
+}
+
 export function ServerSecuritySettingsPanel() {
   const t = useTranslate('serverSecurity')
   const { notify } = useWorkbench()
@@ -42,6 +52,7 @@ export function ServerSecuritySettingsPanel() {
   const [error, setError] = React.useState('')
   const [reload, setReload] = React.useState(0)
   const [conflict, setConflict] = React.useState(false)
+  const invalidOrigin = (oidcEnabled || turnstileEnabled) && !validPublicOrigin(origin)
 
   const accept = React.useCallback((settings: ServerSecuritySettings) => {
     setSaved(settings)
@@ -66,6 +77,7 @@ export function ServerSecuritySettingsPanel() {
 
   const save = async () => {
     if (!saved || busy) return
+    if (invalidOrigin) { setError(t('invalidOrigin')); return }
     setBusy(true)
     setError('')
     try {
@@ -91,8 +103,9 @@ export function ServerSecuritySettingsPanel() {
       <fieldset disabled={busy || conflict} className="grid min-w-0 gap-5">
         <Field>
           <Label htmlFor="auth-public-url">{t('origin')}</Label>
-          <Input id="auth-public-url" type="url" value={origin} onChange={event => setOrigin(event.target.value)} required={oidcEnabled || turnstileEnabled} placeholder="https://ternilo.example.com" />
-          <p className="text-xs text-muted-foreground">{t('originHint')}</p>
+          <Input id="auth-public-url" type="url" value={origin} onChange={event => setOrigin(event.target.value)} aria-invalid={invalidOrigin} aria-describedby={invalidOrigin ? 'auth-public-url-hint auth-public-url-error' : 'auth-public-url-hint'} required={oidcEnabled || turnstileEnabled} placeholder="https://ternilo.example.com" />
+          <p id="auth-public-url-hint" className="text-xs text-muted-foreground">{t('originHint')}</p>
+          {invalidOrigin && <p id="auth-public-url-error" className="text-xs text-destructive">{t('invalidOrigin')}</p>}
         </Field>
         <div className="grid min-w-0 gap-4 border-t pt-5">
           <div className="flex items-start justify-between gap-4">
@@ -113,7 +126,8 @@ export function ServerSecuritySettingsPanel() {
               <option value="none">{t('publicClient')}</option><option value="client_secret_basic">{t('basic')}</option><option value="client_secret_post">{t('post')}</option>
             </Select></Field>
             {oidc.token_auth_method !== 'none' && <Field><Label htmlFor="auth-client-secret">{t('clientSecret')}</Label><Input id="auth-client-secret" type="password" autoComplete="new-password" value={clientSecret} onChange={event => setClientSecret(event.target.value)} placeholder={t(oidc.has_client_secret ? 'secretKept' : 'secretRequired')} /></Field>}
-            <p className="break-all text-xs text-muted-foreground">{t('callback')}：<code>{origin.trim().replace(/\/$/, '')}/auth/callback</code></p>
+            {!invalidOrigin && <p className="break-all text-xs text-muted-foreground">{t('callback')}：<code>{origin.trim().replace(/\/$/, '')}/auth/callback</code></p>}
+            <p className="text-xs text-muted-foreground">{t('callbackHint')}</p>
             <details className="min-w-0 rounded-lg border p-3">
               <summary className="cursor-pointer text-sm">{t('advanced')}</summary>
               <Field className="mt-3"><Label htmlFor="auth-audience">{t('audience')}</Label><Input id="auth-audience" value={oidc.audience} onChange={event => setOidc(current => ({ ...current, audience: event.target.value }))} /><p className="text-xs leading-relaxed text-muted-foreground">{t('audienceHint')}</p></Field>

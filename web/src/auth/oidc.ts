@@ -6,7 +6,15 @@ interface BrowserTokens {
   refresh_token?: string
 }
 
-export type OidcFailure = 'provider_denied' | 'state_mismatch' | 'expired'
+const failureKeys = {
+  provider_denied: 'error.oidcProviderDenied',
+  state_mismatch: 'error.oidcStateMismatch',
+  expired: 'error.oidcExpired',
+  secure_context_required: 'error.oidcSecureContext',
+  origin_mismatch: 'error.oidcOriginMismatch',
+} as const
+
+export type OidcFailure = keyof typeof failureKeys
 
 /** Machine-readable flow failures are localized at the React application shell. */
 export class OidcFlowError extends Error {
@@ -14,6 +22,8 @@ export class OidcFlowError extends Error {
     super(failure)
     this.name = 'OidcFlowError'
   }
+
+  get translationKey() { return failureKeys[this.failure] }
 }
 
 let sessionRevision = 0
@@ -176,16 +186,20 @@ export function beginOidcLink() {
 }
 
 async function beginOidcFlow(nativeToken?: string) {
+  if (!globalThis.crypto?.subtle) throw new OidcFlowError('secure_context_required')
+  const revision = sessionRevision
   const returnPath = applicationReturnPath(location.pathname === '/files' ? `${location.pathname}${location.search}` : location.pathname)
-  clearOidcSession()
   const { oidc: config, oidc_enabled: enabled } = await loadServerAuthConfig()
   if (!enabled || !config) throw new OidcFlowError('provider_denied')
+  if (new URL(config.redirect_uri).origin !== location.origin) throw new OidcFlowError('origin_mismatch')
   const verifier = randomBase64Url(64)
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
   const state = randomBase64Url(24)
   const nonce = randomBase64Url(24)
+  if (revision !== sessionRevision) throw new OidcFlowError('expired')
+  if (nativeToken && nativeToken !== readNativeToken()) throw new OidcFlowError('expired')
+  clearOidcSession()
   if (nativeToken) {
-    if (nativeToken !== readNativeToken()) throw new OidcFlowError('expired')
     sessionStorage.setItem(keys.linkNative, nativeToken)
   }
   sessionStorage.setItem(keys.returnPath, returnPath)

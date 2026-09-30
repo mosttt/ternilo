@@ -6,6 +6,10 @@ The instance owner configures OIDC and Cloudflare Turnstile under **Platform adm
 
 Configure the public HTTPS URL, issuer, client ID and scopes including `openid`. Register the displayed callback URL with the identity provider. Browser sign-in uses authorization code with S256 PKCE and validates the signed ID Token, issuer, audience, timestamps, nonce and related claims. UserInfo must match the verified subject. An OAuth-only provider without the OIDC contract needs its own integration.
 
+Use the URL actually opened in the browser. `0.0.0.0` and `::` are listening addresses and cannot be public or callback URLs. Configure an HTTPS reverse proxy with a valid certificate and use its external URL; changing the URL setting alone does not enable TLS. The browser URL, public Server URL and registered callback must share the same scheme, host and port.
+
+PKCE requires browser Web Crypto. Pages without it, such as ordinary remote HTTP pages, show an HTTPS requirement before redirecting. A different callback origin also prevents sign-in because sessionStorage is origin-specific. An invalid saved public URL disables organization sign-in while retaining password access so the owner can correct it. Configured Turnstile checks remain enforced.
+
 Public clients and `client_secret_basic` / `client_secret_post` are supported according to provider configuration. Server checks discovery and signing keys before accepting settings. The browser receives a short-lived Ternilo session, not an upstream token as its local identity. Upstream refresh credentials are encrypted on Server. Refresh is single-use and rejects replay, logged-out sessions and banned accounts.
 
 Existing users explicitly link an organization identity from account settings. Identity is issuer plus subject, not email or username; an equal email does not automatically merge accounts. Keep a working native owner password before changing issuer/client identity. The LINUX DO preset fills public endpoint/scope/authentication defaults but requires your own application credentials and a real production sign-in check.

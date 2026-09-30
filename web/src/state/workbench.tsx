@@ -299,7 +299,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         if (await completeOidcLink() && isCurrent()) notify(t('auth.oidcLinked'))
       } catch (cause) {
         if (isCurrent()) notify(t('auth.oidcLinkFailed', { error: cause instanceof OidcFlowError
-          ? t(cause.failure === 'provider_denied' ? 'error.oidcProviderDenied' : cause.failure === 'state_mismatch' ? 'error.oidcStateMismatch' : 'error.oidcExpired')
+          ? t(cause.translationKey)
           : cause instanceof Error ? cause.message : String(cause) }), 'error')
       }
       const nativeToken = config.initialized ? readNativeToken() : ''
@@ -335,11 +335,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         return
       }
       const message = cause instanceof OidcFlowError
-        ? t(cause.failure === 'provider_denied'
-          ? 'error.oidcProviderDenied'
-          : cause.failure === 'state_mismatch'
-            ? 'error.oidcStateMismatch'
-            : 'error.oidcExpired')
+        ? t(cause.translationKey)
         : cause instanceof Error ? cause.message : String(cause)
       api.clearToken()
       clearNativeSession()

@@ -116,7 +116,7 @@ export function ServerLogin() {
       }
     } catch (cause) {
       setError(cause instanceof OidcFlowError
-        ? t(cause.failure === 'expired' ? 'error.oidcExpired' : cause.failure === 'state_mismatch' ? 'error.oidcStateMismatch' : 'error.oidcProviderDenied')
+        ? t(cause.translationKey)
         : accountError(cause instanceof Error ? cause.message : String(cause)))
     } finally { setBusy(false); setTurnstileToken(''); setTurnstileAttempt(value => value + 1) }
   }

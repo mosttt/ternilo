@@ -46,7 +46,7 @@ export function AccountSettings() {
     setError('')
     try { await beginOidcLink() } catch (cause) {
       setError(cause instanceof OidcFlowError
-        ? appT(cause.failure === 'expired' ? 'error.oidcExpired' : 'error.oidcProviderDenied')
+        ? appT(cause.translationKey)
         : cause instanceof Error ? cause.message : String(cause))
       setBusy(false)
     }

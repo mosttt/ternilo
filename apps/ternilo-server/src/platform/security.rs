@@ -58,9 +58,6 @@ impl LoginRuntime {
         revision: u64,
         allow_insecure: bool,
     ) -> Result<Self, HarnessError> {
-        if settings.oidc.is_some() || settings.turnstile.is_some() {
-            super::web::validate_public_url(&settings.public_url, allow_insecure)?;
-        }
         if let Some(turnstile) = &settings.turnstile {
             turnstile.validate()?;
         }
@@ -72,6 +69,15 @@ impl LoginRuntime {
             oidc_unavailable: false,
             loaded_at: std::time::Instant::now(),
         };
+        if (runtime.settings.oidc.is_some() || runtime.settings.turnstile.is_some())
+            && super::web::validate_public_url(&runtime.settings.public_url, allow_insecure)
+                .is_err()
+        {
+            // Keep native access available so the owner can correct the saved URL.
+            // Configured Turnstile verification remains enforced by verify_turnstile.
+            runtime.oidc_unavailable = runtime.settings.oidc.is_some();
+            return Ok(runtime);
+        }
         if let Some(oidc) = &runtime.settings.oidc {
             if oidc.token_auth_method != TokenAuthMethod::None
                 && oidc
@@ -276,6 +282,9 @@ pub(super) async fn update_settings(
         oidc: body.oidc,
         turnstile: body.turnstile,
     };
+    if settings.oidc.is_some() || settings.turnstile.is_some() {
+        super::web::validate_public_url(&settings.public_url, state.security.allow_insecure)?;
+    }
     let mut runtime =
         LoginRuntime::build(settings, body.revision, state.security.allow_insecure).await?;
     if runtime.oidc_unavailable {
