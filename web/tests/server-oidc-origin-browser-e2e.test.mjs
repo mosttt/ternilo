@@ -23,16 +23,14 @@ test('OIDC explains insecure or mismatched origins and preserves native recovery
     })
     const ownerToken = application.owner.session.access_token
     const credentials = { username: application.owner.username, password: application.owner.password }
-    browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
+    browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
+      args: ['--host-resolver-rules=MAP insecure.ternilo.test 127.0.0.1', '--no-proxy-server'],
+    })
     page = await browser.newPage({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
-    const insecure = 'http://insecure.ternilo.test'
-    // Route a real non-secure browser origin to the isolated server without DNS setup.
-    await page.route(`${insecure}/**`, async route => {
-      const response = await route.fetch({ url: route.request().url().replace(insecure, origin) })
-      await route.fulfill({ response })
-    })
+    // Resolve a non-secure origin to the isolated server for both HTTP and WebSocket.
+    const insecure = `http://insecure.ternilo.test:${new URL(origin).port}`
     await page.goto(insecure)
     assert.equal(await page.evaluate(() => isSecureContext), false)
     assert.equal(await page.evaluate(() => Boolean(crypto.subtle)), false)
