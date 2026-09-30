@@ -365,6 +365,8 @@ service_contract! {
             async fn begin_activity(run_id: RunId, cancellation: RunCancellation, output: Arc<dyn ExecutionActivityOutput>) -> Result<ActivityBranch, HarnessError>;
             async fn identity() -> SessionIdentity;
             async fn workspace() -> Option<WorkspaceBinding>;
+            async fn check_run_authorization(run_id: RunId) -> Result<(), HarnessError>;
+            async fn register_execution_resource(run_id: RunId, resource_id: String, control: Arc<dyn crate::ExecutionResourceControl>) -> Result<(), HarnessError>;
             async fn try_acquire_workspace() -> Result<Option<WorkspaceExecutionLease>, HarnessError>;
             async fn acquire_workspace(cancellation: RunCancellation) -> Result<WorkspaceExecutionLease, HarnessError>;
             async fn resolve_input_references(references: Vec<SubmissionReference>, prepared_contexts: Vec<ReferenceContext>) -> Result<Vec<ReferenceContext>, HarnessError>;
@@ -436,7 +438,7 @@ service_contract! {
         identity: (),
         merge: merge_unit,
         methods: [
-            async fn execute(request: ShellRequest) -> Result<ShellResult, HarnessError>;
+            async fn execute(run_id: RunId, request: ShellRequest) -> Result<ShellResult, HarnessError>;
         ],
     }
 }
@@ -448,7 +450,7 @@ service_contract! {
         identity: (),
         merge: merge_unit,
         methods: [
-            async fn spawn(request: ShellRequest) -> Result<JobSnapshot, HarnessError>;
+            async fn spawn(run_id: RunId, request: ShellRequest) -> Result<JobSnapshot, HarnessError>;
             async fn get(job_id: JobId) -> Result<JobSnapshot, HarnessError>;
             async fn list() -> Result<Vec<JobSnapshot>, HarnessError>;
             async fn kill(job_id: JobId) -> Result<JobSnapshot, HarnessError>;
@@ -556,7 +558,7 @@ service_contract! {
         identity: (),
         merge: merge_unit,
         methods: [
-            async fn open(name: Option<String>) -> Result<TerminalSnapshot, HarnessError>;
+            async fn open(run_id: RunId, name: Option<String>) -> Result<TerminalSnapshot, HarnessError>;
             async fn send(terminal_id: TerminalId, input: String, wait_ms: u64) -> Result<TerminalRead, HarnessError>;
             async fn read(terminal_id: TerminalId, offset: u64) -> Result<TerminalRead, HarnessError>;
             async fn signal(terminal_id: TerminalId, signal: String) -> Result<TerminalSnapshot, HarnessError>;
@@ -574,6 +576,7 @@ service_contract! {
         merge: merge_unit,
         methods: [
             async fn append(run_id: RunId, kind: SessionEventKind) -> Result<SessionEvent, HarnessError>;
+            async fn append_if_next_seq(next_seq: u64, run_id: RunId, kind: SessionEventKind) -> Result<Option<SessionEvent>, HarnessError>;
             async fn events() -> Vec<SessionEvent>;
             async fn events_after(after_seq: Option<u64>) -> Vec<SessionEvent>;
             async fn history(query: ternilo_protocol::SessionHistoryQuery) -> Result<ternilo_protocol::SessionEventPage, HarnessError>;

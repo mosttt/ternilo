@@ -210,6 +210,10 @@ pub async fn stop(data_dir: &Path) -> Result<(), HarnessError> {
     ))
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "order service registration, transport lifetimes and durable shutdown"
+)]
 pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
     let data_dir = options
         .data_dir
@@ -240,9 +244,18 @@ pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
     }
     let listener = crate::web::bind_loopback(options.listen).await?;
     let profile = crate::load_local_profile(&options.profile_layers)?;
-    let application =
-        crate::open_local_application_with_limits(profile, data_dir.clone(), options.run_limits())
-            .await?;
+    let server_binding = options
+        .gateway_url
+        .as_deref()
+        .map(|url| crate::node::server_binding(url, &options.node_id))
+        .transpose()?;
+    let application = crate::open_local_application_with_options(
+        profile,
+        data_dir.clone(),
+        options.run_limits(),
+        ternilo_local::LocalApplicationOpenOptions { server_binding },
+    )
+    .await?;
     let mut registration = None;
     let commands = TaskTracker::new();
     let result = Box::pin(async {
@@ -276,7 +289,12 @@ pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
         );
         let gateway = async {
             if options.gateway_url.is_some() {
-                crate::node::connect(Arc::clone(&application), &options, commands.clone()).await
+                Box::pin(crate::node::connect(
+                    Arc::clone(&application),
+                    &options,
+                    commands.clone(),
+                ))
+                .await
             } else {
                 std::future::pending::<Result<(), HarnessError>>().await
             }

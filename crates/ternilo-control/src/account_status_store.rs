@@ -86,6 +86,7 @@ impl ControlStore {
         .await
         .map_err(database_error)?;
         if status != AccountStatus::Active {
+            crate::node_account_cleanup::stage_in(tx, actor, user_id, revision, now_ms).await?;
             revoke_credentials_in(tx, user_id, now_ms).await?;
         }
         append_platform_audit(

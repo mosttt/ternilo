@@ -195,13 +195,16 @@ impl ToolHandler for JobTool {
                     let arguments: StartArguments = parse_arguments(arguments)?;
                     let snapshot = self
                         .jobs
-                        .spawn(ShellRequest {
-                            command: arguments.command,
-                            timeout_ms: arguments.timeout_ms,
-                            full_access: false,
-                            stdin: None,
-                            env: std::collections::BTreeMap::new(),
-                        })
+                        .spawn(
+                            context.run_id.clone(),
+                            ShellRequest {
+                                command: arguments.command,
+                                timeout_ms: arguments.timeout_ms,
+                                full_access: false,
+                                stdin: None,
+                                env: std::collections::BTreeMap::new(),
+                            },
+                        )
                         .await?;
                     publish_job(&self.sessions, &context.run_id, snapshot.clone()).await?;
                     self.active

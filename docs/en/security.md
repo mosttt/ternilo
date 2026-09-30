@@ -20,6 +20,12 @@ Host ceilings cannot be relaxed by presets or plugins. Read-only, workspace-writ
 
 Managed Worker tasks run in restricted child processes with scoped mounts and no network by default. Parent process privileges required to create the sandbox are distinct from child privileges. Model secrets remain in Server/the parent broker, not the task child. Jobs intentionally sharing a workspace still share its files.
 
+Account bans and removal persist cleanup requests for affected Nodes. Cleanup follows the authenticated input author and account revision, preserving unrelated accounts and local inputs. Re-enabling an account does not authorize its old work. Node startup synchronizes account authority before restoring remote work, even if gateway arguments are omitted.
+
+The account administration page shows pending cleanup, confirmation times and outstanding errors. Offline Nodes, unfinished supervised processes and unknown process state after a restart remain pending. Shell, jobs, terminals and external ACP tasks use process supervision before releasing workspace ownership. Confirmation covers registered execution resources; it does not roll back external effects.
+
+A revoked Node credential can only synchronize its own cleanup requests and submit receipts. It cannot reconnect normally or access application data. Each credential binds one local storage instance; another data directory cannot confirm cleanup for the original. Receipts validate credential, storage identity and account revision, and repeated confirmation is idempotent.
+
 ## Extensions and durable data
 
 Extension signatures establish publisher/package integrity; requested capabilities must still be allowed by host policy. Rhai and WASM use the same package lifecycle and capability rules. A signature alone does not authorize arbitrary network, process or credential access.

@@ -36,3 +36,7 @@ tokio.workspace = true
 
 [lints]
 workspace = true
+
+[target.'cfg(windows)'.dependencies]
+process-wrap = { version = "9.1.0", default-features = false, features = ["tokio1", "job-object", "kill-on-drop"] }
+win32job = "2.0.3"

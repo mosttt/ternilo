@@ -334,6 +334,7 @@ async fn node_registers_and_dispatches_application_rpc_over_a_real_websocket() {
                 }),
                 command_id: CommandId::new(id),
                 scope: scope.clone(),
+                input_authorization: None,
                 issued_at_ms: now_ms().unwrap(),
                 expires_at_ms: now_ms().unwrap() + 60_000,
                 body: ExecutorCommandBody::Application { request },

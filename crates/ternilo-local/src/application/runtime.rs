@@ -56,6 +56,9 @@ impl LocalApplication {
                 failures.push(error.to_string());
             }
         }
+        if let Err(error) = self.execution_resources.stop_live(None).await {
+            failures.push(error.to_string());
+        }
         if failures.is_empty() {
             Ok(())
         } else {
@@ -75,6 +78,9 @@ impl LocalApplication {
             .map(|error| error.to_string())
             .into_iter()
             .collect::<Vec<_>>();
+        if let Err(error) = self.execution_resources.prune().await {
+            failures.push(error.to_string());
+        }
         // Await SQLite worker closure before callers release or move the data directory.
         for result in [
             self.session_archive.close().await,
@@ -129,6 +135,7 @@ impl LocalApplication {
             self.checkpoint_session_fail_soft(id).await;
             managed.harness.shutdown().await?;
         }
+        self.execution_resources.stop_live(Some(id)).await?;
         Ok(())
     }
 
@@ -226,6 +233,17 @@ impl LocalApplication {
         .with_model_gateway(self.server_models.for_session(id.to_owned()))
         .with_session_mode(session.mode)
         .with_workspace_execution(execution)
+        .with_run_authorization(Arc::new(
+            super::account_authorizations::AccountRunAuthorization {
+                origins: super::model_origins::InputOrigins::new(
+                    Arc::clone(&self.state),
+                    Arc::downgrade(&self.live),
+                ),
+                accounts: Arc::clone(&self.account_authorizations),
+                session_id: id.to_owned(),
+            },
+        ))
+        .with_execution_resources(self.execution_resources.for_session(id.to_owned()))
         .with_input_reference_resolver(input_references)
         .with_attachment_resolver(attachments)
         .with_session_archive(session_archive)

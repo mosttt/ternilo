@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use crate::process_supervision::{Child, ManagedProcessGroup};
 use agent_client_protocol::{
     Agent as AcpAgentRole, ByteStreams, Client as AcpClient, ConnectionTo,
     schema::{ProtocolVersion, v1 as acp},
@@ -15,12 +16,13 @@ use linorun_core::{Activation, CleanupError, ComponentContext, ComponentDescript
 use linorun_macros::component_descriptor;
 use serde::Deserialize;
 use ternilo_kernel::{
-    HarnessPlugin, PluginFactory, PluginManifest, RunCancellation, SubagentAdmission,
-    SubagentBackend, SubagentBackendContext, SubagentBackendRegistration, SubagentDriver,
-    SubagentRunStart, SubagentSessionBinding, Subagents,
+    ExecutionResourceControl, HarnessPlugin, PluginFactory, PluginManifest, RunCancellation,
+    RunEnvironment, RunEnvironmentClient, SubagentAdmission, SubagentBackend,
+    SubagentBackendContext, SubagentBackendRegistration, SubagentDriver, SubagentRunStart,
+    SubagentSessionBinding, Subagents, WorkspaceExecutionLease,
 };
 use ternilo_protocol::{HarnessError, RunId, SubagentTranscriptKind};
-use tokio::process::{Child, Command};
+use tokio::{process::Command, sync::watch};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::{factory as make_factory, parse_config, process_group::OwnedProcessGroup};
@@ -31,7 +33,7 @@ const MAX_OUTPUT_CHARS: usize = 1_048_576;
 component_descriptor! {
     static DESCRIPTOR: () {
         id: "ternilo/builtin-acp-subagent@1",
-        requires: [Subagents],
+        requires: [Subagents, RunEnvironment],
         provides: [],
     }
 }
@@ -83,7 +85,7 @@ pub fn factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: KIND,
-            requires: &["ternilo/subagents@2"],
+            requires: &["ternilo/subagents@2", "ternilo/run-environment@1"],
             provides: &[],
         },
         |value| {
@@ -130,10 +132,17 @@ impl HarnessPlugin for AcpSubagentPlugin {
             .context()
             .service::<Subagents>()
             .expect("ACP subagent declares Subagents");
+        let environment = context
+            .context()
+            .service::<RunEnvironment>()
+            .expect("ACP subagent declares RunEnvironment");
         let config = self.config.clone();
         Activation::Once(Box::pin(async move {
             let name = config.provider_name.clone();
-            let backend: Arc<dyn SubagentBackend> = Arc::new(AcpBackend { config });
+            let backend: Arc<dyn SubagentBackend> = Arc::new(AcpBackend {
+                config,
+                environment,
+            });
             let registration = subagents
                 .register_backend(SubagentBackendRegistration { name, backend })
                 .await
@@ -150,6 +159,7 @@ impl HarnessPlugin for AcpSubagentPlugin {
 
 struct AcpBackend {
     config: AcpSubagentConfig,
+    environment: RunEnvironmentClient,
 }
 
 impl SubagentBackend for AcpBackend {
@@ -181,6 +191,8 @@ impl SubagentBackend for AcpBackend {
         }
         Ok(Arc::new(AcpDriver {
             config: self.config.clone(),
+            environment: self.environment.clone(),
+            resource_id: format!("acp-{}", context.subagent_id),
             cwd,
         }))
     }
@@ -188,6 +200,8 @@ impl SubagentBackend for AcpBackend {
 
 struct AcpDriver {
     config: AcpSubagentConfig,
+    environment: RunEnvironmentClient,
+    resource_id: String,
     cwd: PathBuf,
 }
 
@@ -202,16 +216,99 @@ impl SubagentDriver for AcpDriver {
 
     fn run<'a>(
         &'a self,
-        _: RunId,
+        parent_run_id: RunId,
         message: String,
         cancellation: RunCancellation,
         _: Option<SubagentSessionBinding>,
         start: SubagentRunStart,
     ) -> Pin<Box<dyn Future<Output = Result<String, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
+            let _stop = CancelOnDrop(cancellation.clone());
+            self.environment
+                .check_run_authorization(parent_run_id.clone())
+                .await?;
+            let lease = self
+                .environment
+                .acquire_workspace(cancellation.clone())
+                .await?;
+            self.environment
+                .check_run_authorization(parent_run_id.clone())
+                .await?;
+            let lease = Arc::new(Mutex::new(Some(lease)));
+            let (completed, finished) = watch::channel(None);
+            let mut admission = AcpAdmission(Some(completed.clone()));
+            self.environment
+                .register_execution_resource(
+                    parent_run_id,
+                    format!(
+                        "{}:{}",
+                        self.environment.identity().await.session_id,
+                        self.resource_id
+                    ),
+                    Arc::new(AcpResource {
+                        cancellation: cancellation.clone(),
+                        finished,
+                        _lease: Arc::clone(&lease),
+                    }),
+                )
+                .await?;
+            let config = self.config.clone();
+            let cwd = self.cwd.clone();
+            let task = tokio::spawn(async move {
+                let (outcome, cleanup) = run_acp(config, cwd, message, cancellation).await;
+                if cleanup.is_ok() {
+                    lease.lock().expect("ACP lease lock").take();
+                }
+                completed.send_replace(Some(cleanup.clone().map_err(|error| error.to_string())));
+                cleanup.and(outcome)
+            });
+            admission.0 = None;
             start.resolve(Ok(SubagentAdmission::Direct));
-            run_acp(self.config.clone(), self.cwd.clone(), message, cancellation).await
+            task.await.map_err(|error| {
+                HarnessError::execution(format!("supervise ACP process: {error}"))
+            })?
         })
+    }
+}
+
+struct CancelOnDrop(RunCancellation);
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        self.0.cancel();
+    }
+}
+struct AcpAdmission(Option<watch::Sender<Option<Result<(), String>>>>);
+impl Drop for AcpAdmission {
+    fn drop(&mut self) {
+        if let Some(completed) = self.0.take() {
+            completed.send_replace(Some(Ok(())));
+        }
+    }
+}
+struct AcpResource {
+    cancellation: RunCancellation,
+    finished: watch::Receiver<Option<Result<(), String>>>,
+    _lease: Arc<Mutex<Option<WorkspaceExecutionLease>>>,
+}
+impl ExecutionResourceControl for AcpResource {
+    fn stop<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(), HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            self.cancellation.cancel();
+            let mut finished = self.finished.clone();
+            loop {
+                if let Some(result) = finished.borrow().clone() {
+                    return result.map_err(HarnessError::execution);
+                }
+                finished.changed().await.map_err(|_| {
+                    HarnessError::unavailable(
+                        "ACP supervisor ended before recording process completion",
+                    )
+                })?;
+            }
+        })
+    }
+    fn is_finished(&self) -> bool {
+        matches!(&*self.finished.borrow(), Some(Ok(())))
     }
 }
 
@@ -228,10 +325,15 @@ async fn run_acp(
     cwd: PathBuf,
     message: String,
     cancellation: RunCancellation,
-) -> Result<String, HarnessError> {
-    cancellation.check()?;
-    let (stdin, stdout, child) = spawn_child(&config, &cwd)?;
-    let mut process = ChildGuard::new(child);
+) -> (Result<String, HarnessError>, Result<(), HarnessError>) {
+    if let Err(error) = cancellation.check() {
+        return (Err(error), Ok(()));
+    }
+    let (stdin, stdout, child, group) = match spawn_child(&config, &cwd) {
+        Ok(child) => child,
+        Err(error) => return (Err(error), Ok(())),
+    };
+    let mut process = ChildGuard::new(child, group);
     let transport = ByteStreams::new(stdin.compat_write(), stdout.compat());
     let output = Arc::new(Mutex::new(String::new()));
     let notification_output = Arc::clone(&output);
@@ -308,11 +410,10 @@ async fn run_acp(
 
     let settlement =
         await_settlement(protocol, &cancellation, &cancel_target, config.timeout_ms).await;
-    process
+    let cleanup = process
         .reap(Duration::from_millis(config.shutdown_grace_ms))
         .await;
-
-    settlement_result(settlement, config.timeout_ms)
+    (settlement_result(settlement, config.timeout_ms), cleanup)
 }
 
 async fn await_settlement(
@@ -374,6 +475,7 @@ fn spawn_child(
         tokio::process::ChildStdin,
         tokio::process::ChildStdout,
         Child,
+        ManagedProcessGroup,
     ),
     HarnessError,
 > {
@@ -398,14 +500,22 @@ fn spawn_child(
         "XDG_CONFIG_HOME",
         "XDG_DATA_HOME",
         "XDG_CACHE_HOME",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "PATHEXT",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
     ] {
         if let Some(value) = std::env::var_os(name) {
             command.env(name, value);
         }
     }
     command.envs(&config.env);
-    crate::process_group::configure(&mut command);
-    let mut child = command.spawn().map_err(|error| {
+    let (mut child, group) = crate::process_supervision::spawn(&mut command).map_err(|error| {
         HarnessError::execution(format!("start ACP subagent {:?}: {error}", config.command))
     })?;
     let stdin = child
@@ -416,26 +526,32 @@ fn spawn_child(
         .stdout
         .take()
         .ok_or_else(|| HarnessError::execution("ACP subagent stdout is unavailable"))?;
-    Ok((stdin, stdout, child))
+    Ok((stdin, stdout, child, group))
 }
 
 struct ChildGuard {
     child: Child,
     group: OwnedProcessGroup,
+    completion: ManagedProcessGroup,
 }
 
 impl ChildGuard {
-    fn new(child: Child) -> Self {
+    fn new(child: Child, completion: ManagedProcessGroup) -> Self {
         let group = OwnedProcessGroup::new(child.id());
-        Self { child, group }
+        Self {
+            child,
+            group,
+            completion,
+        }
     }
 
-    async fn reap(&mut self, grace: Duration) {
+    async fn reap(&mut self, grace: Duration) -> Result<(), HarnessError> {
         self.group.terminate();
         let _ = tokio::time::timeout(grace, self.wait_for_group()).await;
         self.group.kill();
         let _ = self.child.start_kill();
         let _ = self.child.wait().await;
+        self.completion.wait_quiescent().await
     }
 
     #[cfg(unix)]
@@ -502,20 +618,21 @@ mod tests {
             "{handler}\nprintf 'ready\\n'\nwhile :; do printf 'writing\\n'; sleep 0.01; done"
         );
         let leader = if leader_exits { "exit 0" } else { "wait" };
-        let mut child = Command::new("/bin/sh")
-            .args([
-                "-c",
-                &format!("/bin/sh -c \"$1\" &\n{leader}"),
-                "fixture",
-                &writer,
-            ])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .process_group(0)
-            .kill_on_drop(true)
-            .spawn()
-            .unwrap();
+        let (mut child, group) = crate::process_supervision::spawn(
+            Command::new("/bin/sh")
+                .args([
+                    "-c",
+                    &format!("/bin/sh -c \"$1\" &\n{leader}"),
+                    "fixture",
+                    &writer,
+                ])
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .process_group(0)
+                .kill_on_drop(true),
+        )
+        .unwrap();
         let cleanup = OwnedProcessGroup::new(child.id());
         let mut output = BufReader::new(child.stdout.take().unwrap());
         tokio::time::timeout(Duration::from_secs(2), async {
@@ -525,7 +642,7 @@ mod tests {
         })
         .await
         .expect("descendant writer did not start");
-        (ChildGuard::new(child), output, cleanup)
+        (ChildGuard::new(child, group), output, cleanup)
     }
 
     async fn remaining_output(mut output: BufReader<ChildStdout>) -> String {
@@ -544,7 +661,7 @@ mod tests {
     async fn reap_stops_descendant_writer_after_leader_already_exited() {
         let (mut guard, output, _cleanup) = descendant_writer(true, false).await;
         assert!(guard.child.wait().await.unwrap().success());
-        guard.reap(Duration::from_millis(50)).await;
+        guard.reap(Duration::from_millis(50)).await.unwrap();
         assert!(remaining_output(output).await.contains("writing"));
     }
 
@@ -552,7 +669,7 @@ mod tests {
     async fn reap_stops_term_ignoring_descendant_after_leader_exits_on_term() {
         let (mut guard, output, _cleanup) = descendant_writer(false, false).await;
         assert!(guard.child.try_wait().unwrap().is_none());
-        guard.reap(Duration::from_millis(50)).await;
+        guard.reap(Duration::from_millis(50)).await.unwrap();
         assert!(remaining_output(output).await.contains("writing"));
     }
 
@@ -580,7 +697,7 @@ mod tests {
     async fn cooperative_descendant_gets_shutdown_grace_after_leader_exits() {
         let (mut guard, output, _cleanup) = descendant_writer(true, true).await;
         guard.child.wait().await.unwrap();
-        guard.reap(Duration::from_millis(500)).await;
+        guard.reap(Duration::from_millis(500)).await.unwrap();
         assert!(remaining_output(output).await.contains("cleaned"));
     }
 }

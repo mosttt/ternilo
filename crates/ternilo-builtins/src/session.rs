@@ -456,61 +456,91 @@ impl SessionLog {
     }
 }
 
+impl SessionLog {
+    async fn append_checked(
+        &self,
+        expected_seq: Option<u64>,
+        run_id: RunId,
+        mut kind: SessionEventKind,
+    ) -> Result<Option<SessionEvent>, HarnessError> {
+        self.retain_large_output(&mut kind).await?;
+        let occurred_at_ms = event_timestamp_ms()?;
+        let mut state = Arc::clone(&self.state).lock_owned().await;
+        if let Some(error) = &state.failure {
+            return Err(error.clone());
+        }
+        if state.committing {
+            return Err(HarnessError::execution(
+                "a previous session event commit ended without publishing its sequence",
+            ));
+        }
+        let seq = state
+            .events
+            .len()
+            .try_into()
+            .map_err(|_| HarnessError::execution("session sequence exceeds u64"))?;
+        if expected_seq.is_some_and(|expected| expected != seq) {
+            return Ok(None);
+        }
+        let event = SessionEvent {
+            seq,
+            occurred_at_ms,
+            run_id,
+            kind,
+        };
+        let environment = self.environment.clone();
+        let telemetry = self.telemetry.clone();
+        let identity = self.identity.clone();
+        let receipt = self.commits.start(async move {
+            state.committing = true;
+            let result: Result<SessionEvent, HarnessError> = async {
+                environment.commit_event(event.clone()).await?;
+                telemetry.capture(identity, event.clone()).await;
+                state.events.push(event.clone());
+                Ok(event)
+            }
+            .await;
+            state.committing = false;
+            if let Err(error) = &result {
+                // A failed append may already have written bytes. Do not reuse its sequence.
+                state.failure = Some(error.clone());
+            }
+            result
+        })?;
+        receipt
+            .await
+            .map_err(|error| {
+                HarnessError::execution(format!(
+                    "session event commit ended without a receipt: {error}"
+                ))
+            })?
+            .map(Some)
+    }
+}
+
 impl SessionsProvider for SessionLog {
     fn append<'a>(
         &'a self,
         _: CallContext<()>,
         run_id: RunId,
-        mut kind: SessionEventKind,
+        kind: SessionEventKind,
     ) -> Pin<Box<dyn Future<Output = Result<SessionEvent, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
-            self.retain_large_output(&mut kind).await?;
-            let occurred_at_ms = event_timestamp_ms()?;
-            let mut state = Arc::clone(&self.state).lock_owned().await;
-            if let Some(error) = &state.failure {
-                return Err(error.clone());
-            }
-            if state.committing {
-                return Err(HarnessError::execution(
-                    "a previous session event commit ended without publishing its sequence",
-                ));
-            }
-            let seq = state
-                .events
-                .len()
-                .try_into()
-                .map_err(|_| HarnessError::execution("session sequence exceeds u64"))?;
-            let event = SessionEvent {
-                seq,
-                occurred_at_ms,
-                run_id,
-                kind,
-            };
-            let environment = self.environment.clone();
-            let telemetry = self.telemetry.clone();
-            let identity = self.identity.clone();
-            let receipt = self.commits.start(async move {
-                state.committing = true;
-                let result: Result<SessionEvent, HarnessError> = async {
-                    environment.commit_event(event.clone()).await?;
-                    telemetry.capture(identity, event.clone()).await;
-                    state.events.push(event.clone());
-                    Ok(event)
-                }
-                .await;
-                state.committing = false;
-                if let Err(error) = &result {
-                    // A failed append may already have written bytes. Do not reuse its sequence.
-                    state.failure = Some(error.clone());
-                }
-                result
-            })?;
-            receipt.await.map_err(|error| {
-                HarnessError::execution(format!(
-                    "session event commit ended without a receipt: {error}"
-                ))
-            })?
+            Ok(self
+                .append_checked(None, run_id, kind)
+                .await?
+                .expect("unconditional append produces an event"))
         })
+    }
+
+    fn append_if_next_seq<'a>(
+        &'a self,
+        _: CallContext<()>,
+        next_seq: u64,
+        run_id: RunId,
+        kind: SessionEventKind,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<SessionEvent>, HarnessError>> + Send + 'a>> {
+        Box::pin(self.append_checked(Some(next_seq), run_id, kind))
     }
 
     fn events<'a>(

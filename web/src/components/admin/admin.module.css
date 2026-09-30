@@ -102,3 +102,10 @@
 [data-account-status="pending"] { color: var(--foreground); }
 [data-account-status="banned"] { color: var(--destructive); }
 [data-account-status="removed"] { color: var(--muted-foreground); }
+.nodeCleanup { width: 100%; max-width: 680px; font-size: 12px; }
+.nodeCleanup summary { cursor: pointer; color: var(--foreground); }
+.nodeCleanup > div { display: grid; gap: 10px; padding-top: 10px; }
+.nodeCleanup p { margin: 0; color: var(--muted-foreground); }
+.nodeCleanup > div > button { justify-self: start; }
+.nodeCleanup [data-node-cleanup] { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
+.nodeCleanup small, .nodeCleanup span { color: var(--muted-foreground); overflow-wrap: anywhere; }

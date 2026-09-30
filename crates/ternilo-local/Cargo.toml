@@ -13,6 +13,7 @@ ternilo-code-runtime.workspace = true
 ternilo-extension.workspace = true
 ternilo-kernel.workspace = true
 ternilo-protocol.workspace = true
+ternilo-transport.workspace = true
 nix.workspace = true
 linorun-core.workspace = true
 linorun-macros.workspace = true

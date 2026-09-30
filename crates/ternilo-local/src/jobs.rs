@@ -190,12 +190,16 @@ impl JobsProvider for LocalJobs {
     fn spawn<'a>(
         &'a self,
         _: CallContext<()>,
+        run_id: ternilo_protocol::RunId,
         request: ShellRequest,
     ) -> Pin<Box<dyn Future<Output = Result<JobSnapshot, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
             if request.command.trim().is_empty() {
                 return Err(HarnessError::invalid("job command must not be empty"));
             }
+            self.environment
+                .check_run_authorization(run_id.clone())
+                .await?;
             let job_id = JobId::new(format!(
                 "job-{}",
                 self.next_id.fetch_add(1, Ordering::Relaxed)
@@ -214,10 +218,27 @@ impl JobsProvider for LocalJobs {
                 .environment
                 .acquire_workspace(RunCancellation::new())
                 .await?;
+            let (start, admitted) = tokio::sync::oneshot::channel();
+            let creator_run = run_id.clone();
             let task = tokio::spawn(async move {
                 let _lease = lease;
-                shell.execute(request).await
+                admitted.await.map_err(|_| {
+                    HarnessError::cancelled("job was revoked before process creation")
+                })?;
+                shell.execute(run_id, request).await
             });
+            let control = Arc::new(JobControl(task.abort_handle()));
+            let resource_id = format!("job-{:032x}", rand::random::<u128>());
+            if let Err(error) = self
+                .environment
+                .register_execution_resource(creator_run, resource_id, control.clone())
+                .await
+            {
+                task.abort();
+                let _ = task.await;
+                return Err(error);
+            }
+            let _ = start.send(());
             self.records
                 .lock()
                 .map_err(|_| HarnessError::execution("job registry lock poisoned"))?
@@ -290,5 +311,21 @@ impl JobsProvider for LocalJobs {
             }
             self.refresh(&job_id).await
         })
+    }
+}
+
+struct JobControl(tokio::task::AbortHandle);
+impl ternilo_kernel::ExecutionResourceControl for JobControl {
+    fn stop<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(), HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            self.0.abort();
+            while !self.0.is_finished() {
+                tokio::task::yield_now().await;
+            }
+            Ok(())
+        })
+    }
+    fn is_finished(&self) -> bool {
+        self.0.is_finished()
     }
 }

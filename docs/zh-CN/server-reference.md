@@ -187,7 +187,7 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 ### 统一工作台
 
-`GET /api/v1/sessions/{session_id}/workspace` 返回绑定目录的浏览能力；Server 返回的 `applications` 始终为空。`POST` 的 `kind` 支持 `list` 和 `read`，使用工作区相对路径，要求工作区查看权限（不仅是会话共享）。Server 拒绝所有 `open` 请求，包括资源所有者的请求，不转发到 Node 启动桌面程序；该操作只保留在本机 Ternilo 接口。列表与读取仍发往实际 Node／Worker。当前执行器协议版本为 44，在模型来源证明、逐项设置、定时来源、事件确认及原生模型思考签名的基础上，增加设备 Provider 尝试用量事件和有界历史分页（保留必填的队列编辑版本条件与归档恢复操作）。Server、Node 与 Worker 需要一起升级。
+`GET /api/v1/sessions/{session_id}/workspace` 返回绑定目录的浏览能力；Server 返回的 `applications` 始终为空。`POST` 的 `kind` 支持 `list` 和 `read`，使用工作区相对路径，要求工作区查看权限（不仅是会话共享）。Server 拒绝所有 `open` 请求，包括资源所有者的请求，不转发到 Node 启动桌面程序；该操作只保留在本机 Ternilo 接口。列表与读取仍发往实际 Node／Worker。当前执行器协议版本为 45，包含输入账号及凭据版本证明、逐项设置、定时来源、事件确认、原生模型思考签名、设备 Provider 用量事件和有界历史分页。队列编辑必须携带版本条件。Server、Node 与 Worker 使用同一发行版本。
 
 `ModelRequest` 必须带当前 `run_id`；Models／ModelGateway 服务合同升至 `@3`，SessionTitles 升至 `@2`，内置与本机目录版本升至 v19。Node 模型网关同时提交实际子会话、原始输入会话和 Server 接受的输入证明，不能再按父会话最新输入推测作者。旧历史仍可读取，但没有运行绑定证明的旧远程输入不能用于新的账号模型调用，应重新提交任务；不会静默冒充其他账号或更换预算。
 
@@ -276,3 +276,9 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 项目共享沿用 `/api/v1/projects/{project_id}/sharing` 的 `GET`、`GET /candidates`、`PUT/DELETE /{user|group}/{subject_id}`，支持明确空间头及既有目录分页。团队成员可读规则，空间管理员可修改；项目创建者身份不代替当前团队管理角色。`ResourceAccess.can_manage_sharing` 明确共享管理能力，项目继承来源的 `resource_kind` 为 `project`，`resource_name` 为项目名称。
 
 `PUT /api/v1/workspaces/{workspace_id}/project-sharing` 接收 `{ "enabled": true }` 或 `false`，只允许有可写权限的资源所有者。返回 `project_id`、`project_name`、`enabled`、`can_change`；工作区共享查询也返回 `project_inheritance`。关闭后移除项目来源，直接共享不变。新组件为 `project_sharing` schema `1`，Control 保持 `14`，无新 Node RPC 操作。参见[项目共享](project-sharing.md)。
+
+### Node 清理确认
+
+`POST /api/v1/executors/cleanup/sync` 使用 Node 凭据和本机 `storage_instance_id` 同步授权与清理请求。`GET /api/v1/executors/cleanup` 读取自身快照；`POST` 提交匹配请求、撤销版本和数据实例的回执。此通道不恢复撤销凭据的普通访问权。
+
+`GET /api/v1/admin/accounts/{user_id}/node-cleanup` 供具有账号读取权限的实例所有者、平台管理员或审计员查看状态。`pending` 表示尚未确认，`confirmed` 表示 Node 已持久确认受管工作收尾。`detail` 仅接受 `process_state_unknown`、`process_exit_pending`、`session_busy`、`cleanup_failed` 或空值；诊断原文留在 Node 日志，不上传机器目录路径。

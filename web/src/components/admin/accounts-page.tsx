@@ -10,6 +10,7 @@ import { useLocale, useTranslate } from '@/i18n/provider'
 import { useWorkbench } from '@/state/workbench'
 import { listAccounts, reviewAccount, setAccountRole, setAccountStatus, type AccountPage, type AccountStatus, type AccountStatusAction, type PlatformAccount } from './admin-api'
 import { RegistrationPanel } from './registration-panel'
+import { NodeCleanupPanel } from './node-cleanup-panel'
 import css from './admin.module.css'
 
 const statusLabels = { active: 'accounts.status.active', pending: 'accounts.status.pending', rejected: 'accounts.status.rejected', banned: 'accounts.status.banned', removed: 'accounts.status.removed' } as const
@@ -164,6 +165,7 @@ export function AccountsPage() {
                   <code>{account.user_id}</code>
                   <small>{t('accounts.created', { date: new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', { dateStyle: 'medium' }).format(account.created_at_ms) })}</small>
                   <span data-account-status={account.status}>{t(statusLabels[account.status])}</span>
+                  {(account.status === 'banned' || account.status === 'removed' || account.status === 'active') && account.platform_role !== 'owner' && <NodeCleanupPanel userId={account.user_id} statusRevision={account.status_revision} />}
                 </div>
                 <div className={css.accountRole}>
                   {canReview && (account.status === 'pending' || account.status === 'rejected') ? <>

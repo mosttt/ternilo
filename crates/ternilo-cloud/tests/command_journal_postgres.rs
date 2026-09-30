@@ -205,6 +205,7 @@ async fn command_journal_contract(
                 tenant_id: tenant.tenant_id.clone(),
                 user_id: alice.user_id.clone(),
             },
+            input_authorization: None,
             issued_at_ms: now + 8,
             expires_at_ms: now + 120_000,
             body: ExecutorCommandBody::Application {

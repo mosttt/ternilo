@@ -28,6 +28,7 @@ fn input(
                 username: actor.username.clone(),
             },
         }),
+        input_authorization: None,
         issued_at_ms: fixture.now,
         expires_at_ms: fixture.now + 10_000,
         body: ExecutorCommandBody::Application {

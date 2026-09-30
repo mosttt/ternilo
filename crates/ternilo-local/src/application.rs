@@ -60,6 +60,9 @@ mod sessions;
 mod turns;
 mod workspaces;
 use input_references::LocalInputReferences;
+mod account_authorizations;
+#[cfg(test)]
+mod account_authorizations_tests;
 mod directory_admission;
 mod model_availability;
 mod model_connections;
@@ -180,6 +183,8 @@ impl LocalSessionUpdate {
 }
 
 pub struct LocalApplication {
+    account_authorizations: Arc<crate::account_authorizations::AccountAuthorizations>,
+    execution_resources: Arc<crate::execution_resources::ExecutionResources>,
     directory_coordinator: crate::DirectoryCoordinator,
     directory_account_owner: Arc<std::sync::RwLock<Option<UserId>>>,
     data_dir: PathBuf,
@@ -226,17 +231,43 @@ impl LocalApplication {
         self.server_models.install(gateway);
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "initialize durable stores and execution scopes before recovering work"
-    )]
     pub async fn open(
-        mut catalog: Catalog,
+        catalog: Catalog,
         profile: Profile,
         policy: HostPolicy,
         data_dir: PathBuf,
     ) -> Result<Self, HarnessError> {
+        Self::open_with_options(
+            catalog,
+            profile,
+            policy,
+            data_dir,
+            crate::LocalApplicationOpenOptions::default(),
+        )
+        .await
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "initialize durable stores and execution scopes before recovering work"
+    )]
+    pub async fn open_with_options(
+        mut catalog: Catalog,
+        profile: Profile,
+        policy: HostPolicy,
+        data_dir: PathBuf,
+        options: crate::LocalApplicationOpenOptions,
+    ) -> Result<Self, HarnessError> {
         let data_lock = acquire_data_lock(&data_dir).await?;
+        let account_authorizations = Arc::new(
+            crate::account_authorizations::AccountAuthorizations::open(
+                &data_dir,
+                options.server_binding,
+            )
+            .await?,
+        );
+        let execution_resources =
+            Arc::new(crate::execution_resources::ExecutionResources::open(&data_dir).await?);
         let extension_registry = ternilo_extension::ExtensionRegistry::open(
             data_dir.join("extensions"),
             ternilo_extension::ExtensionHostPolicy::default(),
@@ -305,6 +336,8 @@ impl LocalApplication {
         let session_archive =
             Arc::new(LocalSessionArchive::open(Arc::clone(&state), Arc::clone(&inbox)).await?);
         let application = Self {
+            account_authorizations,
+            execution_resources,
             directory_coordinator: crate::DirectoryCoordinator::for_user()?,
             directory_account_owner: Arc::new(std::sync::RwLock::new(None)),
             data_dir,

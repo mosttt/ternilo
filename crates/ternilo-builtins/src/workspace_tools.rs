@@ -583,20 +583,23 @@ impl ToolHandler for ShellTool {
 
     fn execute<'a>(
         &'a self,
-        _: ToolExecutionContext,
+        context: ToolExecutionContext,
         arguments: Value,
     ) -> Pin<Box<dyn Future<Output = Result<ToolOutput, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
             let arguments: ShellArguments = parse_arguments(arguments)?;
             let result = self
                 .shell
-                .execute(ShellRequest {
-                    command: arguments.command,
-                    timeout_ms: arguments.timeout_ms,
-                    full_access: arguments.full_access,
-                    stdin: None,
-                    env: std::collections::BTreeMap::new(),
-                })
+                .execute(
+                    context.run_id.clone(),
+                    ShellRequest {
+                        command: arguments.command,
+                        timeout_ms: arguments.timeout_ms,
+                        full_access: arguments.full_access,
+                        stdin: None,
+                        env: std::collections::BTreeMap::new(),
+                    },
+                )
                 .await?;
             let value = serde_json::to_value(result).map_err(|error| {
                 HarnessError::execution(format!("serialize shell result: {error}"))

@@ -210,7 +210,8 @@ impl ControlStore {
         crate::authentication_settings::initialize(database).await?;
         crate::project_sharing::initialize(database).await?;
         crate::identity_session_details::initialize(database).await?;
-        crate::oidc_sessions::initialize(database).await
+        crate::oidc_sessions::initialize(database).await?;
+        crate::node_account_cleanup::initialize(database).await
     }
 
     pub async fn health(&self) -> Result<(), HarnessError> {
@@ -3468,7 +3469,7 @@ fn extension_distribution_from_row(
     })
 }
 
-async fn token_tenant(
+pub(crate) async fn token_tenant(
     transaction: &mut ternilo_storage::Transaction,
     hash: &[u8],
     enrollment: bool,

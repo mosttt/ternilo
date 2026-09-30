@@ -169,6 +169,8 @@ jobs:
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib presets::tests
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib attachments::tests
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::tests::forks
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::account_authorizations_tests
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-builtins --lib process_supervision
           cargo test --locked --target "$RUST_TARGET" -p ternilo-extension --lib registry
         env:
           RUST_TARGET: ${{ matrix.target }}

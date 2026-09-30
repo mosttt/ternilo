@@ -6,7 +6,7 @@ Use a single Server instance today. PostgreSQL durability does not supply comple
 
 ## Installation
 
-Download the matching Server binary or pull `ghcr.io/mosttt/ternilo-server:0.1.2`. [Docker Compose](docker-compose.md) uses the published image without a local build. The optional `ternilo-deploy` helper requires Python 3.9 or newer and can run from the package's `deploy/docker/` directory.
+Download the matching Server binary or pull `ghcr.io/mosttt/ternilo-server:0.1.3`. [Docker Compose](docker-compose.md) uses the published image without a local build. The optional `ternilo-deploy` helper requires Python 3.9 or newer and can run from the package's `deploy/docker/` directory.
 
 For native deployment:
 

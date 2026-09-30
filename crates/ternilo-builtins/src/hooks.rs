@@ -432,13 +432,16 @@ impl HookHandler for CommandHookHandler {
             }
             match self
                 .shell
-                .execute(ShellRequest {
-                    command: self.definition.command.clone(),
-                    timeout_ms: self.definition.timeout_ms,
-                    full_access: false,
-                    stdin: Some(stdin),
-                    env,
-                })
+                .execute(
+                    request.run_id.clone(),
+                    ShellRequest {
+                        command: self.definition.command.clone(),
+                        timeout_ms: self.definition.timeout_ms,
+                        full_access: false,
+                        stdin: Some(stdin),
+                        env,
+                    },
+                )
                 .await
             {
                 Ok(output) => parse_hook_output(

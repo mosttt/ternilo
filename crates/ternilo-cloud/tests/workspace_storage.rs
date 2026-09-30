@@ -1201,6 +1201,7 @@ async fn enqueue_reference_command(
                         tenant_id: session.tenant_id.clone(),
                         user_id: session.user_id.clone(),
                     },
+                    input_authorization: None,
                     issued_at_ms: now,
                     expires_at_ms: now + 120_000,
                     body: ExecutorCommandBody::Application {

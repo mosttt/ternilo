@@ -116,6 +116,7 @@ fn workspace_read_command(
                 tenant_id: session.tenant_id.clone(),
                 user_id: owner.user_id.clone(),
             },
+            input_authorization: None,
             issued_at_ms: now,
             expires_at_ms: now + 120_000,
             body: ExecutorCommandBody::Application {

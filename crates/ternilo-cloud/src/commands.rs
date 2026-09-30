@@ -1625,6 +1625,7 @@ mod tests {
                     tenant_id: tenant_id.clone(),
                     user_id: user_id.clone(),
                 },
+                input_authorization: None,
                 issued_at_ms: 10,
                 expires_at_ms: 20,
                 body: ExecutorCommandBody::Application {
@@ -1681,6 +1682,7 @@ mod tests {
                         tenant_id: tenant.clone(),
                         user_id: owner.clone(),
                     },
+                    input_authorization: None,
                     issued_at_ms: 10,
                     expires_at_ms: 20,
                     body: ExecutorCommandBody::Application { request },

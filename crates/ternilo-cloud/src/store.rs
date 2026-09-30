@@ -1303,6 +1303,7 @@ async fn enqueue_run_cancellation_command(
             tenant_id: tenant_id.clone(),
             user_id: user_id.clone(),
         },
+        input_authorization: None,
         issued_at_ms: now_ms,
         expires_at_ms,
         body: ExecutorCommandBody::CancelRun {

@@ -42,8 +42,10 @@ mod control_redaction;
 mod model_gateway;
 
 mod application;
+mod cleanup;
 mod events;
 mod replies;
+pub(crate) use cleanup::server_binding;
 #[path = "node/uploads.rs"]
 mod uploads;
 use events::{pump_events, pump_heartbeats, pump_invalidations};
@@ -76,17 +78,25 @@ pub async fn connect(
     let replies =
         Arc::new(ReplyCache::open(application.data_dir().join("node-transport.sqlite3")).await?);
     println!("Ternilo node {executor_id} connecting outbound to gateway");
-    maintain_connection(
+    let connection = maintain_connection(
         gateway_url,
         token,
         &executor_id,
         &instance_nonce,
         &catalog_revision,
-        application,
+        Arc::clone(&application),
         replies,
         commands,
-    )
-    .await
+    );
+    if application.account_server_binding().await.is_some() {
+        let cleanup = cleanup::CleanupClient::new(gateway_url, token, &executor_id)?;
+        tokio::select! {
+            result = connection => result,
+            result = cleanup.pump(Arc::clone(&application)) => result,
+        }
+    } else {
+        connection.await
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -142,6 +152,15 @@ struct ConnectionConfig<'a> {
     reason = "Keep connection task lifetimes, acknowledgements and reconnect handling together."
 )]
 async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> {
+    if config.application.account_server_binding().await.is_some()
+        && !cleanup::CleanupClient::new(config.gateway_url, config.token, config.executor_id)?
+            .synchronize(&config.application)
+            .await?
+    {
+        return Err(HarnessError::unavailable(
+            "Node credential is restricted to the account cleanup channel",
+        ));
+    }
     let mut request = config
         .gateway_url
         .into_client_request()

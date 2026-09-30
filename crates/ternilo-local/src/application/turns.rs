@@ -150,6 +150,9 @@ impl LocalApplication {
             additional_submissions,
         } = request;
         self.stopping.check()?;
+        self.account_authorizations
+            .check(provenance.as_ref())
+            .await?;
         self.validate_device_input(session_id, provenance.as_ref())
             .await?;
         self.validate_turn_model(session_id, &input).await?;
@@ -159,6 +162,9 @@ impl LocalApplication {
         let mut managed = self.ensure_session_locked(session_id).await?;
         let mut gate = Arc::clone(&managed.gate).lock_owned().await;
         self.stopping.check()?;
+        self.account_authorizations
+            .check(provenance.as_ref())
+            .await?;
         if self
             .runtime_extensions
             .take_restart_request(session_id)
@@ -185,6 +191,17 @@ impl LocalApplication {
         let mut prepared = Self::prepare_turn_input(&managed, input).await?;
         let mut additional_inputs = Vec::with_capacity(additional_submissions.len());
         for submission in additional_submissions {
+            if let Err(error) = self
+                .account_authorizations
+                .check(submission.provenance.as_ref())
+                .await
+            {
+                if error.code == ternilo_protocol::ErrorCode::PolicyDenied {
+                    self.inbox.finish(session_id, &submission.id).await?;
+                    continue;
+                }
+                return Err(error);
+            }
             self.validate_device_input(session_id, submission.provenance.as_ref())
                 .await?;
             let prepared =
@@ -241,10 +258,23 @@ impl LocalApplication {
             })
             .await;
         let current_events = managed.harness.events().await;
+        let revoked = self
+            .model_input_origin(session_id, &run_id)
+            .await
+            .ok()
+            .map(|origin| origin.provenance);
+        let revoked = match revoked {
+            Some(provenance) => self
+                .account_authorizations
+                .check(provenance.as_ref())
+                .await
+                .is_err_and(|error| error.code == ternilo_protocol::ErrorCode::PolicyDenied),
+            None => false,
+        };
         self.settle_session_inbox(
             session_id,
             &current_events,
-            outcome.as_ref().is_err_and(HarnessError::is_cancelled),
+            outcome.as_ref().is_err_and(HarnessError::is_cancelled) && !revoked,
         )
         .await?;
         let mut outcome = outcome?;
