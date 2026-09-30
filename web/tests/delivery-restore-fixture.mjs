@@ -109,19 +109,20 @@ export async function captureLayouts(page, artifacts, name) {
   await page.bringToFront()
   for (const width of [1366, 390, 320]) {
     await page.setViewportSize({ width, height: 900 })
-    await page.mouse.move(width - 4, 4)
     if (width < 760) {
       await page.locator('[data-app-frame][data-mobile="true"]').waitFor()
       const close = page.locator('[data-app-sidebar-column]:not([inert]) [data-mobile-sidebar-close]')
       if (await close.count()) await close.click()
       await page.locator('[data-app-sidebar-column][inert]').waitFor({ state: 'attached' })
     }
-    await page.locator('[data-input-bar] textarea').click()
-    await page.keyboard.press('Escape')
-    await page.waitForFunction(() => !document.querySelector('[data-radix-popper-content-wrapper]'))
     await page.evaluate(async () => {
       await Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})))
+      // Closing the drawer restores focus on the next frame; settle it before dismissing hover cards.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     })
+    await page.locator('[data-input-bar] textarea').click({ position: { x: 8, y: 8 } })
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('[data-radix-popper-content-wrapper]'))
     await page.locator('[data-input-bar]').waitFor()
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     assert.equal(await page.locator('[data-app-center-column][inert]').count(), 0)
