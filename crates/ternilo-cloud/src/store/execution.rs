@@ -107,6 +107,10 @@ impl CloudStore {
         Ok(None)
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep actor admission, canonical leases and writer fencing in one atomic start transaction."
+    )]
     pub async fn start_run(
         &self,
         claim: CloudRunClaim,
@@ -127,9 +131,9 @@ impl CloudStore {
         lock_session_in(&mut tx, &claim.tenant_id, &claim.session_id).await?;
         let row = sqlx::query(for_update(
             &tx,
-            "SELECT user_id FROM cloud_runs WHERE tenant_id=$1 AND run_id=$2 AND session_id=$3
+            "SELECT user_id, actor_user_id FROM cloud_runs WHERE tenant_id=$1 AND run_id=$2 AND session_id=$3
             AND state='leased' AND lease_owner=$4 AND lease_token=$5 AND lease_expires_at_ms>$6",
-            "SELECT user_id FROM cloud_runs WHERE tenant_id=$1 AND run_id=$2 AND session_id=$3
+            "SELECT user_id, actor_user_id FROM cloud_runs WHERE tenant_id=$1 AND run_id=$2 AND session_id=$3
             AND state='leased' AND lease_owner=$4 AND lease_token=$5 AND lease_expires_at_ms>$6
             FOR UPDATE",
         ))
@@ -145,6 +149,21 @@ impl CloudStore {
         let Some(row) = row else {
             return Ok(None);
         };
+        let actor_id = UserId::new(
+            row.try_get::<String, _>("actor_user_id")
+                .map_err(database_error)?,
+        );
+        if let Err(error) =
+            crate::account_cleanup::require_active_actor_in(&mut tx, &actor_id).await
+        {
+            if matches!(
+                error.code,
+                ternilo_protocol::ErrorCode::PolicyDenied | ternilo_protocol::ErrorCode::Conflict
+            ) {
+                return Ok(None);
+            }
+            return Err(error);
+        }
         set_user_scope(
             &mut tx,
             &UserId::new(

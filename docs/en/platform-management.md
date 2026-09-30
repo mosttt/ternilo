@@ -14,6 +14,8 @@ The instance owner selects single-user or multi-user access and the registration
 
 Banning or removing an account revokes access and invalidates credentials according to the operation. Unbanning does not revive previously revoked sessions or authorize replay of old commands. Do not treat account removal as proof that every external file, transferred resource or already-started side effect has been deleted. Ownership handoff and full resource cleanup remain separate administrative concerns.
 
+Server accepts managed runs under an authenticated execution account. Editing another member's queued message authorizes its execution as the editor, while the historical message keeps its original author. Banning or closing the current execution account cancels its accepted runs, including derived runs and work in another owner's shared session, in the same transaction as access revocation. Queued and not-yet-started runs are cancelled and release their reservations. Running tasks retain a stop-requested state until the Worker receives the durable cancellation command and reports the actual end. Independently authorized tasks from other accounts remain. Unbanning does not resume cancelled work; history, file effects and actual usage keep their original attribution. Worker disconnection is not proof of termination. Cleanup of running Node tasks, persistent goals and offline Node queues still requires a separate executor confirmation mechanism.
+
 ## Instance services
 
 The owner controls authentication and human-verification configuration. Platform model administration configures upstreams, published models, grants, groups and usage; it is separate from team collaboration groups. Managed execution is optional and registers Workers through its own entry.

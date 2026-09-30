@@ -1258,6 +1258,14 @@ async fn initialize_database(database: &Database) -> Result<(), HarnessError> {
             "",
         )
         .await?;
+    database
+        .initialize(
+            "cloud_account_cleanup",
+            1,
+            include_str!("schema/account_cleanup.sql"),
+            include_str!("schema/account_cleanup_postgres.sql"),
+        )
+        .await?;
     crate::maintenance::initialize_database(database).await
 }
 

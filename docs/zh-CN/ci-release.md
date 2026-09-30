@@ -52,7 +52,7 @@ GHCR 上传仅在镜像作业取得 `packages: write`，使用 GitHub 自带的 
 ## 发布步骤
 
 1. 确认 `Cargo.toml` 的 workspace 版本与 `apps/ternilo-desktop/tauri.conf.json` 完全一致；同步变更后的正式文档。
-2. 在经过检查的提交创建并推送对应 `v<版本>` 标签，例如 `v0.1.1`。工作流拒绝标签和程序版本不一致。
+2. 在经过检查的提交创建并推送对应 `v<版本>` 标签，例如 `v0.1.2`。工作流拒绝标签和程序版本不一致。
 3. 等待检查、四平台包、镜像验收和上传全部完成；失败必须处理后重跑，不以跳过门禁发布。
 4. 工作流上传全部附件后自动公开 Release；检查其中的四平台产物、`SHA256SUMS`、`SOURCE` 和 `server-image.txt`。`SOURCE` 记录 Ternilo 与 Linorun 提交，校验和覆盖实际附件。
 5. 下载 `compose.server.yml` 可直接使用已发布的 Server 镜像，无需源码构建；`docker-compose.md` 与英文版提供初始化和启动步骤。未签名安装器始终明确标注，签名／公证及目标平台实机安装验收单独推进。

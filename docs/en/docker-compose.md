@@ -2,12 +2,12 @@
 
 [简体中文](../zh-CN/docker-compose.md)
 
-Install Docker Engine and the Compose plugin. Compose pulls `ghcr.io/mosttt/ternilo-server:0.1.1` directly; no Rust, Node.js, Python, source checkout or local build is required. The current image targets `linux/amd64`.
+Install Docker Engine and the Compose plugin. Compose pulls `ghcr.io/mosttt/ternilo-server:0.1.2` directly; no Rust, Node.js, Python, source checkout or local build is required. The current image targets `linux/amd64`.
 
 ```sh
 mkdir ternilo-server
 cd ternilo-server
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.1.1/compose.server.yml
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.1.2/compose.server.yml
 docker compose -f compose.server.yml pull
 ```
 
@@ -34,10 +34,10 @@ docker compose -f compose.server.yml up -d --wait
 There is no Compose `build` step. To override the pinned image, digest, host port or project name, create `.env` beside the Compose file:
 
 ```dotenv
-TERNILO_IMAGE=ghcr.io/mosttt/ternilo-server:0.1.1
+TERNILO_IMAGE=ghcr.io/mosttt/ternilo-server:0.1.2
 TERNILO_DEPLOY_PROJECT=ternilo-server
 TERNILO_SERVER_HTTP_BIND_ADDRESS=127.0.0.1
 TERNILO_SERVER_HTTP_PORT=4321
 ```
 
-The bare name `ternilo-server:0.1.1` resolves to Docker Hub's default namespace; use the full GHCR address. Separate deployments need distinct project names and host ports so their volumes remain independent. Back up configuration and database and check schema compatibility before changing versions.
+The bare name `ternilo-server:0.1.2` resolves to Docker Hub's default namespace; use the full GHCR address. Separate deployments need distinct project names and host ports so their volumes remain independent. Back up configuration and database and check schema compatibility before changing versions.

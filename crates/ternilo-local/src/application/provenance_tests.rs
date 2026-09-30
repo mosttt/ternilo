@@ -282,23 +282,53 @@ async fn input_provenance_survives_multiuser_queue_restart_and_fork() {
     );
     assert_eq!(recorded[4].1, wake.provenance);
     assert_eq!(recorded.len(), 5);
-    let batch = events
+    let resumed = events
         .iter()
         .filter(|event| matches!(event.kind, SessionEventKind::UserMessage { .. }))
         .skip(2)
         .collect::<Vec<_>>();
-    assert!(batch.iter().all(|event| event.run_id == queued.run_id));
     assert_eq!(
-        restored
-            .model_input_origin(&id, &queued.run_id)
-            .await
-            .map(|origin| (origin.session_id, origin.provenance))
-            .unwrap(),
-        (session.identity.session_id.clone(), Some(bob))
+        resumed
+            .iter()
+            .map(|event| &event.run_id)
+            .collect::<Vec<_>>(),
+        [&queued.run_id, &accepted.run_id, &wake.run_id]
     );
+    assert_ne!(queued.run_id, accepted.run_id);
+    assert_ne!(queued.run_id, wake.run_id);
+    assert_ne!(accepted.run_id, wake.run_id);
+    for (run, provenance) in [
+        (&queued.run_id, Some(bob.clone())),
+        (&accepted.run_id, Some(alice.clone())),
+        (&wake.run_id, wake.provenance.clone()),
+    ] {
+        assert!(events.iter().any(|event| &event.run_id == run
+            && matches!(event.kind, SessionEventKind::TurnFinished { .. })));
+        assert_eq!(
+            restored
+                .model_input_origin(&id, run)
+                .await
+                .map(|origin| (origin.session_id, origin.provenance))
+                .unwrap(),
+            (session.identity.session_id.clone(), provenance)
+        );
+    }
     let requests = model.requests();
-    assert_eq!(requests.len(), 1);
-    let users = requests[0]["messages"]
+    assert_eq!(requests.len(), 3);
+    for (request, expected) in
+        requests
+            .iter()
+            .zip(["Bob's edited task", "Alice's task", "Local wake"])
+    {
+        let users = request["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|message| message["role"] == "user")
+            .collect::<Vec<_>>();
+        assert_eq!(users.last().unwrap()["content"], expected);
+    }
+    let users = requests[2]["messages"]
         .as_array()
         .unwrap()
         .iter()

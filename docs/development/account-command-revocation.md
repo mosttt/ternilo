@@ -1,6 +1,6 @@
 # 账号停用与 Node 持久命令
 
-状态：禁止旧输入补发已通过 SQLite／受限 PostgreSQL、真实 WebSocket 重连及 123 项 Server 回归。完整任务取消仍需后续闭环。
+状态：禁止旧输入补发已通过 SQLite／受限 PostgreSQL、真实 WebSocket 重连及 Server 回归。托管运行清理见[账号任务清理](account-task-cleanup.md)；Node 已开始的运行和离线队列仍需执行端清理确认。
 
 检查发现，封禁／注销会撤销登录、模型和本人电脑凭据，但共享成员此前提交到他人电脑的持久命令，仍可能在电脑重连时重发。只检查账号当前是否 active 也不充分：快速封禁后解封会重新放行旧输入。
 
@@ -8,7 +8,7 @@
 
 pending 命令返回投递拒绝回执，同时保留旧版本可能已经投递过的未知执行状态。inflight 命令可能已执行，干净断开也保留这一状态，因此仅禁止再次发送，继续保留实际回执接收和原有超时规则，不伪造“已取消”或回滚结果。早于本版本且没有接收证据的持久输入也不重放；历史事件和已经完成的回执保留。禁止重放不是运行中取消。
 
-新增 `gateway_input_authorization` schema 1 组件与按租户隔离的附表，不修改 Control 14、Gateway 1 或 executor protocol 44。升级应先停止旧 Server，按现有方式使用 schema owner 初始化后由受限 runtime 运行。
+`gateway_input_authorization` schema 1 组件保存按租户隔离的输入接收证据。Control、Gateway 与 executor protocol 的现有组件版本保持不变。
 
 验收覆盖 SQLite／受限 PostgreSQL、封禁期间原子拒绝接收、快速解封不复活旧命令、去重不刷新版本、单条批次不被失效命令阻塞、迟到真实回执、重新打开 journal、旧库无证据输入及真实认证 WebSocket 重连。
 

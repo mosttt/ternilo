@@ -20,7 +20,7 @@ Docker 是 Worker 的可选部署外壳，不是每个 Harness 的独立容器�
 
 ```bash
 ./ternilo-deploy init --directory ./server \
-  --image ternilo-server:0.1.1 --managed-execution-enabled
+  --image ternilo-server:0.1.2 --managed-execution-enabled
 ```
 
 已有 Docker Server 可以直接调整部署设置：
@@ -53,7 +53,7 @@ read -r -s -p "Worker token: " TERNILO_WORKER_TOKEN
 export TERNILO_WORKER_TOKEN
 
 ./ternilo-deploy init --component worker --directory ./worker \
-  --image ternilo-worker:0.1.1 \
+  --image ternilo-worker:0.1.2 \
   --server-url https://ternilo.example.com
 
 unset TERNILO_WORKER_TOKEN

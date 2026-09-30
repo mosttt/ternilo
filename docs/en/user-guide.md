@@ -8,6 +8,8 @@ Choose the intended computer or managed location, open a directory, and create a
 
 The input area distinguishes sending a new turn, queueing behind current work and injecting supported follow-up input. General settings control Enter behavior while busy. Inspect the queue to edit or remove pending submissions; stopping a running turn and removing a queued submission are different actions. A manual stop preserves completed operations and durable history.
 
+Consecutive queued messages from the same authenticated account can enter one run while keeping separate messages, authors, attachments and references. Different authors form separate batches in FIFO order; later messages never jump over another author. Local input remains separate from platform accounts. Unattributed inputs and automated tasks without a provable common author run individually.
+
 ## History and forks
 
 Long histories load in bounded pages. Loading older events does not move the live-update cursor backwards. Completed turns can be displayed compactly while keeping reasoning and tool details expandable. Only reasoning text actually returned by the provider is shown.

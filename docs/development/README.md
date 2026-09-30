@@ -17,3 +17,4 @@
 - [Windows 持久化与桌面入口](windows-persistence-desktop.md)：平台行为与退出边界。
 - [浏览器会话详情](browser-session-details.md)：账号隔离、活动记录与来源 IP。
 - [MCP 目录刷新与可选重连](mcp-refresh-reconnect.md)：通知处理、调用边界和有限重连预算。
+- [账号任务清理](account-task-cleanup.md)：托管执行授权、作者批次隔离和执行端确认边界。

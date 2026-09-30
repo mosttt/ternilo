@@ -2,7 +2,8 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use ternilo_protocol::{
-    HarnessError, QueueEditRequest, SessionSubmission, SubmissionId, SubmissionPlacement,
+    HarnessError, InputAuthor, QueueEditRequest, SessionSubmission, SubmissionId,
+    SubmissionPlacement,
 };
 use tokio::sync::{Mutex, broadcast};
 
@@ -356,7 +357,9 @@ impl LocalInboxStore {
             }
             let conversational = matches!(&item.content,
                 ternilo_protocol::SubmissionContent::Prompt { input } if !input.trim_start().starts_with('/'));
-            if !batch.is_empty() && !conversational {
+            if let Some(first) = batch.first()
+                && (!conversational || !same_batch_author(first, item))
+            {
                 break;
             }
             item.placement = SubmissionPlacement::Running;
@@ -486,6 +489,21 @@ impl LocalInboxStore {
     }
 }
 
+fn same_batch_author(first: &SessionSubmission, next: &SessionSubmission) -> bool {
+    match (
+        first.provenance.as_ref().map(|input| &input.author),
+        next.provenance.as_ref().map(|input| &input.author),
+    ) {
+        (Some(InputAuthor::Local), Some(InputAuthor::Local)) => true,
+        (
+            Some(InputAuthor::Account { user_id: first, .. }),
+            Some(InputAuthor::Account { user_id: next, .. }),
+        ) => first == next,
+        // Automation source categories do not identify their initiating actor.
+        _ => false,
+    }
+}
+
 fn load_document(
     database: &rusqlite::Connection,
     session_id: &str,
@@ -585,11 +603,13 @@ fn validate_document(document: &InboxDocument) -> Result<(), HarnessError> {
 #[cfg(test)]
 mod tests {
     use ternilo_protocol::{
-        RunId, SessionSubmission, SubmissionContent, SubmissionId, SubmissionPlacement,
+        InputProvenance, RunId, SessionSubmission, SubmissionContent, SubmissionId,
+        SubmissionPlacement,
     };
 
     use super::*;
 
+    mod batch_authors;
     mod edit_conflicts;
 
     fn item(id: &str) -> SessionSubmission {
@@ -608,6 +628,16 @@ mod tests {
         }
     }
 
+    fn authored_item(id: &str, author: InputAuthor) -> SessionSubmission {
+        let mut item = item(id);
+        item.provenance = Some(InputProvenance {
+            input_id: item.id.clone(),
+            run_id: Some(item.run_id.clone()),
+            author,
+        });
+        item
+    }
+
     async fn test_store(path: std::path::PathBuf) -> LocalInboxStore {
         let (invalidations, _) = broadcast::channel(16);
         LocalInboxStore::open(&path.join("inbox.sqlite3"), invalidations)
@@ -620,7 +650,10 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = test_store(directory.path().to_owned()).await;
         for name in ["B", "C"] {
-            store.enqueue("session-a", item(name)).await.unwrap();
+            store
+                .enqueue("session-a", authored_item(name, InputAuthor::Local))
+                .await
+                .unwrap();
         }
         let batch = store.claim_batch("session-a", 11).await.unwrap();
         assert_eq!(
@@ -630,7 +663,10 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["B", "C"]
         );
-        store.enqueue("session-a", item("D")).await.unwrap();
+        store
+            .enqueue("session-a", authored_item("D", InputAuthor::Local))
+            .await
+            .unwrap();
         store
             .settle_run("session-a", &[SubmissionId::new("B")], true, 12)
             .await

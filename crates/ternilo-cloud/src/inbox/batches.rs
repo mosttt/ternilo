@@ -3,11 +3,23 @@ use super::{
     SubmissionDelivery, TenantId, UserId, database_error, decode_submission, promote_head,
     require_owned_session, set_scope, to_i64,
 };
-use ternilo_protocol::{RunSpec, SteeringInput, UserMessageSource};
+use ternilo_protocol::{InputAuthor, RunSpec, SteeringInput, UserMessageSource};
 use ternilo_storage::{Json, Transaction};
 
 fn conversational(content: &SubmissionContent) -> bool {
     matches!(content, SubmissionContent::Prompt { input } if !input.trim_start().starts_with('/'))
+}
+
+fn same_batch_author(first: Option<&InputAuthor>, next: Option<&InputAuthor>) -> bool {
+    match (first, next) {
+        (Some(InputAuthor::Local), Some(InputAuthor::Local)) => true,
+        (
+            Some(InputAuthor::Account { user_id: first, .. }),
+            Some(InputAuthor::Account { user_id: next, .. }),
+        ) => first == next,
+        // Automation categories do not identify their initiating actor.
+        _ => false,
+    }
 }
 
 pub(super) async fn claim_batch_in(
@@ -19,7 +31,8 @@ pub(super) async fn claim_batch_in(
     now: i64,
 ) -> Result<(), HarnessError> {
     let rows = sqlx::query(
-        "SELECT submission.submission_id, submission.run_id, submission.content, run.spec
+        "SELECT submission.submission_id, submission.run_id, submission.input_provenance,
+          submission.content, run.spec, run.actor_user_id
         FROM cloud_session_submissions AS submission JOIN cloud_runs AS run
           ON run.tenant_id=submission.tenant_id AND run.run_id=submission.run_id
         WHERE submission.tenant_id=$1 AND submission.user_id=$2 AND submission.session_id=$3
@@ -41,12 +54,17 @@ pub(super) async fn claim_batch_in(
     {
         return Ok(());
     }
+    let head_author = crate::input_provenance::stored_provenance(head)?.map(|input| input.author);
+    let head_actor: String = head.get("actor_user_id");
     let head = head.get::<Json<RunSpec>, _>("spec").0;
     for row in rows.iter().skip(1) {
         let content = row.get::<Json<SubmissionContent>, _>("content").0;
         let spec = row.get::<Json<RunSpec>, _>("spec").0;
+        let author = crate::input_provenance::stored_provenance(row)?.map(|input| input.author);
         let candidate = RunId::new(row.get::<String, _>("run_id"));
         if !conversational(&content)
+            || !same_batch_author(head_author.as_ref(), author.as_ref())
+            || row.get::<String, _>("actor_user_id") != head_actor
             || spec.profile != head.profile
             || spec.permissions != head.permissions
             || spec.mode != head.mode
@@ -135,6 +153,7 @@ impl CloudStore {
         .await?;
         set_scope(&mut transaction, tenant, &owner).await?;
         require_owned_session(&mut transaction, tenant, &owner, session).await?;
+        crate::store::lock_session_in(&mut transaction, tenant, session).await?;
         let now = to_i64(now_ms, "queue resume time")?;
         sqlx::query(
             "UPDATE cloud_session_inboxes SET paused=0, error=NULL, updated_at_ms=$3

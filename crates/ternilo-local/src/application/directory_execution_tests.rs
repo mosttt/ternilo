@@ -649,9 +649,9 @@ async fn a_reference_resolution_error_finishes_the_accepted_run_as_failed() {
 #[tokio::test]
 #[expect(
     clippy::too_many_lines,
-    reason = "verify interruption, a multi-author batch, and fresh references across one directory handoff"
+    reason = "verify interruption, separate authored runs, and fresh references across one directory handoff"
 )]
-async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_references() {
+async fn interrupting_a_waiting_run_separates_authors_and_resolves_fresh_references() {
     let fixture = Fixture::new().await;
     let app = &fixture.application;
     fixture.session(&fixture.left, "holder").await;
@@ -766,6 +766,9 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
             if events.iter().any(|event| {
                 event.run_id == first.run_id
                     && matches!(event.kind, SessionEventKind::TurnFinished { .. })
+            }) && events.iter().any(|event| {
+                event.run_id == accepted.run_id
+                    && matches!(event.kind, SessionEventKind::TurnFinished { .. })
             }) && app.session_inbox("reader").await.unwrap().items.is_empty()
             {
                 break events;
@@ -774,7 +777,7 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
         }
     })
     .await
-    .expect("replacement batch did not finish");
+    .expect("separate replacement runs did not finish");
     let cancelled = events
         .iter()
         .find(|event| {
@@ -786,12 +789,17 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
         event.run_id.as_str() == "steered-reference-run"
             && matches!(event.kind, SessionEventKind::ModelRequestStarted { .. })
     }));
-    let batch = events
+    let first_run = events
         .iter()
         .filter(|event| event.run_id == first.run_id)
         .collect::<Vec<_>>();
-    let messages = batch
+    let second_run = events
         .iter()
+        .filter(|event| event.run_id == accepted.run_id)
+        .collect::<Vec<_>>();
+    let messages = events
+        .iter()
+        .filter(|event| event.run_id == first.run_id || event.run_id == accepted.run_id)
         .filter_map(|event| match &event.kind {
             SessionEventKind::UserMessage {
                 content,
@@ -799,7 +807,7 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
                 ..
             } => {
                 assert!(event.seq > cancelled.seq);
-                Some((content.as_str(), provenance.as_ref()))
+                Some((&event.run_id, content.as_str(), provenance.as_ref()))
             }
             _ => None,
         })
@@ -807,11 +815,35 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
     assert_eq!(
         messages,
         vec![
-            ("B: queued before interruption", Some(&first_author)),
-            ("Use this collaborator's file", Some(&provenance)),
+            (
+                &first.run_id,
+                "B: queued before interruption",
+                Some(&first_author)
+            ),
+            (
+                &accepted.run_id,
+                "Use this collaborator's file",
+                Some(&provenance)
+            ),
         ]
     );
-    let authored = batch
+    let first_finished = first_run
+        .iter()
+        .find(|event| matches!(event.kind, SessionEventKind::TurnFinished { .. }))
+        .unwrap();
+    let second_message = second_run
+        .iter()
+        .find(|event| matches!(event.kind, SessionEventKind::UserMessage { .. }))
+        .unwrap();
+    assert!(first_finished.seq < second_message.seq);
+    assert!(!first_run.iter().any(|event| matches!(
+        event.kind,
+        SessionEventKind::HookContextAdded {
+            reference: Some(_),
+            ..
+        }
+    )));
+    let authored = second_run
         .iter()
         .filter_map(|event| match &event.kind {
             SessionEventKind::UserMessage {
@@ -830,19 +862,30 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
         matches!(authored[0].2, Some(UserMessageSource::Submission { submission_id, delivery: ternilo_protocol::SubmissionDelivery::Queue, .. })
         if submission_id == &provenance.input_id)
     );
-    let acquired = batch
+    let acquired = first_run
         .iter()
-        .position(|event| matches!(event.kind, SessionEventKind::WorkspaceExecutionAcquired))
+        .find(|event| matches!(event.kind, SessionEventKind::WorkspaceExecutionAcquired))
         .unwrap();
-    let context = batch.iter().position(|event| matches!(&event.kind,
+    let turn_started = second_run
+        .iter()
+        .position(|event| matches!(event.kind, SessionEventKind::TurnStarted))
+        .unwrap();
+    // The released directory is admitted immediately; these events describe a wait only.
+    assert!(!second_run.iter().any(|event| matches!(
+        event.kind,
+        SessionEventKind::WorkspaceExecutionWaiting | SessionEventKind::WorkspaceExecutionAcquired
+    )));
+    let context = second_run.iter().position(|event| matches!(&event.kind,
         SessionEventKind::HookContextAdded { content, reference: Some(_), .. }
             if content.contains("FRESH_STEERING_AFTER_HOLDER_EDIT") && !content.contains("STALE_STEERING_CONTEXT")
     )).unwrap();
-    let started = batch
+    let started = second_run
         .iter()
         .position(|event| matches!(event.kind, SessionEventKind::ModelRequestStarted { .. }))
         .unwrap();
-    assert!(acquired < context && context < started);
+    assert!(acquired.seq < first_finished.seq);
+    assert!(first_finished.seq < second_run[turn_started].seq);
+    assert!(turn_started < context && context < started);
     let requests = model.requests();
     let completions = requests
         .iter()
@@ -852,8 +895,12 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
                 .is_some_and(|tools| !tools.is_empty())
         })
         .collect::<Vec<_>>();
-    assert_eq!(completions.len(), 1);
-    let users = completions[0]["messages"]
+    assert_eq!(completions.len(), 2);
+    let first_messages = completions[0]["messages"].to_string();
+    assert!(first_messages.contains("B: queued before interruption"));
+    assert!(!first_messages.contains("Use this collaborator's file"));
+    assert!(!first_messages.contains("FRESH_STEERING_AFTER_HOLDER_EDIT"));
+    let users = completions[1]["messages"]
         .as_array()
         .unwrap()
         .iter()
@@ -877,7 +924,7 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
         .unwrap();
     assert!(first_user < second_user);
     assert!(
-        completions[0]["messages"]
+        completions[1]["messages"]
             .to_string()
             .contains("FRESH_STEERING_AFTER_HOLDER_EDIT")
     );
@@ -887,6 +934,13 @@ async fn interrupting_a_waiting_run_batches_authors_and_resolves_fresh_reference
             .map(|origin| (origin.session_id, origin.provenance))
             .unwrap(),
         (SessionId::new("reader"), Some(first_author))
+    );
+    assert_eq!(
+        app.model_input_origin("reader", &accepted.run_id)
+            .await
+            .map(|origin| (origin.session_id, origin.provenance))
+            .unwrap(),
+        (SessionId::new("reader"), Some(provenance))
     );
     assert!(
         !requests

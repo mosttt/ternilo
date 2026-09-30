@@ -11,6 +11,7 @@ use ternilo_protocol::{
     SessionIdentity, TenantId, UserId,
 };
 
+mod account_cleanup;
 mod agent_team;
 mod execution_admission;
 mod execution_families;

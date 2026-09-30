@@ -245,7 +245,7 @@ async fn set_account_status(
         .map_err(invalid_request)?;
     let state = app_state(depot);
     let account = state
-        .store
+        .cloud
         .set_account_status(
             actor(depot),
             &user_id,

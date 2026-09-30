@@ -114,6 +114,8 @@ impl CloudStore {
         now_ms: u64,
     ) -> Result<CloudSubmissionReceipt, HarnessError> {
         validate_enqueue(compiled, quota_reservation_id, request)?;
+        crate::account_cleanup::require_active_actor_in(transaction, &compiled.actor_user_id)
+            .await?;
         let spec = &compiled.spec;
         let tenant_id = &spec.metadata.tenant_id;
         let user_id = &spec.metadata.user_id;
@@ -514,6 +516,7 @@ impl CloudStore {
         replacement.spec.validate_shape()?;
         let digest = spec_digest(&replacement.spec)?;
         let mut transaction = self.begin().await?;
+        crate::account_cleanup::require_active_actor_in(&mut transaction, actor_id).await?;
         let owner_id = crate::sharing::session_owner_in(
             &mut transaction,
             tenant_id,
@@ -524,6 +527,7 @@ impl CloudStore {
         .await?;
         let user_id = &owner_id;
         set_scope(&mut transaction, tenant_id, user_id).await?;
+        crate::store::lock_session_in(&mut transaction, tenant_id, session_id).await?;
         if actor_id != user_id {
             crate::shared_attachments::require_session_attachment_references_in(
                 &mut transaction,
@@ -724,6 +728,7 @@ impl CloudStore {
         .await?;
         let user_id = &owner_id;
         set_scope(&mut transaction, tenant_id, user_id).await?;
+        crate::store::lock_session_in(&mut transaction, tenant_id, session_id).await?;
         let row = select_submission_for_update(
             &mut transaction,
             tenant_id,

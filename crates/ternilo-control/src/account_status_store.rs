@@ -26,12 +26,28 @@ impl ControlStore {
         status_revision: u64,
         now_ms: u64,
     ) -> Result<AccountRecord, HarnessError> {
-        user_id.validate()?;
         let mut tx = self.database.begin().await?;
-        lock(&mut tx, "ternilo:instance").await?;
-        authorize_platform_in(&mut tx, &actor.user_id, PlatformAction::AccountsManage).await?;
-        lock(&mut tx, &format!("ternilo:account-role:{user_id}")).await?;
-        let account = account_in(&mut tx, user_id).await?;
+        let updated =
+            Self::set_account_status_in(&mut tx, actor, user_id, action, status_revision, now_ms)
+                .await?;
+        tx.commit().await.map_err(database_error)?;
+        Ok(updated)
+    }
+
+    /// Coordinate access revocation with execution cleanup in the caller's transaction.
+    pub async fn set_account_status_in(
+        tx: &mut Transaction,
+        actor: &ControlUser,
+        user_id: &UserId,
+        action: AccountStatusAction,
+        status_revision: u64,
+        now_ms: u64,
+    ) -> Result<AccountRecord, HarnessError> {
+        user_id.validate()?;
+        lock(tx, "ternilo:instance").await?;
+        authorize_platform_in(tx, &actor.user_id, PlatformAction::AccountsManage).await?;
+        lock(tx, &format!("ternilo:account-role:{user_id}")).await?;
+        let account = account_in(tx, user_id).await?;
         if account.platform_role == PlatformRole::Owner || actor.user_id == *user_id {
             return Err(HarnessError::policy(
                 "the instance owner and your own account cannot be banned or removed",
@@ -66,14 +82,14 @@ impl ControlStore {
         .bind(user_id.as_str())
         .bind(status.as_str())
         .bind(number(revision)?)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await
         .map_err(database_error)?;
         if status != AccountStatus::Active {
-            revoke_credentials_in(&mut tx, user_id, now_ms).await?;
+            revoke_credentials_in(tx, user_id, now_ms).await?;
         }
         append_platform_audit(
-            &mut tx,
+            tx,
             &actor.user_id,
             "account.status",
             user_id.as_str(),
@@ -81,9 +97,7 @@ impl ControlStore {
             now_ms,
         )
         .await?;
-        let updated = account_in(&mut tx, user_id).await?;
-        tx.commit().await.map_err(database_error)?;
-        Ok(updated)
+        account_in(tx, user_id).await
     }
 }
 
