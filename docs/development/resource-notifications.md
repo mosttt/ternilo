@@ -1,6 +1,6 @@
 # 跨 Server 共享权限通知
 
-状态：实现完成，SQLite、受限 PostgreSQL 与双 Server 浏览器验收通过，纳入 v0.1.3 发行候选。
+状态：已随 v0.1.3 发布，SQLite、受限 PostgreSQL 与双 Server 浏览器验收通过。
 
 ## 当前实现
 

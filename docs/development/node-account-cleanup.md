@@ -1,6 +1,6 @@
 # Node 账号撤销与执行端收尾
 
-状态：功能实现及定向回归完成，Node／Server／浏览器验收已通过，已合入并推送 main，正在进行平台 CI 和发布前检查。候选版本为 v0.1.3，尚未发布。OIDC 浏览器来源修复见 [OIDC 浏览器来源与公网地址](oidc-browser-origin.md)。
+状态：已随 v0.1.3 发布，Node／Server／浏览器、SQLite／受限 PostgreSQL 及平台回归已通过。交付详情见[发行反馈](release-feedback.md)，OIDC 修复见 [OIDC 浏览器来源与公网地址](oidc-browser-origin.md)。
 
 ## 持久授权与清理通道
 
@@ -30,7 +30,7 @@ Shell、后台 job、terminal 和外部 ACP 子任务在启动前登记执行归
 - SQLite 与受限 PostgreSQL 的相同账号／凭据／数据实例／回执隔离合同，包括重复提交和管理员读取权限。
 - Builtins 155 项单元测试；Local 完整回归 214 项通过、1 项条件跳过；Server 125 项通过、5 项条件跳过。
 - 实际 Node 保存提醒、离线封禁、原目录重启并持久删除提醒后提交确认，管理员网页从 pending 转为 confirmed；桌面／390px 手机布局、控制台和网络请求均通过。
-- Windows 进程监督及测试代码的独立交叉编译检查；GitHub Windows 2025 和 macOS ARM64 平台回归已通过，包含账号授权、目录边界和持久化检查。
+- Windows 进程监督及测试代码的独立交叉编译检查；GitHub Windows 2025、macOS ARM64 和 Intel 平台回归已通过，包含账号授权、目录边界和持久化检查。
 
 Server 只接受清理原因代码，原始诊断保留在电脑端日志，避免上传绝对路径。
 
@@ -38,4 +38,4 @@ Server 只接受清理原因代码，原始诊断保留在电脑端日志，避�
 
 Windows 的 `Child::drop` 显式终止 Job Object，再释放主进程句柄，避免后代进程仍在运行。原生 Windows CI 已通过八轮“主动终止／丢弃句柄”父子进程检查。TransportStore 测试夹具包含当前协议的输入授权字段，六项回归及全工作区 Clippy 已通过。
 
-剩余工作：完整平台 CI 和 v0.1.3 发行产物验收。Node 排队编辑仍保留原输入作者；编辑转授权是独立语义，不随本次清理隐式改变。
+Node 排队编辑保留原输入作者；编辑转授权是独立语义，不随账号清理隐式改变。
