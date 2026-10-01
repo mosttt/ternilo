@@ -1,8 +1,8 @@
 use salvo_core::prelude::{Depot, Json, Request, Router, StatusCode, handler};
 use serde::{Deserialize, Serialize};
 use ternilo_control::{
-    CandidatePage, PageQuery, ResourceAccess, ResourceAction, ResourceKind, ResourcePermissions,
-    SharedGrant,
+    CandidatePage, PageQuery, ResourceAccess, ResourceAction, ResourceKind, ResourceOwnership,
+    ResourceOwnershipTransfer, ResourcePermissions, SharedGrant,
 };
 use ternilo_protocol::{HarnessError, UserId, WorkspaceId};
 
@@ -16,10 +16,69 @@ pub(crate) fn router() -> Router {
         .get(get_sharing)
         .push(Router::with_path("candidates").get(get_candidates))
         .push(
+            Router::with_path("ownership")
+                .get(get_ownership)
+                .put(transfer_ownership)
+                .push(Router::with_path("candidates").get(get_transfer_candidates)),
+        )
+        .push(
             Router::with_path("{subject_kind}/{subject_id}")
                 .put(set_sharing)
                 .delete(remove_sharing),
         )
+}
+
+#[handler]
+async fn get_ownership(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ResourceOwnership>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let (kind, id) = resource(request)?;
+    Ok(Json(
+        app_state(depot)
+            .store
+            .resource_ownership(actor(depot), &tenant, kind, &id)
+            .await?,
+    ))
+}
+
+#[handler]
+async fn transfer_ownership(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ResourceOwnership>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let (kind, id) = resource(request)?;
+    let body = request
+        .parse_json::<ResourceOwnershipTransfer>()
+        .await
+        .map_err(invalid_request)?;
+    let state = app_state(depot);
+    let ownership = state
+        .store
+        .transfer_resource_ownership(actor(depot), &tenant, kind, &id, &body, now_ms()?)
+        .await?;
+    state.edge.notify_resource_change(&tenant);
+    Ok(Json(ownership))
+}
+
+#[handler]
+async fn get_transfer_candidates(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<CandidatePage>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let (kind, id) = resource(request)?;
+    let query = request
+        .parse_queries::<PageQuery>()
+        .map_err(invalid_request)?;
+    Ok(Json(
+        app_state(depot)
+            .store
+            .resource_transfer_candidates(actor(depot), &tenant, kind, &id, &query)
+            .await?,
+    ))
 }
 
 fn resource(request: &Request) -> Result<(ResourceKind, String), ApiError> {

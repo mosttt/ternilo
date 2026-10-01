@@ -42,6 +42,7 @@ pub enum ResourceAction {
     Stop,
     Configure,
     ManageSharing,
+    ManageExecution,
     Delete,
 }
 
@@ -110,10 +111,17 @@ pub struct ResourceAccessSource {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Management ownership, execution ownership, sharing and role limits are independent capabilities."
+)]
 pub struct ResourceAccess {
     pub sources: Vec<ResourceAccessSource>,
     pub role_limited: bool,
     pub owner_user_id: UserId,
+    pub storage_user_id: UserId,
+    pub ownership_revision: u64,
+    pub is_execution_owner: bool,
     pub is_owner: bool,
     pub can_manage_sharing: bool,
     pub permissions: ResourcePermissions,
@@ -127,6 +135,9 @@ impl ResourceAccess {
             ResourceAction::Stop => self.permissions.stop,
             ResourceAction::Configure => self.permissions.configure,
             ResourceAction::ManageSharing => self.can_manage_sharing,
+            ResourceAction::ManageExecution => {
+                self.is_execution_owner && self.permissions.configure
+            }
             ResourceAction::Delete => self.is_owner && self.permissions.configure,
         };
         if allowed {
@@ -565,7 +576,17 @@ pub async fn resource_access_in(
         )
         .await;
     }
-    let (owner, workspace) = resource_owner(transaction, tenant_id, kind, resource_id).await?;
+    let (storage_owner, workspace) =
+        resource_owner(transaction, tenant_id, kind, resource_id).await?;
+    let (owner, ownership_revision) = crate::resource_ownership::owner_in(
+        transaction,
+        tenant_id,
+        kind,
+        resource_id,
+        &storage_owner,
+        workspace.as_deref(),
+    )
+    .await?;
     let is_owner = owner == *actor_id;
     let sources = if is_owner {
         vec![ResourceAccessSource {
@@ -600,6 +621,9 @@ pub async fn resource_access_in(
     }
     Ok(ResourceAccess {
         owner_user_id: owner,
+        is_execution_owner: storage_owner == *actor_id,
+        storage_user_id: storage_owner,
+        ownership_revision,
         is_owner,
         can_manage_sharing: is_owner && permissions.configure,
         permissions,
@@ -682,7 +706,7 @@ pub(crate) async fn resource_sources_in(
     Ok(sources)
 }
 
-async fn resource_owner(
+pub(crate) async fn resource_owner(
     transaction: &mut Transaction,
     tenant_id: &TenantId,
     kind: ResourceKind,

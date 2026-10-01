@@ -151,7 +151,7 @@ describe('WorkspaceBrowser creation intent', () => {
   })
   it('lets a shared viewer inspect server permissions from workspace and session menus without grant controls', async () => {
     const access: ResourceAccess = {
-      owner_user_id: 'owner', is_owner: false, role_limited: true,
+      owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, role_limited: true,
       permissions: { view: true, submit: false, stop: false, configure: false },
       sources: [{ kind: 'group', resource_kind: 'workspace', resource_id: 'workspace', group_name: 'Reviewers', permissions: { view: true, submit: false, stop: false, configure: false } }],
     }

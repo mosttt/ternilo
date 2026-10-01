@@ -29,8 +29,8 @@ pub(crate) async fn session_owner_in(
     )
     .await?;
     access.require(action)?;
-    set_user_scope(transaction, &access.owner_user_id).await?;
-    Ok(access.owner_user_id)
+    set_user_scope(transaction, &access.storage_user_id).await?;
+    Ok(access.storage_user_id)
 }
 
 pub(crate) async fn audit_session_in(
@@ -253,6 +253,9 @@ impl CloudStore {
              AND ((CAST($4 AS BIGINT) = 1 AND session.archived_at_ms IS NOT NULL)
                OR (CAST($4 AS BIGINT) = 0 AND session.archived_at_ms IS NULL))
              AND (session.user_id = $2 OR EXISTS (
+                 SELECT 1 FROM control_resource_ownership o WHERE o.tenant_id=session.tenant_id AND o.owner_user_id=$2
+                 AND ((o.resource_kind='session' AND o.resource_id=session.session_id)
+                  OR (o.resource_kind='workspace' AND o.resource_id=session.workspace_id))) OR EXISTS (
                  SELECT 1 FROM control_project_workspace_access p WHERE p.tenant_id=session.tenant_id
                  AND p.workspace_id=session.workspace_id AND p.user_id=$2) OR EXISTS (
                  SELECT 1 FROM control_resource_shares AS grant_record

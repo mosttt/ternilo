@@ -189,7 +189,7 @@ pub(super) async fn model_options(
     let owner = if let Some((kind, id)) = resource {
         let access = state.store.resource_access(user, &tenant, kind, id).await?;
         access.require(ResourceAction::View)?;
-        access.owner_user_id
+        access.storage_user_id
     } else {
         state
             .store

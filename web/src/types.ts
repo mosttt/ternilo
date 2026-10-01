@@ -11,6 +11,9 @@ export interface ResourcePermissions {
 
 export interface ResourceAccess {
   owner_user_id: string
+  storage_user_id: string
+  ownership_revision: number
+  is_execution_owner: boolean
   is_owner: boolean
   can_manage_sharing?: boolean
   permissions: ResourcePermissions

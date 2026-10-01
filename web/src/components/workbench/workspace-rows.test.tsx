@@ -83,7 +83,7 @@ function pointerDown(element: Element) {
 
 describe('Workspace rows', () => {
   it('shows the selected machine and disables owner operations on a shared workspace', () => {
-    const shared = { ...workspace, node_id: 'my-vps', access: { owner_user_id: 'other', is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure: false } } }
+    const shared = { ...workspace, node_id: 'my-vps', access: { owner_user_id: 'other', storage_user_id: 'other', ownership_revision: 0, is_execution_owner: false, is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure: false } } }
     act(() => root.render(<LocaleProvider><WorkspaceRow workspace={shared} platform showPlacement expanded active drag={drag} onToggle={vi.fn()} onNewSession={vi.fn()} onRename={vi.fn()} onUnregister={vi.fn()} /></LocaleProvider>))
     expect(host.textContent).toContain('my-vps')
     pointerDown(host.querySelector('[aria-label="工作区“Project”的操作"]')!)

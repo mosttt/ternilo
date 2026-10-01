@@ -1163,7 +1163,7 @@ impl<'a> CloudAdapter<'a> {
                 .resource_access(self.actor, self.tenant_id, kind, id)
                 .await?;
             access.require(ResourceAction::View)?;
-            access.owner_user_id
+            access.storage_user_id
         } else {
             self.actor.user_id.clone()
         };

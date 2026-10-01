@@ -563,7 +563,7 @@ describe('WorkbenchProvider request epochs', () => {
 
   it.each(['state', 'catalog'] as const)('preserves live permissions when an older refresh is awaiting %s', async stage => {
     window.__TERNILO_BOOT__ = {}
-    const initialSession = { ...session('session-a', 'workspace-a', 1), access: { owner_user_id: 'owner', is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure: false } } }
+    const initialSession = { ...session('session-a', 'workspace-a', 1), access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure: false } } }
     const initial: ApplicationState = { workspaces: [workspace('workspace-a')], sessions: [initialSession] }
     const staleState = deferred<ApplicationState>()
     const staleCatalog = deferred<ApplicationCatalog>()

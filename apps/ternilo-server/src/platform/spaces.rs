@@ -242,6 +242,19 @@ pub(super) async fn get_workspace(
         .store
         .get_workspace(actor(depot), &tenant_id, &workspace_id)
         .await?;
+    let access = app_state(depot)
+        .store
+        .resource_access(
+            actor(depot),
+            &tenant_id,
+            ternilo_control::ResourceKind::Workspace,
+            workspace_id.as_str(),
+        )
+        .await?;
+    let mut workspace = json!(workspace);
+    workspace["storage_user_id"] = workspace["owner_user_id"].clone();
+    workspace["owner_user_id"] = json!(access.owner_user_id);
+    workspace["access"] = json!(access);
     Ok(Json(json!({ "workspace": workspace })))
 }
 

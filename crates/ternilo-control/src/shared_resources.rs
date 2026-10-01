@@ -26,6 +26,8 @@ impl ControlStore {
         let rows = sqlx::query(
             "SELECT w.* FROM control_workspaces w WHERE w.tenant_id = $1
              AND w.unregistered_at_ms IS NULL AND (w.owner_user_id = $2 OR EXISTS (
+                 SELECT 1 FROM control_resource_ownership o WHERE o.tenant_id=w.tenant_id
+                 AND o.resource_kind='workspace' AND o.resource_id=w.workspace_id AND o.owner_user_id=$2) OR EXISTS (
                  SELECT 1 FROM control_project_workspace_access p WHERE p.tenant_id=w.tenant_id
                  AND p.workspace_id=w.workspace_id AND p.user_id=$2) OR EXISTS (
                  SELECT 1 FROM control_resource_shares s WHERE s.tenant_id = w.tenant_id
@@ -148,6 +150,9 @@ impl ControlStore {
         let rows = sqlx::query(
             "SELECT e.* FROM control_edge_sessions e WHERE e.tenant_id = $1
              AND (e.owner_user_id = $2 OR EXISTS (
+                 SELECT 1 FROM control_resource_ownership o WHERE o.tenant_id=e.tenant_id AND o.owner_user_id=$2
+                 AND ((o.resource_kind='session' AND o.resource_id=e.session_id)
+                  OR (o.resource_kind='workspace' AND o.resource_id=e.workspace_id))) OR EXISTS (
                  SELECT 1 FROM control_project_workspace_access p WHERE p.tenant_id=e.tenant_id
                  AND p.workspace_id=e.workspace_id AND p.user_id=$2) OR EXISTS (
                  SELECT 1 FROM control_resource_shares s WHERE s.tenant_id = e.tenant_id

@@ -12,6 +12,10 @@ use crate::{
 impl ControlStore {
     /// Preserve only the initiating user's effective access to a user-created
     /// fork. Background subagent creation must not call this operation.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep canonical lineage, management inheritance and existing fork grants in the same transaction."
+    )]
     pub async fn inherit_fork_access_in(
         transaction: &mut Transaction,
         actor_id: &UserId,
@@ -29,9 +33,6 @@ impl ControlStore {
         )
         .await?;
         parent.require(ResourceAction::Submit)?;
-        if parent.is_owner {
-            return Ok(());
-        }
         let child = resource_access_in(
             transaction,
             actor_id,
@@ -40,12 +41,29 @@ impl ControlStore {
             child_id.as_str(),
         )
         .await?;
-        if parent.owner_user_id != child.owner_user_id
+        if parent.storage_user_id != child.storage_user_id
             || !is_user_fork_in(transaction, tenant_id, parent_id, child_id).await?
         {
             return Err(HarnessError::policy(
                 "fork access requires the parent's original owner and placement",
             ));
+        }
+        if parent.is_owner {
+            if !child.is_owner {
+                sqlx::query(
+                    "INSERT INTO control_resource_ownership
+                    (tenant_id,resource_kind,resource_id,owner_user_id,revision,updated_at_ms)
+                    VALUES ($1,'session',$2,$3,1,$4)",
+                )
+                .bind(tenant_id.as_str())
+                .bind(child_id.as_str())
+                .bind(actor_id.as_str())
+                .bind(to_i64(now_ms, "fork ownership timestamp")?)
+                .execute(&mut **transaction)
+                .await
+                .map_err(database_error)?;
+            }
+            return Ok(());
         }
         let mode: String =
             sqlx::query_scalar("SELECT mode FROM control_instance_settings WHERE singleton = 1")

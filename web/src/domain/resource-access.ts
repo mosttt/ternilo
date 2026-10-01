@@ -10,7 +10,7 @@ export function ownsResource(access: ResourceAccess | undefined, legacyCanOperat
 
 export function ownsExecutionConfiguration(workspace: Workspace | null | undefined, session: LocalSession | null | undefined, legacyCanOperate: boolean): boolean {
   const access = workspace?.placement === 'local_node' ? workspace.access : session?.access ?? workspace?.access
-  return ownsResource(access, legacyCanOperate)
+  return access ? access.is_execution_owner && access.permissions.configure : legacyCanOperate
 }
 
 // The server rechecks the persisted question; this controls its browser actions.

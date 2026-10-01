@@ -88,7 +88,7 @@ describe('private workspace locations', () => {
 
   it.each(['shared', 'offline', 'cloud'] as const)('does not request or copy a %s location', async kind => {
     const value: Workspace = kind === 'shared' ? { ...workspace, access: {
-      owner_user_id: 'owner', is_owner: false, sources: [], role_limited: false,
+      owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, sources: [], role_limited: false,
       permissions: { view: true, submit: false, stop: false, configure: false },
     } } : kind === 'offline' ? { ...workspace, status: 'offline' } : { ...workspace, placement: 'cloud' }
     render(value)

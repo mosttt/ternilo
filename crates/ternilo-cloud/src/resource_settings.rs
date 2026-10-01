@@ -136,8 +136,8 @@ impl CloudStore {
         let access =
             resource_access_in(&mut transaction, actor_id, tenant_id, kind, resource_id).await?;
         access.require(ResourceAction::View)?;
-        set_user_scope(&mut transaction, &access.owner_user_id).await?;
-        Ok((transaction, access.owner_user_id))
+        set_user_scope(&mut transaction, &access.storage_user_id).await?;
+        Ok((transaction, access.storage_user_id))
     }
 
     /// Server-side resolution retains the owner's endpoint. Browser model lists

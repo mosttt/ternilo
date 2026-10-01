@@ -22,6 +22,7 @@ Formal guides are organized in parallel English and Simplified Chinese directori
 - [Messages and files](files.md): attachments, context references, generated files, previews, and downloads.
 - [Tools and multiple agents](agents.md): skills, plans, workflows, subagents, and background services.
 - [Accounts and collaboration](collaboration.md): computers, independent drafts, sharing permissions, and submitter identity.
+- [Resource management handoff](resource-management.md): transfer team workspace or session management while retaining storage and execution identity.
 - [Web access troubleshooting](web-access.md): fetching, search, proxies, and DNS.
 
 ## Administration

@@ -11,7 +11,7 @@ const session: LocalSession = {
   workspace_id: 'workspace', workspace_path: '/archived-workspace', title: 'Archived task', archived_at_ms: 50,
   permissions: 'read_only', model: { provider: 'profile_default' }, agent_preset: 'standard',
   preset_plugins: [], profile_plugins: [], mode: 'execute', created_at_ms: 1, updated_at_ms: 40,
-  access: { owner_user_id: 'owner', is_owner: false, role_limited: false, sources: [], permissions: { view: true, submit: false, stop: false, configure: false } },
+  access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, role_limited: false, sources: [], permissions: { view: true, submit: false, stop: false, configure: false } },
 }
 const history: SessionEvent[] = [
   { seq: 0, occurred_at_ms: 1, run_id: 'run', type: 'user_message', content: 'Read the archived notes', provenance: { input_id: 'input-one', author: { kind: 'account', user_id: 'alice', username: 'Alice' } } },

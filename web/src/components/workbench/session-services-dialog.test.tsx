@@ -49,7 +49,7 @@ async function settle(action?: () => void) {
 }
 async function render(permissions: ResourcePermissions = full) {
   await settle(() => root.render(<LocaleProvider><SessionServicesDialog
-    session={{ ...session, access: { owner_user_id: 'owner', is_owner: false, permissions, sources: [], role_limited: false } }}
+    session={{ ...session, access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, permissions, sources: [], role_limited: false } }}
     onClose={vi.fn()}
   /></LocaleProvider>))
 }
@@ -69,7 +69,7 @@ function unmount() { act(() => root.unmount()); live = false }
 
 it('opens the service panel directly from the read-only session header', async () => {
   await settle(() => root.render(<LocaleProvider><TooltipProvider><SessionHeaderActions
-    session={{ ...session, access: { owner_user_id: 'owner', is_owner: false, permissions: view, sources: [], role_limited: false } }}
+    session={{ ...session, access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, permissions: view, sources: [], role_limited: false } }}
     presets={{ default_id: 'standard', authorable: false, presets: [] }} readOnly
     onSetPreset={vi.fn(async () => {})} onTogglePlan={vi.fn(async () => {})} onChooseWorkspace={vi.fn()}
     onRename={vi.fn()} onFork={vi.fn(async () => {})} onArchive={vi.fn(async () => {})} onExport={vi.fn(async () => {})}

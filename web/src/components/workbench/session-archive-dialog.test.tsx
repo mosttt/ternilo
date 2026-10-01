@@ -57,7 +57,7 @@ it('restores the existing identifier and refreshes without opening or running it
 
 it('allows shared metadata to be read but only the owner can restore', async () => {
   vi.mocked(api.request).mockResolvedValue([{ ...session, access: {
-    owner_user_id: 'owner', is_owner: false, role_limited: false, sources: [],
+    owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, role_limited: false, sources: [],
     permissions: { view: true, submit: true, stop: true, configure: true },
   } }])
   await render(true)

@@ -247,7 +247,7 @@ impl ControlStore {
         access.require(ResourceAction::View)?;
         let result = grants::entitlements_for_user_in(
             &mut tx,
-            &access.owner_user_id,
+            &access.storage_user_id,
             Some(&actor.user_id),
             query,
             now,

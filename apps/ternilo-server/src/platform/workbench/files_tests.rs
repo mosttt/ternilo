@@ -51,6 +51,9 @@ mod workspace_location_tests;
 #[path = "files_tests/preset_view_tests.rs"]
 mod preset_view_tests;
 
+#[path = "files_tests/resource_ownership_tests.rs"]
+mod resource_ownership_tests;
+
 struct Fixture {
     state: AppState,
     service: Service,

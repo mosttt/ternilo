@@ -168,6 +168,12 @@ pub(crate) struct WorkbenchWorkspace {
 }
 
 impl WorkbenchWorkspace {
+    pub(crate) fn with_access(mut self, access: ResourceAccess) -> Self {
+        self.owner_user_id = access.owner_user_id.clone();
+        self.access = Some(access);
+        self
+    }
+
     pub(crate) fn from_record(record: WorkspaceRecord, connected: bool) -> Self {
         let status = match record.placement {
             WorkspacePlacement::Cloud => "ready",

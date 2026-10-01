@@ -56,7 +56,7 @@ describe('Session permission placement policy', () => {
   it('blocks changes when configuration access is revoked while the permission menu is open', () => {
     const onSetPermissions = vi.fn(async () => undefined)
     const renderToolbar = (configure: boolean) => act(() => root.render(<LocaleProvider>
-      <SessionToolbar session={{ ...session, access: { owner_user_id: 'owner', is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure } } }} onSetPermissions={onSetPermissions} />
+      <SessionToolbar session={{ ...session, access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure } } }} onSetPermissions={onSetPermissions} />
     </LocaleProvider>))
     renderToolbar(true)
     act(() => host.querySelector('button')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
@@ -81,7 +81,7 @@ describe('Session header actions', () => {
     const onEditModelLimit = vi.fn()
     const renderHeader = (placement: 'cloud' | 'local_node', configure: boolean) => act(() => root.render(<LocaleProvider><TooltipProvider>
       <SessionHeaderActions
-        session={{ ...session, placement, access: { owner_user_id: 'owner', is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure } } }}
+        session={{ ...session, placement, access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure } } }}
         presets={{ default_id: 'standard', authorable: false, presets: [] }}
         onSetPreset={vi.fn(async () => undefined)} onTogglePlan={vi.fn(async () => undefined)} onChooseWorkspace={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn(async () => undefined)} onArchive={vi.fn(async () => undefined)} onExport={vi.fn(async () => undefined)} onEditModelLimit={onEditModelLimit}
@@ -103,7 +103,7 @@ describe('Session header actions', () => {
     const onSetPreset = vi.fn(async () => undefined)
     const renderHeader = (configure: boolean) => act(() => root.render(<LocaleProvider><TooltipProvider>
       <SessionHeaderActions
-        session={{ ...session, blank: true, access: { owner_user_id: 'owner', is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure } } }}
+        session={{ ...session, blank: true, access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: false, configure } } }}
         presets={{ default_id: 'standard', authorable: false, presets: [{ id: 'standard', display_name: 'Standard', description: 'Standard agent', trust: 'system' }] }}
         onSetPreset={onSetPreset} onTogglePlan={vi.fn(async () => undefined)} onChooseWorkspace={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn(async () => undefined)} onArchive={vi.fn(async () => undefined)} onExport={vi.fn(async () => undefined)}

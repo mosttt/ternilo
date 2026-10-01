@@ -27,7 +27,7 @@ A project can include workspaces on a laptop and a VPS. New sessions and forks d
 
 Model sharing authorizes an account, device or constrained key to call a model with specified limits. Workspace/session sharing grants use of an execution environment and its permitted files and tools. Project/work sharing lets people view, submit, stop, configure or fork existing work according to permissions.
 
-These rights compose but do not substitute for one another. Team membership is not model credit; execution access is not a reusable model key; a session grant is not access to every project resource. Project inheritance is explicitly enabled by each workspace owner. Ownership transfer and cross-owner migration remain separate work.
+These rights compose but do not substitute for one another. Team membership is not model credit; execution access is not a reusable model key; a session grant is not access to every project resource. Project inheritance is explicitly enabled by each workspace manager. [Management handoff](resource-management.md) is supported within a team and retains storage/execution identity. File and execution-identity migration is not provided; real-browser and restricted PostgreSQL acceptance of handoff remains pending.
 
 Platform model groups batch model grants. Team permission groups batch resource permissions. Resource owner, submitting actor and billing source remain distinct, including shared tasks.
 
@@ -50,13 +50,13 @@ Desktop connects to the local service. A module boundary does not imply a separa
 | Multiple computers | Local and connected computers, remote folders, file tasks and cached history | Offline history contains only synchronized events; Cloud projections still replay events |
 | Models | Account/device/platform sources, independent client grants, actor-preserving child tasks and schedules | Device-to-device local model forwarding and broader collaborator delegation |
 | Protocols | OpenAI Chat, OpenAI Responses, DeepSeek Responses, Gemini and Claude Messages | Vendor-hosted search/tools, Vertex AI and Bedrock |
-| Accounts | Native accounts, invitation/open/approval registration, bans/removal, OIDC, Turnstile and operator password recovery | Email verification, self-service email recovery, native MFA, service accounts and ownership transfer |
-| Collaboration | Teams, groups, direct grants, owner-enabled project inheritance, attribution and queue conflicts | Ownership handoff and full running-task cleanup after account deactivation |
+| Accounts | Native accounts, invitation/open/approval registration, bans/removal, OIDC, Turnstile and operator password recovery | Email verification, self-service email recovery, native MFA and service accounts |
+| Collaboration | Teams, groups, direct grants, manager-enabled project inheritance, team management handoff, attribution and queue conflicts | Real-browser and PostgreSQL handoff acceptance; file/execution-identity migration and collaborator device-model delegation |
 | Usage | Per-attempt ledger, budgets, keys, device limits, late settlement, reconciliation and device reports | Account/platform-wide layered limits and persistent device-report exports |
 | Execution | Local directory coordination, background services and basic same-host Worker recovery | Work pools, dedicated workspace storage and cross-host handoff |
 | Extensions | Signed Rhai/WASM, capabilities, resource ceilings and running-tool cancellation | Synchronous host I/O and Hook cancellation follow their own lifecycles |
-| Scale | One Server with SQLite/PostgreSQL | Cross-instance Node routing, notifications, failover and capacity claims |
+| Scale | One Server with SQLite/PostgreSQL; transactional cross-instance permission notifications | Cross-instance Node routing, event synchronization, failover and capacity claims |
 
-Continuous goals support immediate execution, additional rounds, blocked completion, stopping and explicit continuation. Durable history does not authorize replay of effects after a crash. Archives support read-only preview and restoration without automatically starting work. Offline log repair is available. MCP automatic recovery and list-change support remain under development, alongside more search providers and external-agent adapters.
+Continuous goals support immediate execution, additional rounds, blocked completion, stopping and explicit continuation. Durable history does not authorize replay of effects after a crash. Archives support read-only preview and restoration without automatically starting work. Offline log repair is available. MCP supports tool-list refresh and optional bounded reconnection without replaying failed calls; more search providers and external-agent adapters remain separate work.
 
 PWA caching makes the interface shell available offline; it cannot execute remote work while disconnected. Linux, macOS and Windows have separate isolation implementations, with incomplete read isolation on Windows. Compilation does not establish native installer, signature or physical-machine acceptance. See [security](security.md), [automation](automation.md), [collaboration](collaboration.md) and [deployment](deployment.md).

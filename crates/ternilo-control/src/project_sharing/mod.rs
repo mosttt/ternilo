@@ -55,6 +55,9 @@ pub(crate) async fn access_in(
         ..ResourcePermissions::default()
     };
     Ok(ResourceAccess {
+        storage_user_id: owner.clone(),
+        ownership_revision: 0,
+        is_execution_owner: is_owner,
         owner_user_id: owner,
         is_owner,
         can_manage_sharing,

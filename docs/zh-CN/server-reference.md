@@ -48,7 +48,7 @@ ternilo-server admin backup-sqlite --config /path/to/server.json \
 Workspace 是项目、文件根、执行位置和 Session 的绑定。公共浏览器只使用稳定 `workspace_id`：
 
 - Cloud Workspace 绑定 tenant/project 和平台持久卷。
-- 本机 Workspace 绑定 owner、Node executor 和 Node 返回的 opaque Workspace ID；本机绝对路径不会写入 Control。
+- 本机 Workspace 固定绑定原存储账号、Node executor 和 Node 返回的 opaque Workspace ID；当前管理者独立保存，本机绝对路径不会写入 Control。
 - Session 创建后固定 placement；从侧边栏移除 Workspace 只解除列表登记，不迁移文件或已有 Session。
 - Server 先按已认证账号、membership 与显式资源权限解析 placement，再路由请求；浏览器不能自报 executor、Node Session ID 或宿主路径。
 
@@ -224,13 +224,13 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 ### 工作台配置与模型
 
-设置类接口接受可选的 `session_id`、`workspace_id` 或 `executor_id`。Session 与 Workspace 同时提供时以 Session 为准，只有 Workspace 时可在创建首个会话前配置该执行宿主；单独指定 `executor_id` 可在电脑尚无工作区时配置，但必须通过机器归属、空间权限和撤销状态检查，不能与 Session／Workspace 混用。三者均省略时使用当前空间的 Cloud 用户设置。模型中心账号页明确选择账号个人空间，不跟随聊天执行目标；托管会话的账号模型目录与凭据可用状态从 `/model-options` 按明确绑定读取。非 owner 的安全读取只返回获准的模型目录、凭据配置状态及不可编辑的预设；全局写入仍要求 owner。其他凭据及 Agent preset 的设置目标不随账号模型迁移。
+设置类接口接受可选的 `session_id`、`workspace_id` 或 `executor_id`。Session 与 Workspace 同时提供时以 Session 为准，只有 Workspace 时可在创建首个会话前配置该执行宿主；单独指定 `executor_id` 可在电脑尚无工作区时配置，但必须通过机器归属、空间权限和撤销状态检查，不能与 Session／Workspace 混用。三者均省略时使用当前空间的 Cloud 用户设置。模型中心账号页明确选择账号个人空间，不跟随聊天执行目标；托管会话的账号模型目录与凭据可用状态从 `/model-options` 按明确绑定读取。非执行所有者的安全读取只返回获准的模型目录、凭据配置状态及不可编辑的预设；全局写入要求原执行账号的配置权限，资源管理者身份不代替它。其他凭据及 Agent preset 的设置目标不随账号模型迁移。
 
 `GET /api/v1/model-options` 返回当前选择及分页的“模型＋授权”选项。会话或工作区最多指定一个，读取该资源所有者的配置并检查协作者的使用权限；均不指定时读取本人在当前空间的默认模型和本人授权目录，可在创建工作区前配置默认模型。当前选择独立于分页返回，不因搜索结果或同名模型自动更换预算。
 
 平台 Provider Key 轮换位于 `POST /api/v1/admin/models/providers/{provider_id}/key-rotation`；返回轮换 ID 后，通过 `/{rotation_id}/commit` 或 `/{rotation_id}/rollback` 完成操作。对应 GET 只返回待处理轮换元数据，不返回新旧 Key。普通 Provider 更新不能覆盖尚未完成的 Key 轮换。
 
-目标是“此电脑”时，Server 先验证实际操作权限，再发给绑定 Node。共享 View 可以读取必要模型／凭据 readiness／预设元数据，但不取得 endpoint、凭据值或全局配置权限；全局插件启停／撤销仍要求 owner。审批按 Node 返回的真实问题区分权限，不能相信客户端自报问题类型。对应配置与密钥只保存在该 Node，Control 不复制，也不会在 Node 离线时回退到同名 Cloud 配置。工作台 `/state`、Control 已保存的 Workspace/Session 索引和缓存历史与目标配置分开读取，因此 Node 离线时这些内容仍可见；只有必须抵达该 Node 的设置读取和写入单独返回 `503 unavailable`。
+目标是“此电脑”时，Server 先验证实际操作权限，再发给绑定 Node。共享 View 可以读取必要模型／凭据 readiness／预设元数据，但不取得 endpoint、凭据值或全局配置权限；全局插件启停／撤销要求原执行账号的配置权限。审批按 Node 返回的真实问题区分权限，不能相信客户端自报问题类型。对应配置与密钥只保存在该 Node，Control 不复制，也不会在 Node 离线时回退到同名 Cloud 配置。工作台 `/state`、Control 已保存的 Workspace/Session 索引和缓存历史与目标配置分开读取，因此 Node 离线时这些内容仍可见；只有必须抵达该 Node 的设置读取和写入单独返回 `503 unavailable`。
 
 ### Tenant 与运维
 
@@ -276,6 +276,10 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 项目共享沿用 `/api/v1/projects/{project_id}/sharing` 的 `GET`、`GET /candidates`、`PUT/DELETE /{user|group}/{subject_id}`，支持明确空间头及既有目录分页。团队成员可读规则，空间管理员可修改；项目创建者身份不代替当前团队管理角色。`ResourceAccess.can_manage_sharing` 明确共享管理能力，项目继承来源的 `resource_kind` 为 `project`，`resource_name` 为项目名称。
 
 `PUT /api/v1/workspaces/{workspace_id}/project-sharing` 接收 `{ "enabled": true }` 或 `false`，只允许有可写权限的资源所有者。返回 `project_id`、`project_name`、`enabled`、`can_change`；工作区共享查询也返回 `project_inheritance`。关闭后移除项目来源，直接共享不变。新组件为 `project_sharing` schema `1`，Control 保持 `14`，无新 Node RPC 操作。参见[项目共享](project-sharing.md)。
+
+工作区／会话的 `/sharing/ownership` 提供 `GET` 当前管理者与版本、`GET /candidates` 有界接收者搜索、`PUT` 管理权交接。交接仅限同团队有效可写成员，请求包含 `owner_user_id`、`expected_owner_user_id`、`expected_revision` 和 `retain_previous_owner`。过期版本返回 `409 conflict`；保留原管理者时显式授予编辑协作权限，不保留共享管理、删除或再次交接权。项目通过空间角色管理，不提供此操作。
+
+`ResourceAccess.owner_user_id` 为当前管理者，`storage_user_id` 为原存储／执行身份，`ownership_revision` 为管理版本。`is_owner` 与 `is_execution_owner` 分别判断这两种身份；全局配置仍需原执行身份及配置权限。组件 `resource_ownership` 和 `resource_ownership_live` 均为 schema `1`；执行器协议仍为 `45`。工作区详情显示当前管理者和原存储账号，内部 Node 绑定不变。参见[资源管理权交接](resource-management.md)。
 
 ### Node 清理确认
 

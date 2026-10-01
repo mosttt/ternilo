@@ -23,6 +23,7 @@ mod placement_store;
 mod project_sharing;
 mod registration_store;
 mod resource_audit;
+mod resource_ownership;
 mod server_secrets;
 mod settings_store;
 mod shared_resources;
@@ -61,6 +62,7 @@ pub use registration_store::{
     RegistrationMode, RegistrationSettings,
 };
 pub use resource_audit::{event_references_attachment, question_resource_action};
+pub use resource_ownership::{ResourceOwnership, ResourceOwnershipTransfer};
 pub use sharing_store::{
     CandidatePage, GrantPage, ResourceAccess, ResourceAccessSource, ResourceAccessSourceKind,
     ResourceAction, ResourceKind, ResourcePermissions, ShareSubject, SharedGrant,

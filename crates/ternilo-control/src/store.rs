@@ -93,6 +93,15 @@ async fn ensure_workspace_create_targets(
     tenant_id: &TenantId,
     spec: &WorkspaceCreateSpec<'_>,
 ) -> Result<(), HarnessError> {
+    crate::resource_ownership::require_workspace_name_in(
+        transaction,
+        tenant_id,
+        &actor.user_id,
+        spec.project_id,
+        spec.name,
+        None,
+    )
+    .await?;
     let project_exists = sqlx::query_scalar::<_, i64>(
         "SELECT CAST(EXISTS(
             SELECT 1 FROM control_projects WHERE tenant_id = $1 AND project_id = $2
@@ -209,6 +218,7 @@ impl ControlStore {
             .await?;
         crate::authentication_settings::initialize(database).await?;
         crate::project_sharing::initialize(database).await?;
+        crate::resource_ownership::initialize(database).await?;
         crate::identity_session_details::initialize(database).await?;
         crate::oidc_sessions::initialize(database).await?;
         crate::node_account_cleanup::initialize(database).await
@@ -837,13 +847,10 @@ impl ControlStore {
         .await?;
         let may_read_all = matches!(role, TenantRole::Admin | TenantRole::Owner);
         let row = sqlx::query(
-            "SELECT tenant_id, workspace_id, project_id, owner_user_id, name,
-                    placement, storage, executor_id, executor_workspace_id,
-                    created_at_ms, updated_at_ms
-             FROM control_workspaces
-             WHERE tenant_id = $1 AND workspace_id = $2
-               AND unregistered_at_ms IS NULL
-               AND ($3 != 0 OR owner_user_id = $4)",
+            "SELECT w.* FROM control_workspaces w LEFT JOIN control_resource_ownership o
+               ON o.tenant_id=w.tenant_id AND o.resource_kind='workspace' AND o.resource_id=w.workspace_id
+             WHERE w.tenant_id=$1 AND w.workspace_id=$2 AND w.unregistered_at_ms IS NULL
+               AND ($3 != 0 OR COALESCE(o.owner_user_id,w.owner_user_id)=$4)",
         )
         .bind(tenant_id.as_str())
         .bind(workspace_id.as_str())

@@ -53,6 +53,7 @@ impl ControlStore {
             ResourceAction::Stop => "resource.stop",
             ResourceAction::Configure => "resource.configure",
             ResourceAction::ManageSharing => "resource.sharing",
+            ResourceAction::ManageExecution => "resource.execution_configuration",
             ResourceAction::Delete => "resource.delete",
         };
         append_audit(
@@ -77,7 +78,7 @@ impl ControlStore {
 pub fn question_resource_action(question: &UserQuestion) -> ResourceAction {
     if let Some(approval) = &question.tool_approval {
         match approval.tool_name.as_str() {
-            "extension_set_enabled" | "extension_revoke" => return ResourceAction::ManageSharing,
+            "extension_set_enabled" | "extension_revoke" => return ResourceAction::ManageExecution,
             "extension_set_mounted" | "exit_plan_mode" => return ResourceAction::Configure,
             "interrupt_agent" | "job_kill" | "terminal_close" | "schedule_delete" => {
                 return ResourceAction::Stop;

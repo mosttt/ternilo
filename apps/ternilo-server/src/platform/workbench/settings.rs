@@ -96,7 +96,7 @@ async fn shared_settings_read(
         .store
         .resource_access(user, tenant_id, kind, resource_id)
         .await?;
-    if access.is_owner {
+    if access.is_execution_owner {
         return Ok(None);
     }
     access.require(ResourceAction::View)?;

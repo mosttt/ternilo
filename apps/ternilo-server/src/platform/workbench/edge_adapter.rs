@@ -660,7 +660,7 @@ impl<'a> EdgeAdapter<'a> {
             || self
                 .require_action(mapping, ResourceAction::View)
                 .await?
-                .is_owner
+                .is_execution_owner
         {
             return Ok(());
         }
@@ -1275,7 +1275,7 @@ fn prompt_action(input: &str) -> ResourceAction {
         .and_then(|text| text.split_whitespace().next());
     match command {
         Some("extension-enable" | "extension-disable" | "extension-revoke") => {
-            ResourceAction::ManageSharing
+            ResourceAction::ManageExecution
         }
         Some("extension-mount" | "extension-unmount" | "plan" | "exit-plan") => {
             ResourceAction::Configure
@@ -1330,7 +1330,7 @@ fn operation_action(operation: &ApplicationOperation) -> ResourceAction {
         | ApplicationOperation::SessionAgentTeamMessageRead { .. }
         | ApplicationOperation::SessionSkillTurn { .. }
         | ApplicationOperation::AnswerQuestion { .. } => ResourceAction::Submit,
-        _ => ResourceAction::ManageSharing,
+        _ => ResourceAction::ManageExecution,
     }
 }
 
@@ -1513,7 +1513,7 @@ mod tests {
             "/extension-disable plugin",
             "/extension-revoke plugin",
         ] {
-            assert_eq!(prompt_action(command), ResourceAction::ManageSharing);
+            assert_eq!(prompt_action(command), ResourceAction::ManageExecution);
         }
         for command in [
             "/extension-mount plugin",

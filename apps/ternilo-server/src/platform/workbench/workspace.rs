@@ -251,18 +251,16 @@ async fn load_state_by_archive(
         } else {
             false
         };
-        let mut workspace = WorkbenchWorkspace::from_record(record, connected);
-        workspace.access = Some(
-            state
-                .store
-                .resource_access(
-                    user,
-                    tenant_id,
-                    ResourceKind::Workspace,
-                    workspace.workspace_id.as_str(),
-                )
-                .await?,
-        );
+        let access = state
+            .store
+            .resource_access(
+                user,
+                tenant_id,
+                ResourceKind::Workspace,
+                record.workspace_id.as_str(),
+            )
+            .await?;
+        let workspace = WorkbenchWorkspace::from_record(record, connected).with_access(access);
         paths.insert(workspace.workspace_id.clone(), workspace.path.clone());
         workspaces.push(workspace);
     }
@@ -373,18 +371,16 @@ pub(crate) async fn rename_workspace(
     } else {
         false
     };
-    let mut workspace = WorkbenchWorkspace::from_record(record, connected);
-    workspace.access = Some(
-        state
-            .store
-            .resource_access(
-                actor(depot),
-                &tenant_id,
-                ResourceKind::Workspace,
-                workspace.workspace_id.as_str(),
-            )
-            .await?,
-    );
+    let access = state
+        .store
+        .resource_access(
+            actor(depot),
+            &tenant_id,
+            ResourceKind::Workspace,
+            record.workspace_id.as_str(),
+        )
+        .await?;
+    let workspace = WorkbenchWorkspace::from_record(record, connected).with_access(access);
     Ok(Json(workspace))
 }
 

@@ -635,7 +635,7 @@ impl CloudStore {
         )
         .await?;
         access.require(ternilo_control::ResourceAction::View)?;
-        let user_id = &access.owner_user_id;
+        let user_id = &access.storage_user_id;
         set_tenant(&mut transaction, tenant_id).await?;
         ternilo_storage::set_user_scope(&mut transaction, user_id).await?;
         let question = sqlx::query_scalar::<_, ternilo_storage::Json<UserQuestion>>(
@@ -1272,6 +1272,21 @@ async fn initialize_database(database: &Database) -> Result<(), HarnessError> {
     };
     database
         .initialize("resource_live", 1, resource_notifications, "")
+        .await?;
+    database
+        .initialize(
+            "resource_ownership_live",
+            1,
+            match database.backend() {
+                ternilo_storage::Backend::Sqlite => {
+                    include_str!("schema/ownership_live_sqlite.sql")
+                }
+                ternilo_storage::Backend::Postgres => {
+                    include_str!("schema/ownership_live_postgres.sql")
+                }
+            },
+            "",
+        )
         .await?;
     crate::maintenance::initialize_database(database).await
 }

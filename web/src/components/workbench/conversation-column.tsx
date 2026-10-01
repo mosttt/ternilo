@@ -1,5 +1,5 @@
 import { ComposerTakeover } from './composer-takeover'
-import { canAnswerQuestion, ownsResource, ownsExecutionConfiguration, resourcePermissions } from '@/domain/resource-access'
+import { canAnswerQuestion, ownsExecutionConfiguration, resourcePermissions } from '@/domain/resource-access'
 import * as React from 'react'
 import { BrandMark } from '@/components/ui/brand-mark'
 import { AlertCircle, Bot, Check, ChevronDown, CircleGauge, Ellipsis, FolderOpen, LoaderCircle, Menu, RotateCcw } from 'lucide-react'
@@ -1038,7 +1038,7 @@ export function ConversationColumn({
               ) : null}
               {!permissions.submit && runtime.questions.length > 0 && <div className={css.readOnlyQuestions}><ComposerTakeover
                 questions={runtime.questions}
-                canAnswer={item => canAnswerQuestion(item.question, permissions, ownsResource(currentSession.access, canOperate))}
+                canAnswer={item => canAnswerQuestion(item.question, permissions, ownsExecutionConfiguration(currentWorkspace, currentSession, canOperate))}
                 onAnswer={runtime.answerQuestion}
                 onError={message => notify(message, 'error')}
                 onInspectApproval={inspectApproval}
@@ -1075,7 +1075,7 @@ export function ConversationColumn({
                 onSubmit={submit}
                 onCancel={runtime.cancel}
                 canStop={permissions.stop}
-                canAnswerQuestion={item => canAnswerQuestion(item.question, permissions, ownsResource(currentSession.access, canOperate))}
+                canAnswerQuestion={item => canAnswerQuestion(item.question, permissions, ownsExecutionConfiguration(currentWorkspace, currentSession, canOperate))}
                 onAnswerQuestion={runtime.answerQuestion}
                 onInspectApproval={inspectApproval}
                 onEditQueueItem={runtime.editQueueItem}

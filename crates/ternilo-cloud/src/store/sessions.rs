@@ -535,7 +535,7 @@ async fn creation_workspace_owner_in(
     )
     .await?;
     access.require(ternilo_control::ResourceAction::Submit)?;
-    let user_id = &access.owner_user_id;
+    let user_id = &access.storage_user_id;
     let workspace = sqlx::query(
         "SELECT project_id, owner_user_id, placement
          FROM control_workspaces
@@ -559,7 +559,7 @@ async fn creation_workspace_owner_in(
             "cloud session workspace must belong to the user and requested project",
         ));
     }
-    Ok(access.owner_user_id)
+    Ok(access.storage_user_id)
 }
 
 async fn require_unstarted_preset(

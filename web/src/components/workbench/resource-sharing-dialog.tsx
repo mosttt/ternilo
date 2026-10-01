@@ -8,7 +8,7 @@ import { Field, Input, Label, Select } from '@/components/ui/field'
 import { DirectoryPagination } from '@/components/settings/directory-pagination'
 import { useTranslate } from '@/i18n/provider'
 import type { ResourceAccess, ResourcePermissions, ShareSubject } from '@/types'
-import { getSharing, listSharingCandidates, setProjectInheritance, setSharing, subjectKey, subjectLabel, type SharingCandidates, type SharingSnapshot, type SharingTarget } from './sharing-api'
+import { getSharing, listSharingCandidates, listTransferCandidates, transferOwnership, setProjectInheritance, setSharing, subjectKey, subjectLabel, type SharingCandidates, type SharingSnapshot, type SharingTarget } from './sharing-api'
 export type { SharingTarget } from './sharing-api'
 
 const readOnly: ResourcePermissions = { view: true, submit: false, stop: false, configure: false }
@@ -62,11 +62,19 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
   const [projectRules, setProjectRules] = React.useState(false)
+  const [transferOpen, setTransferOpen] = React.useState(false)
+  const [recipient, setRecipient] = React.useState<ShareSubject | null>(null)
+  const [confirmed, setConfirmed] = React.useState(false)
+  const [retainPreviousOwner, setRetainPreviousOwner] = React.useState(true)
   const [revision, reload] = React.useReducer(value => value + 1, 0)
   const cursor = cursors.at(-1) ?? null
   const canManage = Boolean(snapshot && (snapshot.access.can_manage_sharing ?? (snapshot.access.is_owner && snapshot.access.permissions.configure)))
   const requestTarget = React.useMemo(() => ({ kind: target.kind, id: target.id, title: target.title, tenantId }), [target.kind, target.id, target.title, tenantId])
   const actorId = serverIdentity?.user.user_id
+
+  React.useEffect(() => {
+    setRecipient(null); setConfirmed(false); setTransferOpen(false)
+  }, [requestTarget, actorId, snapshot?.access.owner_user_id, snapshot?.access.ownership_revision])
 
   React.useEffect(() => {
     if (personal) return
@@ -106,6 +114,17 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
       const inheritance = await setProjectInheritance(requestTarget, enabled)
       setSnapshot(current => current ? { ...current, project_inheritance: inheritance } : current)
       await onChanged()
+    } catch (cause) { setError(errorMessage(cause)) }
+    finally { setBusy(false) }
+  }
+
+  const transfer = async () => {
+    if (busy || !confirmed || recipient?.kind !== 'user' || !snapshot?.access.is_owner) return
+    setBusy(true); setError('')
+    try {
+      await transferOwnership(requestTarget, recipient.user.user_id, snapshot.access, retainPreviousOwner)
+      await onChanged()
+      onClose()
     } catch (cause) { setError(errorMessage(cause)) }
     finally { setBusy(false) }
   }
@@ -164,7 +183,23 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
             <DirectoryPagination page={cursors.length} count={snapshot?.shares.length ?? 0} loading={loading || busy} nextCursor={snapshot?.next_cursor ?? null}
               onPrevious={() => setCursors(current => current.slice(0, -1))} onNext={value => setCursors(current => [...current, value])} />
           </section>}
-        {error && <div role="alert" className="text-sm text-destructive">{error}{!snapshot && <Button variant="ghost" onClick={reload}>{t('sharing.retry')}</Button>}</div>}
+        {!personal && target.kind !== 'project' && snapshot?.access.is_owner && snapshot.access.permissions.configure &&
+          <section className="grid gap-3 rounded-xl border p-3 text-sm" data-ownership-transfer="">
+            <Button type="button" variant="outline" className="w-fit" disabled={busy} onClick={() => setTransferOpen(open => !open)}>{t('ownership.action')}</Button>
+            {transferOpen && <>
+              <p className="leading-relaxed text-muted-foreground">{t(target.kind === 'workspace' ? 'ownership.workspaceDescription' : 'ownership.sessionDescription')}</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">{t('ownership.executionDescription')}</p>
+              <label className="flex min-h-10 items-center gap-2"><input type="checkbox" checked={retainPreviousOwner} disabled={busy} onChange={event => { setRetainPreviousOwner(event.target.checked); setConfirmed(false) }} />{t('ownership.retain')}</label>
+              <p className="text-xs leading-relaxed text-muted-foreground">{t(retainPreviousOwner ? 'ownership.retainDescription' : 'ownership.removeDescription')}</p>
+              <SharingRecipientPicker target={requestTarget} disabled={busy} selected={recipient} transfer
+                onSelect={value => { setRecipient(value); setConfirmed(false) }} />
+              {recipient?.kind === 'user' && <>
+                <label className="flex min-h-10 items-center gap-2"><input data-ownership-confirm="" type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)} />{t('ownership.confirm', { name: recipient.user.username })}</label>
+                <Button type="button" variant="destructive" disabled={busy || !confirmed} onClick={() => void transfer()}>{busy && <LoaderCircle className="animate-spin" />}{t('ownership.submit')}</Button>
+              </>}
+            </>}
+          </section>}
+        {error && <div role="alert" className="text-sm text-destructive">{error}<Button variant="ghost" disabled={busy} onClick={reload}>{t('sharing.retry')}</Button></div>}
       </div>
     </DialogContent>
   </Dialog>
@@ -174,11 +209,12 @@ export function ResourceSharingDialog({ target, onClose, onChanged }: {
   </>
 }
 
-function SharingRecipientPicker({ target, disabled, selected, onSelect }: {
+function SharingRecipientPicker({ target, disabled, selected, onSelect, transfer = false }: {
   target: SharingTarget
   disabled: boolean
   selected: ShareSubject | null
   onSelect(subject: ShareSubject | null): void
+  transfer?: boolean
 }) {
   const t = useTranslate('workspace')
   const [kind, setKind] = React.useState<ShareSubject['kind']>('user')
@@ -190,6 +226,7 @@ function SharingRecipientPicker({ target, disabled, selected, onSelect }: {
   const [error, setError] = React.useState('')
   const [revision, reload] = React.useReducer(value => value + 1, 0)
   const cursor = cursors.at(-1) ?? null
+  const prefix = transfer ? 'ownership' : 'sharing'
 
   React.useEffect(() => {
     if (selected && selected.kind !== kind) {
@@ -200,21 +237,22 @@ function SharingRecipientPicker({ target, disabled, selected, onSelect }: {
   React.useEffect(() => {
     const controller = new AbortController()
     setLoading(true); setError(''); setPage(null)
-    void listSharingCandidates(target, kind, { query, cursor }, controller.signal).then(value => {
+    const request = transfer ? listTransferCandidates(target, { query, cursor }, controller.signal) : listSharingCandidates(target, kind, { query, cursor }, controller.signal)
+    void request.then(value => {
       if (!controller.signal.aborted) setPage(value)
     }).catch(cause => { if (!controller.signal.aborted) setError(errorMessage(cause)) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [target, kind, query, cursor, revision])
+  }, [target, kind, query, cursor, revision, transfer])
 
   return <section className="grid gap-3" data-sharing-candidates="">
-    <Field><Label htmlFor="sharing-kind">{t('sharing.recipient')}</Label>
+    {!transfer && <Field><Label htmlFor="sharing-kind">{t('sharing.recipient')}</Label>
       <Select id="sharing-kind" value={kind} disabled={disabled} onValueChange={nextValue => { onSelect(null); setKind(nextValue as ShareSubject['kind']); setQuery(''); setDraftQuery(''); setCursors([null]) }}>
         <option value="user">{t('sharing.person')}</option><option value="group">{t('sharing.group')}</option>
       </Select>
-    </Field>
+    </Field>}
     <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); setQuery(draftQuery.trim()); setCursors([null]); reload() }}>
-      <Field className="min-w-0 flex-[1_1_180px]"><Label htmlFor="sharing-search">{t(kind === 'user' ? 'sharing.searchPerson' : 'sharing.searchGroup')}</Label><Input id="sharing-search" value={draftQuery} disabled={disabled} onChange={event => setDraftQuery(event.target.value)} /></Field>
+      <Field className="min-w-0 flex-[1_1_180px]"><Label htmlFor={`${prefix}-search`}>{t(transfer ? 'ownership.search' : kind === 'user' ? 'sharing.searchPerson' : 'sharing.searchGroup')}</Label><Input id={`${prefix}-search`} value={draftQuery} disabled={disabled} onChange={event => setDraftQuery(event.target.value)} /></Field>
       <Button type="submit" variant="outline" disabled={disabled}><Search />{t('sharing.search')}</Button>
     </form>
     {kind === 'group' && <p className="text-xs leading-relaxed text-muted-foreground">{t('sharing.groupDescription')}</p>}

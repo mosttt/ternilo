@@ -91,11 +91,35 @@ impl ControlStore {
         let now = to_i64(now_ms, "workspace rename timestamp")?;
         let mut transaction = self.database.begin().await?;
         set_tenant(&mut transaction, tenant_id).await?;
-        require_action(
+        ternilo_storage::lock(
+            &mut transaction,
+            &format!("resource-shares:{tenant_id}:workspace:{workspace_id}"),
+        )
+        .await?;
+        let access = resource_access_in(
+            &mut transaction,
+            &actor.user_id,
+            tenant_id,
+            ResourceKind::Workspace,
+            workspace_id.as_str(),
+        )
+        .await?;
+        access.require(ResourceAction::Delete)?;
+        let project: String = sqlx::query_scalar(
+            "SELECT project_id FROM control_workspaces WHERE tenant_id=$1 AND workspace_id=$2",
+        )
+        .bind(tenant_id.as_str())
+        .bind(workspace_id.as_str())
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        crate::resource_ownership::require_workspace_name_in(
             &mut transaction,
             tenant_id,
-            &actor.user_id,
-            ControlAction::RunReserve,
+            &access.owner_user_id,
+            &project,
+            title,
+            Some(workspace_id.as_str()),
         )
         .await?;
         let row = sqlx::query(
@@ -109,7 +133,7 @@ impl ControlStore {
         )
         .bind(tenant_id.as_str())
         .bind(workspace_id.as_str())
-        .bind(actor.user_id.as_str())
+        .bind(access.storage_user_id.as_str())
         .bind(title)
         .bind(now)
         .fetch_optional(&mut *transaction)
@@ -146,13 +170,20 @@ impl ControlStore {
         let now = to_i64(now_ms, "workspace unregister timestamp")?;
         let mut transaction = self.database.begin().await?;
         set_tenant(&mut transaction, tenant_id).await?;
-        require_action(
+        ternilo_storage::lock(
             &mut transaction,
-            tenant_id,
-            &actor.user_id,
-            ControlAction::RunReserve,
+            &format!("resource-shares:{tenant_id}:workspace:{workspace_id}"),
         )
         .await?;
+        let access = resource_access_in(
+            &mut transaction,
+            &actor.user_id,
+            tenant_id,
+            ResourceKind::Workspace,
+            workspace_id.as_str(),
+        )
+        .await?;
+        access.require(ResourceAction::Delete)?;
         let changed = sqlx::query(
             "UPDATE control_workspaces
              SET unregistered_at_ms = $4, updated_at_ms = $4
@@ -161,7 +192,7 @@ impl ControlStore {
         )
         .bind(tenant_id.as_str())
         .bind(workspace_id.as_str())
-        .bind(actor.user_id.as_str())
+        .bind(access.storage_user_id.as_str())
         .bind(now)
         .execute(&mut *transaction)
         .await
@@ -246,7 +277,7 @@ impl ControlStore {
                     .try_get::<String, _>("node_session_id")
                     .map_err(database_error)?,
             ));
-            access.owner_user_id
+            access.storage_user_id
         } else {
             let access = resource_access_in(
                 &mut transaction,
@@ -259,13 +290,13 @@ impl ControlStore {
             access.require(ResourceAction::Submit)?;
             require_local_workspace_binding(
                 &mut transaction,
-                &access.owner_user_id,
+                &access.storage_user_id,
                 tenant_id,
                 workspace_id,
                 executor_id,
             )
             .await?;
-            access.owner_user_id
+            access.storage_user_id
         };
         if crate::edge_store::session_deleted(
             &mut transaction,
@@ -384,7 +415,9 @@ impl ControlStore {
         session_id.validate()?;
         let mut transaction = self.database.begin().await?;
         prepare_owner_read(&mut transaction, actor, tenant_id).await?;
-        let row = select_owned_edge_session(&mut transaction, actor, tenant_id, session_id).await?;
+        let row =
+            select_owned_edge_session(&mut transaction, &actor.user_id, tenant_id, session_id)
+                .await?;
         transaction.commit().await.map_err(database_error)?;
         row.as_ref().map(edge_session_from_row).transpose()
     }
@@ -412,7 +445,7 @@ impl ControlStore {
         )
         .await?;
         access.require(ResourceAction::View)?;
-        let owner_id = &access.owner_user_id;
+        let owner_id = &access.storage_user_id;
         let existing: ternilo_storage::Json<EdgeSessionMetadata> = sqlx::query_scalar(ternilo_storage::for_update(&transaction,
             "SELECT metadata_json FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2",
             "SELECT metadata_json FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2 FOR UPDATE"))
@@ -465,7 +498,7 @@ impl ControlStore {
         )
         .await?;
         access.require(ResourceAction::View)?;
-        let owner_id = &access.owner_user_id;
+        let owner_id = &access.storage_user_id;
         let row = sqlx::query(ternilo_storage::for_update(&transaction,
             "SELECT tenant_id, session_id, workspace_id, executor_id, owner_user_id, node_session_id, metadata_json, last_event_seq, created_at_ms, updated_at_ms FROM control_edge_sessions WHERE tenant_id = $1 AND session_id = $2 AND owner_user_id = $3",
             "SELECT tenant_id, session_id, workspace_id, executor_id, owner_user_id, node_session_id, metadata_json, last_event_seq, created_at_ms, updated_at_ms FROM control_edge_sessions WHERE tenant_id = $1 AND session_id = $2 AND owner_user_id = $3 FOR UPDATE",
@@ -488,6 +521,10 @@ impl ControlStore {
         Ok(record)
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep binding checks, events, grants, deletion marker and audit in the same transaction."
+    )]
     pub async fn delete_edge_session_mapping(
         &self,
         actor: &ControlUser,
@@ -537,8 +574,13 @@ impl ControlStore {
         )
         .await?;
         access.require(ResourceAction::Delete)?;
-        let mapping =
-            require_owned_edge_session(&mut transaction, actor, tenant_id, session_id).await?;
+        let mapping = require_owned_edge_session(
+            &mut transaction,
+            &access.storage_user_id,
+            tenant_id,
+            session_id,
+        )
+        .await?;
         let mapped_node: String = mapping.try_get("node_session_id").map_err(database_error)?;
         let executor: String = mapping.try_get("executor_id").map_err(database_error)?;
         if mapped_node != node_session_id.as_str() {
@@ -560,7 +602,7 @@ impl ControlStore {
         )
         .bind(tenant_id.as_str())
         .bind(session_id.as_str())
-        .bind(actor.user_id.as_str())
+        .bind(access.storage_user_id.as_str())
         .execute(&mut *transaction)
         .await
         .map_err(database_error)?;
@@ -641,18 +683,18 @@ async fn require_local_workspace_binding(
 
 async fn require_owned_edge_session(
     transaction: &mut ternilo_storage::Transaction,
-    actor: &ControlUser,
+    storage_owner: &UserId,
     tenant_id: &TenantId,
     session_id: &SessionId,
 ) -> Result<sqlx::any::AnyRow, HarnessError> {
-    select_owned_edge_session(transaction, actor, tenant_id, session_id)
+    select_owned_edge_session(transaction, storage_owner, tenant_id, session_id)
         .await?
         .ok_or_else(session_not_found)
 }
 
 async fn select_owned_edge_session(
     transaction: &mut ternilo_storage::Transaction,
-    actor: &ControlUser,
+    storage_owner: &UserId,
     tenant_id: &TenantId,
     session_id: &SessionId,
 ) -> Result<Option<sqlx::any::AnyRow>, HarnessError> {
@@ -665,7 +707,7 @@ async fn select_owned_edge_session(
     )
     .bind(tenant_id.as_str())
     .bind(session_id.as_str())
-    .bind(actor.user_id.as_str())
+    .bind(storage_owner.as_str())
     .fetch_optional(&mut **transaction)
     .await
     .map_err(database_error)

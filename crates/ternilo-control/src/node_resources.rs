@@ -72,6 +72,11 @@ impl ControlStore {
                 "SELECT project_id FROM control_projects WHERE tenant_id = $1 ORDER BY created_at_ms, project_id LIMIT 1",
             ).bind(tenant_id.as_str()).fetch_one(&mut *transaction).await.map_err(database_error)?,
         };
+        lock(
+            &mut transaction,
+            &format!("workspace-name:{tenant_id}:{}:{project_id}", actor.user_id),
+        )
+        .await?;
         let deleted = crate::edge_store::purge_deleted_session_mappings(
             &mut transaction,
             tenant_id,
@@ -80,8 +85,10 @@ impl ControlStore {
         .await?;
         let now = to_i64(now_ms, "Node discovery timestamp")?;
         let mut names = sqlx::query_scalar::<_, String>(
-            "SELECT name FROM control_workspaces WHERE tenant_id = $1 AND owner_user_id = $2
-             AND project_id = $3 AND unregistered_at_ms IS NULL",
+            "SELECT w.name FROM control_workspaces w LEFT JOIN control_resource_ownership o
+             ON o.tenant_id=w.tenant_id AND o.resource_kind='workspace' AND o.resource_id=w.workspace_id
+             WHERE w.tenant_id=$1 AND (w.owner_user_id=$2 OR COALESCE(o.owner_user_id,w.owner_user_id)=$2)
+             AND w.project_id=$3 AND w.unregistered_at_ms IS NULL",
         )
         .bind(tenant_id.as_str())
         .bind(actor.user_id.as_str())

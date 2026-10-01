@@ -237,9 +237,9 @@ impl<'a> PlacementResolver<'a> {
                 .resource_access(self.actor, self.tenant_id, kind, id)
                 .await?;
             access.require(ResourceAction::View)?;
-            if !access.is_owner {
+            if !access.is_execution_owner {
                 return Err(HarnessError::policy(
-                    "execution configuration belongs to the resource owner",
+                    "execution configuration belongs to the original account or computer",
                 ));
             }
         }

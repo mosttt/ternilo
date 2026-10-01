@@ -28,6 +28,17 @@ export interface SharingCandidates {
   next_cursor: string | null
 }
 
+export function listTransferCandidates(target: SharingTarget, input: PageQuery = {}, signal?: AbortSignal) {
+  return api.request<SharingCandidates>(`${sharingEndpoint(target)}/ownership/candidates?${pageQuery(input)}`, { signal, headers: scope(target) })
+}
+
+export function transferOwnership(target: SharingTarget, owner_user_id: string, access: ResourceAccess, retain_previous_owner: boolean) {
+  return api.request<{ owner: { user_id: string; username: string }; revision: number }>(`${sharingEndpoint(target)}/ownership`, {
+    method: 'PUT', headers: scope(target),
+    body: { owner_user_id, expected_owner_user_id: access.owner_user_id, expected_revision: access.ownership_revision, retain_previous_owner },
+  })
+}
+
 function sharingEndpoint(target: SharingTarget) {
   const collection = { project: 'projects', workspace: 'workspaces', session: 'sessions' }[target.kind]
   return `/${collection}/${encodeURIComponent(target.id)}/sharing`

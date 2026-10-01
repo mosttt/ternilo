@@ -16,7 +16,7 @@ let root: Root
 const onClose = vi.fn()
 const onChanged = vi.fn(async () => {})
 const permissions = { view: true, submit: false, stop: false, configure: false }
-const owner: ResourceAccess = { owner_user_id: 'owner', is_owner: true, permissions: { view: true, submit: true, stop: true, configure: true }, sources: [], role_limited: false }
+const owner: ResourceAccess = { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: true, is_owner: true, permissions: { view: true, submit: true, stop: true, configure: true }, sources: [], role_limited: false }
 const member: ShareSubject = { kind: 'user', user: { user_id: 'member', username: 'Alice' } }
 const group: ShareSubject = { kind: 'group', group: { group_id: 'group/research', tenant_id: 'space', name: 'Research team', description: null, member_count: 3, created_at_ms: 1, updated_at_ms: 1 } }
 const scopeHeaders = { 'x-ternilo-tenant': 'space' }
@@ -54,6 +54,64 @@ async function selectKind(kind: string) {
 }
 
 describe('Resource sharing', () => {
+  it('requires recipient confirmation and submits the ownership version without changing grants', async () => {
+    access = { ...owner, ownership_revision: 7 }
+    await mount()
+    expect(vi.mocked(api.request).mock.calls.some(([path]) => path.includes('/ownership'))).toBe(false)
+    await settle(() => button('转交管理权…').click())
+    expect(api.request).toHaveBeenCalledWith('/sessions/public%2Fsession/sharing/ownership/candidates?limit=25', {
+      headers: scopeHeaders, signal: expect.any(AbortSignal),
+    })
+    const section = document.querySelector('[data-ownership-transfer]')!
+    await settle(() => section.querySelector<HTMLButtonElement>('[data-sharing-candidate="user:member"]')!.click())
+    expect(button('确认转交').disabled).toBe(true)
+    await settle(() => section.querySelector<HTMLInputElement>('[data-ownership-confirm]')!.click())
+    await settle(() => button('确认转交').click())
+    expect(api.request).toHaveBeenCalledWith('/sessions/public%2Fsession/sharing/ownership', {
+      headers: scopeHeaders, method: 'PUT', body: { owner_user_id: 'member', expected_owner_user_id: 'owner', expected_revision: 7, retain_previous_owner: true },
+    })
+    expect(onChanged).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(vi.mocked(api.request).mock.calls.filter(([,options]) => options?.method === 'PUT')).toHaveLength(1)
+  })
+
+  it('keeps stale handoffs open for an explicit refresh and hides transfer for shared configurators', async () => {
+    vi.mocked(api.request).mockImplementation(async (path,options) => {
+      if (options?.method === 'PUT') throw new Error('resource ownership changed; refresh before transferring')
+      if (path.includes('/candidates?')) return { candidates: [member], next_cursor: null } as never
+      return { access, shares: [], next_cursor: null } as never
+    })
+    await mount()
+    await settle(() => button('转交管理权…').click())
+    const section = document.querySelector('[data-ownership-transfer]')!
+    await settle(() => section.querySelector<HTMLButtonElement>('[data-sharing-candidate="user:member"]')!.click())
+    await settle(() => section.querySelector<HTMLInputElement>('[data-ownership-confirm]')!.click())
+    await settle(() => button('确认转交').click())
+    expect(document.querySelector('[role="alert"]')!.textContent).toContain('ownership changed')
+    expect(onClose).not.toHaveBeenCalled()
+    access = { ...owner, is_owner: false, is_execution_owner: false, can_manage_sharing: false }
+    await settle(() => button('重试').click())
+    expect(document.querySelector('[data-ownership-transfer]')).toBeNull()
+  })
+
+  it('requires renewed confirmation when former-manager access is removed', async () => {
+    await mount()
+    await settle(() => button('转交管理权…').click())
+    const section = document.querySelector('[data-ownership-transfer]')!
+    await settle(() => section.querySelector<HTMLButtonElement>('[data-sharing-candidate="user:member"]')!.click())
+    await settle(() => section.querySelector<HTMLInputElement>('[data-ownership-confirm]')!.click())
+    const retain = [...section.querySelectorAll('label')].find(label => label.textContent === '保留我为可编辑协作者')!.querySelector('input')!
+    expect(retain.checked).toBe(true)
+    await settle(() => retain.click())
+    expect(button('确认转交').disabled).toBe(true)
+    await settle(() => section.querySelector<HTMLInputElement>('[data-ownership-confirm]')!.click())
+    await settle(() => button('确认转交').click())
+    expect(api.request).toHaveBeenCalledWith('/sessions/public%2Fsession/sharing/ownership', {
+      headers: scopeHeaders, method: 'PUT', body: { owner_user_id: 'member', expected_owner_user_id: 'owner', expected_revision: 0, retain_previous_owner: false },
+    })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('lets a project administrator manage rules without claiming resource ownership', async () => {
     access = { ...owner, is_owner: false, can_manage_sharing: true }
     await mount({ kind: 'project', id: 'project/one', title: 'Project one', tenantId: 'another-space' })

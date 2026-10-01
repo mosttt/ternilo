@@ -114,7 +114,7 @@ impl CloudStore {
         )
         .await?;
         access.require(ternilo_control::ResourceAction::Submit)?;
-        if access.owner_user_id != metadata.user_id {
+        if access.storage_user_id != metadata.user_id {
             return Err(HarnessError::policy(
                 "workload authority no longer belongs to its resource owner",
             ));

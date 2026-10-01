@@ -10,6 +10,8 @@ Use the resource's sharing action to select eligible users or permission groups.
 
 Project sharing inheritance is an explicit owner-controlled option. Grouping a workspace under a project alone does not grant access. See [project sharing](project-sharing.md) for the union of direct and inherited access and the limits of Node control.
 
+Team workspaces and sessions also support [management handoff](resource-management.md) from their sharing panels. The recipient gains management while directories, computers, execution identity and historical authors remain unchanged. Original execution configuration and Provider credentials keep their separate permissions. Personal resources cannot be moved into a team through this operation.
+
 Draft messages remain private to their author. Once accepted, tasks retain their actual submitter identity. Collaborators use the selected session's permissions, model binding and project files; sharing does not create a new OS sandbox, copy a directory or substitute the collaborator's private key. Independent concurrent edits should use separate worktrees or directories.
 
 ## Offline and revoked access

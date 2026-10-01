@@ -129,8 +129,8 @@ impl CloudStore {
         )
         .await?;
         access.require(ResourceAction::View)?;
-        set_user_scope(&mut transaction, &access.owner_user_id).await?;
-        if !access.is_owner {
+        set_user_scope(&mut transaction, &access.storage_user_id).await?;
+        if !access.is_execution_owner {
             require_session_attachment_references_in(
                 &mut transaction,
                 tenant_id,
@@ -141,7 +141,7 @@ impl CloudStore {
         }
         let workspace: String = sqlx::query_scalar(
             "SELECT workspace_id FROM cloud_sessions WHERE tenant_id=$1 AND session_id=$2 AND user_id=$3",
-        ).bind(tenant_id.as_str()).bind(session_id.as_str()).bind(access.owner_user_id.as_str())
+        ).bind(tenant_id.as_str()).bind(session_id.as_str()).bind(access.storage_user_id.as_str())
             .fetch_one(&mut *transaction).await.map_err(database_error)?;
         let resolved = resolve_attachment_in(
             &mut transaction,

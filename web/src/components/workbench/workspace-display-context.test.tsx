@@ -35,7 +35,7 @@ it('shows computer, workspace and owner-authorized path without storing the path
 })
 
 it('does not read a private path for a shared viewer or an offline computer', async () => {
-  fixture.workspace!.access = { owner_user_id: 'alice', is_owner: false, role_limited: false, permissions: { view: true, submit: true, stop: true, configure: false }, sources: [] }
+  fixture.workspace!.access = { owner_user_id: 'alice', storage_user_id: 'alice', ownership_revision: 0, is_execution_owner: false, is_owner: false, role_limited: false, permissions: { view: true, submit: true, stop: true, configure: false }, sources: [] }
   await render()
   expect(fixture.request).not.toHaveBeenCalled()
   expect(host.querySelector('[data-replacement]')?.getAttribute('data-replacement')).toBe('当前工作区「Reader」')

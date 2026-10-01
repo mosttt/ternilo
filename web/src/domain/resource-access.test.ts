@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { canAnswerQuestion, ownsResource, resourcePermissions } from './resource-access'
+import { canAnswerQuestion, ownsExecutionConfiguration, ownsResource, resourcePermissions } from './resource-access'
 
 describe('Resource capabilities', () => {
+  it('keeps transferred management separate from execution configuration', () => {
+    const access = { owner_user_id: 'recipient', storage_user_id: 'original', ownership_revision: 2,
+      is_owner: true, is_execution_owner: false, sources: [], role_limited: false,
+      permissions: { view: true, submit: true, stop: true, configure: true } }
+    expect(ownsResource(access, true)).toBe(true)
+    expect(ownsExecutionConfiguration({ access } as never, null, true)).toBe(false)
+    expect(ownsExecutionConfiguration({ access: { ...access, is_owner: false, is_execution_owner: true } } as never, null, true)).toBe(true)
+  })
   it('keeps local access unchanged and separates shared stop from submit or configuration', () => {
     expect(resourcePermissions(undefined, true)).toEqual({ view: true, submit: true, stop: true, configure: true })
-    const access = { owner_user_id: 'owner', is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: false, stop: true, configure: false } }
+    const access = { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: false, stop: true, configure: false } }
     expect(resourcePermissions(access, true)).toEqual(access.permissions)
     expect(ownsResource(access, true)).toBe(false)
     expect(ownsResource({ ...access, permissions: { ...access.permissions, configure: true } }, true)).toBe(false)

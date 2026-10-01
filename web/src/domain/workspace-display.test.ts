@@ -26,7 +26,7 @@ describe('workspace display path', () => {
       workspace_id: 'workspace', title: 'Session', placement: 'cloud', workspace_path: '云端 / 未分组',
       permissions: 'read_only', model: { provider: 'profile_default' }, agent_preset: 'standard',
       preset_plugins: [], profile_plugins: [], mode: 'execute', created_at_ms: 1, updated_at_ms: 1,
-      access: { owner_user_id: 'owner', is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: false, stop: false, configure: false } },
+      access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: false, is_owner: false, sources: [], role_limited: false, permissions: { view: true, submit: false, stop: false, configure: false } },
     }
     expect(workspaceDisplayPath(null, session, t)).toBe('displayPath.cloud:group.ungrouped:')
     expect(workspaceDisplayPath(null, { ...session, placement: 'local_node' }, t)).toBe('displayPath.computer:group.ungrouped:')
