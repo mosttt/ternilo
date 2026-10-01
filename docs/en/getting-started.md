@@ -147,3 +147,5 @@ cargo run --locked -p ternilo -- serve
 ```
 
 Continue with the [user guide](user-guide.md), [remote access](remote-access.md), [Server deployment](deployment.md), or [desktop guide](desktop.md).
+
+See [configuration and data directories](data-layout.md) for startup settings, credentials, databases and runtime state. The first `serve` saves configuration; subsequent launches prefer CLI, environment, configuration and then built-in defaults.

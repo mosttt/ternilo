@@ -89,6 +89,7 @@ async fn run_approved_turn(
 mod archive_restore;
 mod code_mode;
 mod commands;
+mod data_layout;
 mod extensions;
 mod forks;
 mod history;

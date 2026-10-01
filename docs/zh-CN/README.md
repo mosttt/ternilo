@@ -9,6 +9,7 @@
 - [本地快速开始](getting-started.md)：启动程序、打开文件夹、配置模型、发送第一个任务。
 - [远程访问](remote-access.md)：部署 Server、接入自己的电脑或 VPS、从其他设备访问。
 - [Server 部署与运维](deployment.md)：初始化、SQLite／PostgreSQL、反向代理、诊断、备份与恢复。
+- [多 Server Node 路由](server-cluster.md)：实例地址、在线转发和实时补读；阶段验收待完成。
 - [桌面应用](desktop.md)：原生窗口、后台服务、通知和深链。
 - [托管 Worker](worker.md)：现有可选执行服务的接入、存储和维护；完整 Work 能力仍为预留范围。
 
@@ -49,3 +50,5 @@
 - [未知模型用量核对](model-usage-reconciliation.md)：管理员依据上游记录补齐未知计数，保留原月份和审计。
 
 - [标识与凭据命名](identifiers.md)：当前对外前缀与用途。
+
+- [配置与数据目录](data-layout.md)

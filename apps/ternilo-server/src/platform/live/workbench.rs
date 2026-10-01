@@ -1,8 +1,8 @@
 use super::{
     AppState, ApplicationOperation, BTreeMap, CloudLiveNotification, CloudSessionRecord,
     CloudSessionState, ControlUser, EdgeLiveNotification, EdgeSessionRecord, ExecutorId,
-    HarnessError, LiveServerFrame, SessionId, SessionLiveActivity, TenantId, WebSocket, load_state,
-    send_frame,
+    HarnessError, LiveServerFrame, SessionId, SessionLiveActivity, TenantId, WebSocket,
+    load_state_filtered, send_frame,
 };
 
 pub(super) async fn handle_notification(
@@ -12,6 +12,7 @@ pub(super) async fn handle_notification(
     notification: CloudLiveNotification,
     socket: &mut WebSocket,
     workbench_revision: &mut u64,
+    online_only: bool,
 ) -> Result<(), HarnessError> {
     match notification {
         CloudLiveNotification::Session {
@@ -29,17 +30,41 @@ pub(super) async fn handle_notification(
                 send_frame(socket, &LiveServerFrame::Activity { activity }).await?;
             }
             if workbench {
-                send_workbench(state, actor, tenant_id, socket, workbench_revision).await?;
+                send_workbench(
+                    state,
+                    actor,
+                    tenant_id,
+                    socket,
+                    workbench_revision,
+                    online_only,
+                )
+                .await?;
             }
         }
         CloudLiveNotification::Workbench {
             tenant_id: notified_tenant,
             user_id: _,
         } if notified_tenant == *tenant_id => {
-            send_workbench(state, actor, tenant_id, socket, workbench_revision).await?;
+            send_workbench(
+                state,
+                actor,
+                tenant_id,
+                socket,
+                workbench_revision,
+                online_only,
+            )
+            .await?;
         }
         CloudLiveNotification::Rescan => {
-            send_workbench(state, actor, tenant_id, socket, workbench_revision).await?;
+            send_workbench(
+                state,
+                actor,
+                tenant_id,
+                socket,
+                workbench_revision,
+                online_only,
+            )
+            .await?;
         }
         _ => {}
     }
@@ -53,6 +78,7 @@ pub(super) async fn handle_edge_notification(
     notification: EdgeLiveNotification,
     socket: &mut WebSocket,
     workbench_revision: &mut u64,
+    online_only: bool,
 ) -> Result<(), HarnessError> {
     match notification {
         EdgeLiveNotification::ResourcesChanged {
@@ -62,7 +88,15 @@ pub(super) async fn handle_edge_notification(
             tenant_id: notified_tenant,
             ..
         } if notified_tenant == *tenant_id => {
-            send_workbench(state, actor, tenant_id, socket, workbench_revision).await?;
+            send_workbench(
+                state,
+                actor,
+                tenant_id,
+                socket,
+                workbench_revision,
+                online_only,
+            )
+            .await?;
         }
         EdgeLiveNotification::Session {
             tenant_id: notified_tenant,
@@ -73,9 +107,14 @@ pub(super) async fn handle_edge_notification(
             ..
         } if notified_tenant == *tenant_id => {
             if let Some(activity) = activity
+                && (!online_only || state.edge.is_connected(tenant_id, &executor_id).await)
                 && let Some(mapping) = state
                     .store
-                    .list_accessible_edge_sessions(actor, tenant_id)
+                    .list_accessible_edge_sessions_on_executors(
+                        actor,
+                        tenant_id,
+                        std::slice::from_ref(&executor_id),
+                    )
                     .await?
                     .into_iter()
                     .find(|mapping| {
@@ -100,7 +139,15 @@ pub(super) async fn handle_edge_notification(
                 .await?;
             }
             if workbench {
-                send_workbench(state, actor, tenant_id, socket, workbench_revision).await?;
+                send_workbench(
+                    state,
+                    actor,
+                    tenant_id,
+                    socket,
+                    workbench_revision,
+                    online_only,
+                )
+                .await?;
             }
         }
         _ => {}
@@ -114,8 +161,9 @@ pub(super) async fn send_workbench(
     tenant_id: &TenantId,
     socket: &mut WebSocket,
     revision: &mut u64,
+    online_only: bool,
 ) -> Result<(), HarnessError> {
-    let (workbench, activity) = load_workbench(state, actor, tenant_id).await?;
+    let (workbench, activity) = load_workbench(state, actor, tenant_id, online_only).await?;
     *revision = revision.saturating_add(1);
     send_frame(
         socket,
@@ -132,9 +180,11 @@ pub(super) async fn load_workbench(
     state: &AppState,
     actor: &ControlUser,
     tenant_id: &TenantId,
+    online_only: bool,
 ) -> Result<(serde_json::Value, Vec<SessionLiveActivity>), HarnessError> {
-    let workbench = serde_json::to_value(load_state(state, actor, tenant_id).await?)
-        .map_err(|error| HarnessError::execution(format!("encode live Workbench: {error}")))?;
+    let workbench =
+        serde_json::to_value(load_state_filtered(state, actor, tenant_id, online_only).await?)
+            .map_err(|error| HarnessError::execution(format!("encode live Workbench: {error}")))?;
     let mut activity = state
         .cloud
         .list_accessible_sessions(tenant_id, &actor.user_id, 500)
@@ -142,7 +192,7 @@ pub(super) async fn load_workbench(
         .into_iter()
         .map(session_activity)
         .collect::<Vec<_>>();
-    activity.extend(load_edge_activities(state, actor, tenant_id).await?);
+    activity.extend(load_edge_activities(state, actor, tenant_id, online_only).await?);
     Ok((workbench, activity))
 }
 
@@ -150,11 +200,20 @@ pub(super) async fn load_edge_activities(
     state: &AppState,
     actor: &ControlUser,
     tenant_id: &TenantId,
+    online_only: bool,
 ) -> Result<Vec<SessionLiveActivity>, HarnessError> {
-    let mappings = state
-        .store
-        .list_accessible_edge_sessions(actor, tenant_id)
-        .await?;
+    let mappings = if online_only {
+        let ids = state.edge.online_executor_ids(tenant_id).await?;
+        state
+            .store
+            .list_accessible_edge_sessions_on_executors(actor, tenant_id, &ids)
+            .await?
+    } else {
+        state
+            .store
+            .list_accessible_edge_sessions(actor, tenant_id)
+            .await?
+    };
     let mut by_executor = BTreeMap::<ExecutorId, Vec<&EdgeSessionRecord>>::new();
     let mut activity = mappings
         .iter()

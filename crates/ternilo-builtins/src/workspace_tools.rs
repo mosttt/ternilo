@@ -898,7 +898,7 @@ fn planning_tool_definitions() -> [(ToolSpec, PlanningOperation); 4] {
         (
             ToolSpec {
                 name: "update_goal".to_owned(),
-                description: "Create or update the durable same-session goal and its status."
+                description: "Update the goal explicitly enabled by the user with /goal. Never start or resume goals on your own."
                     .to_owned(),
                 input_schema: json!({
                     "type": "object",
@@ -1006,6 +1006,11 @@ impl ToolHandler for PlanningTool {
                     )
                 }
                 PlanningOperation::Goal => {
+                    if !crate::agent_goal::goal_tool_enabled(&self.sessions.events().await) {
+                        return Err(HarnessError::policy(
+                            "goals must be enabled by the user with /goal",
+                        ));
+                    }
                     let arguments: GoalArguments = parse_arguments(arguments)?;
                     if arguments.objective.trim().is_empty() {
                         return Err(HarnessError::invalid("goal objective must not be empty"));

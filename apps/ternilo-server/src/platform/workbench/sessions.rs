@@ -168,9 +168,17 @@ pub(crate) async fn list_archived_sessions(
     depot: &mut Depot,
 ) -> Result<Json<Value>, ApiError> {
     let tenant_id = tenant_parameter(request)?;
+    let query = request
+        .parse_queries::<super::workspace::WorkbenchQuery>()
+        .map_err(invalid_request)?;
     Ok(Json(to_value(
-        super::workspace::load_archived_sessions(app_state(depot), actor(depot), &tenant_id)
-            .await?,
+        super::workspace::load_archived_sessions(
+            app_state(depot),
+            actor(depot),
+            &tenant_id,
+            query.online_computers_only,
+        )
+        .await?,
     )?))
 }
 

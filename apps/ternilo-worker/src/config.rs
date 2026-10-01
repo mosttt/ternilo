@@ -25,10 +25,8 @@ pub(crate) enum SandboxMode {
 
 #[derive(Default, Args)]
 pub(crate) struct InitOptions {
-    #[arg(long, env = "TERNILO_WORKER_CONFIG", conflicts_with = "data_dir")]
-    pub config: Option<PathBuf>,
-    #[arg(long, env = "TERNILO_WORKER_DATA_DIR")]
-    pub data_dir: Option<PathBuf>,
+    #[arg(long, env = "TERNILO_WORKER_CONFIG_DIR")]
+    pub config_dir: Option<PathBuf>,
     #[arg(long, env = "TERNILO_WORKER_SERVER_URL")]
     pub server_url: Option<String>,
     #[arg(long, env = "TERNILO_WORKER_TOKEN", hide_env_values = true)]
@@ -57,10 +55,8 @@ pub(crate) struct InitOptions {
 
 #[derive(Default, Args)]
 pub(crate) struct ServeOptions {
-    #[arg(long, env = "TERNILO_WORKER_CONFIG", conflicts_with = "data_dir")]
-    pub config: Option<PathBuf>,
-    #[arg(long, env = "TERNILO_WORKER_DATA_DIR")]
-    pub data_dir: Option<PathBuf>,
+    #[arg(long, env = "TERNILO_WORKER_CONFIG_DIR")]
+    pub config_dir: Option<PathBuf>,
     #[arg(long, env = "TERNILO_WORKER_SERVER_URL")]
     pub server_url: Option<String>,
     #[arg(long, env = "TERNILO_WORKER_TOKEN", hide_env_values = true)]
@@ -123,8 +119,7 @@ struct WorkerConfig {
 impl InitOptions {
     pub fn initialize(self) -> Result<PathBuf, HarnessError> {
         let options = ServeOptions {
-            config: self.config,
-            data_dir: self.data_dir,
+            config_dir: self.config_dir,
             server_url: self.server_url,
             token: self.token,
             workspace_root: self.workspace_root,
@@ -138,7 +133,7 @@ impl InitOptions {
             telemetry_service_name: self.telemetry_service_name,
             telemetry_timeout_ms: self.telemetry_timeout_ms,
         };
-        let path = configuration_path(options.config.as_deref(), options.data_dir.as_deref())?;
+        let path = configuration_path(options.config_dir.as_deref())?;
         if path.exists() {
             return Err(HarnessError::conflict(
                 "Worker configuration already exists; initialization does not overwrite it",
@@ -149,7 +144,7 @@ impl InitOptions {
             version: 1,
             server_url: String::new(),
             token: String::new(),
-            workspace_root: parent.join("workspaces"),
+            workspace_root: parent.join("data/workspaces"),
             sandbox: SandboxMode::default(),
             health_listen: SocketAddr::from(([127, 0, 0, 1], 5431)),
             poll_interval_ms: 500,
@@ -187,7 +182,7 @@ impl InitOptions {
 
 impl ServeOptions {
     pub fn load(self) -> Result<LoadedWorkerConfig, HarnessError> {
-        let path = configuration_path(self.config.as_deref(), self.data_dir.as_deref())?;
+        let path = configuration_path(self.config_dir.as_deref())?;
         let bytes = fs::read(&path).map_err(|error| {
             if error.kind() == std::io::ErrorKind::NotFound {
                 HarnessError::invalid(
@@ -341,40 +336,21 @@ fn default_path_from_environment(
     home: Option<&Path>,
 ) -> Result<PathBuf, HarnessError> {
     if let Some(root) = xdg.filter(|path| !path.as_os_str().is_empty()) {
-        return Ok(root.join("ternilo-worker/worker.json"));
+        return Ok(root.join("ternilo-worker/config.json"));
     }
     let home = home
         .filter(|path| !path.as_os_str().is_empty())
         .ok_or_else(|| {
-            HarnessError::invalid(
-                "set --data-dir, --config, or XDG_DATA_HOME when HOME is unavailable",
-            )
+            HarnessError::invalid("set --config-dir or XDG_DATA_HOME when HOME is unavailable")
         })?;
-    Ok(home.join(".local/share/ternilo-worker/worker.json"))
+    Ok(home.join(".local/share/ternilo-worker/config.json"))
 }
 
-fn configuration_path(
-    config: Option<&Path>,
-    data_dir: Option<&Path>,
-) -> Result<PathBuf, HarnessError> {
-    let path = match (config, data_dir) {
-        (Some(_), Some(_)) => {
-            return Err(HarnessError::invalid(
-                "choose either Worker --config or --data-dir",
-            ));
-        }
-        (Some(path), None) => path.to_path_buf(),
-        (None, Some(directory)) => {
-            if directory.as_os_str().is_empty() {
-                return Err(HarnessError::invalid(
-                    "Worker data directory must not be empty",
-                ));
-            }
-            directory.join("worker.json")
-        }
-        (None, None) => default_config_path()?,
-    };
-    absolute_path(&path)
+fn configuration_path(directory: Option<&Path>) -> Result<PathBuf, HarnessError> {
+    match directory {
+        Some(directory) => Ok(absolute_path(directory)?.join("config.json")),
+        None => default_config_path(),
+    }
 }
 
 fn absolute_path(path: &Path) -> Result<PathBuf, HarnessError> {
@@ -432,7 +408,7 @@ mod tests {
 
     fn fixture(directory: &Path) -> InitOptions {
         InitOptions {
-            data_dir: Some(directory.to_path_buf()),
+            config_dir: Some(directory.to_path_buf()),
             server_url: Some("https://server.example/".to_owned()),
             token: Some("private-worker-token".to_owned()),
             ..InitOptions::default()
@@ -459,13 +435,13 @@ mod tests {
             assert!(value.get(removed).is_none());
         }
         let loaded = ServeOptions {
-            config: Some(path.clone()),
+            config_dir: Some(path.parent().unwrap().to_path_buf()),
             ..ServeOptions::default()
         }
         .load()
         .unwrap();
         assert_eq!(loaded.server_url, "https://server.example");
-        assert_eq!(loaded.workspace_root, directory.join("workspaces"));
+        assert_eq!(loaded.workspace_root, directory.join("data/workspaces"));
         assert_eq!(loaded.sandbox, SandboxMode::Bubblewrap);
         assert_eq!(loaded.health_listen, "127.0.0.1:5431".parse().unwrap());
         assert_eq!(loaded.poll_interval, Duration::from_millis(500));
@@ -498,7 +474,7 @@ mod tests {
         let path = init.initialize().unwrap();
         let original = fs::read(&path).unwrap();
         let saved = ServeOptions {
-            config: Some(path.clone()),
+            config_dir: Some(path.parent().unwrap().to_path_buf()),
             ..ServeOptions::default()
         }
         .load()
@@ -506,7 +482,7 @@ mod tests {
         assert_eq!(saved.capacity.max_active_runs, 6);
         assert_eq!(saved.capacity.max_resident_runs, 24);
         let loaded = ServeOptions {
-            config: Some(path.clone()),
+            config_dir: Some(path.parent().unwrap().to_path_buf()),
             server_url: Some("http://127.0.0.1:4321".to_owned()),
             token: Some("replacement-token".to_owned()),
             sandbox: Some(SandboxMode::Process),
@@ -595,14 +571,14 @@ mod tests {
             },
         ];
         for mut options in overrides {
-            options.config = Some(path.clone());
+            options.config_dir = Some(path.parent().unwrap().to_path_buf());
             let error = options.load().err().expect("invalid override must fail");
             assert!(!error.message.contains("secret"));
             assert!(!error.message.contains("private worker token"));
         }
         assert!(
             ServeOptions {
-                data_dir: Some(PathBuf::new()),
+                config_dir: Some(PathBuf::new()),
                 ..ServeOptions::default()
             }
             .load()
@@ -631,7 +607,7 @@ mod tests {
             );
             assert!(
                 ServeOptions {
-                    config: Some(path.clone()),
+                    config_dir: Some(path.parent().unwrap().to_path_buf()),
                     max_active_runs: Some(active),
                     max_resident_runs: Some(resident),
                     ..ServeOptions::default()
@@ -653,7 +629,7 @@ mod tests {
         ] {
             assert!(
                 InitOptions {
-                    data_dir: Some(directory.clone()),
+                    config_dir: Some(directory.clone()),
                     server_url,
                     token,
                     ..InitOptions::default()
@@ -665,7 +641,7 @@ mod tests {
         }
         assert!(
             ServeOptions {
-                data_dir: Some(directory),
+                config_dir: Some(directory),
                 ..ServeOptions::default()
             }
             .load()
@@ -681,12 +657,12 @@ mod tests {
                 Some(Path::new("/home/example"))
             )
             .unwrap(),
-            Path::new("/xdg/ternilo-worker/worker.json")
+            Path::new("/xdg/ternilo-worker/config.json")
         );
         assert_eq!(
             default_path_from_environment(Some(Path::new("")), Some(Path::new("/home/example")))
                 .unwrap(),
-            Path::new("/home/example/.local/share/ternilo-worker/worker.json")
+            Path::new("/home/example/.local/share/ternilo-worker/config.json")
         );
         assert!(default_path_from_environment(None, None).is_err());
     }
@@ -709,7 +685,7 @@ mod tests {
             value[key] = "private-legacy-secret".into();
             fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
             let error = ServeOptions {
-                config: Some(path.clone()),
+                config_dir: Some(path.parent().unwrap().to_path_buf()),
                 ..ServeOptions::default()
             }
             .load()
@@ -728,7 +704,7 @@ mod tests {
         fs::create_dir(&shared).unwrap();
         fs::set_permissions(&shared, fs::Permissions::from_mode(0o755)).unwrap();
         assert!(fixture(&shared).initialize().is_err());
-        assert!(!shared.join("worker.json").exists());
+        assert!(!shared.join("config.json").exists());
         assert_eq!(
             fs::metadata(shared).unwrap().permissions().mode() & 0o777,
             0o755
@@ -797,7 +773,7 @@ mod tests {
         let status = child
             .args(["--exact", "config::tests::cli_overrides_environment_and_environment_overrides_saved_configuration"])
             .env(CHILD, "1")
-            .env("TERNILO_WORKER_CONFIG", &path)
+            .env("TERNILO_WORKER_CONFIG_DIR", path.parent().unwrap())
             .env("TERNILO_WORKER_SERVER_URL", "https://environment.example")
             .env("TERNILO_WORKER_TOKEN", "environment-token")
             .env("TERNILO_WORKER_SANDBOX", "container")
@@ -821,8 +797,7 @@ mod tests {
             for (id, environment) in [
                 ("server_url", "TERNILO_WORKER_SERVER_URL"),
                 ("token", "TERNILO_WORKER_TOKEN"),
-                ("config", "TERNILO_WORKER_CONFIG"),
-                ("data_dir", "TERNILO_WORKER_DATA_DIR"),
+                ("config_dir", "TERNILO_WORKER_CONFIG_DIR"),
                 ("workspace_root", "TERNILO_WORKER_WORKSPACE_ROOT"),
                 ("sandbox", "TERNILO_WORKER_SANDBOX"),
                 ("health_listen", "TERNILO_WORKER_HEALTH_LISTEN"),

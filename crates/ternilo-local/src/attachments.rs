@@ -242,7 +242,7 @@ impl LocalAttachmentReader {
     #[must_use]
     pub fn new(data_root: &Path) -> Self {
         Self {
-            objects: data_root.join("attachments").join("objects"),
+            objects: data_root.join("data/attachments").join("objects"),
         }
     }
 

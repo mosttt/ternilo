@@ -15,6 +15,7 @@ import { useTranslate } from '@/i18n/provider'
 import { permissionForPlacement, readDefaultPermission } from '@/domain/default-permission'
 import { invalidateAllProviderInventories } from '@/domain/provider-inventory'
 import { invalidateFileInventory, updateFileInventoryWorkbench } from '@/domain/file-inventory'
+import { readSidebarView } from '@/domain/sidebar-view'
 import {
   executionTargetKey,
   executionTargetPath,
@@ -73,6 +74,8 @@ interface WorkbenchContextValue {
   selectTenant(id: string): Promise<void>
   createTenant(displayName: string, slug: string): Promise<void>
   refresh(): Promise<void>
+  onlineComputersOnly: boolean
+  setOnlineComputersOnly(onlineOnly: boolean): Promise<void>
   acceptLiveWorkbench(state: ApplicationState, revision: number, activity: SessionLiveActivity[]): void
   acceptLiveActivity(activity: SessionLiveActivity): void
   selectWorkspace(id: string): void
@@ -160,6 +163,19 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const boot = window.__TERNILO_BOOT__
   const remote = Boolean(boot?.remote)
   const platform = Boolean(boot?.platform)
+  const [onlineComputersOnly, setOnlineComputersOnlyState] = React.useState(() => {
+    const view = readSidebarView(localStorage.getItem(storage.sidebarView))
+    return platform && view.groupBy === 'computer' && view.onlineComputersOnly
+  })
+  const onlineComputersOnlyRef = React.useRef(onlineComputersOnly)
+  const computerFilterEpoch = React.useRef(0)
+  const computerFilterLoading = React.useRef(false)
+  const readWorkbenchState = React.useCallback(async () => {
+    const epoch = computerFilterEpoch.current
+    const next = await api.request<ApplicationState>(onlineComputersOnlyRef.current ? '/state?online_computers_only=true' : '/state')
+    if (epoch !== computerFilterEpoch.current) throw new DOMException('Workbench filter changed', 'AbortError')
+    return next
+  }, [])
   const [snapshot, setSnapshot] = React.useState<ApplicationState>(emptyState)
   React.useLayoutEffect(() => updateFileInventoryWorkbench(snapshot), [snapshot])
   const [sessionActivity, setSessionActivity] = React.useState<Record<string, SessionLiveActivity>>({})
@@ -224,6 +240,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const invalidateTarget = React.useCallback(() => {
+    computerFilterLoading.current = false
     targetEpochRef.current += 1
     loadRequestRef.current += 1
     refreshRequestRef.current += 1
@@ -458,7 +475,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         api.setTenant(tenantId)
         localStorage.setItem(storage.tenant, tenantId)
       }
-      const nextSnapshot = await api.request<ApplicationState>('/state')
+      const nextSnapshot = await readWorkbenchState()
       if (!isCurrent(platform ? tenantId : undefined)) return
       const requestedSelection = selectionRef.current
       const initialSelection = liveEpoch !== liveWorkbenchEpochRef.current ? requestedSelection : chooseSelection(nextSnapshot, requestedSelection.workspaceId, requestedSelection.sessionId)
@@ -545,7 +562,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       && tenantId === tenantRef.current
     )
     try {
-      const nextSnapshot = await api.request<ApplicationState>('/state')
+      const nextSnapshot = await readWorkbenchState()
       if (!isCurrent()) return
       const requestedSelection = selectionRef.current
       const initialSelection = liveEpoch !== liveWorkbenchEpochRef.current ? requestedSelection : chooseSelection(nextSnapshot, requestedSelection.workspaceId, requestedSelection.sessionId)
@@ -579,11 +596,30 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     }
   }, [replaceSelection])
 
+  const setOnlineComputersOnly = React.useCallback(async (onlyOnline: boolean) => {
+    const effective = platform && onlyOnline
+    if (onlineComputersOnlyRef.current === effective) return
+    onlineComputersOnlyRef.current = effective
+    computerFilterEpoch.current += 1
+    const epoch = invalidateTarget()
+    setOnlineComputersOnlyState(effective)
+    if (authRequired) return
+    computerFilterLoading.current = true
+    setSnapshot(emptyState)
+    setSessionActivity({})
+    setCatalog(null)
+    setPresets(emptyPresets)
+    setLoading(true)
+    try { await refresh() } catch { /* Refresh exposes the current load error. */ }
+    finally { if (targetEpochRef.current === epoch) { computerFilterLoading.current = false; setLoading(false) } }
+  }, [authRequired, invalidateTarget, platform, refresh])
+
   const acceptLiveWorkbench = React.useCallback((
     nextSnapshot: ApplicationState,
     _revision: number,
     activity: SessionLiveActivity[],
   ) => {
+    if (computerFilterLoading.current) return
     liveWorkbenchEpochRef.current += 1
     const requested = selectionRef.current
     const selection = chooseSelection(nextSnapshot, requested.workspaceId, requested.sessionId)
@@ -594,6 +630,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   }, [replaceSelection])
 
   const acceptLiveActivity = React.useCallback((activity: SessionLiveActivity) => {
+    if (computerFilterLoading.current) return
     setSessionActivity(current => ({ ...current, [activity.session_id]: activity }))
   }, [])
 
@@ -724,7 +761,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       body: typeof input === 'string' ? { path: input } : input,
     })
     const workspaceId = 'workspace' in response ? response.workspace.workspace_id : response.workspace_id
-    const nextSnapshot = await api.request<ApplicationState>('/state')
+    const nextSnapshot = await readWorkbenchState()
     setSnapshot(nextSnapshot)
     const created = nextSnapshot.workspaces.find(workspace => workspace.workspace_id === workspaceId)
       ?? ('workspace' in response ? null : response)
@@ -741,14 +778,14 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       method: 'PATCH',
       body: { title },
     })
-    const nextSnapshot = await api.request<ApplicationState>('/state')
+    const nextSnapshot = await readWorkbenchState()
     setSnapshot(nextSnapshot)
     return renamed
   }, [])
 
   const unregisterWorkspace = React.useCallback(async (id: string) => {
     await api.request(`/workspaces/${encodeURIComponent(id)}`, { method: 'DELETE' })
-    const nextSnapshot = await api.request<ApplicationState>('/state')
+    const nextSnapshot = await readWorkbenchState()
     setSnapshot(nextSnapshot)
     const selectedSession = activeSessions(nextSnapshot)
       .find(session => session.identity.session_id === currentSessionId)
@@ -779,7 +816,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         method: 'POST',
         ...(atSeq == null ? {} : { body: { at_seq: atSeq } }),
       })
-      const nextSnapshot = await api.request<ApplicationState>('/state')
+      const nextSnapshot = await readWorkbenchState()
       setSnapshot(nextSnapshot)
       replaceForkOperation({
         sourceSessionId: id,
@@ -805,7 +842,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
 
   const archiveSession = React.useCallback(async (id: string) => {
     const archived = await api.request<LocalSession>(`/sessions/${encodeURIComponent(id)}/archive`, { method: 'POST' })
-    const nextSnapshot = await api.request<ApplicationState>('/state')
+    const nextSnapshot = await readWorkbenchState()
     setSnapshot(nextSnapshot)
     if (id === currentSessionId) {
       const replacement = activeSessions(nextSnapshot)
@@ -876,6 +913,8 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       selectTenant,
       createTenant,
       refresh,
+      onlineComputersOnly,
+      setOnlineComputersOnly,
       acceptLiveWorkbench,
       acceptLiveActivity,
       selectWorkspace,

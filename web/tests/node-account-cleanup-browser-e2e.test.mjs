@@ -84,7 +84,7 @@ test('offline computer cleanup stays pending until its revoked credential report
     assert.equal(snapshot.requests[0].request_id,before[0].request.request_id)
     const normal=await fetch(`${origin}/api/v1/executors/connect`,{headers:{authorization:`Bearer ${credential.token}`}})
     assert.equal(normal.status,401)
-    const storage=JSON.parse(await readFile(path.join(nodeData,'node-authorizations.json'),'utf8'))
+    const storage=JSON.parse(await readFile(path.join(nodeData,'secrets/node-authorizations.json'),'utf8'))
     await serverRequest(origin,'/executors/cleanup',{token:credential.token,body:{storage_instance_id:storage.storage_instance_id,request_id:before[0].request.request_id,status_revision:before[0].request.status_revision,state:'pending',detail:'process_state_unknown'}})
     await row.getByRole('button',{name:'刷新',exact:true}).click()
     await row.getByText('电脑重启前未记录进程退出，当前无法确认旧进程状态。请在电脑端检查。',{exact:true}).waitFor()

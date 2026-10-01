@@ -4,6 +4,9 @@ use ternilo_protocol::HarnessError;
 use tokio::io::AsyncWriteExt;
 
 pub async fn atomic_replace(path: &Path, bytes: &[u8], private: bool) -> Result<(), HarnessError> {
+    if let Some(parent) = path.parent() {
+        create_private_directory(parent)?;
+    }
     let temporary = path.with_extension("json.tmp");
     let mut options = tokio::fs::OpenOptions::new();
     options.create(true).truncate(true).write(true);
@@ -79,4 +82,21 @@ async fn set_private_permissions(path: &Path) -> Result<(), HarnessError> {
 #[cfg(not(unix))]
 async fn set_private_permissions(_: &Path) -> Result<(), HarnessError> {
     Ok(())
+}
+
+/// Newly created instance directories are private on POSIX.
+pub(crate) fn create_private_directory(path: &Path) -> Result<(), HarnessError> {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(path).map_err(|error| {
+        HarnessError::execution(format!(
+            "create private data directory {}: {error}",
+            path.display()
+        ))
+    })
 }

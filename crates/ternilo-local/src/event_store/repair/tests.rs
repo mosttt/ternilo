@@ -17,7 +17,7 @@ fn event(seq: u64) -> SessionEvent {
 fn fixture(bytes: &[u8]) -> (tempfile::TempDir, SessionId, PathBuf) {
     let root = tempfile::tempdir().unwrap();
     let session = SessionId::new("session-to-repair");
-    let directory = root.path().join("sessions");
+    let directory = root.path().join("data/sessions");
     std::fs::create_dir_all(&directory).unwrap();
     let path = directory.join(format!(
         "{}.jsonl",
@@ -58,7 +58,8 @@ async fn repair_preserves_exact_backup_and_sequence_before_new_appends() {
             0o600
         );
     }
-    let store = crate::event_store::JsonlEventStore::new(&root.path().join("sessions"), &session);
+    let store =
+        crate::event_store::JsonlEventStore::new(&root.path().join("data/sessions"), &session);
     assert_eq!(store.load().await.unwrap(), vec![event(0)]);
     store.append(event(1)).await.unwrap();
     assert_eq!(store.load().await.unwrap(), vec![event(0), event(1)]);
@@ -86,7 +87,8 @@ async fn valid_unterminated_record_is_preserved_and_separated_before_append() {
     assert_eq!(report.valid_records, 1);
     assert_eq!(std::fs::read(report.backup_path.unwrap()).unwrap(), bytes);
     assert_eq!(std::fs::read(path).unwrap().last(), Some(&b'\n'));
-    let store = crate::event_store::JsonlEventStore::new(&root.path().join("sessions"), &session);
+    let store =
+        crate::event_store::JsonlEventStore::new(&root.path().join("data/sessions"), &session);
     store.append(event(1)).await.unwrap();
     assert_eq!(store.load().await.unwrap(), vec![event(0), event(1)]);
 }
@@ -119,9 +121,7 @@ async fn invalid_complete_records_and_sequence_gaps_never_change_the_original() 
 #[tokio::test]
 async fn active_directory_owner_prevents_maintenance_and_releases_after_inspection() {
     let (root, session, path) = fixture(b"{\"seq\":");
-    let lock = crate::application::acquire_data_lock(root.path())
-        .await
-        .unwrap();
+    let lock = crate::application::acquire_data_lock(root.path()).unwrap();
     for apply in [false, true] {
         let error = repair_session_log(root.path(), &session, apply)
             .await
@@ -133,9 +133,7 @@ async fn active_directory_owner_prevents_maintenance_and_releases_after_inspecti
     repair_session_log(root.path(), &session, false)
         .await
         .unwrap();
-    let _lock = crate::application::acquire_data_lock(root.path())
-        .await
-        .unwrap();
+    let _lock = crate::application::acquire_data_lock(root.path()).unwrap();
 }
 
 #[tokio::test]

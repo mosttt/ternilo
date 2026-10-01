@@ -16,13 +16,16 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
-const DISCOVERY_FILE: &str = "service.json";
+mod config;
+pub(crate) use config::LocalServiceConfig;
+
+const DISCOVERY_FILE: &str = "runtime/service.json";
 
 #[derive(Clone, Debug, Parser)]
 pub struct ServeOptions {
     /// Loopback address for the local browser and management API.
-    #[arg(long, env = "TERNILO_LOCAL_LISTEN", default_value = "127.0.0.1:3210")]
-    pub listen: SocketAddr,
+    #[arg(long, env = "TERNILO_LOCAL_LISTEN")]
+    pub listen: Option<SocketAddr>,
     /// Additional profile layers applied over the local default.
     #[arg(
         long = "profile",
@@ -33,40 +36,35 @@ pub struct ServeOptions {
     #[arg(long, env = "TERNILO_LOCAL_DATA_DIR")]
     pub data_dir: Option<PathBuf>,
     /// Host ceiling for Agent steps per turn; 0 means no host ceiling.
-    #[arg(long, env = "TERNILO_LOCAL_MAX_STEPS", default_value_t = 0)]
-    pub max_steps: u32,
+    #[arg(long, env = "TERNILO_LOCAL_MAX_STEPS")]
+    pub max_steps: Option<u32>,
     /// Host ceiling for tool calls per turn; 0 leaves the Agent configuration unrestricted.
-    #[arg(long, env = "TERNILO_LOCAL_MAX_TOOL_CALLS", default_value_t = 0)]
-    pub max_tool_calls: u32,
+    #[arg(long, env = "TERNILO_LOCAL_MAX_TOOL_CALLS")]
+    pub max_tool_calls: Option<u32>,
     /// Connect this computer to the Ternilo Server WebSocket gateway.
-    #[arg(long, env = "TERNILO_LOCAL_GATEWAY_URL", requires = "token")]
+    #[arg(long, env = "TERNILO_LOCAL_GATEWAY_URL")]
     pub gateway_url: Option<String>,
     /// This computer's Server credential. Prefer the environment to command-line secrets.
-    #[arg(
-        long,
-        env = "TERNILO_LOCAL_TOKEN",
-        hide_env_values = true,
-        requires = "gateway_url"
-    )]
+    #[arg(long, env = "TERNILO_LOCAL_TOKEN", hide_env_values = true)]
     pub token: Option<String>,
-    #[arg(long, env = "TERNILO_LOCAL_NODE_ID", default_value = "home")]
-    pub node_id: String,
+    #[arg(long, env = "TERNILO_LOCAL_NODE_ID")]
+    pub node_id: Option<String>,
     /// Disable the local browser UI while keeping the management API available.
     #[arg(long, env = "TERNILO_LOCAL_NO_LOCAL_WEB", action = clap::ArgAction::Set,
-        num_args = 0..=1, require_equals = true, default_missing_value = "true", default_value_t = false)]
-    pub no_local_web: bool,
+        num_args = 0..=1, require_equals = true, default_missing_value = "true")]
+    pub no_local_web: Option<bool>,
     /// Permit plaintext ws:// for development and tests.
     #[arg(long, env = "TERNILO_LOCAL_ALLOW_INSECURE_GATEWAY", action = clap::ArgAction::Set,
-        num_args = 0..=1, require_equals = true, default_missing_value = "true", default_value_t = false)]
-    pub allow_insecure_gateway: bool,
+        num_args = 0..=1, require_equals = true, default_missing_value = "true")]
+    pub allow_insecure_gateway: Option<bool>,
 }
 
 impl ServeOptions {
     #[must_use]
     pub fn run_limits(&self) -> RunLimits {
         RunLimits {
-            max_steps: self.max_steps,
-            max_tool_calls: self.max_tool_calls,
+            max_steps: self.max_steps.unwrap_or(0),
+            max_tool_calls: self.max_tool_calls.unwrap_or(0),
         }
     }
 }
@@ -210,36 +208,13 @@ pub async fn stop(data_dir: &Path) -> Result<(), HarnessError> {
     ))
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "order service registration, transport lifetimes and durable shutdown"
-)]
 pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
-    let data_dir = options
-        .data_dir
-        .clone()
-        .map_or_else(ternilo_local::default_data_dir, Ok)?;
+    let options = options.load().await?;
+    let data_dir = options.data_dir.clone();
     if let Some(connection) = discover(&data_dir).await? {
         println!("Ternilo local web: {}", connection.info.origin());
         return Err(HarnessError::invalid(
             "this local service is already running; use it or run ternilo stop before changing startup options",
-        ));
-    }
-    if let Some(url) = options.gateway_url.as_deref() {
-        crate::node::validate_gateway_url(url, options.allow_insecure_gateway)?;
-        if options
-            .token
-            .as_deref()
-            .is_none_or(|token| token.trim().is_empty())
-        {
-            return Err(HarnessError::invalid(
-                "a non-empty token is required with a gateway URL",
-            ));
-        }
-        ternilo_transport::ExecutorId::new(&options.node_id).validate()?;
-    } else if options.token.is_some() {
-        return Err(HarnessError::invalid(
-            "a gateway URL is required with a remote token",
         ));
     }
     let listener = crate::web::bind_loopback(options.listen).await?;
@@ -323,7 +298,7 @@ pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
 
 fn register(data_dir: &Path, connection: &ServiceConnection) -> Result<Registration, HarnessError> {
     let path = data_dir.join(DISCOVERY_FILE);
-    let temporary = data_dir.join(".service.json.tmp");
+    let temporary = data_dir.join("runtime/.service.json.tmp");
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
@@ -354,13 +329,13 @@ fn register(data_dir: &Path, connection: &ServiceConnection) -> Result<Registrat
 
 /// Serialize desktop service starts without holding the application writer lock.
 pub async fn start_lock(data_dir: &Path) -> Result<File, HarnessError> {
-    fs::create_dir_all(data_dir).map_err(|error| HarnessError::execution(error.to_string()))?;
+    ternilo_local::prepare_data_dir(data_dir)?;
     let file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
-        .open(data_dir.join(".service-start.lock"))
+        .open(data_dir.join("runtime/service-start.lock"))
         .map_err(|error| HarnessError::execution(format!("open service startup lock: {error}")))?;
     for _ in 0..300 {
         match file.try_lock() {

@@ -24,7 +24,7 @@ test('sharing changes on one Server update and revoke another Server browser wit
     const secondConfig = path.join(directory, 'second.json')
     await writeFile(secondConfig, JSON.stringify(config), { mode: 0o600 })
     const environment = Object.fromEntries(Object.keys(process.env).filter(key => key.startsWith('TERNILO_')).map(key => [key, undefined]))
-    const second = startProcess(process.env.TERNILO_E2E_SERVER_BINARY ?? path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config', secondConfig], environment)
+    const second = startProcess(process.env.TERNILO_E2E_SERVER_BINARY ?? path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config-dir', path.dirname(secondConfig)], environment)
     processes.push(second)
     await waitForHttp(`${secondOrigin}/readyz`, second)
     const ownerToken = first.owner.session.access_token

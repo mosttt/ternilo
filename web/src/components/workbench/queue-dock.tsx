@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, ChevronDown, ChevronUp, Pencil, Send, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, LoaderCircle, Pencil, Send, Trash2, X } from 'lucide-react'
 import type { SessionSubmission } from '@/types'
 import { ApiError } from '@/api/client'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,7 @@ export function QueueDock({
     id: string; input: string; original: SessionSubmission; failed?: boolean; conflict?: boolean
   } | null>(null)
   const [mutating, setMutating] = React.useState<string | null>(null)
+  const [sending, setSending] = React.useState(false)
   const listId = React.useId()
 
   React.useEffect(() => {
@@ -61,6 +62,12 @@ export function QueueDock({
     try { await action() }
     catch (cause) { onError(cause instanceof Error ? cause.message : String(cause)) }
     finally { setMutating(current => current === id ? null : current) }
+  }
+
+  const sendQueue = async (id: string) => {
+    setSending(true)
+    try { await mutate(id, () => onSteer(id)) }
+    finally { setSending(false) }
   }
 
   const save = async () => {
@@ -155,8 +162,9 @@ export function QueueDock({
       </ul>
       {queued.length > 0 && (
         <Button type="button" size="sm" variant="ghost" className={css.sendBatch} aria-label={t(running ? 'queue.steer' : 'queue.send')} disabled={interactionActive || !canRemove}
-          onClick={() => void mutate(queued[0]!.id, () => onSteer(queued[0]!.id))}>
-          <Send />{t(running ? 'queue.steer' : 'queue.send')}
+          onClick={() => void sendQueue(queued[0]!.id)}>
+          {sending ? <LoaderCircle className="animate-spin" /> : <Send />}
+          {t(sending ? running ? 'queue.stopping' : 'queue.sending' : running ? 'queue.steer' : 'queue.send')}
         </Button>
       )}
       {steering.map(item => (

@@ -95,15 +95,8 @@ pub struct LocalState {
 
 impl LocalState {
     pub async fn open(root: PathBuf) -> Result<Self, HarnessError> {
-        tokio::fs::create_dir_all(root.join("sessions"))
-            .await
-            .map_err(|error| {
-                HarnessError::execution(format!(
-                    "create Ternilo data directory {}: {error}",
-                    root.display()
-                ))
-            })?;
-        let state_path = root.join("state.json");
+        crate::prepare_data_dir(&root)?;
+        let state_path = root.join("data/state.json");
         let document = match tokio::fs::read(&state_path).await {
             Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| {
                 HarnessError::execution(format!("parse {}: {error}", state_path.display()))
@@ -126,17 +119,17 @@ impl LocalState {
 
     #[must_use]
     pub fn sessions_dir(&self) -> PathBuf {
-        self.root.join("sessions")
+        self.root.join("data/sessions")
     }
 
     #[must_use]
     pub(crate) fn search_index_path(&self) -> PathBuf {
-        self.root.join("session-search.sqlite3")
+        self.root.join("cache/session-search.sqlite3")
     }
 
     #[must_use]
     pub(crate) fn projection_cache_path(&self) -> PathBuf {
-        self.root.join("session-projections.sqlite3")
+        self.root.join("cache/session-projections.sqlite3")
     }
 
     pub async fn snapshot(&self) -> LocalStateSnapshot {

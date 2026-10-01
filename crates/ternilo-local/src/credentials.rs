@@ -34,13 +34,13 @@ impl LocalCredentials {
                 root.display()
             ))
         })?;
-        let references_path = root.join("credentials.json");
+        let references_path = root.join("secrets/credentials.json");
         let values: BTreeMap<String, String> = read_private_json(&references_path).await?;
         for (name, value) in &values {
             validate_name(name)?;
             validate_secret_value(value)?;
         }
-        let records_path = root.join("credential-records.json");
+        let records_path = root.join("secrets/credential-records.json");
         let records: BTreeMap<String, StoredCredentialRecord> =
             read_private_json(&records_path).await?;
         for (key, record) in &records {
@@ -442,7 +442,10 @@ mod tests {
             "grant"
         );
         #[cfg(unix)]
-        for path in ["credentials.json", "credential-records.json"] {
+        for path in [
+            "secrets/credentials.json",
+            "secrets/credential-records.json",
+        ] {
             use std::os::unix::fs::PermissionsExt;
             let mode = tokio::fs::metadata(root.join(path))
                 .await

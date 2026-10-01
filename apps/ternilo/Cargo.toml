@@ -13,6 +13,7 @@ salvo_core.workspace = true
 salvo_extra.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
 sha2.workspace = true
 tokio.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
@@ -32,7 +33,6 @@ ternilo-protocol.workspace = true
 workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 tokio-tungstenite.workspace = true
 
 [target.'cfg(unix)'.dev-dependencies]

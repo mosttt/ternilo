@@ -1,7 +1,7 @@
 import * as React from 'react'
 import {
   Archive, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Cloud, Ellipsis,
-  GitFork, Laptop, MapPin, Pencil, Plus, Share2, Trash2,
+  Folder, GitFork, Laptop, MapPin, Pencil, Plus, Share2, Trash2,
 } from 'lucide-react'
 import { HoverCard } from 'radix-ui'
 import type { LocalSession, SessionSearchHit, Workspace } from '@/types'
@@ -78,10 +78,11 @@ function ManualOrderMenu({ order }: { order: RowOrderActions }) {
   )
 }
 
-export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnly = false, platform = false, showPlacement = false, onToggle, onNewSession, onRename, onUnregister, onShare }: {
+export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnly = false, platform = false, showPlacement = false, computerGrouped = false, onToggle, onNewSession, onRename, onUnregister, onShare }: {
   workspace: Workspace
   platform?: boolean
   showPlacement?: boolean
+  computerGrouped?: boolean
   expanded: boolean
   active: boolean
   drag: RowDragHandlers
@@ -99,7 +100,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
   const [locationOpen, setLocationOpen] = React.useState(false)
   const permissions = resourcePermissions(workspace.access, !readOnly)
   const isOwner = ownsResource(workspace.access, !readOnly)
-  const PlacementIcon = workspace.placement === 'cloud' ? Cloud : Laptop
+  const PlacementIcon = computerGrouped ? Folder : workspace.placement === 'cloud' ? Cloud : Laptop
   const online = workspace.status !== 'offline' && workspace.status !== 'error'
   const placementLabel = workspacePlacementLabel(workspace, t)
   const statusLabel = online ? t('status.online') : t('status.offline')
@@ -246,7 +247,7 @@ function statusLabel(status: SessionStatusView, t: ReturnType<typeof useTranslat
   return t(keys[status.kind])
 }
 
-export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', kind: 'idle' }], now, active, drag, order, readOnly = false, forkLocked = false, depth = 0, childCount = 0, childrenExpanded = true, onToggleChildren, onSelect, onRename, onFork, onArchive, onShare }: {
+export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', kind: 'idle' }], now, active, drag, order, readOnly = false, forkLocked = false, depth = 0, levelOffset = 0, childCount = 0, childrenExpanded = true, onToggleChildren, onSelect, onRename, onFork, onArchive, onShare }: {
   session: LocalSession
   searchHit?: SessionSearchHit
   statuses?: readonly SessionStatusView[]
@@ -257,6 +258,7 @@ export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', ki
   readOnly?: boolean
   forkLocked?: boolean
   depth?: number
+  levelOffset?: number
   childCount?: number
   childrenExpanded?: boolean
   onToggleChildren?(): void
@@ -298,7 +300,7 @@ export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', ki
       data-session-depth={depth}
       data-subagent-session={session.subagent ? '' : undefined}
       role="treeitem"
-      aria-level={depth + 2}
+      aria-level={depth + 2 + levelOffset}
       aria-selected={active}
       draggable={readOnly ? false : drag.draggable}
       onDragStart={readOnly ? undefined : drag.onDragStart}

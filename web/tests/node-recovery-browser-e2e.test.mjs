@@ -131,7 +131,7 @@ test('Node retains a long model call across control reconnects and never replays
       if (mode === 'server-restart') {
         await stopProcess(server)
         await until(history, events => events.some(event => event.run_id === running.accepted.run_id && ['turn_failed', 'turn_cancelled'].includes(event.type)), 'Server shutdown ends the model call')
-        server = startProcess(process.env.TERNILO_E2E_SERVER_BINARY ?? path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config', configPath], environment)
+        server = startProcess(process.env.TERNILO_E2E_SERVER_BINARY ?? path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config-dir', path.dirname(configPath)], environment)
         processes.push(server); await waitForHttp(`${serverOrigin}/readyz`, server)
       } else {
         const exited = new Promise(resolve => node.child.once('exit', resolve))

@@ -56,7 +56,7 @@ impl AccountAuthorizations {
         data_dir: &Path,
         binding: Option<LocalServerBinding>,
     ) -> Result<Self, HarnessError> {
-        let path = data_dir.join("node-authorizations.json");
+        let path = data_dir.join("secrets/node-authorizations.json");
         let mut document: Document = match tokio::fs::read(&path).await {
             Ok(data) => serde_json::from_slice(&data).map_err(|error| {
                 HarnessError::execution(format!("read Node authorizations: {error}"))

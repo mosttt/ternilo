@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     currentTenantId: null as string | null,
     accountScope: 'local',
     refresh: vi.fn(),
+    setOnlineComputersOnly: vi.fn(async () => undefined),
     platform: false,
     tenants: [] as TenantSummary[],
     serverIdentity: undefined as ServerIdentity | undefined,
@@ -71,6 +72,7 @@ beforeEach(() => {
   })
   localStorage.clear()
   mocks.chooseWorkspace.mockReset()
+  mocks.workbench.setOnlineComputersOnly.mockReset().mockResolvedValue(undefined)
   mocks.apiRequest.mockReset().mockResolvedValue({ workspace_order: [], session_order_by_account: {} })
   mocks.workbench.notify.mockReset()
   mocks.workbench.deleteSession.mockReset().mockResolvedValue(undefined)
@@ -112,6 +114,84 @@ async function renderBrowser(wide: boolean, readOnly = false) {
     </LocaleProvider>,
   ))
 }
+
+function computerWorkspaces() {
+  Object.assign(mocks.workbench, { platform: true, currentTenantId: 'team', accountScope: 'owner',
+    snapshot: { sessions: [], workspaces: [
+      { workspace_id: 'a-pictures', title: 'Pictures', node_id: 'a', status: 'offline', updated_at_ms: 3 },
+      { workspace_id: 'b-pictures', title: 'Pictures', node_id: 'b', status: 'online', updated_at_ms: 2 },
+      { workspace_id: 'a-docker', title: 'Docker', node_id: 'a', status: 'offline', updated_at_ms: 1 },
+    ].map(item => ({ ...item, placement: 'local_node', path: '', created_at_ms: 1 })) },
+  })
+}
+
+async function selectViewOption(label: string) {
+  await act(async () => host.querySelector('[aria-label="视图选项"]')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+  const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === label)!
+  expect(item).toBeTruthy()
+  await act(async () => item.click())
+}
+
+it('defaults to computer groups and retains offline workspaces and independent collapsed state', async () => {
+  computerWorkspaces()
+  await renderBrowser(true)
+  const a = host.querySelector('[data-sidebar-computer-group="node:a"]')!
+  const b = host.querySelector('[data-sidebar-computer-group="node:b"]')!
+  expect(a.querySelector('[data-sidebar-computer-title]')?.textContent).toBe('电脑 a')
+  expect(a.textContent).toContain('离线')
+  expect(a.querySelectorAll('[data-sidebar-workspace-title]')).toHaveLength(2)
+  expect(b.querySelectorAll('[data-sidebar-workspace-title]')).toHaveLength(1)
+  await act(async () => a.querySelector<HTMLButtonElement>('[data-sidebar-computer-button]')!.click())
+  expect(a.querySelectorAll('[data-sidebar-workspace-group]')).toHaveLength(0)
+  expect(b.querySelectorAll('[data-sidebar-workspace-group]')).toHaveLength(1)
+  expect(JSON.parse(localStorage.getItem('ternilo.sidebar-view-v1')!).collapsedComputers).toContain(JSON.stringify(['owner','team','node:a']))
+  await act(async () => root.unmount())
+  root = createRoot(host)
+  await renderBrowser(true)
+  expect(host.querySelector('[data-sidebar-computer-group="node:a"]')!.querySelector('[data-sidebar-workspace-group]')).toBeNull()
+  expect(mocks.apiRequest.mock.calls.every(([path]) => path === '/sidebar-ordering')).toBe(true)
+})
+
+it('switches computer, workspace and single-list grouping through the persisted view menu', async () => {
+  computerWorkspaces()
+  await renderBrowser(true)
+  await selectViewOption('按工作区')
+  expect(host.querySelector('[data-sidebar-computer-group]')).toBeNull()
+  expect(host.querySelectorAll('[data-sidebar-workspace-group]')).toHaveLength(3)
+  await selectViewOption('单列表')
+  expect(host.querySelector('[data-sidebar-workspace-group]')).toBeNull()
+  await selectViewOption('按电脑')
+  expect(host.querySelectorAll('[data-sidebar-computer-group]')).toHaveLength(2)
+  expect(JSON.parse(localStorage.getItem('ternilo.sidebar-view-v1')!).groupBy).toBe('computer')
+})
+
+it('uses a persisted online-only switch and restores full loading outside computer grouping', async () => {
+  computerWorkspaces()
+  await renderBrowser(true)
+  await act(async () => host.querySelector('[aria-label="视图选项"]')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+  const toggle = document.querySelector<HTMLElement>('[role="menuitemcheckbox"]')!
+  expect(toggle.textContent).toBe('只显示在线电脑')
+  expect(toggle.getAttribute('aria-checked')).toBe('false')
+  await act(async () => toggle.click())
+  expect(mocks.workbench.setOnlineComputersOnly).toHaveBeenLastCalledWith(true)
+  expect(JSON.parse(localStorage.getItem('ternilo.sidebar-view-v1')!).onlineComputersOnly).toBe(true)
+  await selectViewOption('按工作区')
+  expect(mocks.workbench.setOnlineComputersOnly).toHaveBeenLastCalledWith(false)
+  await selectViewOption('按电脑')
+  expect(mocks.workbench.setOnlineComputersOnly).toHaveBeenLastCalledWith(true)
+})
+
+it('reorders workspaces within a computer without moving another computer in the saved order', async () => {
+  computerWorkspaces()
+  localStorage.setItem('ternilo.sidebar-view-v1', JSON.stringify({ groupBy: 'computer', orderBy: 'manual' }))
+  mocks.apiRequest.mockImplementation(async (_path, options) => options?.method === 'PUT' ? options.body : { workspace_order: ['a-pictures','b-pictures','a-docker'],session_order_by_account: {} })
+  await renderBrowser(true)
+  await act(async () => host.querySelector('[aria-label="工作区“Docker”的操作"]')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+  await act(async () => document.querySelector<HTMLElement>('[data-sidebar-reorder="up"]')!.click())
+  expect(mocks.apiRequest).toHaveBeenCalledWith('/sidebar-ordering', { method: 'PUT', headers: { 'x-ternilo-tenant': 'team' },
+    body: { workspace_order: ['a-docker','b-pictures','a-pictures'],session_order_by_account: {} } })
+  expect([...host.querySelectorAll('[data-sidebar-computer-group="node:a"] [data-sidebar-workspace-title]')].map(node => node.textContent)).toEqual(['Docker','Pictures'])
+})
 
 it('closes the archive panel synchronously when account or space changes', async () => {
   mocks.apiRequest.mockImplementation(async (path: string) => path === '/sessions/archived' ? [] : { workspace_order: [], session_order_by_account: {} })

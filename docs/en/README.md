@@ -11,6 +11,7 @@ Formal guides are organized in parallel English and Simplified Chinese directori
 - [Local quickstart](getting-started.md): start Ternilo, open a folder, configure a model, and submit a task.
 - [Remote access](remote-access.md): deploy a Server, connect computers or VPS instances, and work from other devices.
 - [Server operations](deployment.md): initialization, databases, reverse proxies, diagnostics, backups, and recovery.
+- [Cross-Server Node routing](server-cluster.md): instance origins, online forwarding and live catch-up; milestone acceptance remains pending.
 - [Desktop application](desktop.md): native windows, background services, notifications, and deep links.
 - [Managed Worker](worker.md): configure and maintain the optional execution service; the separate Work container model is not yet implemented.
 
@@ -51,3 +52,5 @@ Commands assume the repository or extracted package root unless stated otherwise
 - [Reconcile unknown model usage](model-usage-reconciliation.md): complete missing counters with administrative evidence and immutable audit.
 
 - [Identifiers and credentials](identifiers.md): current prefixes and their purposes.
+
+- [Configuration and data directories](data-layout.md)

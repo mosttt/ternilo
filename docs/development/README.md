@@ -16,6 +16,9 @@
 - [OIDC 来源与公网地址](oidc-browser-origin.md)：浏览器加密能力、回调来源与错误配置恢复。
 - [跨 Server 共享权限通知](resource-notifications.md)：持久失效提示、双 Server 验收与资源交接约束。
 - [资源管理权交接](resource-ownership.md)：当前管理者、原执行身份、版本冲突与共享保留；真实浏览器和 PostgreSQL 验收待完成。
+- [跨 Server Node 路由](server-node-routing.md)：租约持有者转发、输入授权版本及合并变化提示；网络与浏览器验收待完成。
 - [Work 资源与执行边界](execution-coordination.md)：托管电脑、容器归属、节点绑定与现有执行接口的衔接。
 
 已支持的功能见[产品说明](../zh-CN/product.md)，模块职责见[架构](../zh-CN/architecture.md)，开发和验证命令见[开发指南](../zh-CN/contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。
+
+2026-10-01：正在落实[工作台性能与配置目录](workbench-performance-and-layout.md)。功能优先；本阶段完成后再推进 GitHub 验收和发行。

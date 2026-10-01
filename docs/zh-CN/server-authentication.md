@@ -47,7 +47,7 @@ Client Secret 和 Turnstile Secret Key 与登录设置一起使用实例主密�
 如果错误的 Turnstile 配置导致无法登录，在受信任的 Server 主机上执行：
 
 ```bash
-ternilo-server admin reset-authentication --config /path/to/server.json
+ternilo-server admin reset-authentication --config-dir /path/to
 ```
 
 此操作清除网页保存的登录配置，关闭 Turnstile，并让 OIDC 恢复到部署配置；保留账号、密码和所有资源，同时写入操作审计。命令必须使用该实例实际的配置、数据库连接和主密钥；如果运行进程临时覆盖了数据库地址，应先确认配置指向同一实例。刷新网页后重新登录并正确配置。

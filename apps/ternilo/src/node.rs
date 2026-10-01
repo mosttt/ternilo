@@ -54,7 +54,7 @@ use replies::{ReplyCache, execute_command};
 /// Connect the shared local application to a remote gateway.
 pub async fn connect(
     application: Arc<LocalApplication>,
-    options: &crate::service::ServeOptions,
+    options: &crate::service::LocalServiceConfig,
     commands: TaskTracker,
 ) -> Result<(), HarnessError> {
     let gateway_url = options
@@ -75,8 +75,14 @@ pub async fn connect(
     executor_id.validate()?;
     let instance_nonce = random_hex_128();
     let catalog_revision = ternilo_local::catalog()?.revision().to_owned();
-    let replies =
-        Arc::new(ReplyCache::open(application.data_dir().join("node-transport.sqlite3")).await?);
+    let replies = Arc::new(
+        ReplyCache::open(
+            application
+                .data_dir()
+                .join("data/db/node-transport.sqlite3"),
+        )
+        .await?,
+    );
     println!("Ternilo node {executor_id} connecting outbound to gateway");
     let connection = maintain_connection(
         gateway_url,

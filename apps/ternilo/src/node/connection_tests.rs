@@ -5,13 +5,6 @@ use std::net::SocketAddr;
 use ternilo_kernel::HostPolicy;
 use ternilo_protocol::RunLimits;
 
-fn run_limits(max_steps: u32) -> RunLimits {
-    RunLimits {
-        max_steps,
-        ..RunLimits::default()
-    }
-}
-
 #[test]
 fn successful_http_response_explains_that_the_gateway_path_is_missing() {
     let response = tokio_tungstenite::tungstenite::http::Response::builder()
@@ -38,7 +31,7 @@ fn node_defaults_to_unlimited_steps_and_accepts_an_explicit_limit() {
         "test-token",
     ])
     .unwrap();
-    assert_eq!(run_limits(default.max_steps).max_steps, 0);
+    assert_eq!(default.run_limits().max_steps, 0);
 
     let limited = Args::try_parse_from([
         "ternilo-node",
@@ -50,7 +43,7 @@ fn node_defaults_to_unlimited_steps_and_accepts_an_explicit_limit() {
         "17",
     ])
     .unwrap();
-    assert_eq!(run_limits(limited.max_steps).max_steps, 17);
+    assert_eq!(limited.run_limits().max_steps, 17);
 }
 
 #[test]
@@ -68,7 +61,7 @@ fn node_cli_accepts_only_gateway_connection_flags() {
         args.gateway_url.as_deref(),
         Some("ws://127.0.0.1:4321/executor/connect")
     );
-    assert!(args.allow_insecure_gateway);
+    assert_eq!(args.allow_insecure_gateway, Some(true));
 
     assert!(matches!(
         Args::try_parse_from([
@@ -125,7 +118,7 @@ fn node_deployment_parameters_read_environment_and_cli_wins() {
             Some("wss://env.example.com/api/v1/executors/connect")
         );
         assert_eq!(from_env.token.as_deref(), Some("env-token"));
-        assert_eq!(from_env.node_id, "env-node");
+        assert_eq!(from_env.node_id.as_deref(), Some("env-node"));
         assert_eq!(
             from_env.profile_layers,
             ["/env/one.json", "/env/two.json"].map(PathBuf::from)
@@ -133,11 +126,11 @@ fn node_deployment_parameters_read_environment_and_cli_wins() {
         assert_eq!(from_env.data_dir, Some(PathBuf::from("/env/data")));
         assert_eq!(
             from_env.listen,
-            "127.0.0.1:4322".parse::<SocketAddr>().unwrap()
+            Some("127.0.0.1:4322".parse::<SocketAddr>().unwrap())
         );
-        assert!(from_env.no_local_web);
-        assert_eq!(from_env.max_steps, 23);
-        assert!(!from_env.allow_insecure_gateway);
+        assert_eq!(from_env.no_local_web, Some(true));
+        assert_eq!(from_env.max_steps, Some(23));
+        assert_eq!(from_env.allow_insecure_gateway, Some(false));
 
         let from_cli = Args::try_parse_from([
             "ternilo-node",
@@ -166,7 +159,7 @@ fn node_deployment_parameters_read_environment_and_cli_wins() {
             Some("ws://127.0.0.1:4323/executor/connect")
         );
         assert_eq!(from_cli.token.as_deref(), Some("cli-token"));
-        assert_eq!(from_cli.node_id, "cli-node");
+        assert_eq!(from_cli.node_id.as_deref(), Some("cli-node"));
         assert_eq!(
             from_cli.profile_layers,
             ["/cli/one.json", "/cli/two.json"].map(PathBuf::from)
@@ -174,11 +167,11 @@ fn node_deployment_parameters_read_environment_and_cli_wins() {
         assert_eq!(from_cli.data_dir, Some(PathBuf::from("/cli/data")));
         assert_eq!(
             from_cli.listen,
-            "127.0.0.1:4324".parse::<SocketAddr>().unwrap()
+            Some("127.0.0.1:4324".parse::<SocketAddr>().unwrap())
         );
-        assert!(!from_cli.no_local_web);
-        assert_eq!(from_cli.max_steps, 29);
-        assert!(from_cli.allow_insecure_gateway);
+        assert_eq!(from_cli.no_local_web, Some(false));
+        assert_eq!(from_cli.max_steps, Some(29));
+        assert_eq!(from_cli.allow_insecure_gateway, Some(true));
         return;
     }
 

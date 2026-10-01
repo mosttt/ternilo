@@ -22,6 +22,8 @@ pub(crate) struct ServerConfig {
     pub setup_token_hash: Option<String>,
     pub public_url: Option<String>,
     #[serde(default)]
+    pub cluster_url: Option<String>,
+    #[serde(default)]
     pub trusted_proxy_ips: Vec<IpAddr>,
     pub oidc: Option<OidcSettings>,
     pub max_database_connections: u32,
@@ -43,8 +45,8 @@ pub(crate) struct OidcSettings {
 
 #[derive(Default, Args)]
 pub(crate) struct ServeOptions {
-    #[arg(long, env = "TERNILO_SERVER_CONFIG")]
-    pub config: Option<PathBuf>,
+    #[arg(long, env = "TERNILO_SERVER_CONFIG_DIR")]
+    pub config_dir: Option<PathBuf>,
     #[arg(long, env = "TERNILO_SERVER_LISTEN")]
     pub listen: Option<SocketAddr>,
     #[arg(long, env = "TERNILO_DATABASE_URL", hide_env_values = true)]
@@ -57,6 +59,9 @@ pub(crate) struct ServeOptions {
     pub setup_token: Option<String>,
     #[arg(long, env = "TERNILO_SERVER_PUBLIC_URL")]
     pub public_url: Option<String>,
+    /// This Server's origin reachable by other Servers sharing its database/key.
+    #[arg(long, env = "TERNILO_SERVER_CLUSTER_URL")]
+    pub cluster_url: Option<String>,
     /// Exact proxy addresses allowed to supply X-Forwarded-For client addresses.
     #[arg(long, env = "TERNILO_SERVER_TRUSTED_PROXY_IPS", value_delimiter = ',')]
     pub trusted_proxy_ips: Vec<IpAddr>,
@@ -90,6 +95,7 @@ impl ServerConfig {
             secret_master_key,
             setup_token_hash: None,
             public_url: None,
+            cluster_url: None,
             trusted_proxy_ips: Vec::new(),
             oidc: None,
             max_database_connections: 16,
@@ -98,7 +104,7 @@ impl ServerConfig {
             workspace_root: config_path
                 .parent()
                 .unwrap_or(Path::new("."))
-                .join("workspaces"),
+                .join("data/workspaces"),
         }
     }
 
@@ -122,6 +128,9 @@ impl ServerConfig {
             ));
         }
         SecretCipher::from_base64(&self.secret_master_key)?;
+        if let Some(url) = &self.cluster_url {
+            crate::platform::validate_cluster_origin(url)?;
+        }
         if let Some(url) = &self.public_url {
             let parsed = reqwest::Url::parse(url)
                 .map_err(|_| HarnessError::invalid("public URL is invalid"))?;
@@ -192,10 +201,10 @@ impl ServerConfig {
 
 impl ServeOptions {
     pub fn load(self) -> Result<ServerConfig, HarnessError> {
-        let path = self.config.clone().map_or_else(default_config_path, Ok)?;
+        let path = configuration_path(self.config_dir.as_deref())?;
         let mut config = if path.exists() {
             ServerConfig::read(&path)?
-        } else if self.config.is_none()
+        } else if self.config_dir.is_none()
             && self.database_url.is_some()
             && self.secret_master_key.is_some()
         {
@@ -227,6 +236,9 @@ impl ServeOptions {
         }
         if let Some(value) = self.public_url {
             config.public_url = Some(value);
+        }
+        if let Some(value) = self.cluster_url {
+            config.cluster_url = Some(value);
         }
         if !self.trusted_proxy_ips.is_empty() {
             config.trusted_proxy_ips = self.trusted_proxy_ips;
@@ -280,14 +292,29 @@ impl ServeOptions {
 
 pub(crate) fn default_config_path() -> Result<PathBuf, HarnessError> {
     if let Some(root) = std::env::var_os("XDG_DATA_HOME").filter(|value| !value.is_empty()) {
-        return Ok(PathBuf::from(root).join("ternilo-server/server.json"));
+        return Ok(PathBuf::from(root).join("ternilo-server/config.json"));
     }
     let home = std::env::var_os("HOME")
         .filter(|value| !value.is_empty())
         .ok_or_else(|| {
-            HarnessError::invalid("set --config or XDG_DATA_HOME when HOME is unavailable")
+            HarnessError::invalid("set --config-dir or XDG_DATA_HOME when HOME is unavailable")
         })?;
-    Ok(PathBuf::from(home).join(".local/share/ternilo-server/server.json"))
+    Ok(PathBuf::from(home).join(".local/share/ternilo-server/config.json"))
+}
+
+pub(crate) fn configuration_path(directory: Option<&Path>) -> Result<PathBuf, HarnessError> {
+    let path = match directory {
+        Some(directory) if directory.as_os_str().is_empty() => {
+            return Err(HarnessError::invalid(
+                "Server configuration directory must not be empty",
+            ));
+        }
+        Some(directory) => directory.join("config.json"),
+        None => default_config_path()?,
+    };
+    std::path::absolute(path).map_err(|error| {
+        HarnessError::execution(format!("resolve Server configuration directory: {error}"))
+    })
 }
 
 pub(crate) fn create_private_parent(path: &Path) -> Result<(), HarnessError> {
@@ -367,7 +394,7 @@ mod tests {
     #[test]
     fn explicit_serve_options_override_saved_settings() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("server.json");
+        let path = directory.path().join("config.json");
         let config = ServerConfig::defaults(
             &path,
             "sqlite::memory:".to_owned(),
@@ -375,7 +402,7 @@ mod tests {
         );
         config.write_new(&path).unwrap();
         let loaded = ServeOptions {
-            config: Some(path),
+            config_dir: Some(path.parent().unwrap().to_path_buf()),
             listen: Some("127.0.0.1:5432".parse().unwrap()),
             managed_execution_enabled: Some(true),
             ..ServeOptions::default()

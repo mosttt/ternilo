@@ -201,11 +201,11 @@ async function startContainerRelay(temporary) {
       '-e', `TERNILO_SERVER_OWNER_EMAIL=${owner.username}@example.test`,
       '-e', `TERNILO_SERVER_OWNER_PASSWORD=${owner.password}`,
       relayImage, 'server', 'init', '--non-interactive',
-      '--config', '/var/lib/ternilo/server.json', '--listen', '0.0.0.0:4321', '--public-url', origin,
+      '--config-dir', '/var/lib/ternilo', '--listen', '0.0.0.0:4321', '--public-url', origin,
     ])
     await execFileAsync('docker', [
       'run', '-d', '--name', container, ...isolation, '-p', `127.0.0.1:${port}:4321`,
-      relayImage, 'server', 'serve', '--config', '/var/lib/ternilo/server.json',
+      relayImage, 'server', 'serve', '--config-dir', '/var/lib/ternilo',
     ])
     const deadline = Date.now() + 30_000
     let becameReady = false

@@ -1,5 +1,20 @@
 use ternilo_protocol::{HarnessError, SessionId, TenantId, WorkspaceId};
 use ternilo_storage::database_error;
+use ternilo_transport::ExecutorId;
+
+fn executor_filter(column: &str, executors: Option<&[ExecutorId]>) -> String {
+    match executors {
+        None => String::new(),
+        Some([]) => format!(" AND {column} IS NULL "),
+        Some(ids) => {
+            let parameters = (3..3 + ids.len())
+                .map(|index| format!("${index}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(" AND ({column} IS NULL OR {column} IN ({parameters})) ")
+        }
+    }
+}
 
 use crate::{
     ControlAction, ControlStore, ControlUser, EdgeSessionRecord, ResourceAction, ResourceKind,
@@ -15,6 +30,26 @@ impl ControlStore {
         actor: &ControlUser,
         tenant_id: &TenantId,
     ) -> Result<Vec<WorkspaceRecord>, HarnessError> {
+        self.list_accessible_workspaces_filtered(actor, tenant_id, None)
+            .await
+    }
+
+    pub async fn list_accessible_workspaces_on_executors(
+        &self,
+        actor: &ControlUser,
+        tenant_id: &TenantId,
+        executors: &[ExecutorId],
+    ) -> Result<Vec<WorkspaceRecord>, HarnessError> {
+        self.list_accessible_workspaces_filtered(actor, tenant_id, Some(executors))
+            .await
+    }
+
+    async fn list_accessible_workspaces_filtered(
+        &self,
+        actor: &ControlUser,
+        tenant_id: &TenantId,
+        executors: Option<&[ExecutorId]>,
+    ) -> Result<Vec<WorkspaceRecord>, HarnessError> {
         let mut transaction = self.database.tenant_transaction(tenant_id).await?;
         require_action(
             &mut transaction,
@@ -23,8 +58,8 @@ impl ControlStore {
             ControlAction::TenantRead,
         )
         .await?;
-        let rows = sqlx::query(
-            "SELECT w.* FROM control_workspaces w WHERE w.tenant_id = $1
+        let sql = format!(
+            "SELECT w.* FROM control_workspaces w WHERE w.tenant_id = $1 {}
              AND w.unregistered_at_ms IS NULL AND (w.owner_user_id = $2 OR EXISTS (
                  SELECT 1 FROM control_resource_ownership o WHERE o.tenant_id=w.tenant_id
                  AND o.resource_kind='workspace' AND o.resource_id=w.workspace_id AND o.owner_user_id=$2) OR EXISTS (
@@ -36,13 +71,18 @@ impl ControlStore {
                  SELECT 1 FROM control_resource_group_shares gs JOIN control_permission_group_members gm
                  ON gm.tenant_id=gs.tenant_id AND gm.group_id=gs.group_id AND gm.user_id=$2
                  WHERE gs.tenant_id=w.tenant_id AND gs.resource_kind='workspace' AND gs.resource_id=w.workspace_id))
-             ORDER BY w.created_at_ms, w.workspace_id",
-        )
-        .bind(tenant_id.as_str())
-        .bind(actor.user_id.as_str())
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(database_error)?;
+             ORDER BY w.created_at_ms, w.workspace_id", executor_filter("w.executor_id",executors)
+        );
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
+            .bind(tenant_id.as_str())
+            .bind(actor.user_id.as_str());
+        for executor in executors.unwrap_or_default() {
+            query = query.bind(executor.as_str());
+        }
+        let rows = query
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(database_error)?;
         let mut workspaces = Vec::new();
         for row in &rows {
             let workspace = workspace_from_row(row)?;
@@ -139,6 +179,26 @@ impl ControlStore {
         actor: &ControlUser,
         tenant_id: &TenantId,
     ) -> Result<Vec<EdgeSessionRecord>, HarnessError> {
+        self.list_accessible_edge_sessions_filtered(actor, tenant_id, None)
+            .await
+    }
+
+    pub async fn list_accessible_edge_sessions_on_executors(
+        &self,
+        actor: &ControlUser,
+        tenant_id: &TenantId,
+        executors: &[ExecutorId],
+    ) -> Result<Vec<EdgeSessionRecord>, HarnessError> {
+        self.list_accessible_edge_sessions_filtered(actor, tenant_id, Some(executors))
+            .await
+    }
+
+    async fn list_accessible_edge_sessions_filtered(
+        &self,
+        actor: &ControlUser,
+        tenant_id: &TenantId,
+        executors: Option<&[ExecutorId]>,
+    ) -> Result<Vec<EdgeSessionRecord>, HarnessError> {
         let mut transaction = self.database.tenant_transaction(tenant_id).await?;
         require_action(
             &mut transaction,
@@ -147,8 +207,8 @@ impl ControlStore {
             ControlAction::TenantRead,
         )
         .await?;
-        let rows = sqlx::query(
-            "SELECT e.* FROM control_edge_sessions e WHERE e.tenant_id = $1
+        let sql = format!(
+            "SELECT e.* FROM control_edge_sessions e WHERE e.tenant_id = $1 {}
              AND (e.owner_user_id = $2 OR EXISTS (
                  SELECT 1 FROM control_resource_ownership o WHERE o.tenant_id=e.tenant_id AND o.owner_user_id=$2
                  AND ((o.resource_kind='session' AND o.resource_id=e.session_id)
@@ -163,9 +223,18 @@ impl ControlStore {
                  WHERE gs.tenant_id=e.tenant_id AND ((gs.resource_kind='session' AND gs.resource_id=e.session_id)
                  OR (gs.resource_kind='workspace' AND gs.resource_id=e.workspace_id))) OR EXISTS (
                  SELECT 1 FROM control_resource_fork_group_sources f WHERE f.tenant_id=e.tenant_id AND f.session_id=e.session_id AND f.user_id=$2))
-             ORDER BY e.updated_at_ms DESC, e.session_id",
-        ).bind(tenant_id.as_str()).bind(actor.user_id.as_str())
-            .fetch_all(&mut *transaction).await.map_err(database_error)?;
+             ORDER BY e.updated_at_ms DESC, e.session_id", executor_filter("e.executor_id",executors)
+        );
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
+            .bind(tenant_id.as_str())
+            .bind(actor.user_id.as_str());
+        for executor in executors.unwrap_or_default() {
+            query = query.bind(executor.as_str());
+        }
+        let rows = query
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(database_error)?;
         let mut sessions = Vec::new();
         for row in &rows {
             let session = edge_session_from_row(row)?;

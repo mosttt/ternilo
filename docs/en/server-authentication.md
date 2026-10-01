@@ -25,7 +25,7 @@ CSP permits Cloudflare scripts/frames only while Turnstile is enabled. A reverse
 Back up the database with its matching master key. PostgreSQL initialization uses the schema-owner connection before restricted runtime access. If an incorrect saved authentication configuration prevents login, use the trusted operator host:
 
 ```text
-ternilo-server admin reset-authentication --config /path/to/server.json
+ternilo-server admin reset-authentication --config-dir /path/to
 ```
 
 This clears saved authentication settings, disables Turnstile and restores deployment OIDC defaults while retaining accounts/resources and writing audit history. Confirm the configuration points to the intended instance. For password recovery see [native account recovery](account-recovery.md). Browser session details and revocation are described in [settings](settings.md).

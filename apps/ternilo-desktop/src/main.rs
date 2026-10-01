@@ -87,16 +87,16 @@ fn run(args: Args) -> Result<(), AnyError> {
     if service {
         return application_runtime
             .block_on(ternilo::service::run(ternilo::service::ServeOptions {
-                listen,
+                listen: Some(listen),
                 profile_layers,
                 data_dir: Some(data_dir),
-                max_steps: 0,
-                max_tool_calls: 0,
+                max_steps: None,
+                max_tool_calls: None,
                 gateway_url: None,
                 token: None,
-                node_id: "home".to_owned(),
-                no_local_web: false,
-                allow_insecure_gateway: false,
+                node_id: None,
+                no_local_web: Some(false),
+                allow_insecure_gateway: None,
             }))
             .map_err(Into::into);
     }

@@ -111,7 +111,7 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     const configPath = application.configPath
     await ownerPage.close()
     await stopProcess(application)
-    application = startProcess(binary, ['serve', '--config', configPath], cleanEnvironment)
+    application = startProcess(binary, ['serve', '--config-dir', path.dirname(configPath)], cleanEnvironment)
     await waitForHttp(`${origin}/readyz`, application)
     await anonymous.reload()
     const [exchange] = await Promise.all([
@@ -150,7 +150,7 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     assert.match(refreshedDocument.headers()['content-security-policy'], /frame-src 'self' blob: https:\/\/challenges.cloudflare.com/)
     await oldDocument.getByLabel('用户名', { exact: true }).waitFor()
     await oldDocument.close()
-    await execute(binary, ['admin', 'reset-authentication', '--config', configPath], { cwd: repository })
+    await execute(binary, ['admin', 'reset-authentication', '--config-dir', path.dirname(configPath)], { cwd: repository })
     const config = await (await fetch(`${origin}/auth/config`)).json()
     assert.equal(config.turnstile, undefined)
     const recovered = await serverRequest(origin, resource, { token: ownerToken })

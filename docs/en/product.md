@@ -55,7 +55,7 @@ Desktop connects to the local service. A module boundary does not imply a separa
 | Usage | Per-attempt ledger, budgets, keys, device limits, late settlement, reconciliation and device reports | Account/platform-wide layered limits and persistent device-report exports |
 | Execution | Local directory coordination, background services and basic same-host Worker recovery | Work pools, dedicated workspace storage and cross-host handoff |
 | Extensions | Signed Rhai/WASM, capabilities, resource ceilings and running-tool cancellation | Synchronous host I/O and Hook cancellation follow their own lifecycles |
-| Scale | One Server with SQLite/PostgreSQL; transactional cross-instance permission notifications | Cross-instance Node routing, event synchronization, failover and capacity claims |
+| Scale | One Server with SQLite/PostgreSQL; transactional permission notifications; source implementation of Node forwarding and event catch-up | Cross-instance network/browser and restricted PostgreSQL acceptance, storage failover and capacity claims |
 
 Continuous goals support immediate execution, additional rounds, blocked completion, stopping and explicit continuation. Durable history does not authorize replay of effects after a crash. Archives support read-only preview and restoration without automatically starting work. Offline log repair is available. MCP supports tool-list refresh and optional bounded reconnection without replaying failed calls; more search providers and external-agent adapters remain separate work.
 

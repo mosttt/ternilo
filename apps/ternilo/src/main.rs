@@ -522,7 +522,7 @@ mod tests {
             };
             assert_eq!(
                 listen,
-                "127.0.0.1:4320".parse::<std::net::SocketAddr>().unwrap()
+                Some("127.0.0.1:4320".parse::<std::net::SocketAddr>().unwrap())
             );
             assert_eq!(
                 profile_layers,
@@ -532,8 +532,8 @@ mod tests {
                 ]
             );
             assert_eq!(data_dir, Some(PathBuf::from("/var/lib/ternilo-env")));
-            assert_eq!(max_steps, 11);
-            assert_eq!(max_tool_calls, 128);
+            assert_eq!(max_steps, Some(11));
+            assert_eq!(max_tool_calls, Some(128));
 
             let from_cli = Args::try_parse_from([
                 "ternilo",
@@ -565,15 +565,15 @@ mod tests {
             };
             assert_eq!(
                 listen,
-                "127.0.0.1:4321".parse::<std::net::SocketAddr>().unwrap()
+                Some("127.0.0.1:4321".parse::<std::net::SocketAddr>().unwrap())
             );
             assert_eq!(
                 profile_layers,
                 [PathBuf::from("base.json"), PathBuf::from("machine.json")]
             );
             assert_eq!(data_dir, Some(PathBuf::from("/var/lib/ternilo-local")));
-            assert_eq!(max_steps, 17);
-            assert_eq!(max_tool_calls, 1024);
+            assert_eq!(max_steps, Some(17));
+            assert_eq!(max_tool_calls, Some(1024));
             return;
         }
 

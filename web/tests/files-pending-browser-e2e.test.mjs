@@ -175,7 +175,7 @@ for (const placement of ['local', 'cloud']) {
       await stopProcess(app)
       app = placement === 'local'
         ? startProcess(path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', dataDirectory])
-        : startProcess(path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config', configPath])
+        : startProcess(path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config-dir', path.dirname(configPath)])
       await waitForHttp(placement === 'local' ? origin : `${origin}/readyz`, app)
       if (placement === 'local') token = await localToken(origin)
       await page.goto(`${origin}/files?session_id=${encodeURIComponent(sessionId)}`)

@@ -141,7 +141,7 @@ def initialize(args):
         create_file(marker, b"server\n")
     inspect_config(args)
     exists = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", "server",
-                                "-f", "/var/lib/ternilo/server.json"], capture_output=True, text=True)
+                                "-f", "/var/lib/ternilo/config.json"], capture_output=True, text=True)
     if exists.returncode == 0:
         print(f"Existing Server configuration and data preserved at {target}.")
         return
@@ -159,7 +159,7 @@ def initialize(args):
     for name in environment_names:
         if environment.get(name):
             arguments.extend(["-e", name])
-    arguments += ["server", "server", "init", "--non-interactive", "--config", "/var/lib/ternilo/server.json",
+    arguments += ["server", "server", "init", "--non-interactive", "--config-dir", "/var/lib/ternilo",
                   "--listen", "0.0.0.0:4321", "--public-url", values["TERNILO_SERVER_PUBLIC_URL"]]
     subprocess.run(command + arguments, env=environment, check=True)
     if args.worker_policy:
@@ -213,7 +213,7 @@ def initialize_worker(args):
         create_file(target / ".env", "".join(f"{key}={value}\n" for key, value in values.items()).encode())
         create_file(marker, b"worker\n")
     values = inspect_config(args)
-    exists = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", "worker", "-f", "/var/lib/ternilo/worker.json"], capture_output=True)
+    exists = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", "worker", "-f", "/var/lib/ternilo/config.json"], capture_output=True)
     if exists.returncode == 0:
         print(f"Existing Worker configuration and files preserved at {target}.")
         return
@@ -222,7 +222,7 @@ def initialize_worker(args):
     if not os.environ.get("TERNILO_WORKER_TOKEN"):
         fail("Set TERNILO_WORKER_TOKEN before initializing the private Worker configuration.")
     command = ["run", "--rm", "--no-deps", "-e", "TERNILO_WORKER_TOKEN", "worker", "worker", "init",
-               "--data-dir", "/var/lib/ternilo", "--server-url", values["TERNILO_WORKER_SERVER_URL"],
+               "--config-dir", "/var/lib/ternilo", "--server-url", values["TERNILO_WORKER_SERVER_URL"],
                "--sandbox", "container", "--health-listen", "127.0.0.1:5431"]
     for name in ("max_active_runs", "max_resident_runs"):
         value = getattr(args, name)
@@ -246,9 +246,9 @@ def configure(args):
             fail("Worker policy must be a JSON object.")
     if policy is not None:
         config = read_server_config(args)
-        config["worker_policy"] = "/var/lib/ternilo/worker-policy.json"
-        write_server_file(args, "worker-policy.json", (json.dumps(policy, indent=2) + "\n").encode())
-        write_server_file(args, "server.json", (json.dumps(config, indent=2) + "\n").encode())
+        config["worker_policy"] = "/var/lib/ternilo/config/worker-policy.json"
+        write_server_file(args, "config/worker-policy.json", (json.dumps(policy, indent=2) + "\n").encode())
+        write_server_file(args, "config.json", (json.dumps(config, indent=2) + "\n").encode())
     if args.managed_execution_enabled is not None:
         values = env_values(args.directory / ".env")
         values["TERNILO_SERVER_MANAGED_EXECUTION_ENABLED"] = str(args.managed_execution_enabled).lower()
@@ -257,10 +257,10 @@ def configure(args):
 
 
 def write_server_file(args, name, content):
-    if name not in ("server.json", "worker-policy.json"):
+    if name not in ("config.json", "config/worker-policy.json"):
         fail("Unsupported private Server configuration file.")
     # Filenames are fixed above. Sensitive content is sent only on standard input.
-    command = f"umask 077; cat > /var/lib/ternilo/{name}.pending && sync -f /var/lib/ternilo/{name}.pending && mv /var/lib/ternilo/{name}.pending /var/lib/ternilo/{name} && sync -f /var/lib/ternilo"
+    command = f"umask 077; mkdir -p /var/lib/ternilo/config; cat > /var/lib/ternilo/{name}.pending && sync -f /var/lib/ternilo/{name}.pending && mv /var/lib/ternilo/{name}.pending /var/lib/ternilo/{name} && sync -f /var/lib/ternilo"
     run_compose(args, ["run", "--rm", "--no-deps", "-T", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c", command], check=True, input=content)
 
 
@@ -383,7 +383,7 @@ def check(args):
     subprocess.run([args.docker, "info", "--format", "{{.ServerVersion}}"], check=True)
     service = component(args)
     run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", service,
-                       "-s", f"/var/lib/ternilo/{service}.json"], check=True)
+                       "-s", "/var/lib/ternilo/config.json"], check=True)
     print(f"PASS: Compose, Docker and persistent configuration. Use up/status to check the running {service}.")
 
 
@@ -487,9 +487,9 @@ def regular_members(bundle):
 def server_archive(archive):
     with tarfile.open(archive) as bundle:
         members = regular_members(bundle)
-        config = next((member for member in members if Path(member.name) == Path("server.json")), None)
+        config = next((member for member in members if Path(member.name) == Path("config.json")), None)
         if not config or not config.isfile() or config.size > 1024 * 1024:
-            fail("Server backup has no valid private server.json.")
+            fail("Server backup has no valid private config.json.")
         settings = json.load(bundle.extractfile(config))
         if not settings.get("secret_master_key"):
             fail("Server backup is missing its secret master key.")
@@ -589,16 +589,16 @@ def stopped_server(args):
 
 def require_no_pending_rotation(args):
     result = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "test", "server",
-                               "-e", "/var/lib/ternilo/server.next.json"], capture_output=True)
+                               "-e", "/var/lib/ternilo/config.next.json"], capture_output=True)
     if result.returncode == 0:
-        fail("Unfinished key rotation: preserve server.json and server.next.json and resolve the database key before starting or backing up Server.")
+        fail("Unfinished key rotation: preserve config.json and config.next.json and resolve the database key before starting or backing up Server.")
     if result.returncode != 1:
         fail("Could not inspect pending key rotation; check Docker and the configured image.")
 
 
 def read_server_config(args):
     result = run_compose(args, ["run", "--rm", "--no-deps", "--entrypoint", "cat", "server",
-                               "/var/lib/ternilo/server.json"], check=True, capture_output=True)
+                               "/var/lib/ternilo/config.json"], check=True, capture_output=True)
     return json.loads(result.stdout)
 
 
@@ -618,7 +618,7 @@ def rotate_key(args):
     prepared = dict(config, secret_master_key=next_key)
     # Save the recovery key before changing the database, without replacing current configuration.
     run_compose(args, ["run", "--rm", "--no-deps", "-T", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c",
-                       "umask 077; set -C; cat > /var/lib/ternilo/server.next.json && sync -f /var/lib/ternilo/server.next.json"],
+                       "umask 077; set -C; cat > /var/lib/ternilo/config.next.json && sync -f /var/lib/ternilo/config.next.json"],
                 check=True, input=(json.dumps(prepared, indent=2) + "\n").encode())
     command, environment = docker_command(args)
     environment.update(TERNILO_MIGRATION_DATABASE_URL=config.get("migration_database_url") or config["database_url"],
@@ -628,9 +628,9 @@ def rotate_key(args):
                                   "-e", "TERNILO_SECRET_MASTER_KEY", "-e", "TERNILO_NEXT_SECRET_MASTER_KEY",
                                   "server", "server", "admin", "rotate-secret-master-key"], env=environment, check=True)
     except subprocess.CalledProcessError:
-        fail("Key rotation did not complete. Keep Server stopped and preserve server.json and server.next.json; inspect the database before recovery.")
+        fail("Key rotation did not complete. Keep Server stopped and preserve config.json and config.next.json; inspect the database before recovery.")
     run_compose(args, ["run", "--rm", "--no-deps", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c",
-                       "mv /var/lib/ternilo/server.next.json /var/lib/ternilo/server.json && sync -f /var/lib/ternilo"], check=True)
+                       "mv /var/lib/ternilo/config.next.json /var/lib/ternilo/config.json && sync -f /var/lib/ternilo"], check=True)
     print("Master key rotated and private configuration updated. Server remains stopped; keep previous backups with their original keys.")
 
 
@@ -667,7 +667,7 @@ def rotate_database_passwords(args):
     if config.get("migration_database_url"):
         prepared["migration_database_url"] = replaced_password(migration_url, next_migration)
     run_compose(args, ["run", "--rm", "--no-deps", "-T", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c",
-                       "umask 077; set -C; cat > /var/lib/ternilo/server.next.json && sync -f /var/lib/ternilo/server.next.json"],
+                       "umask 077; set -C; cat > /var/lib/ternilo/config.next.json && sync -f /var/lib/ternilo/config.next.json"],
                 check=True, input=(json.dumps(prepared, indent=2) + "\n").encode())
     topology = json.loads(run_compose(args, ["config", "--format", "json"], check=True, capture_output=True).stdout)
     service = topology["services"]["server"]
@@ -698,9 +698,9 @@ COMMIT;
     result = subprocess.run(command, input=sql, env=environment, capture_output=True)
     if result.returncode:
         # PostgreSQL may have committed before a connection failure; keep both configurations for recovery.
-        fail("Database rotation did not confirm completion. Server remains stopped; current configuration was not promoted. Preserve server.json and server.next.json and verify database roles before recovery.")
+        fail("Database rotation did not confirm completion. Server remains stopped; current configuration was not promoted. Preserve config.json and config.next.json and verify database roles before recovery.")
     run_compose(args, ["run", "--rm", "--no-deps", "--user", "10001:10001", "--entrypoint", "sh", "server", "-c",
-                       "mv /var/lib/ternilo/server.next.json /var/lib/ternilo/server.json && sync -f /var/lib/ternilo"], check=True)
+                       "mv /var/lib/ternilo/config.next.json /var/lib/ternilo/config.json && sync -f /var/lib/ternilo"], check=True)
     print("PostgreSQL role passwords and private Server configuration updated atomically. Server remains stopped; restart it before resuming execution.")
 
 
@@ -770,12 +770,12 @@ def worker_archive(archive):
                 fail("Worker backup contains an unsupported filesystem object.")
             if member.islnk() and (Path(member.linkname).is_absolute() or ".." in Path(member.linkname).parts):
                 fail("Worker backup hard link escapes its data volume.")
-        config = next((member for member in members if Path(member.name) == Path("worker.json")), None)
+        config = next((member for member in members if Path(member.name) == Path("config.json")), None)
         if not config or not config.isfile() or config.size > 1024 * 1024:
-            fail("Worker backup has no valid private worker.json.")
+            fail("Worker backup has no valid private config.json.")
         settings = json.load(bundle.extractfile(config))
-        if settings.get("workspace_root") != "/var/lib/ternilo/workspaces":
-            fail("Worker volume backup requires workspace_root=/var/lib/ternilo/workspaces; back up custom mounts separately.")
+        if settings.get("workspace_root") != "/var/lib/ternilo/data/workspaces":
+            fail("Worker volume backup requires workspace_root=/var/lib/ternilo/data/workspaces; back up custom mounts separately.")
         return settings
 
 
@@ -819,7 +819,7 @@ def restore_worker(args, staging, metadata):
     payload = staging / "restored-worker-data.tar.gz"
     with tarfile.open(source) as original, tarfile.open(payload, "w:gz") as restored:
         for member in original.getmembers():
-            if Path(member.name) == Path("worker.json"):
+            if Path(member.name) == Path("config.json"):
                 content = (json.dumps(settings, indent=2) + "\n").encode()
                 member.size = len(content)
                 member.mode = 0o600
@@ -861,7 +861,7 @@ def restore(args):
         data = staging / "data"
         data.mkdir()
         extract_regular_archive(staging / "server-data.tar.gz", data)
-        config = json.loads((data / "server.json").read_text())
+        config = json.loads((data / "config.json").read_text())
         if metadata["database"] == "postgres":
             if not args.database_url or not args.database_url.startswith(("postgres://", "postgresql://")):
                 fail("Restore database.dump to a new PostgreSQL database first, then pass its --database-url; this command never overwrites a database.")
@@ -869,8 +869,8 @@ def restore(args):
             config["migration_database_url"] = args.migration_database_url
         if args.public_url:
             config["public_url"] = args.public_url
-        (data / "server.json").write_text(json.dumps(config, indent=2) + "\n")
-        os.chmod(data / "server.json", 0o600)
+        (data / "config.json").write_text(json.dumps(config, indent=2) + "\n")
+        os.chmod(data / "config.json", 0o600)
         args.directory.mkdir(parents=True, exist_ok=True)
         for name in ("compose.server.yml", ".env.server.example", "ternilo-deploy", *ROTATION_FILES):
             shutil.copy2(staging / name, args.directory / name)

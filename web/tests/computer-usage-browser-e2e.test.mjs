@@ -95,7 +95,7 @@ test('device usage survives offline replay, excludes fork copies and preserves s
     await run(local, sessionId, 'offline-task')
     await stopProcess(node)
     local = await startNode()
-    const restarted = startProcess(process.env.TERNILO_E2E_SERVER_BINARY ?? path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config', server.configPath], environment)
+    const restarted = startProcess(process.env.TERNILO_E2E_SERVER_BINARY ?? path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config-dir', path.dirname(server.configPath)], environment)
     processes.push(restarted); await waitForHttp(`${server.origin}/readyz`, restarted)
     usage = await report(3)
     await stopProcess(node)

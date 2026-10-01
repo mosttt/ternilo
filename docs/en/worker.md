@@ -17,9 +17,9 @@ For native Linux deployment:
 ```bash
 read -r -s -p "Worker token: " TERNILO_WORKER_TOKEN
 export TERNILO_WORKER_TOKEN
-ternilo-worker init --server-url https://ternilo.example.com --data-dir ./worker
+ternilo-worker init --server-url https://ternilo.example.com --config-dir ./worker
 unset TERNILO_WORKER_TOKEN
-ternilo-worker serve --data-dir ./worker
+ternilo-worker serve --config-dir ./worker
 ```
 
 For Docker, use `deploy/docker/ternilo-deploy init --component worker` with an explicitly available Worker image, Server URL and credential. The public Server image does not contain Worker, and current GitHub release publishing does not publish a Worker or Work image. The initialized volume retains Worker configuration and project files. Normal `down` preserves it; deleting the volume is destructive.

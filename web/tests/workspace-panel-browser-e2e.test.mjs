@@ -83,7 +83,7 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     for (const request of [local, shared]) {
       const resource = request === local ? `${localResource}/workspace` : remoteResource
       assert.deepEqual((await request(resource)).applications.map(app => app.id), request === local ? ['vscode'] : [])
-      for (const file of ['../server/server.json', 'outside/server/server.json']) await assert.rejects(request(resource, { body: { kind: 'read', path: file } }))
+      for (const file of ['../server/config.json', 'outside/server/config.json']) await assert.rejects(request(resource, { body: { kind: 'read', path: file } }))
       await assert.rejects(request(resource, { body: { kind: 'open', app_id: 'arbitrary-command' } }))
       if (request === shared) await assert.rejects(request(resource, { body: { kind: 'open', app_id: 'vscode' } }), /403/)
     }

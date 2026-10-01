@@ -1,6 +1,6 @@
-import type { LocalSession } from '@/types'
+import type { LocalSession, Workspace } from '@/types'
 
-export type SidebarGroupBy = 'workspace' | 'flat'
+export type SidebarGroupBy = 'computer' | 'workspace' | 'flat'
 export type SidebarOrderBy = 'manual' | 'updated'
 
 export const FLAT_SESSION_ORDER = '__flat_sessions__'
@@ -10,13 +10,17 @@ export interface SidebarViewState {
   orderBy: SidebarOrderBy
   expandedWorkspaces: string[]
   collapsedSessions: string[]
+  collapsedComputers: string[]
+  onlineComputersOnly: boolean
 }
 
 export const defaultSidebarView: SidebarViewState = {
-  groupBy: 'workspace',
+  groupBy: 'computer',
   orderBy: 'updated',
   expandedWorkspaces: [],
   collapsedSessions: [],
+  collapsedComputers: [],
+  onlineComputersOnly: false,
 }
 
 export function readSidebarView(serialized: string | null): SidebarViewState {
@@ -24,14 +28,49 @@ export function readSidebarView(serialized: string | null): SidebarViewState {
   try {
     const value = JSON.parse(serialized) as Partial<SidebarViewState>
     return {
-      groupBy: value.groupBy === 'flat' ? 'flat' : 'workspace',
+      groupBy: value.groupBy === 'flat' || value.groupBy === 'workspace' ? value.groupBy : 'computer',
       orderBy: value.orderBy === 'manual' ? 'manual' : 'updated',
       expandedWorkspaces: Array.isArray(value.expandedWorkspaces) ? value.expandedWorkspaces.filter(item => typeof item === 'string') : [],
       collapsedSessions: Array.isArray(value.collapsedSessions) ? value.collapsedSessions.filter(item => typeof item === 'string') : [],
+      collapsedComputers: Array.isArray(value.collapsedComputers) ? value.collapsedComputers.filter(item => typeof item === 'string') : [],
+      onlineComputersOnly: value.onlineComputersOnly === true,
     }
   } catch {
     return defaultSidebarView
   }
+}
+
+export function workspaceComputerId(workspace: Workspace): string {
+  return workspace.placement === 'cloud' ? 'cloud'
+    : workspace.placement === 'local_node' ? `node:${workspace.node_id ?? ''}` : 'local'
+}
+
+export interface SidebarComputerGroup {
+  id: string
+  kind: 'local' | 'node' | 'cloud'
+  nodeId: string | null
+  workspaces: Workspace[]
+}
+
+export function groupWorkspacesByComputer(workspaces: readonly Workspace[]): SidebarComputerGroup[] {
+  const groups = new Map<string, SidebarComputerGroup>()
+  for (const workspace of workspaces) {
+    const id = workspaceComputerId(workspace)
+    let group = groups.get(id)
+    if (!group) {
+      group = { id, kind: workspace.placement === 'cloud' ? 'cloud' : workspace.placement === 'local_node' ? 'node' : 'local',
+        nodeId: workspace.node_id ?? null, workspaces: [] }
+      groups.set(id, group)
+    }
+    group.workspaces.push(workspace)
+  }
+  return [...groups.values()]
+}
+
+export function replaceOrderedSubset(order: string[], reordered: string[]): string[] {
+  const included = new Set(reordered)
+  let index = 0
+  return order.map(id => included.has(id) ? reordered[index++] : id)
 }
 
 export interface SidebarSessionNode {

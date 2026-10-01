@@ -15,7 +15,7 @@ impl LocalProviders {
     pub async fn open(data_root: PathBuf) -> Result<Arc<Self>, HarnessError> {
         let connections =
             crate::model_connections::LocalModelConnections::open(data_root.clone()).await?;
-        let path = data_root.join("providers.json");
+        let path = data_root.join("config/providers.json");
         let entries = match tokio::fs::read(&path).await {
             Ok(bytes) => serde_json::from_slice::<BTreeMap<String, ProviderProfile>>(&bytes)
                 .map_err(|error| {

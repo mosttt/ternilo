@@ -119,7 +119,7 @@ async fn wait_ready(
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
         child.ensure_running()?;
-        match fs::read(data.join("service.json")) {
+        match fs::read(data.join("runtime/service.json")) {
             Ok(bytes) => {
                 let connection: ServiceConnection = serde_json::from_slice(&bytes)?;
                 let response = client
@@ -197,7 +197,7 @@ async fn service_identity_authentication_status_and_graceful_restart() -> TestRe
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = fs::metadata(data.join("service.json"))?
+        let mode = fs::metadata(data.join("runtime/service.json"))?
             .permissions()
             .mode();
         assert_eq!(mode & 0o777, 0o600);
@@ -256,7 +256,7 @@ async fn service_identity_authentication_status_and_graceful_restart() -> TestRe
     stop.args(["stop", "--data-dir"]).arg(&data);
     let mut stop = ChildGuard::spawn(stop, temporary.path(), "stop-command")?;
     stop.wait_success().await?;
-    assert!(!data.join("service.json").exists());
+    assert!(!data.join("runtime/service.json").exists());
     let mut restarted = start_service(&data, temporary.path(), "restarted-service", false)?;
     let next = wait_ready(&mut restarted, &data, &client).await?;
     service.wait_success().await?;
@@ -271,7 +271,7 @@ async fn service_identity_authentication_status_and_graceful_restart() -> TestRe
     status(&data, temporary.path(), "restarted-status", &next).await?;
     stop_http(&client, &next).await?;
     restarted.wait_success().await?;
-    assert!(!data.join("service.json").exists());
+    assert!(!data.join("runtime/service.json").exists());
     Ok(())
 }
 
@@ -315,6 +315,6 @@ async fn headless_service_keeps_management_without_serving_the_browser() -> Test
     status(&data, temporary.path(), "headless-status", &connection).await?;
     stop_http(&client, &connection).await?;
     service.wait_success().await?;
-    assert!(!data.join("service.json").exists());
+    assert!(!data.join("runtime/service.json").exists());
     Ok(())
 }

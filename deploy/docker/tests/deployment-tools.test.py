@@ -58,7 +58,7 @@ if args[:2]==['image','save']:
             item=tarfile.TarInfo(name); item.size=len(content); bundle.addfile(item,io.BytesIO(content))
     sys.exit(0)
 if '--entrypoint' in args and 'test' in args:
-    if args[-1].endswith('server.next.json'): sys.exit(0 if os.getenv('DEPLOY_TEST_PENDING') else 1)
+    if args[-1].endswith('config.next.json'): sys.exit(0 if os.getenv('DEPLOY_TEST_PENDING') else 1)
     sys.exit(0 if state.exists() else 1)
 if args[0]=='ps':
     print(os.getenv('DEPLOY_TEST_CONSUMER','')); sys.exit(0)
@@ -69,18 +69,18 @@ if 'ps' in args:
     if '--status' in args: print('running-id' if os.getenv('DEPLOY_TEST_RUNNING') else '')
     else: print(os.getenv('DEPLOY_TEST_STATUS','[{"Service":"server","State":"running","Health":"healthy"}]'))
 config={'database_url':os.getenv('DEPLOY_TEST_DATABASE','sqlite:///var/lib/ternilo/server.sqlite3?mode=rwc'), 'secret_master_key':'private-fixture-key'}
-if service=='worker': config={'server_url':'https://server.invalid','token':'private-worker-fixture-token','workspace_root':'/var/lib/ternilo/workspaces'}
+if service=='worker': config={'server_url':'https://server.invalid','token':'private-worker-fixture-token','workspace_root':'/var/lib/ternilo/data/workspaces'}
 if '--entrypoint' in args and 'cat' in args: print(json.dumps(config))
 if '--entrypoint' in args and 'tar' in args:
     if '-czf' in args:
         with tarfile.open(fileobj=sys.stdout.buffer,mode='w|gz') as bundle:
-            files=[('server.json',json.dumps(config).encode()),('server.sqlite3',b'fixture database')] if service=='server' else [('worker.json',json.dumps(config).encode()),('workspaces/.ternilo-storage.json',b'original marker'),('workspaces/tenant/project/.ternilo/objects/digest',b'original attachment')]
+            files=[('config.json',json.dumps(config).encode()),('server.sqlite3',b'fixture database')] if service=='server' else [('config.json',json.dumps(config).encode()),('data/workspaces/.ternilo-storage.json',b'original marker'),('data/workspaces/tenant/project/.ternilo/objects/digest',b'original attachment')]
             for name,value in files:
                 info=tarfile.TarInfo(name); info.size=len(value); info.mode=0o600
-                if name.startswith('workspaces/tenant'): info.uid=info.gid=10001
+                if name.startswith('data/workspaces/tenant'): info.uid=info.gid=10001
                 bundle.addfile(info,io.BytesIO(value))
             if service=='worker':
-                link=tarfile.TarInfo('workspaces/tenant/project/link'); link.type=tarfile.SYMTYPE; link.linkname='.ternilo/objects/digest'
+                link=tarfile.TarInfo('data/workspaces/tenant/project/link'); link.type=tarfile.SYMTYPE; link.linkname='.ternilo/objects/digest'
                 bundle.addfile(link)
     else: pathlib.Path(os.environ['DEPLOY_TEST_RESTORED']).write_bytes(sys.stdin.buffer.read())
 if '--entrypoint' in args and 'sh' in args:
@@ -133,7 +133,7 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         calls = [json.loads(line) for line in Path(self.environment["DEPLOY_TEST_CALLS"]).read_text().splitlines()]
         initializer = next(call["args"] for call in calls if "init" in call["args"])
         self.assertIn("--non-interactive", initializer)
-        self.assertIn("/var/lib/ternilo/server.json", initializer)
+        self.assertEqual(initializer[initializer.index("--config-dir") + 1], "/var/lib/ternilo")
         self.assertFalse((target / "secrets").exists())
         self.assertFalse((target / "compose.cloud.yml").exists())
         self.assertEqual((target / ".env").stat().st_mode & 0o777, 0o600)
@@ -203,12 +203,12 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         self.run_tool("restore", "--directory", restored, "--archive", archive, "--server-url", "https://restored.invalid")
         self.assertEqual((restored / ".ternilo-deployment").read_text(), "worker\n")
         with tarfile.open(self.environment["DEPLOY_TEST_RESTORED"]) as data:
-            self.assertEqual(json.load(data.extractfile("worker.json"))["server_url"], "https://restored.invalid")
-            self.assertEqual(data.extractfile("workspaces/.ternilo-storage.json").read(), b"original marker")
-            item = data.getmember("workspaces/tenant/project/.ternilo/objects/digest")
+            self.assertEqual(json.load(data.extractfile("config.json"))["server_url"], "https://restored.invalid")
+            self.assertEqual(data.extractfile("data/workspaces/.ternilo-storage.json").read(), b"original marker")
+            item = data.getmember("data/workspaces/tenant/project/.ternilo/objects/digest")
             self.assertEqual(item.uid, 10001)
             self.assertEqual(data.extractfile(item).read(), b"original attachment")
-            self.assertEqual(data.getmember("workspaces/tenant/project/link").linkname, ".ternilo/objects/digest")
+            self.assertEqual(data.getmember("data/workspaces/tenant/project/link").linkname, ".ternilo/objects/digest")
         self.run_tool("backup", "--directory", target, "--output-dir", output, success=False,
                       environment=dict(self.environment, DEPLOY_TEST_RUNNING="1"))
 
@@ -484,9 +484,9 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         self.assertNotIn(source_project, (restored / ".env").read_text())
         self.assertIn("TERNILO_IMAGE=" + IMAGE_ID, (restored / ".env").read_text())
         with tarfile.open(self.environment["DEPLOY_TEST_RESTORED"]) as data:
-            config = json.load(data.extractfile("./server.json"))
+            config = json.load(data.extractfile("./config.json"))
             self.assertEqual(config["secret_master_key"], "private-fixture-key")
-            self.assertEqual(data.getmember("./server.json").uid, 10001)
+            self.assertEqual(data.getmember("./config.json").uid, 10001)
         self.run_tool("restore", "--directory", restored, "--archive", archive, success=False)
         self.run_tool("backup", "--directory", target, "--output-dir", output, success=False,
                       environment=dict(self.environment, DEPLOY_TEST_RUNNING="1"))
@@ -606,7 +606,7 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         self.run_tool("restore", "--directory", restored, "--archive", archive,
                       "--database-url", "postgres://user:new@new.invalid/ternilo")
         with tarfile.open(self.environment["DEPLOY_TEST_RESTORED"]) as data:
-            config = json.load(data.extractfile("./server.json"))
+            config = json.load(data.extractfile("./config.json"))
             self.assertEqual(config["database_url"], "postgres://user:new@new.invalid/ternilo")
             self.assertIsNone(config["migration_database_url"])
 
@@ -619,14 +619,14 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         self.assertEqual(prepared["secret_master_key"], next_key)
         calls = [json.loads(line)["args"] for line in Path(self.environment["DEPLOY_TEST_CALLS"]).read_text().splitlines()]
         rotation = next(index for index, args in enumerate(calls) if "rotate-secret-master-key" in args)
-        self.assertIn("server.next.json", calls[rotation - 1][-1])
+        self.assertIn("config.next.json", calls[rotation - 1][-1])
         self.assertNotIn(next_key, calls[rotation])
-        self.assertIn("mv /var/lib/ternilo/server.next.json", calls[rotation + 1][-1])
+        self.assertIn("mv /var/lib/ternilo/config.next.json", calls[rotation + 1][-1])
         self.assertIn("sync -f", calls[rotation - 1][-1])
         self.assertIn("sync -f", calls[rotation + 1][-1])
         result = self.run_tool("rotate-key", "--directory", target, "--next-key", next_key, success=False,
                                environment=dict(self.environment, DEPLOY_TEST_ROTATION_FAIL="1"))
-        self.assertIn("preserve server.json and server.next.json", result.stderr)
+        self.assertIn("preserve config.json and config.next.json", result.stderr)
         self.run_tool("rotate-key", "--directory", target, "--next-key", "invalid", success=False)
 
     def test_unfinished_rotation_blocks_start_and_backup_and_other_volume_consumers_block_mutation(self):

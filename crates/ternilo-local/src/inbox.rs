@@ -19,13 +19,14 @@ use tokio_rusqlite::{
     rusqlite::{self, OptionalExtension},
 };
 
-const INBOX_VERSION: u32 = 1;
+const INBOX_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct InboxDocument {
     schema_version: u32,
     paused: bool,
+    restart_requested: bool,
     error: Option<String>,
     items: Vec<SessionSubmission>,
 }
@@ -35,6 +36,7 @@ impl Default for InboxDocument {
         Self {
             schema_version: INBOX_VERSION,
             paused: false,
+            restart_requested: false,
             error: None,
             items: Vec::new(),
         }
@@ -196,7 +198,7 @@ impl LocalInboxStore {
                 "clear queued inputs before replacing a turn",
             ));
         }
-        document.paused = false;
+        document.paused = document.restart_requested;
         document.error = None;
         let uploads = uploads::from_submission(&item);
         document.items.push(item);
@@ -373,15 +375,6 @@ impl LocalInboxStore {
         Ok(batch)
     }
 
-    pub(crate) async fn resume(&self, session_id: &str) -> Result<(), HarnessError> {
-        let lock = self.session_lock(session_id).await;
-        let _guard = lock.lock().await;
-        let mut document = self.load_unlocked(session_id).await?;
-        document.paused = false;
-        document.error = None;
-        self.persist_unlocked(session_id, &document).await
-    }
-
     pub(crate) async fn finish(
         &self,
         session_id: &str,
@@ -400,7 +393,32 @@ impl LocalInboxStore {
         let _guard = lock.lock().await;
         let mut document = self.load_unlocked(session_id).await?;
         document.paused = true;
+        document.restart_requested = false;
         self.persist_unlocked(session_id, &document).await
+    }
+
+    pub(crate) async fn request_restart(&self, session_id: &str) -> Result<(), HarnessError> {
+        let lock = self.session_lock(session_id).await;
+        let _guard = lock.lock().await;
+        let mut document = self.load_unlocked(session_id).await?;
+        document.paused = true;
+        document.restart_requested = true;
+        document.error = None;
+        self.persist_unlocked(session_id, &document).await
+    }
+
+    pub(crate) async fn finish_restart(&self, session_id: &str) -> Result<bool, HarnessError> {
+        let lock = self.session_lock(session_id).await;
+        let _guard = lock.lock().await;
+        let mut document = self.load_unlocked(session_id).await?;
+        if !document.restart_requested {
+            return Ok(false);
+        }
+        document.paused = false;
+        document.restart_requested = false;
+        document.error = None;
+        self.persist_unlocked(session_id, &document).await?;
+        Ok(true)
     }
 
     pub(crate) async fn record_error(
@@ -412,6 +430,7 @@ impl LocalInboxStore {
         let _guard = lock.lock().await;
         let mut document = self.load_unlocked(session_id).await?;
         document.paused = true;
+        document.restart_requested = false;
         document.error = Some(message);
         self.persist_unlocked(session_id, &document).await
     }
@@ -435,6 +454,11 @@ impl LocalInboxStore {
             }
         }
         let pending = !document.items.is_empty();
+        if document.restart_requested {
+            // Reopening the exclusively owned instance proves the old driver has exited.
+            document.paused = false;
+            document.restart_requested = false;
+        }
         self.persist_unlocked(session_id, &document).await?;
         Ok(pending)
     }
@@ -646,6 +670,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn restart_intent_survives_reopening_and_a_later_stop_cancels_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = test_store(directory.path().to_owned()).await;
+        store
+            .enqueue("session", authored_item("next", InputAuthor::Local))
+            .await
+            .unwrap();
+        store.request_restart("session").await.unwrap();
+        store.close().await.unwrap();
+        drop(store);
+        let store = test_store(directory.path().to_owned()).await;
+        assert!(store.snapshot("session").await.unwrap().paused);
+        store.recover("session", &[]).await.unwrap();
+        assert!(!store.snapshot("session").await.unwrap().paused);
+        assert_eq!(store.snapshot("session").await.unwrap().items.len(), 1);
+        store.request_restart("session").await.unwrap();
+        store.pause("session").await.unwrap();
+        assert!(!store.finish_restart("session").await.unwrap());
+        store.recover("session", &[]).await.unwrap();
+        assert!(store.snapshot("session").await.unwrap().paused);
+    }
+
+    #[tokio::test]
     async fn batch_claims_are_durable_and_only_consumed_inputs_are_removed() {
         let directory = tempfile::tempdir().unwrap();
         let store = test_store(directory.path().to_owned()).await;
@@ -690,7 +737,8 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        reopened.resume("session-a").await.unwrap();
+        reopened.request_restart("session-a").await.unwrap();
+        assert!(reopened.finish_restart("session-a").await.unwrap());
         assert_eq!(
             reopened.claim_batch("session-a", 14).await.unwrap().len(),
             2

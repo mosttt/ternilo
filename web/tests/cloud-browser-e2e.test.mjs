@@ -712,15 +712,15 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
   }))
 
   const serverData = path.join(directory, 'server')
-  const serverConfig = path.join(serverData, 'server.json')
+  const serverConfig = path.join(serverData, 'config.json')
   const workerData = path.join(directory, 'worker')
-  const workerConfig = path.join(workerData, 'worker.json')
+  const workerConfig = path.join(workerData, 'config.json')
   const ownerPassword = randomBytes(24).toString('base64url')
   const serverEnvironment = {}
   const controlName = `ternilo-server-e2e-${process.pid}-${Date.now()}`
   const workerName = `ternilo-worker-e2e-${process.pid}-${Date.now()}`
   const controlArgs = [
-    'serve', '--config', containerMode ? '/var/lib/ternilo/server.json' : serverConfig,
+    'serve', '--config-dir', path.dirname(containerMode ? '/var/lib/ternilo/config.json' : serverConfig),
     '--listen', `127.0.0.1:${port}`,
     '--public-url', origin,
     '--oidc-issuer', oidc.issuer,
@@ -748,7 +748,7 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
   }
   let control
   const workerArgs = [
-    'serve', '--config', containerMode ? '/etc/ternilo/worker.json' : workerConfig,
+    'serve', '--config-dir', path.dirname(containerMode ? '/etc/ternilo/config.json' : workerConfig),
     '--workspace-root', containerMode ? '/var/lib/ternilo/workspaces' : workspaceRoot,
   ]
   const startWorker = () => containerMode
@@ -760,7 +760,7 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
         '--cap-add', 'CHOWN', '--cap-add', 'DAC_READ_SEARCH',
         '--cap-add', 'SETPCAP',
         '--security-opt', 'no-new-privileges:true', '--security-opt', 'seccomp=unconfined',
-        '--volume', `${workerConfig}:/etc/ternilo/worker.json:ro`,
+        '--volume', `${workerConfig}:/etc/ternilo/config.json:ro`,
         '--volume', `${workspaceRoot}:/var/lib/ternilo/workspaces`,
         '--entrypoint', '/usr/bin/setpriv', workerImage,
         '--no-new-privs', '--inh-caps=-setpcap', '--ambient-caps=-setpcap', '--bounding-set=-setpcap',
@@ -804,7 +804,7 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
     await mkdir(workerData, { mode: 0o700 })
     const fixtureOwner = `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`
     const serverInitArgs = [
-      'init', '--config', containerMode ? '/var/lib/ternilo/server.json' : serverConfig, '--database-url', postgres.url,
+      'init', '--config-dir', path.dirname(containerMode ? '/var/lib/ternilo/config.json' : serverConfig), '--database-url', postgres.url,
       '--owner-username', 'cloud-browser', '--owner-email', 'cloud-browser@example.test', '--non-interactive',
     ]
     await execute(containerMode ? 'docker' : controlBinary, containerMode ? [
@@ -842,7 +842,7 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
     const grant = await nativeRequest('/admin/workers', { worker_id: 'cloud-browser-worker' })
     CLOUD_E2E_SECRETS.push(grant.token, ownerPassword)
     const workerInitArgs = [
-      'init', '--config', containerMode ? '/var/lib/ternilo-config/worker.json' : workerConfig,
+      'init', '--config-dir', path.dirname(containerMode ? '/var/lib/ternilo-config/config.json' : workerConfig),
       '--server-url', origin, '--workspace-root', containerMode ? '/var/lib/ternilo/workspaces' : workspaceRoot,
       '--sandbox', containerMode ? 'container' : 'bubblewrap', '--health-listen', '127.0.0.1:0', '--poll-interval-ms', '50',
     ]

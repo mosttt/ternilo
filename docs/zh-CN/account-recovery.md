@@ -8,7 +8,7 @@
 
 ```bash
 ./bin/ternilo-server admin reset-password \
-  --config /path/to/server.json \
+  --config-dir /path/to \
   --username owner
 ```
 
@@ -18,7 +18,7 @@
 
 ```bash
 ./bin/ternilo-server admin reset-password \
-  --config /path/to/server.json \
+  --config-dir /path/to \
   --username owner \
   --password-stdin < /path/to/protected-password-file
 ```

@@ -543,15 +543,15 @@ test('SQLite Server preserves two private Node histories, shared permissions, an
     const seed = await seedLocalHistory(temporary, processes)
     const nodes = await Promise.all(['owner-a', 'owner-b', 'member-c'].map(id => cloneLocalHistory(seed, temporary, id)))
     const origin = `http://127.0.0.1:${await freePort()}`
-    const config = path.join(temporary, 'server/server.json')
-    const initialized = await execute(serverBinary, ['init', '--config', config, '--non-interactive', '--listen', new URL(origin).host, '--public-url', origin], { cwd: repository, env: cleanEnvironment })
+    const config = path.join(temporary, 'server/config.json')
+    const initialized = await execute(serverBinary, ['init', '--config-dir', path.dirname(config), '--non-interactive', '--listen', new URL(origin).host, '--public-url', origin], { cwd: repository, env: cleanEnvironment })
     const savedConfig = JSON.parse(await readFile(config, 'utf8'))
     assert.match(savedConfig.database_url, /^sqlite:/)
     assert.equal(savedConfig.oidc, null)
     assert.equal(savedConfig.managed_execution_enabled, false)
     const setupUrl = initialized.stdout.match(/Complete owner setup at: (\S+)/)?.[1]
     assert.ok(setupUrl)
-    const server = start(serverBinary, ['serve', '--config', config])
+    const server = start(serverBinary, ['serve', '--config-dir', path.dirname(config)])
     processes.push(server)
     await waitForHttp(`${origin}/auth/config`, server)
     fixture = await modelFixture()

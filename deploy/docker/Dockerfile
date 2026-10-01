@@ -75,7 +75,7 @@ FROM runtime-base AS worker
 USER root
 RUN install -d -m 0700 -o root -g root /var/lib/ternilo
 COPY --from=worker-builder /artifacts/ternilo-worker /usr/local/bin/ternilo-worker
-CMD ["worker", "serve", "--data-dir", "/var/lib/ternilo"]
+CMD ["worker", "serve", "--config-dir", "/var/lib/ternilo"]
 
 FROM runtime-base AS acceptance
 COPY --from=acceptance-builder /artifacts/restore_acceptance /usr/local/bin/restore-acceptance
@@ -84,4 +84,4 @@ CMD ["restore-acceptance", "--help"]
 
 FROM runtime-base AS server
 COPY --from=server-builder /artifacts/ternilo-server /usr/local/bin/ternilo-server
-CMD ["server", "serve", "--config", "/var/lib/ternilo/server.json"]
+CMD ["server", "serve", "--config-dir", "/var/lib/ternilo"]

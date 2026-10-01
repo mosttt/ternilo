@@ -69,7 +69,7 @@ test('Python and TypeScript SDKs execute shared Node files, resume after Server 
       const runId = `offline-sdk-${language}`
       await local(`/sessions/${localId}/queue`, { body: { run_id: runId, content: { kind: 'prompt', input: `/read sdk-${language}.txt` } } })
       await until(() => local(`/sessions/${localId}/events`), events => events.some(event => event.run_id === runId && event.type === 'turn_finished'), 'offline task completed')
-      server = startProcess(process.env.TERNILO_E2E_SERVER_BINARY ?? path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config', configPath], environment)
+      server = startProcess(process.env.TERNILO_E2E_SERVER_BINARY ?? path.join(repository, 'target/debug/ternilo-server'), ['serve', '--config-dir', path.dirname(configPath)], environment)
       processes.push(server); await waitForHttp(`${origin}/readyz`, server)
       await sdk.phase('resumed')
       await sdk.phase('revoke')

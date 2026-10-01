@@ -258,7 +258,7 @@ impl LocalApplication {
         data_dir: PathBuf,
         options: crate::LocalApplicationOpenOptions,
     ) -> Result<Self, HarnessError> {
-        let data_lock = acquire_data_lock(&data_dir).await?;
+        let data_lock = acquire_data_lock(&data_dir)?;
         let account_authorizations = Arc::new(
             crate::account_authorizations::AccountAuthorizations::open(
                 &data_dir,
@@ -269,7 +269,7 @@ impl LocalApplication {
         let execution_resources =
             Arc::new(crate::execution_resources::ExecutionResources::open(&data_dir).await?);
         let extension_registry = ternilo_extension::ExtensionRegistry::open(
-            data_dir.join("extensions"),
+            data_dir.join("data/extensions"),
             ternilo_extension::ExtensionHostPolicy::default(),
         )?;
         catalog.register(ternilo_extension::extension_mount_factory(Arc::clone(
@@ -296,11 +296,14 @@ impl LocalApplication {
             authorizations.register_fixture_flow().await?;
         }
         let state = Arc::new(LocalState::open(data_dir.clone()).await?);
-        let agent_team =
-            Arc::new(LocalAgentTeamStore::open(&data_dir.join("agent-team.sqlite3")).await?);
+        let agent_team = Arc::new(
+            LocalAgentTeamStore::open(&data_dir.join("data/db/agent-team.sqlite3")).await?,
+        );
         let preferences = Arc::new(
-            crate::preferences::LocalPreferences::open(&data_dir.join("preferences.sqlite3"))
-                .await?,
+            crate::preferences::LocalPreferences::open(
+                &data_dir.join("data/db/preferences.sqlite3"),
+            )
+            .await?,
         );
         let runtime_extensions = Arc::new(crate::LocalRuntimeExtensions::new(
             &catalog,
@@ -328,7 +331,11 @@ impl LocalApplication {
         let (event_notifications, _) = broadcast::channel(2_048);
         let (invalidations, _) = broadcast::channel(256);
         let inbox = Arc::new(
-            LocalInboxStore::open(&data_dir.join("inbox.sqlite3"), invalidations.clone()).await?,
+            LocalInboxStore::open(
+                &data_dir.join("data/db/inbox.sqlite3"),
+                invalidations.clone(),
+            )
+            .await?,
         );
         inbox
             .initialize_execution_scopes(&state.snapshot().await.sessions)
@@ -484,14 +491,9 @@ impl LocalApplication {
     }
 }
 
-pub(crate) async fn acquire_data_lock(root: &Path) -> Result<File, HarnessError> {
-    tokio::fs::create_dir_all(root).await.map_err(|error| {
-        HarnessError::execution(format!(
-            "create Ternilo data directory {}: {error}",
-            root.display()
-        ))
-    })?;
-    let path = root.join(".writer.lock");
+pub(crate) fn acquire_data_lock(root: &Path) -> Result<File, HarnessError> {
+    crate::prepare_data_dir(root)?;
+    let path = root.join("runtime/writer.lock");
     let lock = OpenOptions::new()
         .create(true)
         .truncate(false)

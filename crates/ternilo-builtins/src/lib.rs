@@ -317,6 +317,9 @@ mod tool_history_tests;
 mod run_limit_tests;
 
 #[cfg(test)]
+mod manual_goal_tests;
+
+#[cfg(test)]
 mod tests {
     use ternilo_kernel::{HarnessSession, HostPolicy};
     use ternilo_protocol::{

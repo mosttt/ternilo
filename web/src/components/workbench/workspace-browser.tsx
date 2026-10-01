@@ -2,12 +2,12 @@ import { ownsResource } from '@/domain/resource-access'
 import { ResourceSharingDialog, type SharingTarget } from './resource-sharing-dialog'
 import * as React from 'react'
 import {
-  Archive, Check, FolderPlus, ListFilter, Search, X,
+  Archive, Check, ChevronDown, ChevronRight, Cloud, FolderPlus, Laptop, ListFilter, Search, X,
 } from 'lucide-react'
 import { api } from '@/api/client'
 import {
   canonicalSessionTree, FLAT_SESSION_ORDER, foldSessionWindow, moveItem, moveItemByStep,
-  orderIds, readSidebarView, type SidebarSessionNode,
+  groupWorkspacesByComputer, orderIds, readSidebarView, replaceOrderedSubset, workspaceComputerId, type SidebarSessionNode,
 } from '@/domain/sidebar-view'
 import {
   deriveSessionSearchResults, MAX_SESSION_SEARCH_LENGTH, normalizeSessionSearchQuery,
@@ -16,7 +16,7 @@ import { UNGROUPED_WORKSPACE_ACCOUNT, ungroupedSessions } from '@/domain/workspa
 import { storage, useWorkbench } from '@/state/workbench'
 import type { LocalSession, SessionEvent, SessionSearchHit, SidebarOrdering, Workspace } from '@/types'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -76,6 +76,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   const {
     snapshot, sessionActivity, currentSessionId, currentSession, currentWorkspaceId, currentTenantId,
     platform, authRequired, loading, accountScope, serverIdentity, refresh,
+    setOnlineComputersOnly,
     selectWorkspace, selectSession, createSession, renameWorkspace, unregisterWorkspace,
     updateSession, forkSession, forkOperation, archiveSession, deleteSession, notify,
   } = useWorkbench()
@@ -87,6 +88,18 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   React.useEffect(() => setOpenArchiveScope(null), [archiveScope])
   const common = useTranslate('common')
   const [view, setView] = React.useState(() => readSidebarView(localStorage.getItem(storage.sidebarView)))
+  const changeView = (next: typeof view) => {
+    setView(next)
+    void setOnlineComputersOnly(next.groupBy === 'computer' && next.onlineComputersOnly)
+  }
+  const computerCollapseKey = (id: string) => JSON.stringify([accountScope, currentTenantId, id])
+  const activeWorkspace = snapshot.workspaces.find(workspace => workspace.workspace_id === currentWorkspaceId)
+  const activeComputerKey = activeWorkspace ? computerCollapseKey(workspaceComputerId(activeWorkspace)) : null
+  React.useEffect(() => {
+    if (!activeComputerKey || view.groupBy !== 'computer') return
+    setView(current => current.collapsedComputers.includes(activeComputerKey)
+      ? { ...current, collapsedComputers: current.collapsedComputers.filter(id => id !== activeComputerKey) } : current)
+  }, [activeComputerKey, currentSessionId, currentWorkspaceId, view.groupBy])
   const [ordering, setOrdering] = React.useState<SidebarOrdering>(EMPTY_ORDERING)
   const orderingRef = React.useRef(ordering)
   const confirmedOrderingRef = React.useRef(ordering)
@@ -236,7 +249,9 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
     const timer = window.setTimeout(() => {
       setSearching(true)
       setSearchError('')
-      void api.request<SessionSearchHit[]>(`/session-search?${new URLSearchParams({ query: normalizedQuery, limit: '100' })}`, { signal: controller.signal })
+      const params = new URLSearchParams({ query: normalizedQuery, limit: '100' })
+      if (platform && view.groupBy === 'computer' && view.onlineComputersOnly) params.set('online_computers_only', 'true')
+      void api.request<SessionSearchHit[]>(`/session-search?${params}`, { signal: controller.signal })
         .then(next => {
           if (controller.signal.aborted) return
           setHits(next)
@@ -252,7 +267,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [query, searchRetry])
+  }, [query, searchRetry, platform, view.groupBy, view.onlineComputersOnly])
 
   React.useEffect(() => {
     if (!wide || !searchOpen) return
@@ -418,9 +433,18 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   }
 
   const workspaceIds = orderIds(workspaces, item => item.workspace_id, item => item.updated_at_ms, ordering.workspace_order, view.orderBy)
+  const workspaceIdsInGroup = (id: string, ids = workspaceIds) => {
+    if (view.groupBy !== 'computer') return ids
+    const workspace = workspaces.find(item => item.workspace_id === id)
+    if (!workspace) return []
+    const computer = workspaceComputerId(workspace)
+    return ids.filter(candidate => workspaceComputerId(workspaces.find(item => item.workspace_id === candidate)!) === computer)
+  }
+  const sameComputerGroup = (source: string, target: string) => workspaceIdsInGroup(source).includes(target)
   const workspaceOrderActions = (id: string): RowOrderActions | undefined => {
     if (view.orderBy !== 'manual') return undefined
-    const index = workspaceIds.indexOf(id)
+    const groupIds = workspaceIdsInGroup(id)
+    const index = groupIds.indexOf(id)
     const move = (step: -1 | 1) => persistOrdering(current => {
       const currentOrder = orderIds(
         workspaces,
@@ -429,12 +453,12 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
         current.workspace_order,
         'manual',
       )
-      return { ...current, workspace_order: moveItemByStep(currentOrder, id, step) }
+      return { ...current, workspace_order: replaceOrderedSubset(currentOrder, moveItemByStep(workspaceIdsInGroup(id, currentOrder), id, step)) }
     })
     return {
       kind: 'workspace',
       canMoveUp: index > 0,
-      canMoveDown: index >= 0 && index < workspaceIds.length - 1,
+      canMoveDown: index >= 0 && index < groupIds.length - 1,
       moveUp: () => move(-1),
       moveDown: () => move(1),
     }
@@ -452,16 +476,21 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
       onDragOver: event => {
         const active = dragRef.current
         if (active?.kind !== 'workspace') return
+        if (!sameComputerGroup(active.source, id)) {
+          event.dataTransfer.dropEffect = 'none'
+          updateDrag({ ...active, over: null })
+          return
+        }
         event.preventDefault()
         event.dataTransfer.dropEffect = 'move'
         updateDrag({ ...active, over: { id, marker: dropAfter(event) ? 'after' : 'before' } })
       },
       onDrop: event => {
         const active = dragRef.current
-        if (active?.kind !== 'workspace') return
+        if (active?.kind !== 'workspace' || !sameComputerGroup(active.source, id)) return
         event.preventDefault()
         const after = dropAfter(event)
-        persistOrdering(current => ({ ...current, workspace_order: moveItem(workspaceIds, active.source, id, after) }))
+        persistOrdering(current => ({ ...current, workspace_order: replaceOrderedSubset(workspaceIds, moveItem(workspaceIdsInGroup(id), active.source, id, after)) }))
         updateDrag(null)
       },
       onDragEnd: () => updateDrag(null),
@@ -504,6 +533,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
       order={readOnly ? undefined : orderActions}
       readOnly={readOnly}
       depth={depth}
+      levelOffset={view.groupBy === 'computer' && !normalizedQuery && account !== UNGROUPED_WORKSPACE_ACCOUNT ? 1 : 0}
       childCount={childCount}
       childrenExpanded={childrenExpanded}
       onToggleChildren={childCount > 0
@@ -557,7 +587,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
       return tree.map(node => renderSessionNode(node, FLAT_SESSION_ORDER, rootIds))
     }
 
-    const groups: React.ReactNode[] = ordered(workspaces, workspaceIds, item => item.workspace_id).map(workspace => {
+    const renderWorkspace = (workspace: Workspace) => {
       const items = sessions.filter(session => session.workspace_id === workspace.workspace_id)
       const ids = sessionOrder(items, workspace.workspace_id)
       const all = ordered(items, ids, item => item.identity.session_id)
@@ -573,13 +603,15 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
           className={css.group}
           data-sidebar-workspace-group=""
           role="treeitem"
+          aria-level={view.groupBy === 'computer' ? 2 : 1}
           aria-expanded={isExpanded}
           key={workspace.workspace_id}
         >
           <WorkspaceRow
             workspace={workspace}
             platform={platform}
-            showPlacement={showPlacement}
+            showPlacement={showPlacement && view.groupBy !== 'computer'}
+            computerGrouped={view.groupBy === 'computer'}
             expanded={isExpanded}
             active={currentWorkspaceId === workspace.workspace_id}
             drag={readOnly ? blankDragHandlers() : workspaceDrag(workspace.workspace_id)}
@@ -621,7 +653,27 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
           )}
         </section>
       )
-    })
+    }
+    const orderedWorkspaces = ordered(workspaces, workspaceIds, item => item.workspace_id)
+    const groups: React.ReactNode[] = view.groupBy !== 'computer' ? orderedWorkspaces.map(renderWorkspace)
+      : groupWorkspacesByComputer(orderedWorkspaces).map(computer => {
+        const collapseKey = computerCollapseKey(computer.id)
+        const isExpanded = !view.collapsedComputers.includes(collapseKey)
+        const label = computer.kind === 'node' ? computer.nodeId ? t('computer.name', { name: computer.nodeId }) : t('computer.unknown')
+          : t(computer.kind === 'cloud' ? 'computer.cloud' : 'computer.local')
+        const online = computer.workspaces.some(workspace => workspace.status !== 'offline' && workspace.status !== 'error')
+        const Icon = computer.kind === 'cloud' ? Cloud : Laptop
+        return <section key={computer.id} className={css.computerGroup} data-sidebar-computer-group={computer.id} role="treeitem" aria-level={1} aria-expanded={isExpanded}>
+          <button className={css.computerHeader} type="button" data-sidebar-computer-button="" aria-expanded={isExpanded} title={label}
+            onClick={() => setView(current => ({ ...current, collapsedComputers: isExpanded ? [...current.collapsedComputers, collapseKey] : current.collapsedComputers.filter(id => id !== collapseKey) }))}>
+            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Icon size={14} />
+            <span className={css.computerTitle} data-sidebar-computer-title="">{label}</span>
+            {!online && <span className={css.computerOffline}>{workspaceT('status.offline')}</span>}
+            <span className={css.computerCount} aria-label={t('computer.workspaces', { n: computer.workspaces.length })}>{computer.workspaces.length}</span>
+          </button>
+          {isExpanded && <div className={css.computerBody} role="group">{computer.workspaces.map(renderWorkspace)}</div>}
+        </section>
+      })
     const ungrouped = ungroupedSessions(workspaces, sessions)
     if (ungrouped.length) {
       const ids = sessionOrder(ungrouped, UNGROUPED_WORKSPACE_ACCOUNT)
@@ -733,12 +785,17 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 p-2">
                 <DropdownMenuLabel>{t('groupBy.label')}</DropdownMenuLabel>
-                <DropdownMenuItem onSelect={() => setView(current => ({ ...current, groupBy: 'workspace' }))}>
+                <DropdownMenuItem onSelect={() => changeView({ ...view, groupBy: 'computer' })}>
+                  <span className="flex-1">{t('groupBy.computer')}</span>{view.groupBy === 'computer' && <Check />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => changeView({ ...view, groupBy: 'workspace' })}>
                   <span className="flex-1">{t('groupBy.workspace')}</span>{view.groupBy === 'workspace' && <Check />}
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setView(current => ({ ...current, groupBy: 'flat' }))}>
+                <DropdownMenuItem onSelect={() => changeView({ ...view, groupBy: 'flat' })}>
                   <span className="flex-1">{t('groupBy.flat')}</span>{view.groupBy === 'flat' && <Check />}
                 </DropdownMenuItem>
+                {view.groupBy === 'computer' && <DropdownMenuCheckboxItem checked={view.onlineComputersOnly}
+                  onCheckedChange={checked => changeView({ ...view, onlineComputersOnly: checked === true })}>{t('computer.onlyOnline')}</DropdownMenuCheckboxItem>}
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>{t('orderBy.label')}</DropdownMenuLabel>
                 <DropdownMenuItem onSelect={() => setView(current => ({ ...current, orderBy: 'manual' }))}>
@@ -791,13 +848,13 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
             {searchError && <div role="alert" className={css.searchError}><span>{t('search.failed', { error: searchError })}</span><button type="button" onClick={() => setSearchRetry(value => value + 1)}>{common('retry')}</button></div>}
             {!searchError && searchResults.hasMore && <p className={css.searchLimit}>{t('search.limit')}</p>}
             {normalizedQuery && !searching && !searchError && searchResults.items.length === 0 && <p className={css.empty}>{t('search.empty')}</p>}
-            {!normalizedQuery && !workspaces.length && !sessions.length && <div className={css.empty}>{t(readOnly ? 'empty.viewer' : 'empty.workspaces')}{!readOnly && <><br /><button type="button" className={css.emptyButton} onClick={() => onChooseWorkspace(true)}>{t('empty.choose')}</button></>}</div>}
+            {!normalizedQuery && !workspaces.length && !sessions.length && <div className={css.empty}>{t(view.groupBy === 'computer' && view.onlineComputersOnly ? 'empty.online' : readOnly ? 'empty.viewer' : 'empty.workspaces')}{!readOnly && <><br /><button type="button" className={css.emptyButton} onClick={() => onChooseWorkspace(true)}>{t('empty.choose')}</button></>}</div>}
           </div>
         )}
         {wide && <span className={css.fade} />}
       </div>
 
-      {openArchiveScope === archiveScope && !authRequired && <SessionArchiveDialog key={archiveScope} tenantId={currentTenantId} platform={platform} readOnly={readOnly} workspaces={workspaces} onClose={() => setOpenArchiveScope(null)} onRestored={refresh} />}
+      {openArchiveScope === archiveScope && !authRequired && <SessionArchiveDialog key={`${archiveScope}:${view.groupBy}:${view.onlineComputersOnly}`} tenantId={currentTenantId} platform={platform} readOnly={readOnly} workspaces={workspaces} onlineComputersOnly={view.groupBy === 'computer' && view.onlineComputersOnly} onClose={() => setOpenArchiveScope(null)} onRestored={refresh} />}
       {sharingTarget && <ResourceSharingDialog key={`${sharingTarget.kind}:${sharingTarget.id}`} target={sharingTarget} onClose={() => setSharingTarget(null)} onChanged={refresh} />}
       {!readOnly && <SessionRenameDialog session={renameTarget} onOpenChange={open => { if (!open) setRenameTarget(null) }} onRename={confirmSessionRename} />}
       {!readOnly && <WorkspaceRenameDialog

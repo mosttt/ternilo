@@ -93,8 +93,8 @@ test('OIDC explains insecure or mismatched origins and preserves native recovery
     config.public_url = 'https://0.0.0.0:4321'
     await writeFile(configPath, JSON.stringify(config), { mode: 0o600 })
     const cleanEnvironment = Object.fromEntries(Object.keys(process.env).filter(key => key.startsWith('TERNILO_')).map(key => [key, undefined]))
-    await execute(binary, ['admin', 'reset-authentication', '--config', configPath], { cwd: repository, env: { ...process.env, ...cleanEnvironment } })
-    application = startProcess(binary, ['serve', '--config', configPath], cleanEnvironment)
+    await execute(binary, ['admin', 'reset-authentication', '--config-dir', path.dirname(configPath)], { cwd: repository, env: { ...process.env, ...cleanEnvironment } })
+    application = startProcess(binary, ['serve', '--config-dir', path.dirname(configPath)], cleanEnvironment)
     await waitForHttp(`${origin}/readyz`, application)
     const metadata = await (await fetch(`${origin}/auth/config`)).json()
     assert.equal(metadata.oidc_enabled, false)

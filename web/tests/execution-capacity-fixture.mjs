@@ -163,10 +163,10 @@ export async function workerProxy(origin) {
 async function startCapacityWorker(directory, proxy, credential, active, resident) {
   const binary = process.env.TERNILO_CLOUD_E2E_WORKER_BINARY ?? path.join(repository, 'target/debug/ternilo-worker')
   const config = path.join(directory, `${credential.worker_id}.json`)
-  await execute(binary, ['init', '--config', config, '--server-url', proxy.url, '--workspace-root', path.join(directory, 'workspaces'),
+  await execute(binary, ['init', '--config-dir', path.dirname(config), '--server-url', proxy.url, '--workspace-root', path.join(directory, 'workspaces'),
     '--sandbox', 'bubblewrap', '--health-listen', '127.0.0.1:0', '--poll-interval-ms', '50', '--max-active-runs', String(active), '--max-resident-runs', String(resident)],
   { cwd: repository, env: { ...process.env, TERNILO_WORKER_TOKEN: credential.token } })
-  const worker = startProcess(binary, ['serve', '--config', config])
+  const worker = startProcess(binary, ['serve', '--config-dir', path.dirname(config)])
   try {
     await until(() => worker.diagnostics(), text => /Ternilo cloud worker .* ready/.test(text), 'real Bubblewrap Worker ready')
     assert.equal(JSON.parse(await readFile(config)).sandbox, 'bubblewrap')

@@ -14,7 +14,7 @@ const environment = Object.fromEntries(Object.entries(process.env).filter(([key]
 const replacement = ' recovered owner password '
 
 function resetPassword(config, username, password, fromStdin = true) {
-  const result = execute(binary, ['admin', 'reset-password', '--config', config, '--username', username,
+  const result = execute(binary, ['admin', 'reset-password', '--config-dir', path.dirname(config), '--username', username,
     ...(fromStdin ? ['--password-stdin'] : [])], { cwd: repository, env: environment, timeout: 30_000 })
   result.child.stdin.end(`${password}\r\n`)
   return result

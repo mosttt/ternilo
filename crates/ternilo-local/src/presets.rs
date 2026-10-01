@@ -46,7 +46,7 @@ pub struct LocalAgentPresets {
 
 impl LocalAgentPresets {
     pub async fn open(data_root: PathBuf) -> Result<Arc<Self>, HarnessError> {
-        let path = data_root.join("agent-presets.json");
+        let path = data_root.join("config/agent-presets.json");
         let document = match tokio::fs::read(&path).await {
             Ok(bytes) => serde_json::from_slice::<PresetDocument>(&bytes).map_err(|error| {
                 HarnessError::execution(format!("parse {}: {error}", path.display()))

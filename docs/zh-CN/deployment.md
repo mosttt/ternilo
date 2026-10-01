@@ -30,7 +30,7 @@ cd "$HOME/ternilo-server"
 
 `init` 调用镜像里的真实 `ternilo-server init`，默认建立 SQLite、生成密钥并输出一次性管理员设置链接。打开链接填写用户名、邮箱和密码；链接中的 token 只放在 URL fragment，初始化完成即失效。随后使用用户名和密码登录。重复运行 `init` 保留已有配置与数据。
 
-初始化只创建独立的 Compose 项目和数据卷，不启动常驻服务。目录中的 `.env` 保存镜像版本、端口和公开 URL；真正的 `server.json` 保存在该项目的 `server-data` 卷中，Unix 权限为 0600。不同部署默认分配不同项目名，不会因为同在一台服务器就共用数据。
+初始化只创建独立的 Compose 项目和数据卷，不启动常驻服务。目录中的 `.env` 保存镜像版本、端口和公开 URL；真正的 `config.json` 保存在该项目的 `server-data` 卷中，Unix 权限为 0600。不同部署默认分配不同项目名，不会因为同在一台服务器就共用数据。
 
 首次也可用 `TERNILO_SERVER_OWNER_USERNAME`、`TERNILO_SERVER_OWNER_EMAIL`、`TERNILO_SERVER_OWNER_PASSWORD` 环境变量建立管理员；三个值需要一起提供。密码优先使用隐藏输入，避免把实际密码写进命令历史；这些变量只传给初始化进程，不写入 `.env`。不提供账号时直接使用上述网页设置流程。
 
@@ -67,7 +67,7 @@ python3 deploy/docker/ternilo-deploy init \
 unset TERNILO_DATABASE_URL TERNILO_MIGRATION_DATABASE_URL
 ```
 
-`TERNILO_DATABASE_URL` 使用 `ternilo_app`，`TERNILO_MIGRATION_DATABASE_URL` 使用 `ternilo_owner`。PostgreSQL 地址必须能从容器访问；容器内的 `localhost` 指容器自身。数据库连接和主密钥由 `server.json` 持久保存；启动后使用模式仍可自由切换。数据库种类不决定用户数或托管执行能力。
+`TERNILO_DATABASE_URL` 使用 `ternilo_app`，`TERNILO_MIGRATION_DATABASE_URL` 使用 `ternilo_owner`。PostgreSQL 地址必须能从容器访问；容器内的 `localhost` 指容器自身。数据库连接和主密钥由 `config.json` 持久保存；启动后使用模式仍可自由切换。数据库种类不决定用户数或托管执行能力。
 
 ### 反向代理与 TLS
 
@@ -168,7 +168,7 @@ pg_dump --format=custom --file=database.dump
 只需要一份在线一致的 SQLite 数据库副本时，可使用：
 
 ```bash
-ternilo-server admin backup-sqlite --config /path/to/server.json \
+ternilo-server admin backup-sqlite --config-dir /path/to \
   --output /private/backups/server-snapshot.sqlite3
 ```
 
@@ -214,7 +214,7 @@ PostgreSQL 恢复先从备份提取 `database.dump`，用 `pg_restore --exit-on-
 ./ternilo-deploy up
 ```
 
-工具先在同一私有卷保存并同步落盘 `server.next.json`，再调用 `ternilo-server admin rotate-secret-master-key`；成功后原子替换并同步当前配置。默认生成随机密钥，也可提供 `TERNILO_NEXT_SECRET_MASTER_KEY`。如果轮换中断，`up` 和普通备份会拒绝继续；保持停止并保留新旧配置，检查数据库实际状态后恢复，不要直接删除下一把密钥。旧备份必须继续与其原密钥一起保存。
+工具先在同一私有卷保存并同步落盘 `config.next.json`，再调用 `ternilo-server admin rotate-secret-master-key`；成功后原子替换并同步当前配置。默认生成随机密钥，也可提供 `TERNILO_NEXT_SECRET_MASTER_KEY`。如果轮换中断，`up` 和普通备份会拒绝继续；保持停止并保留新旧配置，检查数据库实际状态后恢复，不要直接删除下一把密钥。旧备份必须继续与其原密钥一起保存。
 
 ### 轮换数据库密码
 
@@ -228,7 +228,7 @@ export TERNILO_RUNTIME_DB_PASSWORD_NEXT TERNILO_MIGRATOR_DB_PASSWORD_NEXT
 unset TERNILO_RUNTIME_DB_PASSWORD_NEXT TERNILO_MIGRATOR_DB_PASSWORD_NEXT
 ```
 
-运行前先保存匹配的备份。维护接口需要平台管理身份；交互运行可隐藏输入管理员密码，自动化可提供 `TERNILO_SERVER_ACCESS_TOKEN`。数据库账号必须有修改相应角色密码的权限。失败时 Server 保持停止，保留 `server.json` 和待确认的 `server.next.json`，先确认数据库事务结果，再处理配置；不要直接删除候选文件继续启动。
+运行前先保存匹配的备份。维护接口需要平台管理身份；交互运行可隐藏输入管理员密码，自动化可提供 `TERNILO_SERVER_ACCESS_TOKEN`。数据库账号必须有修改相应角色密码的权限。失败时 Server 保持停止，保留 `config.json` 和待确认的 `config.next.json`，先确认数据库事务结果，再处理配置；不要直接删除候选文件继续启动。
 
 ### 更新与轮换模型 Key
 
@@ -273,13 +273,13 @@ ternilo-server init
 ternilo-server serve
 ```
 
-终端向导默认 SQLite，可以选择 PostgreSQL，并隐藏输入连接串及管理员密码。默认配置位于 `$XDG_DATA_HOME/ternilo-server/server.json`，未设置 XDG 时为 `$HOME/.local/share/ternilo-server/server.json`。无子命令也会启动服务。自动化可使用 `--non-interactive`、`--config` 及 `ternilo-server init --help`／`serve --help` 中对应的固定环境变量。
+终端向导默认 SQLite，可以选择 PostgreSQL，并隐藏输入连接串及管理员密码。默认配置位于 `$XDG_DATA_HOME/ternilo-server/config.json`，未设置 XDG 时为 `$HOME/.local/share/ternilo-server/config.json`。无子命令也会启动服务。自动化可使用 `--non-interactive`、`--config-dir` 及 `ternilo-server init --help`／`serve --help` 中对应的固定环境变量。
 
-`--config` 指配置文件，`--database-url` 指实际数据库。初始化时省略数据库地址，SQLite 默认使用配置文件同目录、同主文件名的 `.sqlite3` 文件：例如 `init --config g` 使用 `g.sqlite3`，`init --config server.json` 使用 `server.sqlite3`；终端会先显示该路径。初始化时指定 `--database-url` 会覆盖默认位置，并把连接地址写入配置。
+`--config-dir` 指整个实例目录，固定读取其中的 `config.json`；环境变量为 `TERNILO_SERVER_CONFIG_DIR`。`--database-url` 指实际数据库。初始化省略数据库地址时，默认 SQLite 为实例下的 `data/db/server.sqlite3`。显式数据库地址会保存到总配置。
 
 直接运行二进制初始化时，管理员邮箱可通过 `--owner-email` 或 `TERNILO_SERVER_OWNER_EMAIL` 提供；交互初始化会询问用户名、邮箱和密码。非交互模式不提供任何管理员信息时，仍使用一次性网页初始化链接。
 
-以后 `serve --config g` 读取配置中保存的连接，不需要再次指定数据库地址；启动时传入 `--database-url` 或环境变量 `TERNILO_DATABASE_URL` 可以临时覆盖它，不会改写配置。配置、数据库和原有数据不会因换一个配置文件名而自动迁移或清空。
+以后 `serve --config-dir ./server` 读取总配置中保存的连接，不需要再次指定数据库地址；启动时传入 `--database-url` 或环境变量 `TERNILO_DATABASE_URL` 可以临时覆盖它，不会改写配置。选择另一实例目录不会改动原实例数据。
 
 长期运行交由 systemd 或你的服务管理器，使用独立的服务账号和相同配置路径。服务监听及公开 URL 分别由 `--listen`／`TERNILO_SERVER_LISTEN`、`--public-url`／`TERNILO_SERVER_PUBLIC_URL` 设置。可选 OIDC 和托管执行配置保留独立参数；更完整的软件分层见[架构说明](architecture.md)。
 

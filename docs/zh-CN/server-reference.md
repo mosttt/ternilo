@@ -17,18 +17,18 @@ Server 只提供 HTTP upstream，Ternilo 不内置 HTTPS/TLS、ACME、证书或�
 
 DNS、公开 HTTPS、TLS 策略、ACME、证书生命周期和入口流量策略均由外部 gateway 或负载均衡器负责。它必须保留流式响应的即时刷新，并支持 `/api/v1/live` 和 `/api/v1/executors/connect` 的 WebSocket Upgrade。Control 的 `public_url` 保持外部 HTTPS origin；Web 与 Node 使用同一公开 origin 派生或取得 WSS 地址，而不是使用内部 HTTP 监听地址。
 
-Server 配置保存在私有 `server.json`，`TERNILO_SERVER_*` 与显式 CLI 可覆盖对应字段，CLI 优先。数据库和密钥仍使用 `TERNILO_DATABASE_URL`、`TERNILO_MIGRATION_DATABASE_URL`、`TERNILO_SECRET_MASTER_KEY`；离线轮换另外接收 `TERNILO_NEXT_SECRET_MASTER_KEY`。WorkerPolicy 只保存执行上限，平台模型及其凭据通过独立管理 API 保存；两者均独立于账号模式。完整流程见[部署文档](deployment.md)。
+Server 配置保存在私有 `config.json`，`TERNILO_SERVER_*` 与显式 CLI 可覆盖对应字段，CLI 优先。数据库和密钥仍使用 `TERNILO_DATABASE_URL`、`TERNILO_MIGRATION_DATABASE_URL`、`TERNILO_SECRET_MASTER_KEY`；离线轮换另外接收 `TERNILO_NEXT_SECRET_MASTER_KEY`。WorkerPolicy 只保存执行上限，平台模型及其凭据通过独立管理 API 保存；两者均独立于账号模式。完整流程见[部署文档](deployment.md)。
 
 ## 原生 Server 备份与恢复
 
 直接运行二进制的安装与首次初始化见[非容器部署](deployment.md#非容器部署)。已有实例恢复时沿用备份中的配置和主密钥，不要重新运行 `init` 创建另一套身份或密钥。
 
-完整备份前正常停止 Server，保存私有配置、实际数据库和持久文件。默认 SQLite 数据库与 `server.json` 同目录，但 `database_url`、`workspace_root` 或外部 WorkerPolicy 可以指向其他位置；仅保存配置目录不能保证包含这些外部数据。数据库地址或主密钥由环境变量覆盖时，也要安全保存实际使用的环境配置。PostgreSQL 需要另外保存一致的数据库转储。连接电脑与 Worker 的文件也需分别备份，见[本地数据与备份](getting-started.md#5-数据与备份)及[Worker 备份与恢复](worker.md#备份与恢复)。
+完整备份前正常停止 Server，保存私有配置、实际数据库和持久文件。默认 SQLite 数据库位于实例目录的 `data/db/` 下，但 `database_url`、`workspace_root` 或外部 WorkerPolicy 可以指向其他位置；仅保存配置目录不能保证包含这些外部数据。数据库地址或主密钥由环境变量覆盖时，也要安全保存实际使用的环境配置。PostgreSQL 需要另外保存一致的数据库转储。连接电脑与 Worker 的文件也需分别备份，见[本地数据与备份](getting-started.md#5-数据与备份)及[Worker 备份与恢复](worker.md#备份与恢复)。
 
 SQLite 也可在线生成一致的数据库快照：
 
 ```bash
-ternilo-server admin backup-sqlite --config /path/to/server.json \
+ternilo-server admin backup-sqlite --config-dir /path/to \
   --output /private/backups/server-snapshot.sqlite3
 ```
 
@@ -38,7 +38,7 @@ ternilo-server admin backup-sqlite --config /path/to/server.json \
 
 1. 使用与备份匹配的程序，在新的空目录恢复。完整停机目录备份应整体还原；在线快照则单独复制到新的数据库路径，不要与另一份数据库留下的 `-wal`、`-shm` 文件混用。
 2. 保留原 `secret_master_key`，核对复制后配置的 `database_url`、`migration_database_url`、`workspace_root` 和外部策略路径。配置保存的绝对路径不会随目录复制自动迁移；更换端口或公开地址时，也要调整 `listen` 和 `public_url`。
-3. 保存恢复后的配置，再用 `ternilo-server serve --config /path/to/restored/server.json` 启动。也可用 CLI 或环境变量覆盖路径，但覆盖只对本次启动生效，后续服务管理器启动时必须继续提供。
+3. 保存恢复后的配置，再用 `ternilo-server serve --config-dir /path/to/restored` 启动。也可用 CLI 或环境变量覆盖路径，但覆盖只对本次启动生效，后续服务管理器启动时必须继续提供。
 4. 用原账号重新登录，确认模型配置和已保存凭据可用；恢复 Node 的启动配置，确认电脑在线、工作区及历史一致，并实际验证远程文件读取或任务。
 
 若数据库来自在线快照，可能仍保存着旧 Server 的连接租约，Node 在租约失效前会暂时无法接入。此时历史仍可能从缓存显示，但目标电脑的模型、插件或目录请求会返回 `503`。等待 Node 重新连接并确认在线后重试；不要把首页或历史可见当作恢复完成，也不要据此清空机器记录或重新生成主密钥。

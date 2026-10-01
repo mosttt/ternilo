@@ -32,6 +32,13 @@ use super::{
 
 const EDGE_SEARCH_TIMEOUT: Duration = Duration::from_secs(2);
 
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WorkbenchQuery {
+    #[serde(default)]
+    pub(crate) online_computers_only: bool,
+}
+
 #[handler]
 pub(crate) async fn execution_targets(
     request: &mut Request,
@@ -219,30 +226,59 @@ pub(crate) async fn load_state(
     user: &ControlUser,
     tenant_id: &TenantId,
 ) -> Result<WorkbenchState, HarnessError> {
-    load_state_by_archive(state, user, tenant_id, false).await
+    load_state_by_archive(state, user, tenant_id, false, false).await
+}
+
+pub(crate) async fn load_state_filtered(
+    state: &AppState,
+    user: &ControlUser,
+    tenant_id: &TenantId,
+    online_only: bool,
+) -> Result<WorkbenchState, HarnessError> {
+    load_state_by_archive(state, user, tenant_id, false, online_only).await
 }
 
 pub(super) async fn load_archived_sessions(
     state: &AppState,
     user: &ControlUser,
     tenant_id: &TenantId,
+    online_only: bool,
 ) -> Result<Vec<WorkbenchSession>, HarnessError> {
-    Ok(load_state_by_archive(state, user, tenant_id, true)
-        .await?
-        .sessions)
+    Ok(
+        load_state_by_archive(state, user, tenant_id, true, online_only)
+            .await?
+            .sessions,
+    )
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep filtered discovery, current access and both session projections in one authorization flow."
+)]
 async fn load_state_by_archive(
     state: &AppState,
     user: &ControlUser,
     tenant_id: &TenantId,
     archived: bool,
+    online_only: bool,
 ) -> Result<WorkbenchState, HarnessError> {
-    super::discovery::discover(state, user, tenant_id).await?;
-    let records = state
-        .store
-        .list_accessible_workspaces(user, tenant_id)
-        .await?;
+    let online = if online_only {
+        Some(state.edge.online_executor_ids(tenant_id).await?)
+    } else {
+        None
+    };
+    super::discovery::discover(state, user, tenant_id, online.as_deref()).await?;
+    let records = if let Some(ids) = &online {
+        state
+            .store
+            .list_accessible_workspaces_on_executors(user, tenant_id, ids)
+            .await?
+    } else {
+        state
+            .store
+            .list_accessible_workspaces(user, tenant_id)
+            .await?
+    };
     let mut workspaces = Vec::with_capacity(records.len());
     let mut paths = BTreeMap::new();
     for record in records {
@@ -283,19 +319,26 @@ async fn load_state_by_archive(
             .unwrap_or_else(|| "云端 / 未分组".to_owned());
         WorkbenchSession::cloud(session, path)
     });
-    let edge = state
-        .store
-        .list_accessible_edge_sessions(user, tenant_id)
-        .await?
-        .into_iter()
-        .filter(|session| session.metadata.archived_at_ms.is_some() == archived)
-        .map(|session| {
-            let path = paths
-                .get(&session.workspace_id)
-                .cloned()
-                .unwrap_or_else(|| "此电脑 / 未分组".to_owned());
-            WorkbenchSession::edge(session, path)
-        });
+    let edge = if let Some(ids) = &online {
+        state
+            .store
+            .list_accessible_edge_sessions_on_executors(user, tenant_id, ids)
+            .await?
+    } else {
+        state
+            .store
+            .list_accessible_edge_sessions(user, tenant_id)
+            .await?
+    }
+    .into_iter()
+    .filter(|session| session.metadata.archived_at_ms.is_some() == archived)
+    .map(|session| {
+        let path = paths
+            .get(&session.workspace_id)
+            .cloned()
+            .unwrap_or_else(|| "此电脑 / 未分组".to_owned());
+        WorkbenchSession::edge(session, path)
+    });
     let mut sessions = cloud.chain(edge).collect::<Vec<_>>();
     for session in &mut sessions {
         session.access = Some(
@@ -339,8 +382,17 @@ pub(crate) async fn workbench_state(
     depot: &mut Depot,
 ) -> Result<Json<WorkbenchState>, ApiError> {
     let tenant_id = tenant_parameter(request)?;
+    let query = request
+        .parse_queries::<WorkbenchQuery>()
+        .map_err(invalid_request)?;
     Ok(Json(
-        load_state(app_state(depot), actor(depot), &tenant_id).await?,
+        load_state_filtered(
+            app_state(depot),
+            actor(depot),
+            &tenant_id,
+            query.online_computers_only,
+        )
+        .await?,
     ))
 }
 
@@ -412,7 +464,7 @@ pub(crate) async fn search_sessions(
     };
     let state = app_state(depot);
     let user = actor(depot);
-    let sessions = load_state(state, user, &tenant_id)
+    let sessions = load_state_filtered(state, user, &tenant_id, query.online_computers_only)
         .await?
         .sessions
         .into_iter()
@@ -680,6 +732,7 @@ mod tests {
         let (_, limit) = normalize_search_query(&SearchQuery {
             query: "🦀".repeat(250),
             limit: Some(500),
+            online_computers_only: false,
         })
         .unwrap()
         .unwrap();
@@ -688,6 +741,7 @@ mod tests {
             normalize_search_query(&SearchQuery {
                 query: "🦀".repeat(251),
                 limit: None,
+                online_computers_only: false,
             })
             .is_err()
         );

@@ -454,6 +454,23 @@ impl LocalApplication {
     }
 
     pub async fn cancel_turn(&self, session_id: &str, run_id: &str) -> Result<(), HarnessError> {
+        self.cancel_turn_inner(session_id, run_id, true).await
+    }
+
+    pub(super) async fn cancel_turn_for_queue_restart(
+        &self,
+        session_id: &str,
+        run_id: &str,
+    ) -> Result<(), HarnessError> {
+        self.cancel_turn_inner(session_id, run_id, false).await
+    }
+
+    async fn cancel_turn_inner(
+        &self,
+        session_id: &str,
+        run_id: &str,
+        park_queue: bool,
+    ) -> Result<(), HarnessError> {
         let run_id = RunId::new(run_id);
         run_id.validate()?;
         let managed = self
@@ -468,12 +485,15 @@ impl LocalApplication {
                 ))
             })?;
         let active = managed.harness.active_run().await.as_ref() == Some(&run_id);
-        if active {
+        if active && park_queue {
             // Park the durable FIFO before signalling cancellation so a waiting
             // driver cannot acquire the released turn gate and consume an item.
             self.inbox.pause(session_id).await?;
         }
         managed.harness.cancel(run_id).await?;
+        if !active && park_queue {
+            self.inbox.pause(session_id).await?;
+        }
         self.interaction.cancel_session(session_id).await;
         self.invalidate(
             Some(session_id),

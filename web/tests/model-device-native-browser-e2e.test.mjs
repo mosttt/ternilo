@@ -82,7 +82,7 @@ for (const protocol of ['google-gemini', 'anthropic-messages']) {
       assert.equal(ledger.filter(record => record.source === 'user_provider').length, 2)
       assert.ok(ledger.every(record => record.origin === 'client_device' && record.key_id === deviceId && record.accounted_tokens === 65))
       assert.equal((await owner('/execution-targets')).executors.length, 0)
-      assert.equal((await readFile(path.join(data, 'model-connections.json'), 'utf8')).includes(upstream.apiKey), false)
+      assert.equal((await readFile(path.join(data, 'secrets/model-connections.json'), 'utf8')).includes(upstream.apiKey), false)
       assert.deepEqual(errors, [])
     } catch (error) {
       await local?.screenshot({ path: path.join(artifacts, `${protocol}-device-failure.png`) }).catch(() => {})

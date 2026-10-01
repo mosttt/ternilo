@@ -40,14 +40,14 @@ test('matched PostgreSQL dump and Server configuration retain restricted-runtime
     const migrationUrl = `postgres://restore_owner:${ownerPassword}@127.0.0.1:${port}/source`
     model = await upstream('postgres-restore-proof', 'synthetic-pg-restore-key')
     const origin = `http://127.0.0.1:${await freePort()}`, nodeOrigin = `http://127.0.0.1:${await freePort()}`
-    const originalData = path.join(directory, 'server'), config = path.join(originalData, 'server.json')
+    const originalData = path.join(directory, 'server'), config = path.join(originalData, 'config.json')
     const credentials = { username: 'restore-owner', password: 'synthetic-restore-password' }
-    await execute(serverBinary, ['init', '--non-interactive', '--config', config, '--listen', new URL(origin).host, '--public-url', origin], {
+    await execute(serverBinary, ['init', '--non-interactive', '--config-dir', path.dirname(config), '--listen', new URL(origin).host, '--public-url', origin], {
       ...runtime, env: { ...environment, TERNILO_DATABASE_URL: databaseUrl('source'), TERNILO_MIGRATION_DATABASE_URL: migrationUrl,
         TERNILO_SERVER_OWNER_USERNAME: credentials.username, TERNILO_SERVER_OWNER_PASSWORD: credentials.password, TERNILO_SERVER_OWNER_EMAIL: 'restore-owner@example.test' },
     })
     const configuration = await readFile(config)
-    const server = await serve(serverBinary, ['serve', '--config', config], environment, directory, `${origin}/readyz`, processes)
+    const server = await serve(serverBinary, ['serve', '--config-dir', path.dirname(config)], environment, directory, `${origin}/readyz`, processes)
     const login = await serverRequest(origin, '/auth/login', { body: credentials })
     const request = (resource, options = {}) => serverRequest(origin, resource, { token: login.access_token, tenantId: login.personal_tenant_id, ...options })
     await request('/admin/instance', { method: 'PATCH', body: { mode: 'multi_user', revision: login.instance.revision } })
@@ -109,8 +109,8 @@ test('matched PostgreSQL dump and Server configuration retain restricted-runtime
     await rename(originalData, `${originalData}-offline`); await rename(nodeData, `${nodeData}-offline`)
     const restoredData = path.join(directory, 'restored-server'), restoredLocal = path.join(directory, 'restored-local')
     await extractDirectory(backup, restoredData, environment); await extractDirectory(localBackup, restoredLocal, environment)
-    assert.deepEqual(await readFile(path.join(restoredData, 'server.json')), configuration)
-    const restoredServer = await serve(serverBinary, ['serve', '--config', path.join(restoredData, 'server.json'), '--database-url', databaseUrl('restored'), '--workspace-root', path.join(restoredData, 'workspaces')], environment, directory, `${origin}/readyz`, processes)
+    assert.deepEqual(await readFile(path.join(restoredData, 'config.json')), configuration)
+    const restoredServer = await serve(serverBinary, ['serve', '--config-dir', path.dirname(path.join(restoredData, 'config.json')), '--database-url', databaseUrl('restored'), '--workspace-root', path.join(restoredData, 'workspaces')], environment, directory, `${origin}/readyz`, processes)
     const restoredIdentity = await serverRequest(origin, '/auth/login', { body: credentials })
     assert.equal(restoredIdentity.user.user_id, login.user.user_id)
     const owner = (resource, options = {}) => serverRequest(origin, resource, { token: restoredIdentity.access_token, tenantId: restoredIdentity.personal_tenant_id, ...options })

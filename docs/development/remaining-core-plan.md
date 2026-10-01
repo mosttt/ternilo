@@ -36,4 +36,4 @@
 
 ## 后续 P2
 
-项目共享继承和 Server 远程 SDK 已完成。[账号命令投递](account-command-revocation.md)禁止停用后旧输入重放；托管运行取消按当前执行授权账号处理。[Node 清理](node-account-cleanup.md)已实现持久撤销、启动授权屏障、选择性执行收尾及实际完成回执。[跨 Server 共享权限通知](resource-notifications.md)已通过双库和双 Server 浏览器验收。[资源管理权交接](resource-ownership.md)已实现，SQLite／Server HTTP／前端回归通过，真实浏览器与 PostgreSQL 验收待环境允许后完成，尚未发布。下一项为跨实例 Node 命令路由与实时事件，须保持秘密只在线传递和未知副作用不自动重放。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。
+项目共享继承和 Server 远程 SDK 已完成。[账号命令投递](account-command-revocation.md)禁止停用后旧输入重放；托管运行取消按当前执行授权账号处理。[Node 清理](node-account-cleanup.md)已实现持久撤销、启动授权屏障、选择性执行收尾及实际完成回执。[跨 Server 共享权限通知](resource-notifications.md)已通过双库和双 Server 浏览器验收。[资源管理权交接](resource-ownership.md)已实现，SQLite／Server HTTP／前端回归通过，真实浏览器与 PostgreSQL 验收待环境允许后完成，尚未发布。[跨实例 Node 路由](server-node-routing.md)源码已实现，定向 HTTP／SQLite 验证通过，实际 TCP／浏览器和 PostgreSQL 验收待完成。当前优先完成[工作台性能与目录分类](workbench-performance-and-layout.md)，包含按电脑分组及在线资源按需加载、会话切换缓存、完整轮次补读、目标手动启用和停止并发送的快速确认。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。

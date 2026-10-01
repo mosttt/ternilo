@@ -45,3 +45,5 @@ Desktop 安装器暂未签名／公证，自动更新关闭；Server 镜像提�
 2. 跨 Server 共享权限通知已完成，Node 连接持有者的命令转发与实时事件同步仍需实现；当前按单 Server 部署。
 
 Work 保留持久资源 ID、宿主节点、版本化执行接口和授权边界的设计；不增加当前闭环不需要的容器调度、空页面或占位程序。具体约束见[Work 资源与执行边界](execution-coordination.md)。
+
+2026-10-01：正在落实[工作台性能与配置目录](workbench-performance-and-layout.md)。功能优先；本阶段完成后再推进 GitHub 验收和发行。

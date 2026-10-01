@@ -6,7 +6,7 @@ An Agent preset selects a reusable capability configuration. Standard exposes th
 
 Code Mode uses Rhai to compose registered capabilities in a script. It is an orchestration interface, not unrestricted access to the host. Tool arguments, workspace permissions, approvals and execution limits still apply. Skills supply reusable task guidance and can be provided by extensions. Loading guidance does not authorize a forbidden filesystem or process operation.
 
-Plans and todo lists describe work; goals track explicit execution objectives. A displayed plan is not evidence that actions have completed. Keep progress and completion tied to durable task results, especially after cancellation or reconnects.
+Plans and todo lists describe work; goals track explicit execution objectives. Goals are disabled until the user sets one through `/goal` or the goal interface. Ordinary conversations cannot start goals. Until enabled, `update_goal` is absent from model and Code Mode catalogs and rejected by execution. Models cannot reactivate completed or blocked goals; the user must explicitly resume them. A displayed plan is not evidence that actions have completed. Keep progress and completion tied to durable task results, especially after cancellation or reconnects.
 
 ## Subagents and background work
 

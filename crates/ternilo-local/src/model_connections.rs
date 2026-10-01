@@ -62,7 +62,7 @@ pub struct LocalModelConnections {
 
 impl LocalModelConnections {
     pub async fn open(root: PathBuf) -> Result<Arc<Self>, HarnessError> {
-        let path = root.join("model-connections.json");
+        let path = root.join("secrets/model-connections.json");
         let entries = match tokio::fs::read(&path).await {
             Ok(bytes) => serde_json::from_slice::<BTreeMap<String, ModelConnection>>(&bytes)
                 .map_err(|error| {

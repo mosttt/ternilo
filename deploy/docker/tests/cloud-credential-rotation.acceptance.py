@@ -98,7 +98,7 @@ def acceptance(backend):
         return json.loads(compose(server_dir, "config", "--format", "json").stdout)["volumes"]["server-data"]["name"]
 
     def contract_command(function, key=None):
-        config = json.loads(server_read("server.json"))
+        config = json.loads(server_read("config.json"))
         environment = {
             "TERNILO_ROTATION_RUNTIME_DATABASE_URL": config["database_url"],
             "TERNILO_ROTATION_MIGRATION_DATABASE_URL": config.get("migration_database_url") or config["database_url"],
@@ -173,7 +173,7 @@ def acceptance(backend):
         helper(worker_dir, "init", "--component", "worker", "--image", WORKER_IMAGE, "--server-url", origin,
                env={"TERNILO_WORKER_TOKEN": grant["token"]})
         helper(worker_dir, "up")
-        original_worker = compose(worker_dir, "run", "--rm", "--no-deps", "--entrypoint", "cat", "worker", "/var/lib/ternilo/worker.json").stdout
+        original_worker = compose(worker_dir, "run", "--rm", "--no-deps", "--entrypoint", "cat", "worker", "/var/lib/ternilo/config.json").stdout
         assert all(value not in original_worker for value in (b"database_url", b"secret_master_key", b"model_api_key"))
         contract("seed_rotation_fixture_secret")
         profile_path = temporary / "model-provider.json"
@@ -191,13 +191,13 @@ def acceptance(backend):
         accounts = api("/admin/accounts?query=Credential%20rotation%20operator")["accounts"]
         assert len(accounts) == 1 and accounts[0]["display_name"] == "Credential rotation operator"
         model_grant_id = api("/admin/models/grants", {"name": "Rotation model budget", "subject": {"kind": "user", "id": accounts[0]["user_id"]}, "model_ids": ["rotation-model"], "monthly_tokens": 1_000_000, "max_concurrent_requests": 4, "allow_resource_sharing": False})["grant_id"]
-        original_config = server_read("server.json")
+        original_config = server_read("config.json")
         old_master = json.loads(original_config)["secret_master_key"]
         new_master = __import__("base64").b64encode(secrets.token_bytes(32)).decode()
         all_secrets += [old_master, new_master]
         failed = rotate("master-key", {"TERNILO_NEXT_SECRET_MASTER_KEY": "invalid-next-key"}, success=False)
         assert failed.returncode != 0
-        assert server_read("server.json") == original_config
+        assert server_read("config.json") == original_config
         resume_after_known_rollback()
         contract("rotation_fixture_secret_decrypts_with_configured_key", old_master)
         rotate("master-key", {"TERNILO_NEXT_SECRET_MASTER_KEY": new_master})
@@ -206,19 +206,19 @@ def acceptance(backend):
         print(f"PASS {backend}: invalid master key left original data intact; new key decrypts and old key is rejected", flush=True)
 
         if backend == "postgres":
-            database_config = server_read("server.json")
+            database_config = server_read("config.json")
             postgres_sql("ALTER ROLE ternilo_app RENAME TO ternilo_app_rotation_missing")
             failed = rotate("database-passwords", {"TERNILO_RUNTIME_DB_PASSWORD_NEXT": new_runtime,
                             "TERNILO_MIGRATOR_DB_PASSWORD_NEXT": new_migrator}, success=False)
             assert failed.returncode != 0
-            assert server_read("server.json") == database_config
+            assert server_read("config.json") == database_config
             postgres_sql("ALTER ROLE ternilo_app_rotation_missing RENAME TO ternilo_app")
             assert_login("ternilo_migrator", old_migrator, True)
             assert_login("ternilo_migrator", new_migrator, False)
             assert_login("ternilo_app", old_runtime, True)
             assert_login("ternilo_app", new_runtime, False)
             # The deliberate SQL failure and successful old-password logins prove rollback before removing its candidate.
-            private_server_command("rm /var/lib/ternilo/server.next.json")
+            private_server_command("rm /var/lib/ternilo/config.next.json")
             resume_after_known_rollback()
             rotate("database-passwords", {"TERNILO_RUNTIME_DB_PASSWORD_NEXT": new_runtime,
                    "TERNILO_MIGRATOR_DB_PASSWORD_NEXT": new_migrator})
@@ -226,7 +226,7 @@ def acceptance(backend):
             assert_login("ternilo_app", old_runtime, False)
             assert_login("ternilo_migrator", new_migrator, True)
             assert_login("ternilo_app", new_runtime, True)
-            config = json.loads(server_read("server.json"))
+            config = json.loads(server_read("config.json"))
             assert quote(new_runtime, safe="") in config["database_url"]
             assert quote(new_migrator, safe="") in config["migration_database_url"]
             print("PASS postgres: both role changes rolled back on SQL failure; new encoded passwords work after promotion", flush=True)
@@ -241,7 +241,7 @@ def acceptance(backend):
         rotate("model-key", {"TERNILO_MODEL_API_KEY_NEXT": new_model}, canary=True)
         assert api("/admin/models/providers/rotation/key-rotation")["rotation"] is None
         contract("rotated_stack_executes_authoritative_model_canary")
-        assert compose(worker_dir, "run", "--rm", "--no-deps", "--entrypoint", "cat", "worker", "/var/lib/ternilo/worker.json").stdout == original_worker
+        assert compose(worker_dir, "run", "--rm", "--no-deps", "--entrypoint", "cat", "worker", "/var/lib/ternilo/config.json").stdout == original_worker
         with urlopen(model_origin + "/stats") as response:
             stats = json.load(response)
         assert stats["accepted"] >= 3 and stats["rejected"] >= 1, stats

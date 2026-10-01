@@ -21,7 +21,10 @@ use tokio::{
 use crate::platform::{
     edge::EdgeLiveNotification,
     state::{AppState, app_state},
-    workbench::{CloudAdapter, EdgeAdapter, PlacementResolver, SessionTarget, load_state},
+    workbench::{
+        CloudAdapter, EdgeAdapter, PlacementResolver, SessionTarget, WorkbenchQuery,
+        load_state_filtered,
+    },
 };
 
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
@@ -54,8 +57,17 @@ fn classify_incoming(message: &Message) -> IncomingLiveMessage<'_> {
 #[handler]
 pub(crate) async fn upgrade(request: &mut Request, depot: &mut Depot, response: &mut Response) {
     let state = app_state(depot).clone();
+    let query = match request.parse_queries::<WorkbenchQuery>() {
+        Ok(query) => query,
+        Err(error) => {
+            response.render(super::http::invalid_request(error));
+            return;
+        }
+    };
     if let Err(error) = WebSocketUpgrade::new()
-        .upgrade(request, response, move |socket| serve(state, socket))
+        .upgrade(request, response, move |socket| {
+            serve(state, socket, query.online_computers_only)
+        })
         .await
     {
         response.render(error);
@@ -66,7 +78,7 @@ pub(crate) async fn upgrade(request: &mut Request, depot: &mut Depot, response: 
     clippy::too_many_lines,
     reason = "Keep authentication and subscription cleanup in one connection lifecycle."
 )]
-async fn serve(state: AppState, mut socket: WebSocket) {
+async fn serve(state: AppState, mut socket: WebSocket, online_only: bool) {
     let mut shutdown = state.shutdown.clone();
     let (actor, tenant_id, token) = match authenticate(&state, &mut socket).await {
         Ok(scope) => scope,
@@ -81,7 +93,8 @@ async fn serve(state: AppState, mut socket: WebSocket) {
     // remain queued for canonical repair after Ready.
     let mut notifications = state.cloud_events.subscribe();
     let mut edge_notifications = state.edge.subscribe_live();
-    let (workbench, activity) = match load_workbench(&state, &actor, &tenant_id).await {
+    let (workbench, activity) = match load_workbench(&state, &actor, &tenant_id, online_only).await
+    {
         Ok(baseline) => baseline,
         Err(error) => {
             let _ = send_frame(&mut socket, &error_frame(None, error)).await;
@@ -130,7 +143,7 @@ async fn serve(state: AppState, mut socket: WebSocket) {
                 }
                 if let Some(frame) = recheck_subscription(&state, &actor, &tenant_id, &mut subscription).await
                     && (send_frame(&mut socket, &frame).await.is_err()
-                        || send_workbench(&state, &actor, &tenant_id, &mut socket, &mut workbench_revision).await.is_err())
+                        || send_workbench(&state, &actor, &tenant_id, &mut socket, &mut workbench_revision, online_only).await.is_err())
                 {
                     break;
                 }
@@ -242,6 +255,7 @@ async fn serve(state: AppState, mut socket: WebSocket) {
                         &tenant_id,
                         &mut socket,
                         &mut workbench_revision,
+                        online_only,
                     ).await.is_err() { break }
                     continue;
                 }
@@ -253,6 +267,7 @@ async fn serve(state: AppState, mut socket: WebSocket) {
                     notification,
                     &mut socket,
                     &mut workbench_revision,
+                        online_only,
                 ).await.is_err() { break }
             }
             notification = edge_notifications.recv() => {
@@ -270,6 +285,7 @@ async fn serve(state: AppState, mut socket: WebSocket) {
                             &tenant_id,
                             &mut socket,
                             &mut workbench_revision,
+                        online_only,
                         ).await.is_err() { break }
                         continue;
                     }
@@ -288,6 +304,7 @@ async fn serve(state: AppState, mut socket: WebSocket) {
                     notification,
                     &mut socket,
                     &mut workbench_revision,
+                        online_only,
                 ).await.is_err() { break }
             }
         }

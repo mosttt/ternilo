@@ -74,6 +74,10 @@ impl LocalApplication {
     }
 
     fn spawn_submission_driver(self: &Arc<Self>, session_id: String) {
+        self.spawn_submission_work(session_id, false);
+    }
+
+    fn spawn_submission_work(self: &Arc<Self>, session_id: String, restart: bool) {
         let mut tasks = self.submission_tasks.lock().expect("submission task lock");
         if self.stopping.is_cancelled() {
             return;
@@ -81,7 +85,21 @@ impl LocalApplication {
         while tasks.try_join_next().is_some() {}
         let application = Arc::clone(self);
         tasks.spawn(async move {
-            if let Err(error) = application.drive_session_inbox(&session_id).await
+            let result = async {
+                if restart {
+                    let driver = application.submission_driver(&session_id).await;
+                    let _driver = driver.lock().await;
+                    let managed = application.addressable_session(&session_id).await?;
+                    let _turn = managed.gate.lock().await;
+                    application.stopping.check()?;
+                    if !application.inbox.finish_restart(&session_id).await? {
+                        return Ok(());
+                    }
+                }
+                application.drive_session_inbox(&session_id).await
+            }
+            .await;
+            if let Err(error) = result
                 && !error.is_cancelled()
             {
                 let _ = application
@@ -278,15 +296,12 @@ impl LocalApplication {
         if item.placement != SubmissionPlacement::Queued {
             return Ok(item);
         }
-        self.inbox.pause(session_id).await?;
+        self.inbox.request_restart(session_id).await?;
         if let Some(run_id) = snapshot.active_run_id {
-            self.cancel_turn(session_id, run_id.as_str()).await?;
+            self.cancel_turn_for_queue_restart(session_id, run_id.as_str())
+                .await?;
         }
-        let driver = self.submission_driver(session_id).await;
-        let _driver_guard = driver.lock().await;
-        let managed = self.addressable_session(session_id).await?;
-        let _turn_guard = managed.gate.lock().await;
-        self.inbox.resume(session_id).await?;
+        self.spawn_submission_work(session_id.to_owned(), true);
         Ok(item)
     }
 

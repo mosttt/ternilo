@@ -68,9 +68,9 @@ test('managed workspace browsing reads real Worker output without a model and ke
     const sessionPath = `/sessions/${session.identity.session_id}`
     const registration = await owner('/admin/workers', { body: { worker_id: 'workspace-browser-worker' } })
     const binary = process.env.TERNILO_CLOUD_E2E_WORKER_BINARY ?? path.join(repository, 'target/debug/ternilo-worker')
-    const config = path.join(directory, 'worker.json'), workspaceRoot = path.join(directory, 'workspaces')
-    await execute(binary, ['init', '--config', config, '--server-url', application.origin, '--workspace-root', workspaceRoot, '--sandbox', 'bubblewrap', '--health-listen', '127.0.0.1:0', '--poll-interval-ms', '50'], { cwd: repository, env: { ...process.env, TERNILO_WORKER_TOKEN: registration.token } })
-    const worker = startProcess(binary, ['serve', '--config', config])
+    const config = path.join(directory, 'config.json'), workspaceRoot = path.join(directory, 'workspaces')
+    await execute(binary, ['init', '--config-dir', path.dirname(config), '--server-url', application.origin, '--workspace-root', workspaceRoot, '--sandbox', 'bubblewrap', '--health-listen', '127.0.0.1:0', '--poll-interval-ms', '50'], { cwd: repository, env: { ...process.env, TERNILO_WORKER_TOKEN: registration.token } })
+    const worker = startProcess(binary, ['serve', '--config-dir', path.dirname(config)])
     processes.push(worker)
     await until(() => worker.diagnostics(), text => /Ternilo cloud worker .* ready/.test(text), 'Worker ready')
     const cold = await access(`${sessionPath}/workspace`)
@@ -94,7 +94,7 @@ test('managed workspace browsing reads real Worker output without a model and ke
     const listing = await access(`${readerPath}/workspace`, { body: { kind: 'list', path: '' } })
     assert.ok(listing.entries.some(entry => entry.name === 'managed-proof.txt' && entry.kind === 'file'))
     assert.equal((await access(`${readerPath}/workspace`, { body: { kind: 'read', path: 'managed-proof.txt' } })).content, 'Written inside the managed Worker.\n')
-    await assert.rejects(access(`${readerPath}/workspace`, { body: { kind: 'read', path: '../worker.json' } }), /400/)
+    await assert.rejects(access(`${readerPath}/workspace`, { body: { kind: 'read', path: '../config.json' } }), /400/)
     await assert.rejects(access(`${readerPath}/workspace`, { body: { kind: 'open', app_id: 'vscode' } }), /403/)
     const invitation = await owner('/admin/invitations', { body: { tenant_id: null, role: 'member', expires_in_seconds: 3600 } })
     const account = { username: 'managed-file-viewer', password: 'managed-file-viewer-password' }

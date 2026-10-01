@@ -44,6 +44,7 @@ mod workbench;
 mod worker_api;
 
 use edge::EdgeGateway;
+pub(crate) use edge::validate_cluster_origin;
 use http::{ApiError, invalid_request, now_ms, path_parameter, tenant_parameter};
 use state::{AppState, actor, app_state};
 
@@ -100,7 +101,11 @@ pub(crate) async fn execute(config: crate::config::ServerConfig) -> Result<(), H
     }
     let cloud = CloudStore::from_database(store.database().clone()).await?;
     let cloud_events = CloudSessionEventFeed::from_database(store.database().clone()).await?;
-    let edge = Arc::new(EdgeGateway::new(store.edge_store()).await?);
+    let mut edge = EdgeGateway::new(store.edge_store()).await?;
+    if let Some(origin) = &config.cluster_url {
+        edge = edge.with_cluster(origin, &encoded_key).await?;
+    }
+    let edge = Arc::new(edge);
     diagnostics::initialize(store.database()).await?;
     let catalog = ternilo_cloud::catalog()?;
     let worker_policy = load_worker_policy(config.worker_policy.as_deref(), &catalog)?;
@@ -298,6 +303,7 @@ fn api_router() -> Router {
         .push(Router::with_path("live").get(live::upgrade))
         .push(Router::with_path("enrollments/consume").post(consume_enrollment))
         .push(edge::router())
+        .push(edge::peer_router())
         .push(authenticated)
 }
 

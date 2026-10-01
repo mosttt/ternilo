@@ -45,11 +45,35 @@ impl EdgeGateway {
             self.fail_connection_calls(&route, &previous.connection_id)
                 .await;
         }
-        if self.connected(&route).await.is_err() {
+        let Ok(connected) = self.connected(&route).await else {
             self.disconnect(
                 &route.tenant_id,
                 &route.executor_id,
                 "node credential is invalid or revoked",
+            )
+            .await;
+            return;
+        };
+        if connected.connection_id != connection_id {
+            return;
+        }
+        if let Some(cluster) = &self.cluster
+            && let Err(error) = self
+                .journal
+                .publish_peer(
+                    &route,
+                    &connected.lease,
+                    &cluster.origin,
+                    &connected.principal,
+                    now,
+                )
+                .await
+        {
+            eprintln!("publish Node peer route: {error}");
+            self.disconnect(
+                &route.tenant_id,
+                &route.executor_id,
+                "Server peer route could not be published",
             )
             .await;
             return;
@@ -75,10 +99,38 @@ impl EdgeGateway {
         tenant_id: &TenantId,
         executor_id: &ExecutorId,
     ) -> bool {
-        self.executors
-            .read()
+        let route = RouteKey::new(tenant_id.clone(), executor_id.clone());
+        if self.executors.read().await.contains_key(&route) {
+            return self.connected(&route).await.is_ok();
+        }
+        if self.cluster.is_none() {
+            return false;
+        }
+        match self
+            .journal
+            .peer_route(&route, now_ms().unwrap_or(u64::MAX))
             .await
-            .contains_key(&RouteKey::new(tenant_id.clone(), executor_id.clone()))
+        {
+            Ok(Some(peer)) if peer.lease.owner_id != self.instance_id => self
+                .store
+                .require_node_credential(&peer.principal)
+                .await
+                .is_ok(),
+            _ => false,
+        }
+    }
+
+    pub(crate) async fn online_executor_ids(
+        &self,
+        tenant: &TenantId,
+    ) -> Result<Vec<ExecutorId>, HarnessError> {
+        let mut online = Vec::new();
+        for id in self.journal.leased_executor_ids(tenant, now_ms()?).await? {
+            if self.is_connected(tenant, &id).await {
+                online.push(id);
+            }
+        }
+        Ok(online)
     }
 
     pub(crate) async fn disconnect_account(&self, user_id: &ternilo_protocol::UserId) {
@@ -155,6 +207,9 @@ impl EdgeGateway {
             })?;
         self.store
             .require_node_credential(&connected.principal)
+            .await?;
+        self.journal
+            .check_lease(route, &connected.lease, now_ms()?)
             .await?;
         Ok(connected)
     }

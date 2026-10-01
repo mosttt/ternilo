@@ -1,9 +1,8 @@
 use super::{
     ApplicationOperation, COMMAND_BATCH_LIMIT, COMMAND_DISPATCH_TTL_MS, CommandId, CommandOutcome,
     CommandReply, ConnectedExecutor, ControlFrame, ControlUser, Duration, EdgeGateway,
-    ExecutorCapability, ExecutorCommand, ExecutorCommandBody, ExecutorId, HarnessError,
-    InputAuthor, InputProvenance, PendingCall, RouteKey, RunId, SessionId, SubmissionId, TenantId,
-    Value, now_ms, oneshot,
+    ExecutorCommand, ExecutorCommandBody, ExecutorId, HarnessError, InputAuthor, InputProvenance,
+    PendingCall, RouteKey, RunId, SessionId, SubmissionId, TenantId, Value, now_ms, oneshot,
 };
 
 impl EdgeGateway {
@@ -58,16 +57,9 @@ impl EdgeGateway {
     ) -> Result<Value, HarnessError> {
         operation.validate()?;
         let route = RouteKey::new(tenant_id.clone(), executor_id.clone());
-        let connected = self.connected(&route).await?;
-        operation.validate_executor_capabilities(&connected.hello.capabilities)?;
-        let deleted_session = match &operation {
-            ApplicationOperation::SessionDelete { session_id } => Some(session_id.clone()),
-            _ => None,
-        };
-        self.call_body(
+        self.call_routed(
             route,
             ExecutorCommandBody::Application { request: operation },
-            deleted_session,
             timeout,
             author,
         )
@@ -82,20 +74,9 @@ impl EdgeGateway {
         run_id: RunId,
     ) -> Result<(), HarnessError> {
         let route = RouteKey::new(tenant_id.clone(), executor_id.clone());
-        let connected = self.connected(&route).await?;
-        if !connected
-            .hello
-            .capabilities
-            .contains(&ExecutorCapability::RunCancellation)
-        {
-            return Err(HarnessError::execution(
-                "selected Ternilo node does not support run cancellation",
-            ));
-        }
-        self.call_body(
+        self.call_routed(
             route,
             ExecutorCommandBody::CancelRun { session_id, run_id },
-            None,
             Duration::from_mins(30),
             None,
         )
@@ -103,26 +84,71 @@ impl EdgeGateway {
         .map(|_| ())
     }
 
+    async fn call_routed(
+        &self,
+        route: RouteKey,
+        body: ExecutorCommandBody,
+        timeout: Duration,
+        author: Option<InputAuthor>,
+    ) -> Result<Value, HarnessError> {
+        if self.executors.read().await.contains_key(&route) {
+            return self.call_body(route, body, timeout, author, None).await;
+        }
+        let cluster = self
+            .cluster
+            .as_ref()
+            .ok_or_else(|| HarnessError::unavailable("selected Ternilo node is offline"))?;
+        let peer = self
+            .journal
+            .peer_route(&route, now_ms()?)
+            .await?
+            .filter(|peer| peer.lease.owner_id != self.instance_id)
+            .ok_or_else(|| {
+                HarnessError::unavailable("selected Ternilo node has no active peer route")
+            })?;
+        self.store.require_node_credential(&peer.principal).await?;
+        let authorization = if creates_input(&body) {
+            let Some(InputAuthor::Account { user_id, .. }) = &author else {
+                return Err(HarnessError::policy(
+                    "Node input requires an authenticated account",
+                ));
+            };
+            Some(
+                self.store
+                    .node_input_authorization(&peer.principal, user_id)
+                    .await?,
+            )
+        } else {
+            None
+        };
+        cluster
+            .forward(peer, route, body, author, timeout, authorization)
+            .await
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep author admission, durable delivery, waiter cleanup and deletion receipts in one dispatch flow."
+    )]
     pub(super) async fn call_body(
         &self,
         route: RouteKey,
         mut body: ExecutorCommandBody,
-        deleted_session: Option<SessionId>,
         timeout: Duration,
         author: Option<InputAuthor>,
+        accepted_authorization: Option<ternilo_transport::NodeInputAuthorization>,
     ) -> Result<Value, HarnessError> {
         let connected = self.connected(&route).await?;
+        super::forwarding::validate_body(&body, &connected.hello.capabilities)?;
+        let deleted_session = match &body {
+            ExecutorCommandBody::Application {
+                request: ApplicationOperation::SessionDelete { session_id },
+            } => Some(session_id.clone()),
+            _ => None,
+        };
         let now = now_ms()?;
         let command_id = CommandId::new(self.next_identifier("command", now));
-        let input_provenance = if matches!(
-            &body,
-            ExecutorCommandBody::Application {
-                request: ApplicationOperation::SessionSubmit { .. }
-                    | ApplicationOperation::SessionTurn { .. }
-                    | ApplicationOperation::SessionSkillTurn { .. }
-                    | ApplicationOperation::SessionSubagentFollowup { .. }
-            }
-        ) {
+        let input_provenance = if creates_input(&body) {
             let input_id = SubmissionId::new(format!("input-{:032x}", rand::random::<u128>()));
             let run_id = bind_input_run(&mut body, &input_id)?;
             Some(InputProvenance {
@@ -139,11 +165,21 @@ impl EdgeGateway {
             Some(InputProvenance {
                 author: InputAuthor::Account { user_id, .. },
                 ..
-            }) => Some(
-                self.store
+            }) => {
+                let current = self
+                    .store
                     .node_input_authorization(&connected.principal, user_id)
-                    .await?,
-            ),
+                    .await?;
+                if accepted_authorization
+                    .as_ref()
+                    .is_some_and(|accepted| accepted != &current)
+                {
+                    return Err(HarnessError::conflict(
+                        "input authority changed during Server peer forwarding",
+                    ));
+                }
+                Some(accepted_authorization.unwrap_or(current))
+            }
             _ => None,
         };
         let command = ExecutorCommand {
@@ -312,6 +348,18 @@ impl EdgeGateway {
         }
         Ok(())
     }
+}
+
+pub(super) fn creates_input(body: &ExecutorCommandBody) -> bool {
+    matches!(
+        body,
+        ExecutorCommandBody::Application {
+            request: ApplicationOperation::SessionSubmit { .. }
+                | ApplicationOperation::SessionTurn { .. }
+                | ApplicationOperation::SessionSkillTurn { .. }
+                | ApplicationOperation::SessionSubagentFollowup { .. }
+        }
+    )
 }
 
 pub(super) fn bind_input_run(

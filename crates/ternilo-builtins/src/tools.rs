@@ -646,6 +646,9 @@ impl ToolsProvider for ToolRegistry {
                 .values()
                 .map(|tool| tool.spec.clone())
                 .collect();
+            if !crate::agent_goal::goal_tool_enabled(&self.sessions.events().await) {
+                tools.retain(|tool| tool.name != "update_goal");
+            }
             tools.sort_by(|left, right| left.name.cmp(&right.name));
             tools
         })
@@ -673,6 +676,9 @@ impl ToolsProvider for ToolRegistry {
                         .map(|(_, presenter)| Arc::clone(presenter)),
                 )
             };
+            if !crate::agent_goal::goal_tool_enabled(&self.sessions.events().await) {
+                tools.retain(|tool| tool.name != "update_goal");
+            }
             tools.sort_by(|left, right| left.name.cmp(&right.name));
             match presenter {
                 Some(presenter) => presenter.present(tools).await,
@@ -703,6 +709,13 @@ impl ToolsProvider for ToolRegistry {
     ) -> Pin<Box<dyn Future<Output = Result<ToolOutput, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
             activity.ensure_running().await?;
+            if call.name == "update_goal"
+                && !crate::agent_goal::goal_tool_enabled(&self.sessions.events().await)
+            {
+                return Err(HarnessError::policy(
+                    "goals must be enabled by the user with /goal before update_goal can be used",
+                ));
+            }
             self.prepare_sources(cancellation.clone()).await?;
             let identity = self.environment.identity().await;
             let workspace = self.environment.workspace().await;

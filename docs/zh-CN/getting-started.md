@@ -191,3 +191,5 @@ cargo run --locked -p ternilo -- serve
 - [管理多台电脑与 VPS](remote-access.md)
 - [部署 Server](deployment.md)
 - [桌面应用](desktop.md)
+
+启动配置、凭据、数据库与运行状态的具体位置见[配置与数据目录](data-layout.md)。首次 `serve` 保存总配置；已有总配置按命令行、环境变量、配置文件和内置默认值的优先级读取。

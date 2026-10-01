@@ -23,6 +23,7 @@ export function useSessionRuntime(): SessionRuntime {
     currentTenantId,
     accountScope,
     pauseAccess,
+    onlineComputersOnly,
   } = useWorkbench()
   React.useEffect(() => live.onFrame(frame => {
     if (frame.type === 'error' && isServerAccessPaused(frame)) pauseAccess()
@@ -64,9 +65,9 @@ export function useSessionRuntime(): SessionRuntime {
     controller.setTarget(
       currentSessionId,
       !workbenchLoading && !authRequired,
-      authRequired ? 'signed-out' : accountScope ?? currentTenantId ?? 'host',
+      authRequired ? 'signed-out' : JSON.stringify([accountScope ?? currentTenantId ?? 'host', Boolean(onlineComputersOnly)]),
     )
-  }, [accountScope, authRequired, controller, currentSessionId, currentTenantId, workbenchLoading])
+  }, [accountScope, authRequired, controller, currentSessionId, currentTenantId, workbenchLoading, onlineComputersOnly])
 
   React.useEffect(() => {
     if (workbenchLoading || authRequired) {
@@ -74,9 +75,10 @@ export function useSessionRuntime(): SessionRuntime {
       return
     }
     live.stop()
+    live.setWorkbenchOnlineOnly(Boolean(onlineComputersOnly))
     live.start()
     return () => live.stop()
-  }, [accountScope, authRequired, currentTenantId, workbenchLoading])
+  }, [accountScope, authRequired, currentTenantId, workbenchLoading, onlineComputersOnly])
 
   return React.useMemo(() => ({
     ...snapshot,

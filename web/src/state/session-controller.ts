@@ -156,6 +156,17 @@ interface InboxFlight {
   promise: Promise<void>
 }
 
+interface CachedSession {
+  snapshot: SessionControllerSnapshot
+  buffer: SessionEventBuffer
+  bytes: number
+}
+
+function containsOldestRunStart(events: SessionEvent[]) {
+  const first = events[0]
+  return !first || first.seq === 0 || events.some(event => event.run_id === first.run_id && event.type === 'turn_started')
+}
+
 interface MetadataRefresh {
   stats: boolean
   projection: boolean
@@ -251,6 +262,10 @@ export class SessionController implements SessionRuntimeActions {
   private inboxFlight: InboxFlight | null = null
   private inboxRevision = 0
   private historyRevision = 0
+  private initialHistoryLoading = false
+  private readonly cachedSessions = new Map<string, CachedSession>()
+  private streamEvents: SessionEvent[] = []
+  private streamTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly dependencies: SessionControllerDependencies) {}
 
@@ -267,15 +282,29 @@ export class SessionController implements SessionRuntimeActions {
     if (this.sessionId === sessionId && this.enabled === enabled && this.scopeKey === scopeKey) return
     const scopeChanged = this.scopeKey !== scopeKey
     const liveStatus = this.getSnapshot().liveStatus
+    if (!scopeChanged) this.rememberTarget()
     this.stopTarget()
-    if (scopeChanged) this.pendingBySession.clear()
+    if (scopeChanged) {
+      this.pendingBySession.clear()
+      this.cachedSessions.clear()
+    }
     this.scopeKey = scopeKey
     this.sessionId = sessionId
     this.enabled = enabled
     this.eventBuffer = createSessionEventBuffer(sessionId)
     const pending = sessionId === null ? [] : this.pendingBySession.get(sessionId) ?? []
-    this.replaceSnapshot({ ...initialSnapshot(pending), liveStatus })
-    if (sessionId && enabled) this.startTarget(sessionId)
+    const cached = sessionId && enabled ? this.cachedSessions.get(sessionId) : undefined
+    if (cached && sessionId) {
+      this.cachedSessions.delete(sessionId)
+      this.eventBuffer = cached.buffer
+      this.replaceSnapshot({ ...cached.snapshot, liveStatus, pendingSubmissions: pending, loading: false, loadingOlder: false, olderHistoryError: '', historyError: '', error: '' })
+      this.reconcilePending(sessionId, cached.buffer.events, cached.snapshot.inbox)
+      this.abortController = new AbortController()
+      this.dependencies.live.setSession(sessionId, { afterSeq: cached.buffer.events.at(-1)?.seq ?? null })
+    } else {
+      this.replaceSnapshot({ ...initialSnapshot(pending), liveStatus })
+      if (sessionId && enabled) this.startTarget(sessionId)
+    }
   }
 
   dispose() {
@@ -286,6 +315,31 @@ export class SessionController implements SessionRuntimeActions {
     this.disposeLiveStatus = null
     this.sessionId = null
     this.enabled = false
+    this.cachedSessions.clear()
+    this.pendingBySession.clear()
+  }
+
+  private rememberTarget() {
+    const snapshot = this.getSnapshot()
+    if (!this.sessionId || !this.enabled || this.initialHistoryLoading || this.historyEvents !== null
+      || snapshot.loadedSessionId !== this.sessionId || snapshot.historyError) return
+    // Keep recent conversations in memory only; cap both large events and session count.
+    const bytes = JSON.stringify(this.eventBuffer.events).length * 2
+    this.cachedSessions.delete(this.sessionId)
+    this.cachedSessions.set(this.sessionId, { snapshot, buffer: this.eventBuffer, bytes })
+    let totalBytes = 0
+    let totalEvents = 0
+    for (const cached of this.cachedSessions.values()) {
+      totalBytes += cached.bytes
+      totalEvents += cached.buffer.events.length
+    }
+    while (this.cachedSessions.size > 8 || totalEvents > 30_000 || totalBytes > 24 * 1024 * 1024) {
+      const oldest = this.cachedSessions.keys().next().value!
+      const cached = this.cachedSessions.get(oldest)!
+      totalBytes -= cached.bytes
+      totalEvents -= cached.buffer.events.length
+      this.cachedSessions.delete(oldest)
+    }
   }
 
   private replaceSnapshot(snapshot: SessionControllerSnapshot) {
@@ -317,6 +371,9 @@ export class SessionController implements SessionRuntimeActions {
   }
 
   private stopTarget() {
+    if (this.streamTimer !== null) clearTimeout(this.streamTimer)
+    this.streamTimer = null
+    this.streamEvents = []
     this.generation += 1
     this.historyEvents = null
     this.dependencies.live.setSession(null)
@@ -324,42 +381,58 @@ export class SessionController implements SessionRuntimeActions {
     this.abortController = null
     this.metadataFlight = null
     this.inboxFlight = null
+    this.initialHistoryLoading = false
   }
 
   private startTarget(sessionId: string) {
     const controller = new AbortController()
     this.abortController = controller
+    this.initialHistoryLoading = true
     this.updateSnapshot({ loading: true })
     void this.loadInitialHistory(sessionId, this.generation, controller.signal)
   }
 
-  private async readHistoryBatch(sessionId: string, signal?: AbortSignal, before?: number): Promise<SessionEventPage> {
+  private async readHistoryBatch(sessionId: string, signal?: AbortSignal, before?: number, acceptPage?: (page: SessionEventPage) => boolean): Promise<SessionEventPage> {
     const pageSize = 1_000
     const read = (cursor?: number) => this.dependencies.api.request<SessionEventPage>(
       `/sessions/${encodeURIComponent(sessionId)}/history?limit=${pageSize}${cursor === undefined ? '' : `&before_seq=${cursor}`}`, { signal },
     )
     let page = await read(before)
+    if (acceptPage?.(page) === false) return page
     const events = [...page.events]
     const latest = page.events.at(-1)?.seq ?? 0
     const budget = before === undefined && latest < 10_000 ? 10_000 : 5_000
-    while (page.next_before_seq !== null && page.events.length === pageSize && events.length < budget) {
+    while (page.next_before_seq !== null && page.events.length === pageSize
+      && (events.length < budget || !containsOldestRunStart(events))) {
       if (signal?.aborted) break
       page = await read(page.next_before_seq)
       events.unshift(...page.events)
+      if (acceptPage?.(page) === false) break
     }
     return { events, next_before_seq: page.next_before_seq }
   }
 
   private async loadInitialHistory(sessionId: string, generation: number, signal: AbortSignal) {
+    const revision = this.historyRevision
+    let subscribed = false
     try {
-      const page = await this.readHistoryBatch(sessionId, signal)
-      if (!this.isCurrent(sessionId, generation, signal)) return
-      this.mergeEvents(sessionId, page.events)
+      const page = await this.readHistoryBatch(sessionId, signal, undefined, page => {
+        if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return false
+        this.mergeEvents(sessionId, page.events)
+        this.updateSnapshot({ loadedSessionId: sessionId, loading: false })
+        if (!subscribed) {
+          subscribed = true
+          this.dependencies.live.setSession(sessionId, { afterSeq: page.events.at(-1)?.seq ?? null })
+        }
+        return true
+      })
+      if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return
       this.updateSnapshot({ nextBeforeSeq: page.next_before_seq })
-      this.dependencies.live.setSession(sessionId, { afterSeq: page.events.at(-1)?.seq ?? null })
     } catch (cause) {
       if (!this.isCurrent(sessionId, generation, signal)) return
       this.updateSnapshot({ loadedSessionId: sessionId, loading: false, historyError: errorMessage(cause) })
+    } finally {
+      if (this.isCurrent(sessionId, generation, signal)) this.initialHistoryLoading = false
     }
   }
 
@@ -400,7 +473,25 @@ export class SessionController implements SessionRuntimeActions {
     }
     const sessionId = this.sessionId
     if (!sessionId || !this.enabled) return
+    if (frame.type === 'event_batch' && frame.session_id === sessionId && !frame.reset
+      && this.historyEvents === null && frame.events.length > 0
+      && frame.events.every(event => event.type === 'assistant_message_delta' || event.type === 'assistant_reasoning_delta')) {
+      this.streamEvents.push(...frame.events)
+      if (frame.complete) this.updateSnapshot({ loadedSessionId: sessionId, loading: false })
+      if (this.streamTimer === null) this.streamTimer = setTimeout(() => this.flushStreamEvents(), 100)
+      return
+    }
+    this.flushStreamEvents()
     if (frame.type === 'error') {
+      if (frame.code === 'policy_denied' || frame.code === 'invalid_input') {
+        this.historyRevision += 1
+        this.abortController?.abort()
+        this.initialHistoryLoading = false
+        this.cachedSessions.delete(sessionId)
+        this.eventBuffer = createSessionEventBuffer(sessionId)
+        this.historyEvents = null
+        this.replaceSnapshot({ ...initialSnapshot(), liveStatus: this.getSnapshot().liveStatus })
+      }
       if (this.historyEvents !== null) {
         this.mergeEvents(sessionId, this.historyEvents)
         this.historyEvents = null
@@ -454,6 +545,14 @@ export class SessionController implements SessionRuntimeActions {
     if (metadata.read.profile) patch.effectiveProfile = metadata.profile ?? null
     if (metadata.read.agent_team) patch.agentTeam = metadata.agent_team ?? null
     this.updateSnapshot(patch)
+  }
+
+  private flushStreamEvents() {
+    if (this.streamTimer !== null) clearTimeout(this.streamTimer)
+    this.streamTimer = null
+    const events = this.streamEvents
+    this.streamEvents = []
+    if (this.sessionId && this.enabled && events.length) this.mergeEvents(this.sessionId, events)
   }
 
   private mergeEvents(sessionId: string, incoming: SessionEvent[]) {

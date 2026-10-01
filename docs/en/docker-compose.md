@@ -15,7 +15,7 @@ Initialize the private configuration, SQLite database and administrator setup li
 
 ```sh
 docker compose -f compose.server.yml run --rm server server init \
-  --non-interactive --config /var/lib/ternilo/server.json \
+  --non-interactive --config-dir /var/lib/ternilo \
   --listen 0.0.0.0:4321 --public-url http://localhost:4321
 docker compose -f compose.server.yml up -d --wait
 docker compose -f compose.server.yml ps

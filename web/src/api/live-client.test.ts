@@ -95,6 +95,25 @@ afterEach(() => {
 })
 
 describe('LiveClient', () => {
+  it('binds online-only loading to the socket and discards frames from the previous filter', () => {
+    const urls: string[] = []
+    const sockets: FakeSocket[] = []
+    const client = new LiveClient({ url: 'ws://example.test/api/v1/live', credentials: () => ({ bearerToken: 'token' }),
+      createSocket: url => { urls.push(url); const socket = new FakeSocket(); sockets.push(socket); return socket }, networkEvents: null })
+    const frames: LiveServerFrame[] = []
+    client.onFrame(frame => frames.push(frame))
+    client.setWorkbenchOnlineOnly(true)
+    client.start()
+    expect(urls[0]).toBe('ws://example.test/api/v1/live?online_computers_only=true')
+    sockets[0].open()
+    ready(sockets[0])
+    frames.length = 0
+    client.setWorkbenchOnlineOnly(false)
+    expect(urls[1]).toBe('ws://example.test/api/v1/live')
+    sockets[0].receive({ type: 'workbench', revision: 1, state: { workspaces: [], sessions: [] }, activity: [] })
+    expect(frames).toEqual([])
+    client.stop()
+  })
   it('handshakes once and switches logical subscriptions on one socket', () => {
     const { client, sockets } = createHarness()
     const firstSubscription = client.setSession('session-a', { afterSeq: 4 })

@@ -10,8 +10,8 @@ use zeroize::Zeroizing;
 
 #[derive(Args)]
 pub(super) struct Options {
-    #[arg(long, env = "TERNILO_SERVER_CONFIG")]
-    config: Option<PathBuf>,
+    #[arg(long, env = "TERNILO_SERVER_CONFIG_DIR")]
+    config_dir: Option<PathBuf>,
     #[arg(long)]
     username: String,
     /// Read the new password from stdin instead of the hidden interactive prompts.
@@ -20,9 +20,7 @@ pub(super) struct Options {
 }
 
 pub(super) async fn execute(options: Options) -> Result<(), HarnessError> {
-    let path = options
-        .config
-        .map_or_else(crate::config::default_config_path, Ok)?;
+    let path = crate::config::configuration_path(options.config_dir.as_deref())?;
     let config = crate::config::ServerConfig::read(&path)?;
     let password = new_password(options.password_stdin)?;
     let store = ControlStore::connect(

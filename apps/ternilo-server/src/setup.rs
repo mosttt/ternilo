@@ -13,13 +13,13 @@ use clap::Args;
 use ternilo_control::{ControlStore, InstanceSettings, NativeRegistration, SecretCipher};
 use ternilo_protocol::HarnessError;
 
-use crate::config::{ServerConfig, create_private_parent, default_config_path, digest_token};
+use crate::config::{ServerConfig, configuration_path, create_private_parent, digest_token};
 
 #[derive(Default, Args)]
 pub(crate) struct InitOptions {
-    /// Path to the configuration file, not the database file.
-    #[arg(long, env = "TERNILO_SERVER_CONFIG")]
-    pub config: Option<PathBuf>,
+    /// Instance directory containing config.json and persistent data.
+    #[arg(long, env = "TERNILO_SERVER_CONFIG_DIR")]
+    pub config_dir: Option<PathBuf>,
     #[arg(long, env = "TERNILO_DATABASE_URL", hide_env_values = true)]
     pub database_url: Option<String>,
     #[arg(long, env = "TERNILO_MIGRATION_DATABASE_URL", hide_env_values = true)]
@@ -52,7 +52,7 @@ pub(crate) struct SetupOutcome {
 pub(crate) async fn execute(options: InitOptions) -> Result<(), HarnessError> {
     let outcome = initialize(options).await?;
     println!("Server configuration: {}", outcome.config_path.display());
-    println!("Start with: ternilo-server serve --config <configuration-path>");
+    println!("Start with: ternilo-server serve --config-dir <instance-directory>");
     if outcome.instance.is_some() {
         println!(
             "The owner, default tenant, and project are ready. Sign in at {}",
@@ -69,9 +69,7 @@ pub(crate) async fn execute(options: InitOptions) -> Result<(), HarnessError> {
 }
 
 pub(crate) async fn initialize(mut options: InitOptions) -> Result<SetupOutcome, HarnessError> {
-    let config_path = options.config.take().map_or_else(default_config_path, Ok)?;
-    let config_path = std::path::absolute(config_path)
-        .map_err(|error| HarnessError::execution(format!("resolve configuration path: {error}")))?;
+    let config_path = configuration_path(options.config_dir.take().as_deref())?;
     if config_path.exists() {
         return Err(HarnessError::conflict(
             "server configuration already exists; initialization does not overwrite it",
@@ -205,12 +203,11 @@ fn owner_registration(
 }
 
 fn default_database_url(config_path: &Path) -> Result<String, HarnessError> {
-    let database_path = config_path.with_extension("sqlite3");
-    if database_path == config_path {
-        return Err(HarnessError::invalid(
-            "the configuration and SQLite database need different paths; use a configuration name such as server.json",
-        ));
-    }
+    let database_path = config_path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("data/db/server.sqlite3");
+    create_private_parent(&database_path)?;
     println!("SQLite database: {}", database_path.display());
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);
@@ -276,9 +273,9 @@ mod tests {
     #[tokio::test]
     async fn sqlite_setup_creates_private_configuration_and_stable_owner() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("server/server.json");
+        let path = directory.path().join("server/config.json");
         let outcome = initialize(InitOptions {
-            config: Some(path.clone()),
+            config_dir: Some(path.parent().unwrap().to_path_buf()),
             owner_username: Some("owner".to_owned()),
             owner_email: Some("owner@example.test".to_owned()),
             owner_password: Some("test-owner-password".to_owned()),
@@ -306,7 +303,7 @@ mod tests {
         assert_eq!(Some(login.session.instance), outcome.instance);
         assert!(
             initialize(InitOptions {
-                config: Some(path),
+                config_dir: Some(path.parent().unwrap().to_path_buf()),
                 non_interactive: true,
                 ..InitOptions::default()
             })
@@ -334,18 +331,17 @@ mod tests {
         old.close().await;
         let old_bytes = fs::read(&old_path).unwrap();
         let mut urls = Vec::new();
-        for name in ["g", "other.json"] {
-            let path = directory.path().join(name);
+        for name in ["first", "second"] {
+            let instance = directory.path().join(name);
             initialize(InitOptions {
-                config: Some(path.clone()),
+                config_dir: Some(instance.clone()),
                 non_interactive: true,
                 ..InitOptions::default()
             })
             .await
             .unwrap();
-            let config = ServerConfig::read(&path).unwrap();
-            assert!(path.with_extension("sqlite3").is_file());
-            assert!(!config.database_url.contains("server.sqlite3"));
+            let config = ServerConfig::read(&instance.join("config.json")).unwrap();
+            assert!(instance.join("data/db/server.sqlite3").is_file());
             urls.push(config.database_url);
         }
         assert_ne!(urls[0], urls[1]);
@@ -355,9 +351,9 @@ mod tests {
     #[tokio::test]
     async fn deferred_setup_only_persists_the_bootstrap_token_digest() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("server.json");
+        let path = directory.path().join("config.json");
         let outcome = initialize(InitOptions {
-            config: Some(path.clone()),
+            config_dir: Some(path.parent().unwrap().to_path_buf()),
             non_interactive: true,
             ..InitOptions::default()
         })

@@ -64,13 +64,13 @@ mod tests {
         let start = Args::try_parse_from(["ternilo-server"]).unwrap();
         assert!(start.command.is_none());
         let start =
-            Args::try_parse_from(["ternilo-server", "serve", "--config", "server.json"]).unwrap();
+            Args::try_parse_from(["ternilo-server", "serve", "--config-dir", "instance"]).unwrap();
         assert!(matches!(start.command, Some(Command::Serve(_))));
         let setup = Args::try_parse_from([
             "ternilo-server",
             "init",
-            "--config",
-            "server.json",
+            "--config-dir",
+            "instance",
             "--non-interactive",
         ])
         .unwrap();

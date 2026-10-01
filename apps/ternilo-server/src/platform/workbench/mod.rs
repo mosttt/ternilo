@@ -16,7 +16,7 @@ mod workspace;
 pub(crate) use cloud_adapter::CloudAdapter;
 pub(crate) use edge_adapter::{EdgeAdapter, authorize_edge_mutation};
 pub(crate) use placement::{PlacementResolver, SessionTarget, SettingsTarget};
-pub(crate) use workspace::load_state;
+pub(crate) use workspace::{WorkbenchQuery, load_state_filtered};
 
 use salvo_core::prelude::Router;
 mod workspace_browser;

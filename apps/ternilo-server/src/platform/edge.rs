@@ -33,9 +33,14 @@ use salvo_core::{
 };
 use salvo_extra::websocket::WebSocketUpgrade;
 
+mod cluster_feed;
+#[cfg(test)]
+mod cluster_tests;
 mod commands;
 mod connection;
+mod forwarding;
 mod replication;
+pub(crate) use forwarding::{router as peer_router, validate_cluster_origin};
 
 pub(crate) use connection::router;
 
@@ -87,9 +92,11 @@ pub(crate) struct EdgeGateway {
     executors: RwLock<BTreeMap<RouteKey, ConnectedExecutor>>,
     resource_locks: Mutex<BTreeMap<RouteKey, Arc<Mutex<()>>>>,
     pending: Mutex<BTreeMap<(TenantId, CommandId), PendingCall>>,
-    event_notify: Notify,
+    event_notify: Arc<Notify>,
     live_notify: broadcast::Sender<EdgeLiveNotification>,
     next_id: AtomicU64,
+    cluster: Option<forwarding::ClusterForwarder>,
+    cluster_feed: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl EdgeGateway {
@@ -103,10 +110,22 @@ impl EdgeGateway {
             executors: RwLock::new(BTreeMap::new()),
             resource_locks: Mutex::new(BTreeMap::new()),
             pending: Mutex::new(BTreeMap::new()),
-            event_notify: Notify::new(),
+            event_notify: Arc::new(Notify::new()),
             live_notify,
             next_id: AtomicU64::new(1),
+            cluster: None,
+            cluster_feed: None,
         })
+    }
+
+    pub(crate) async fn with_cluster(
+        mut self,
+        origin: &str,
+        key: &str,
+    ) -> Result<Self, HarnessError> {
+        self.cluster = Some(forwarding::ClusterForwarder::new(origin, key)?);
+        self.cluster_feed = Some(cluster_feed::start(&self).await?);
+        Ok(self)
     }
 
     pub(crate) async fn health(&self) -> Result<(), HarnessError> {
@@ -183,6 +202,14 @@ impl EdgeGateway {
     fn next_identifier(&self, prefix: &str, now: u64) -> String {
         let sequence = self.next_id.fetch_add(1, Ordering::Relaxed);
         format!("{prefix}-{}-{now}-{sequence}", self.instance_id)
+    }
+}
+
+impl Drop for EdgeGateway {
+    fn drop(&mut self) {
+        if let Some(task) = &self.cluster_feed {
+            task.abort();
+        }
     }
 }
 

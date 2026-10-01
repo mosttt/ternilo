@@ -1,6 +1,8 @@
 //! Durable Node delivery, shared by every server mode and database backend.
 
+mod cluster;
 mod input_authorization;
+pub(crate) use cluster::PeerRoute;
 
 use sqlx::{Any, Row, Transaction};
 use ternilo_control::EdgeStore;
@@ -80,6 +82,7 @@ pub(crate) struct GatewayLease {
     pub(crate) fencing_token: u64,
 }
 
+#[derive(Clone)]
 pub(crate) struct GatewayJournal {
     database: Database,
 }
@@ -110,6 +113,7 @@ impl GatewayJournal {
             .initialize("gateway", 1, SCHEMA, POSTGRES_SCHEMA)
             .await?;
         input_authorization::initialize(&database).await?;
+        cluster::initialize(&database).await?;
         Ok(Self { database })
     }
 
@@ -169,11 +173,13 @@ impl GatewayJournal {
         .execute(&mut *transaction)
         .await
         .map_err(database_error)?;
-        transaction.commit().await.map_err(database_error)?;
-        Ok(Some(GatewayLease {
+        let lease = GatewayLease {
             owner_id: owner_id.to_owned(),
             fencing_token: unsigned(next)?,
-        }))
+        };
+        cluster::acquired(&mut transaction, route, &lease, now.saturating_add(ttl)).await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(Some(lease))
     }
 
     pub(crate) async fn renew(
@@ -199,6 +205,9 @@ impl GatewayJournal {
         .await
         .map_err(database_error)?
         .rows_affected();
+        if changed == 1 {
+            cluster::renewed(&mut transaction, route, lease, now.saturating_add(ttl)).await?;
+        }
         transaction.commit().await.map_err(database_error)?;
         Ok(changed == 1)
     }
@@ -222,7 +231,7 @@ impl GatewayJournal {
         .await
         .map_err(database_error)?;
         // Keep the fencing counter across clean shutdown and reconnect.
-        sqlx::query(
+        let released = sqlx::query(
             "UPDATE gateway_leases SET expires_at_ms = 0
              WHERE tenant_id = $1 AND executor_id = $2 AND owner_id = $3 AND fencing_token = $4",
         )
@@ -232,7 +241,12 @@ impl GatewayJournal {
         .bind(integer(lease.fencing_token)?)
         .execute(&mut *transaction)
         .await
-        .map_err(database_error)?;
+        .map_err(database_error)?
+        .rows_affected();
+        if released == 1 {
+            cluster::renewed(&mut transaction, route, lease, 0).await?;
+            cluster::changed(&mut transaction, route).await?;
+        }
         transaction.commit().await.map_err(database_error)
     }
 
@@ -550,6 +564,7 @@ impl GatewayJournal {
         let cursor = store
             .merge_uploads_in_transaction(&mut transaction, &route.executor_id, batch)
             .await?;
+        cluster::changed(&mut transaction, route).await?;
         transaction.commit().await.map_err(database_error)?;
         Ok(cursor)
     }
@@ -577,6 +592,7 @@ impl GatewayJournal {
         let last: Option<i64> = sqlx::query_scalar("SELECT MAX(seq) FROM control_edge_events WHERE tenant_id=$1 AND executor_id=$2 AND session_id=$3")
             .bind(route.tenant_id.as_str()).bind(route.executor_id.as_str()).bind(session_id.as_str())
             .fetch_one(&mut *transaction).await.map_err(database_error)?;
+        cluster::changed(&mut transaction, route).await?;
         transaction.commit().await.map_err(database_error)?;
         last.map(unsigned).transpose()
     }

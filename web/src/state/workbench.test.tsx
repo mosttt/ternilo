@@ -114,6 +114,35 @@ function nativeServerRoutes() {
 }
 
 describe('WorkbenchProvider Server accounts', () => {
+  it('loads only online data initially and rejects old HTTP and Live snapshots when the filter changes', async () => {
+    window.__TERNILO_BOOT__ = { remote: true, platform: true }
+    sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
+    localStorage.setItem('ternilo.sidebar-view-v1', JSON.stringify({ groupBy: 'computer', onlineComputersOnly: true }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false }))))
+    const request = nativeServerRoutes()
+    const full = deferred<ApplicationState>()
+    request.mockImplementation(async (path: string) => {
+      if (path === '/state?online_computers_only=true') return { workspaces: [workspace('online')], sessions: [] } as never
+      if (path === '/state') return full.promise as never
+      if (path === '/auth/session') return serverIdentity as never
+      if (path === '/tenants') return { tenants: [tenant('space')] } as never
+      if (route(path) === '/catalog') return catalog('online') as never
+      if (route(path) === '/agent-presets') return presets('standard') as never
+      throw new Error(`unexpected request ${path}`)
+    })
+    await mount()
+    expect(request.mock.calls.some(([path]) => path === '/state')).toBe(false)
+    expect(current.snapshot.workspaces.map(item => item.workspace_id)).toEqual(['online'])
+    let pending!: Promise<void>
+    await act(async () => { pending = current.setOnlineComputersOnly(false); await Promise.resolve() })
+    act(() => current.acceptLiveWorkbench({ workspaces: [workspace('old-offline')], sessions: [] }, 10, []))
+    expect(current.snapshot.workspaces).toEqual([])
+    await act(async () => { await current.setOnlineComputersOnly(true) })
+    await act(async () => { full.resolve({ workspaces: [workspace('offline')], sessions: [] }); await pending })
+    expect(current.onlineComputersOnly).toBe(true)
+    expect(current.snapshot.workspaces.map(item => item.workspace_id)).toEqual(['online'])
+    expect(current.error).toBe('')
+  })
   it.each(['active', 'pending'] as const)('completes OIDC username registration with %s status without creating a native session', async status => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     let registered = false

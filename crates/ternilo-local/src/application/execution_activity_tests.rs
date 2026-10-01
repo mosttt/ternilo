@@ -550,8 +550,8 @@ async fn committed_execution_events_update_live_baselines_and_node_invalidations
     let app = Arc::new(app);
     let first = waiting_run(&app, directory.path(), "first").await;
     let second = waiting_run(&app, directory.path(), "second").await;
-    let state_before = tokio::fs::read(data.join("state.json")).await.unwrap();
-    let state_modified = tokio::fs::metadata(data.join("state.json"))
+    let state_before = tokio::fs::read(data.join("data/state.json")).await.unwrap();
+    let state_modified = tokio::fs::metadata(data.join("data/state.json"))
         .await
         .unwrap()
         .modified()
@@ -644,11 +644,11 @@ async fn committed_execution_events_update_live_baselines_and_node_invalidations
         SessionExecutionPhase::Running
     );
     assert_eq!(
-        tokio::fs::read(data.join("state.json")).await.unwrap(),
+        tokio::fs::read(data.join("data/state.json")).await.unwrap(),
         state_before
     );
     assert_eq!(
-        tokio::fs::metadata(data.join("state.json"))
+        tokio::fs::metadata(data.join("data/state.json"))
             .await
             .unwrap()
             .modified()

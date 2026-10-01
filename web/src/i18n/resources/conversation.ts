@@ -206,6 +206,8 @@ export const zh = {
   'queue.unavailable': '此消息已开始处理或已被删除，无法保存。草稿已保留。',
   'queue.remove': '删除排队消息',
   'queue.steer': '停止并发送全部',
+  'queue.stopping': '正在停止并发送…',
+  'queue.sending': '正在发送…',
   'queue.send': '发送全部',
   'queue.steered': '已注入当前轮',
 } satisfies Record<string, string>
@@ -418,6 +420,8 @@ export const en = {
   'queue.unavailable': 'This message has started or was deleted and cannot be saved. Your draft is preserved.',
   'queue.remove': 'Delete queued message',
   'queue.steer': 'Stop and send all',
+  'queue.stopping': 'Stopping and sending…',
+  'queue.sending': 'Sending…',
   'queue.send': 'Send all',
   'queue.steered': 'Steered into current turn',
 } satisfies Record<ConversationKey, string>

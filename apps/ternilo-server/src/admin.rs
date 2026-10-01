@@ -19,13 +19,13 @@ enum Command {
     /// Recover an existing native account without changing its identity or resources.
     ResetPassword(native_password::Options),
     ResetAuthentication {
-        #[arg(long, env = "TERNILO_SERVER_CONFIG")]
-        config: Option<std::path::PathBuf>,
+        #[arg(long, env = "TERNILO_SERVER_CONFIG_DIR")]
+        config_dir: Option<std::path::PathBuf>,
     },
     /// Write a consistent SQLite database snapshot while Server remains online.
     BackupSqlite {
-        #[arg(long, env = "TERNILO_SERVER_CONFIG")]
-        config: Option<std::path::PathBuf>,
+        #[arg(long, env = "TERNILO_SERVER_CONFIG_DIR")]
+        config_dir: Option<std::path::PathBuf>,
         #[arg(long, env = "TERNILO_DATABASE_URL", hide_env_values = true)]
         database_url: Option<String>,
         #[arg(long, env = "TERNILO_SERVER_BACKUP_OUTPUT")]
@@ -48,8 +48,8 @@ enum Command {
 pub(crate) async fn execute(args: Args) -> Result<(), HarnessError> {
     match args.command {
         Command::ResetPassword(options) => native_password::execute(options).await?,
-        Command::ResetAuthentication { config } => {
-            let path = config.map_or_else(crate::config::default_config_path, Ok)?;
+        Command::ResetAuthentication { config_dir } => {
+            let path = crate::config::configuration_path(config_dir.as_deref())?;
             let config = crate::config::ServerConfig::read(&path)?;
             let store = ControlStore::connect(
                 &config.database_url,
@@ -64,14 +64,14 @@ pub(crate) async fn execute(args: Args) -> Result<(), HarnessError> {
             );
         }
         Command::BackupSqlite {
-            config,
+            config_dir,
             database_url,
             output,
         } => {
             let url = if let Some(url) = database_url {
                 url
             } else {
-                let path = config.map_or_else(crate::config::default_config_path, Ok)?;
+                let path = crate::config::configuration_path(config_dir.as_deref())?;
                 crate::config::ServerConfig::read(&path)?.database_url
             };
             crate::backup::sqlite_snapshot(&url, &output).await?;

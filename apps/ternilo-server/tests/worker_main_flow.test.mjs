@@ -66,7 +66,7 @@ async function modelFixture() {
 test('Server and Worker run with independent roots, private broker keys and persistent storage', { timeout: 180_000 }, async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-worker-flow-'))
   const model = await modelFixture()
-  const serverConfig = path.join(directory, 'server/server.json')
+  const serverConfig = path.join(directory, 'server/config.json')
   const workerData = path.join(directory, 'worker')
   const workspaceRoot = path.join(workerData, 'workspaces')
   const policyPath = path.join(directory, 'policy.json')
@@ -85,7 +85,7 @@ test('Server and Worker run with independent roots, private broker keys and pers
   await writeFile(policyPath, JSON.stringify(policy))
   const database = process.env.TERNILO_WORKER_E2E_DATABASE_URL
   const migration = process.env.TERNILO_WORKER_E2E_MIGRATION_URL
-  const initArgs = ['init', '--config', serverConfig, '--non-interactive', '--owner-username', 'owner', '--listen', new URL(origin).host]
+  const initArgs = ['init', '--config-dir', path.dirname(serverConfig), '--non-interactive', '--owner-username', 'owner', '--listen', new URL(origin).host]
   if (database) initArgs.push('--database-url', database)
   if (migration) initArgs.push('--migration-database-url', migration)
   const workers = []
@@ -101,20 +101,20 @@ test('Server and Worker run with independent roots, private broker keys and pers
     assert.ok(response.ok, `${method} ${endpoint}: ${response.status} ${JSON.stringify(value)}`)
     return value
   }
-  const launch = () => { const process = start(workerBinary, ['serve', '--data-dir', workerData]); workers.push(process); return process }
+  const launch = () => { const process = start(workerBinary, ['serve', '--config-dir', workerData]); workers.push(process); return process }
   let worker
   try {
     await execute(serverBinary, initArgs, { cwd: repository, env: { ...cleanEnvironment, TERNILO_SERVER_OWNER_EMAIL: "owner@example.test", TERNILO_SERVER_OWNER_PASSWORD: password } })
-    server = start(serverBinary, ['serve', '--config', serverConfig, '--managed-execution-enabled', '--worker-policy', policyPath], { TERNILO_TEST_OPERATOR_KEY: operatorKey })
+    server = start(serverBinary, ['serve', '--config-dir', path.dirname(serverConfig), '--managed-execution-enabled', '--worker-policy', policyPath], { TERNILO_TEST_OPERATOR_KEY: operatorKey })
     await waitForHttp(`${origin}/readyz`, server)
     const login = await request('/auth/login', { username: 'owner', password })
     token = login.access_token
     tenant = login.personal_tenant_id
     const grant = await request('/admin/workers', { worker_id: `worker-${randomBytes(6).toString('hex')}` })
-    await execute(workerBinary, ['init', '--data-dir', workerData, '--server-url', origin, '--workspace-root', workspaceRoot,
+    await execute(workerBinary, ['init', '--config-dir', workerData, '--server-url', origin, '--workspace-root', workspaceRoot,
       '--sandbox', process.env.TERNILO_WORKER_E2E_SANDBOX || 'process', '--health-listen', '127.0.0.1:0', '--poll-interval-ms', '50'],
     { cwd: repository, env: { ...cleanEnvironment, TERNILO_WORKER_TOKEN: grant.token } })
-    const configuration = JSON.parse(await readFile(path.join(workerData, 'worker.json'), 'utf8'))
+    const configuration = JSON.parse(await readFile(path.join(workerData, 'config.json'), 'utf8'))
     assert.doesNotMatch(JSON.stringify(configuration), /database_url|secret_master_key|host_database/)
     worker = launch()
     await ready(worker)
@@ -179,7 +179,7 @@ test('Server and Worker run with independent roots, private broker keys and pers
     // Remove only this fixture's cached object; its authoritative Server copy and workspace files remain.
     await rm(attachmentPath)
     const replacementRoot = path.join(directory, 'empty-replacement-volume')
-    const wrongVolume = start(workerBinary, ['serve', '--data-dir', workerData, '--workspace-root', replacementRoot])
+    const wrongVolume = start(workerBinary, ['serve', '--config-dir', workerData, '--workspace-root', replacementRoot])
     workers.push(wrongVolume)
     for (let attempt = 0; attempt < 100 && wrongVolume.child.exitCode === null; attempt++) await pause(100)
     assert.equal(wrongVolume.child.exitCode, 1, `an empty replacement must be refused: ${wrongVolume.diagnostics()}`)
@@ -205,10 +205,10 @@ test('Server and Worker run with independent roots, private broker keys and pers
 
     if (!database || database.startsWith('sqlite:')) {
       const snapshot = path.join(directory, 'online snapshot.sqlite3')
-      await execute(serverBinary, ['admin', 'backup-sqlite', '--config', serverConfig, '--output', snapshot], { cwd: repository, env: cleanEnvironment })
+      await execute(serverBinary, ['admin', 'backup-sqlite', '--config-dir', path.dirname(serverConfig), '--output', snapshot], { cwd: repository, env: cleanEnvironment })
       const snapshotBytes = await readFile(snapshot)
       assert.equal(snapshotBytes.subarray(0, 15).toString(), 'SQLite format 3')
-      await assert.rejects(execute(serverBinary, ['admin', 'backup-sqlite', '--config', serverConfig, '--output', snapshot], { cwd: repository, env: cleanEnvironment }))
+      await assert.rejects(execute(serverBinary, ['admin', 'backup-sqlite', '--config-dir', path.dirname(serverConfig), '--output', snapshot], { cwd: repository, env: cleanEnvironment }))
       assert.deepEqual(await readFile(snapshot), snapshotBytes)
       assert.equal((await fetch(`${origin}/readyz`)).status, 200, 'online backup leaves Server available')
       t.diagnostic('The online SQLite backup command preserved a consistent snapshot and kept Server running')

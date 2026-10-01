@@ -144,7 +144,8 @@ async fn opening_existing_sessions_initializes_scope_without_executing_them() {
     let expected = application.execution_scope("z-legacy-root").await.unwrap();
     application.shutdown().await.unwrap();
     drop(application);
-    let database = tokio_rusqlite::rusqlite::Connection::open(data.join("inbox.sqlite3")).unwrap();
+    let database =
+        tokio_rusqlite::rusqlite::Connection::open(data.join("data/db/inbox.sqlite3")).unwrap();
     database
         .execute("DELETE FROM session_execution_scopes", [])
         .unwrap();

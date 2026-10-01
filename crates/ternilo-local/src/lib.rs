@@ -133,6 +133,23 @@ fn plugin(id: &str, kind: &str) -> PluginEntry {
     }
 }
 
+/// Create the private instance layout shared by all local adapters.
+pub fn prepare_data_dir(root: &std::path::Path) -> Result<(), HarnessError> {
+    for relative in [
+        "config",
+        "secrets",
+        "data/db",
+        "data/sessions",
+        "data/attachments",
+        "data/extensions",
+        "cache",
+        "runtime",
+    ] {
+        persistence::create_private_directory(&root.join(relative))?;
+    }
+    Ok(())
+}
+
 pub fn default_data_dir() -> Result<PathBuf, HarnessError> {
     if let Some(path) = std::env::var_os("XDG_DATA_HOME").filter(|value| !value.is_empty()) {
         return Ok(PathBuf::from(path).join("ternilo"));

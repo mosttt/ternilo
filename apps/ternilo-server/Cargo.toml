@@ -9,6 +9,7 @@ version.workspace = true
 base64.workspace = true
 clap.workspace = true
 futures-util.workspace = true
+hmac.workspace = true
 rand.workspace = true
 salvo_core.workspace = true
 salvo_extra.workspace = true

@@ -34,7 +34,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
   const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ?? temporary
   await mkdir(artifacts, { recursive: true })
   const origin = `http://127.0.0.1:${await freePort()}`
-  const configPath = path.join(temporary, 'server', 'server.json')
+  const configPath = path.join(temporary, 'server', 'config.json')
   const provider = await startOidcServer({
     audience: 'ternilo-link-browser',
     subject: 'explicit-native-owner',
@@ -45,7 +45,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
   const pageErrors = [], consoleErrors = [], failedApiRequests = []
   try {
     await execute(binary, [
-      'init', '--non-interactive', '--config', configPath,
+      'init', '--non-interactive', '--config-dir', path.dirname(configPath),
       '--listen', new URL(origin).host, '--public-url', origin,
     ], {
       cwd: repository,
@@ -61,7 +61,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
       allow_insecure: true,
     }
     await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
-    const child = spawn(binary, ['serve', '--config', configPath], {
+    const child = spawn(binary, ['serve', '--config-dir', path.dirname(configPath)], {
       cwd: repository, env: cleanEnvironment, stdio: ['ignore', 'pipe', 'pipe'],
     })
     let output = ''

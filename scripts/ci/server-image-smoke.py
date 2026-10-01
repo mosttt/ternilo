@@ -51,7 +51,7 @@ def main():
     try:
         docker("run", "--rm", *isolation, "--mount", f"source={volume},target=/var/lib/ternilo",
                "--env", "TERNILO_SERVER_OWNER_USERNAME", "--env", "TERNILO_SERVER_OWNER_EMAIL", "--env", "TERNILO_SERVER_OWNER_PASSWORD",
-               args.image, "server", "init", "--non-interactive", "--config", "/var/lib/ternilo/server.json", "--listen", "0.0.0.0:4321", environment=environment)
+               args.image, "server", "init", "--non-interactive", "--config-dir", "/var/lib/ternilo", "--listen", "0.0.0.0:4321", environment=environment)
         docker("run", "-d", "--name", name, *isolation, "--mount", f"source={volume},target=/var/lib/ternilo", "-p", "127.0.0.1::4321", args.image)
         origin = "http://" + docker("port", name, "4321/tcp").splitlines()[0]
         ready(origin)

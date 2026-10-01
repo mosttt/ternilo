@@ -224,8 +224,8 @@ def acceptance(backend):
         original_attachment = api(f"/sessions/{session}/attachments/resolve", {"attachment": attachment})
         assert original_attachment["content"] == "file-from-before-backup"
         digest = lambda value: hashlib.sha256(value.encode()).hexdigest()
-        physical = f"/var/lib/ternilo/workspaces/{digest(tenant)}/{digest(workspace['workspace_id'])}"
-        original_marker = volume_read(source_worker, "worker", "/var/lib/ternilo/workspaces/.ternilo-storage.json")
+        physical = f"/var/lib/ternilo/data/workspaces/{digest(tenant)}/{digest(workspace['workspace_id'])}"
+        original_marker = volume_read(source_worker, "worker", "/var/lib/ternilo/data/workspaces/.ternilo-storage.json")
         assert volume_read(source_worker, "worker", physical + "/preserved.txt") == b"file-from-before-backup"
         print(f"PASS {backend}: production Worker executed in its own private volume", flush=True)
 
@@ -270,7 +270,7 @@ def acceptance(backend):
         helper(restored_worker, "restore", "--archive", worker_backup)
         assert volume(source_server, "server") != volume(restored_server, "server")
         assert volume(source_worker, "worker") != volume(restored_worker, "worker")
-        assert volume_read(restored_worker, "worker", "/var/lib/ternilo/workspaces/.ternilo-storage.json") == original_marker
+        assert volume_read(restored_worker, "worker", "/var/lib/ternilo/data/workspaces/.ternilo-storage.json") == original_marker
         assert volume_read(restored_worker, "worker", physical + "/preserved.txt") == b"file-from-before-backup"
         helper(restored_server, "up")
         login = api("/auth/login", {"username": "owner", "password": password})
@@ -294,7 +294,7 @@ def acceptance(backend):
         assert api(f"/sessions/{session}/attachments/resolve", {"attachment": attachment}) == original_attachment
         print(f"PASS {backend}: original account, credential, marker, files and retained event references survived matched restoration", flush=True)
 
-        server_config = json.loads(volume_read(restored_server, "server", "/var/lib/ternilo/server.json"))
+        server_config = json.loads(volume_read(restored_server, "server", "/var/lib/ternilo/config.json"))
         contract_environment = {"TERNILO_RESTORE_RUNTIME_DATABASE_URL": server_config["database_url"],
                                 "TERNILO_RESTORE_MIGRATION_DATABASE_URL": server_config.get("migration_database_url") or server_config["database_url"],
                                 "TERNILO_RESTORE_WORKER_POLICY": "/var/lib/ternilo/worker-policy.json"}

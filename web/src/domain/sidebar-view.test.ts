@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { LocalSession } from '@/types'
+import type { LocalSession, Workspace } from '@/types'
 import {
   canonicalSessionTree, defaultSidebarView, expandActiveAccount, foldSessionWindow,
   moveItem, moveItemByStep, orderIds, readSidebarView,
+  groupWorkspacesByComputer, replaceOrderedSubset,
 } from './sidebar-view'
 
 const items = [
@@ -12,6 +13,24 @@ const items = [
 ]
 
 describe('sidebar view', () => {
+  it('groups by computer by default while keeping explicit grouping and collapse preferences', () => {
+    expect(readSidebarView(null).groupBy).toBe('computer')
+    expect(readSidebarView('{}').groupBy).toBe('computer')
+    expect(readSidebarView(JSON.stringify({ groupBy: 'computer', collapsedComputers: ['scope:node-a', 7] })))
+      .toMatchObject({ groupBy: 'computer', collapsedComputers: ['scope:node-a'] })
+    expect(readSidebarView(JSON.stringify({ groupBy: 'workspace' })).groupBy).toBe('workspace')
+  })
+
+  it('keeps same-named workspaces on different computers separate, including offline computers', () => {
+    const workspace = (id: string, node: string, status: 'online' | 'offline'): Workspace => ({
+      workspace_id: id, node_id: node, status, placement: 'local_node', path: '', title: 'Pictures', created_at_ms: 1, updated_at_ms: 1,
+    })
+    const groups = groupWorkspacesByComputer([workspace('a-1','a','offline'),workspace('b-1','b','online'),workspace('a-2','a','offline')])
+    expect(groups.map(group => [group.nodeId, group.workspaces.map(item => item.workspace_id)])).toEqual([
+      ['a',['a-1','a-2']],['b',['b-1']],
+    ])
+    expect(replaceOrderedSubset(['a-1','b-1','a-2'],['a-2','a-1'])).toEqual(['a-2','b-1','a-1'])
+  })
   it('keeps grouping and ordering as independent persisted choices', () => {
     const view = readSidebarView(JSON.stringify({
       groupBy: 'flat', orderBy: 'manual', workspaceOrder: ['device-only'],

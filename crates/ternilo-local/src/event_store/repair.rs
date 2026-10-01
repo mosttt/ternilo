@@ -33,12 +33,12 @@ pub async fn repair_session_log(
 ) -> Result<SessionLogRepairReport, HarnessError> {
     session_id.validate()?;
     let path = data_dir
-        .join("sessions")
+        .join("data/sessions")
         .join(format!("{}.jsonl", super::encode_id(session_id.as_str())));
     if !path.is_file() {
         return Err(HarnessError::invalid("session log does not exist"));
     }
-    let guard = crate::application::acquire_data_lock(data_dir).await?;
+    let guard = crate::application::acquire_data_lock(data_dir)?;
     let session_id = session_id.clone();
     tokio::task::spawn_blocking(move || {
         let _guard = guard;

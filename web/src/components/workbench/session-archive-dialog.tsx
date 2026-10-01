@@ -8,11 +8,12 @@ import type { LocalSession, Workspace } from '@/types'
 import { SessionArchivePreview } from './session-archive-preview'
 import css from './session-archive-dialog.module.css'
 
-export function SessionArchiveDialog({ tenantId, platform, readOnly, workspaces, onClose, onRestored }: {
+export function SessionArchiveDialog({ tenantId, platform, readOnly, workspaces, onlineComputersOnly = false, onClose, onRestored }: {
   tenantId: string | null
   platform: boolean
   readOnly: boolean
   workspaces: readonly Workspace[]
+  onlineComputersOnly?: boolean
   onClose(): void
   onRestored(): Promise<unknown> | void
 }) {
@@ -32,7 +33,7 @@ export function SessionArchiveDialog({ tenantId, platform, readOnly, workspaces,
     setLoading(true)
     setError('')
     try {
-      const result = await api.request<LocalSession[]>('/sessions/archived', { headers, signal })
+      const result = await api.request<LocalSession[]>(platform && onlineComputersOnly ? '/sessions/archived?online_computers_only=true' : '/sessions/archived', { headers, signal })
       if (mounted.current && !signal?.aborted && version === readVersion.current) {
         setSessions(result.filter(session => session.archived_at_ms != null)
           .sort((left, right) => right.archived_at_ms! - left.archived_at_ms!))
@@ -42,7 +43,7 @@ export function SessionArchiveDialog({ tenantId, platform, readOnly, workspaces,
     } finally {
       if (mounted.current && !signal?.aborted && version === readVersion.current) setLoading(false)
     }
-  }, [headers])
+  }, [headers, onlineComputersOnly, platform])
   React.useEffect(() => {
     mounted.current = true
     const controller = new AbortController()

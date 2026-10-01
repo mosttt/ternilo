@@ -307,13 +307,13 @@ export async function initializeServer({
 }) {
   const owner = { username: 'browser-owner', password: 'browser-owner-password', ...ownerInput }
   owner.email ??= `${owner.username}@example.test`
-  const configPath = path.join(directory, 'server.json')
+  const configPath = path.join(directory, 'config.json')
   await mkdir(directory, { recursive: true })
   const runtimeEnvironment = {
     ...Object.fromEntries(Object.keys(process.env).filter(key => key.startsWith('TERNILO_')).map(key => [key, undefined])),
     ...environment,
   }
-  const args = ['init', '--non-interactive', '--config', configPath, '--listen', new URL(origin).host, '--public-url', origin]
+  const args = ['init', '--non-interactive', '--config-dir', path.dirname(configPath), '--listen', new URL(origin).host, '--public-url', origin]
   if (databaseUrl) args.push('--database-url', databaseUrl)
   if (migrationDatabaseUrl) args.push('--migration-database-url', migrationDatabaseUrl)
   await execute(binary, args, { cwd: repository, env: {
@@ -328,7 +328,7 @@ export async function initializeServer({
   config.managed_execution_enabled = managedExecutionEnabled
   if (workerPolicy) config.worker_policy = workerPolicy
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
-  const application = startProcess(binary, ['serve', '--config', configPath], runtimeEnvironment)
+  const application = startProcess(binary, ['serve', '--config-dir', path.dirname(configPath)], runtimeEnvironment)
   try {
     await waitForHttp(`${origin}/readyz`, application)
     let session = await serverRequest(origin, '/auth/login', { body: { username: owner.username, password: owner.password } })

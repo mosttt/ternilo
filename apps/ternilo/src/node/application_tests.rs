@@ -332,7 +332,7 @@ async fn system_agent_presets_cross_the_node_application_boundary_unchanged() {
     .unwrap();
     assert_eq!(updated.summary.display_name, "Updated Node Custom");
     assert!(updated.base_profile.is_none());
-    let stored = tokio::fs::read_to_string(data_dir.path().join("agent-presets.json"))
+    let stored = tokio::fs::read_to_string(data_dir.path().join("config/agent-presets.json"))
         .await
         .unwrap();
     assert!(!stored.contains("base_profile"));

@@ -26,8 +26,19 @@ pub(super) async fn discover(
     state: &AppState,
     user: &ControlUser,
     tenant_id: &TenantId,
+    online_executors: Option<&[ExecutorId]>,
 ) -> Result<(), HarnessError> {
-    let computers = state.store.list_owned_executors(user, tenant_id).await?;
+    let computers = if let Some(ids) = online_executors {
+        let mut computers = Vec::new();
+        for id in ids {
+            if let Ok(computer) = state.store.owned_executor(user, tenant_id, id).await {
+                computers.push(computer);
+            }
+        }
+        computers
+    } else {
+        state.store.list_owned_executors(user, tenant_id).await?
+    };
     let mut discoveries = stream::iter(computers)
         .map(|computer| async move {
             if !state

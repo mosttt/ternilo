@@ -63,7 +63,7 @@ unset TERNILO_WORKER_TOKEN
 
 Server 地址必须能从 Worker 容器内访问，同机部署也可以填写 Server 的正常域名。Worker 不需要开放接入端口；就绪检查默认只监听容器内的回环地址。
 
-初始化会创建私有数据卷，里面保存 `worker.json`、工作区文件和存储标识。再次执行 init 会保留已有配置和数据。日常只需要：
+初始化会创建私有数据卷，里面保存 `config.json`、工作区文件和存储标识。再次执行 init 会保留已有配置和数据。日常只需要：
 
 ```bash
 ./ternilo-deploy check --directory ./worker
@@ -79,9 +79,9 @@ Server 地址必须能从 Worker 容器内访问，同机部署也可以填写 S
 ```bash
 read -r -s -p "Worker token: " TERNILO_WORKER_TOKEN
 export TERNILO_WORKER_TOKEN
-ternilo-worker init --server-url https://ternilo.example.com --data-dir ./worker
+ternilo-worker init --server-url https://ternilo.example.com --config-dir ./worker
 unset TERNILO_WORKER_TOKEN
-ternilo-worker serve --data-dir ./worker
+ternilo-worker serve --config-dir ./worker
 ```
 
 宿主部署默认使用 bubblewrap；官方 Docker 使用 container sandbox。两者需要支持 pidfd 的 Linux 内核（5.3 或更新版本），用于确认隔离进程已经退出。Worker 在注册并领取任务前会自动检查隔离环境；检查失败时直接报告启动原因，修复后重新启动即可。`process` 仅适合明确的开发验证，会失去 Linux namespace 隔离。
@@ -90,7 +90,7 @@ ternilo-worker serve --data-dir ./worker
 
 每台 Worker 默认允许 4 个任务执行，最多保留 16 个任务进程。父任务确认正在等待已接纳的子任务时，会让出执行名额，但进程和后台服务仍占用驻留名额。子任务完成后，父任务先重新取得执行名额再继续。提交时仍检查并预留模型预算；空间的 `max_concurrent_runs` 限制实际执行名额，不再把排队中的预算预留都算成正在运行。
 
-首次初始化可设置 `--max-active-runs 4 --max-resident-runs 16`，可执行文件与 `ternilo-deploy init --component worker` 使用相同参数。也可以使用 `TERNILO_WORKER_MAX_ACTIVE_RUNS` 和 `TERNILO_WORKER_MAX_RESIDENT_RUNS`；初始化会保存到私有 `worker.json` 的 `capacity`。可执行文件 `serve` 上的参数或环境变量只覆盖本次启动，不改写配置。执行名额必须大于 0，驻留名额不能小于执行名额；这里的 0 不表示无限制。
+首次初始化可设置 `--max-active-runs 4 --max-resident-runs 16`，可执行文件与 `ternilo-deploy init --component worker` 使用相同参数。也可以使用 `TERNILO_WORKER_MAX_ACTIVE_RUNS` 和 `TERNILO_WORKER_MAX_RESIDENT_RUNS`；初始化会保存到私有 `config.json` 的 `capacity`。可执行文件 `serve` 上的参数或环境变量只覆盖本次启动，不改写配置。执行名额必须大于 0，驻留名额不能小于执行名额；这里的 0 不表示无限制。
 
 网页会区分“等待子任务完成”和“等待继续执行”，等待时仍可停止任务或保留草稿。同一目录仍有任务运行时，这组父子任务固定到持有目录的 Worker；该 Worker 的驻留名额全部被等待任务占满、没有能够继续推进的依赖时，最深层排队子任务会明确失败，父任务可继续处理结果。其他机器空闲也无法承接仍被占用的目录。这些名额不是 CPU 或内存配额，应按机器资源调整。
 

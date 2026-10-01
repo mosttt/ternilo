@@ -98,7 +98,7 @@ test('multiple Servers and accounts retain exact model and budget selection thro
     assert.equal((await api('/state')).sessions.find(item => item.identity.session_id === sessionId).model.provider_id, ownerB.provider.id)
     assert.equal((await api('/model-connections')).length, 3)
     assert.equal((await api('/providers')).length, providers.length)
-    const restarted = startProcess(serverBinary, ['serve', '--config', b.configPath], environment); processes.push(restarted)
+    const restarted = startProcess(serverBinary, ['serve', '--config-dir', path.dirname(b.configPath)], environment); processes.push(restarted)
     await waitForHttp(`${b.origin}/readyz`, restarted)
     await refreshConnection(page, ownerB.connection.connection_id)
     await page.getByText('已刷新可用模型。', { exact: true }).waitFor()

@@ -115,6 +115,8 @@ pub(crate) struct RenameWorkspaceRequest {
 pub(crate) struct SearchQuery {
     pub(crate) query: String,
     pub(crate) limit: Option<u32>,
+    #[serde(default)]
+    pub(crate) online_computers_only: bool,
 }
 
 #[derive(Default, Deserialize)]

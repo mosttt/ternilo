@@ -42,17 +42,17 @@ test('unpacked Local and Server preserve identities, credentials and archives ac
     provider.models[0].settings = { mode: 'automatic', upstream: { context_window: 65536 }, overrides: {} }
     const serverData = path.join(directory, 'server-data'), localData = path.join(directory, 'local-data')
     const serverOrigin = `http://127.0.0.1:${await freePort()}`, localOrigin = `http://127.0.0.1:${await freePort()}`
-    const config = path.join(serverData, 'server.json')
+    const config = path.join(serverData, 'config.json')
     const credentials = { username: 'delivery-owner', email: 'delivery-owner@example.test', password: 'synthetic-delivery-password' }
     const login = { username: credentials.username, password: credentials.password }
-    await execute(binaries['ternilo-server'], ['init', '--non-interactive', '--config', config, '--listen', new URL(serverOrigin).host, '--public-url', serverOrigin], {
+    await execute(binaries['ternilo-server'], ['init', '--non-interactive', '--config-dir', path.dirname(config), '--listen', new URL(serverOrigin).host, '--public-url', serverOrigin], {
       ...runtime, env: { ...environment, TERNILO_SERVER_OWNER_USERNAME: credentials.username, TERNILO_SERVER_OWNER_EMAIL: credentials.email, TERNILO_SERVER_OWNER_PASSWORD: credentials.password },
     })
     assert.equal((await stat(config)).mode & 0o777, 0o600)
     const originalConfig = await readFile(config)
-    await assert.rejects(() => execute(binaries['ternilo-server'], ['init', '--non-interactive', '--config', config], runtime), error => error.code === 1 && /already exists/.test(error.stderr))
+    await assert.rejects(() => execute(binaries['ternilo-server'], ['init', '--non-interactive', '--config-dir', path.dirname(config)], runtime), error => error.code === 1 && /already exists/.test(error.stderr))
     assert.deepEqual(await readFile(config), originalConfig, 'repeat initialization does not replace existing identity or master key')
-    const server = await serve(binaries['ternilo-server'], ['serve', '--config', config], environment, installation, `${serverOrigin}/readyz`, processes)
+    const server = await serve(binaries['ternilo-server'], ['serve', '--config-dir', path.dirname(config)], environment, installation, `${serverOrigin}/readyz`, processes)
     const account = await serverRequest(serverOrigin, '/auth/login', { body: login })
     const owner = (resource, options = {}) => serverRequest(serverOrigin, resource, { token: account.access_token, tenantId: account.personal_tenant_id, ...options })
     await owner('/credentials', { body: { name: 'SAME_PROVIDER_KEY', value: 'synthetic-delivery-secret' } })
@@ -106,16 +106,16 @@ test('unpacked Local and Server preserve identities, credentials and archives ac
     const backups = path.join(directory, 'backups')
     await mkdir(backups, { mode: 0o700 })
     const snapshot = path.join(backups, 'online.sqlite3')
-    await execute(binaries['ternilo-server'], ['admin', 'backup-sqlite', '--config', config, '--output', snapshot], runtime)
+    await execute(binaries['ternilo-server'], ['admin', 'backup-sqlite', '--config-dir', path.dirname(config), '--output', snapshot], runtime)
     assert.equal((await stat(snapshot)).mode & 0o777, 0o600)
     const snapshotHash = await digest(snapshot)
-    await assert.rejects(() => execute(binaries['ternilo-server'], ['admin', 'backup-sqlite', '--config', config, '--output', snapshot], runtime), error => error.code === 1)
+    await assert.rejects(() => execute(binaries['ternilo-server'], ['admin', 'backup-sqlite', '--config-dir', path.dirname(config), '--output', snapshot], runtime), error => error.code === 1)
     assert.equal(await digest(snapshot), snapshotHash)
     assert.equal((await fetch(`${serverOrigin}/readyz`)).status, 200, 'SQLite snapshot was taken with Server online')
     await stopProcess(server)
     assert.equal(server.child.exitCode, 0, server.diagnostics())
     for (const [name, source] of [['server', serverData], ['local', localData], ['workspace', workspacePath]]) await archiveDirectory(source, path.join(backups, `${name}.tar.gz`), environment)
-    await writeFile(path.join(backups, 'server.json'), originalConfig, { mode: 0o600 })
+    await writeFile(path.join(backups, 'config.json'), originalConfig, { mode: 0o600 })
     await writeFile(path.join(backups, 'node-connection.json'), JSON.stringify({ token: connection.credential.token }), { mode: 0o600 })
     await rename(serverData, `${serverData}-offline`); await rename(localData, `${localData}-offline`)
     await rm(workspacePath, { recursive: true })
@@ -124,16 +124,17 @@ test('unpacked Local and Server preserve identities, credentials and archives ac
     for (const mode of ['full', 'snapshot']) {
       const callsBeforeRestore = model.calls.length
       const restoredServer = path.join(directory, `${mode}-server`), restoredLocal = path.join(directory, `${mode}-local`)
-      const restoredConfig = path.join(restoredServer, 'server.json')
+      const restoredConfig = path.join(restoredServer, 'config.json')
       if (mode === 'full') await extractDirectory(path.join(backups, 'server.tar.gz'), restoredServer, environment)
       else {
         await mkdir(restoredServer, { mode: 0o700 })
-        await copyFile(path.join(backups, 'server.json'), restoredConfig)
-        await copyFile(snapshot, path.join(restoredServer, 'server.sqlite3'))
+        await copyFile(path.join(backups, 'config.json'), restoredConfig)
+        await mkdir(path.join(restoredServer, 'data/db'), { recursive: true, mode: 0o700 })
+        await copyFile(snapshot, path.join(restoredServer, 'data/db/server.sqlite3'))
       }
       assert.deepEqual(await readFile(restoredConfig), originalConfig)
       await extractDirectory(path.join(backups, 'local.tar.gz'), restoredLocal, environment)
-      const restored = await serve(binaries['ternilo-server'], ['serve', '--config', restoredConfig, '--database-url', `sqlite://${path.join(restoredServer, 'server.sqlite3')}?mode=rw`, '--workspace-root', path.join(restoredServer, 'workspaces')], environment, installation, `${serverOrigin}/readyz`, processes)
+      const restored = await serve(binaries['ternilo-server'], ['serve', '--config-dir', path.dirname(restoredConfig), '--database-url', `sqlite://${path.join(restoredServer, 'data/db/server.sqlite3')}?mode=rw`, '--workspace-root', path.join(restoredServer, 'data/workspaces')], environment, installation, `${serverOrigin}/readyz`, processes)
       const identity = await serverRequest(serverOrigin, '/auth/login', { body: login })
       assert.equal(identity.user.user_id, account.user.user_id)
       assert.equal(identity.personal_tenant_id, account.personal_tenant_id)

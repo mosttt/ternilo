@@ -50,7 +50,7 @@ test('a standalone device can use explicitly delegated account models without ob
     const model = (await request('/providers')).find(value => value.id.startsWith('server_a_'))
     assert.ok(model.base_url.startsWith(`${server.origin}/v1/device-account/`))
     assert.equal(await local.evaluate(() => sessionStorage.getItem('ternilo.native.session')), null)
-    const stored = await readFile(path.join(data, 'model-connections.json'), 'utf8')
+    const stored = await readFile(path.join(data, 'secrets/model-connections.json'), 'utf8')
     for (const secret of ['account-device-private-key', 'ACCOUNT_DEVICE_KEY', account.baseUrl, 'ter_d_']) assert.ok(!stored.includes(secret))
     await chooseModel(local, model.id)
     const submit = async text => {

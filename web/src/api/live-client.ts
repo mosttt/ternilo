@@ -201,6 +201,7 @@ export class LiveClient {
   private nextSubscriptionId = 1
   private activeSubscription: ActiveSubscription | null = null
   private running = false
+  private onlineComputersOnly = false
   private ready = false
   private currentStatus: LiveConnectionStatus = 'idle'
   private observingNetwork = false
@@ -307,6 +308,12 @@ export class LiveClient {
     else this.setStatus('reconnecting')
   }
 
+  setWorkbenchOnlineOnly(onlineOnly: boolean) {
+    if (this.onlineComputersOnly === onlineOnly) return
+    this.onlineComputersOnly = onlineOnly
+    this.credentialsChanged()
+  }
+
   setSession(sessionId: string | null, options: LiveSubscriptionOptions = {}) {
     const normalizedSessionId = sessionId?.trim() ?? ''
     if (this.activeSubscription?.sessionId === normalizedSessionId) {
@@ -380,7 +387,9 @@ export class LiveClient {
     let socket: LiveSocket
     let credentialRevision: number | undefined
     try {
-      socket = this.createSocket(this.options.url)
+      const url = new URL(this.options.url)
+      if (this.onlineComputersOnly) url.searchParams.set('online_computers_only', 'true')
+      socket = this.createSocket(this.onlineComputersOnly ? url.href : this.options.url)
     } catch {
       this.scheduleReconnect()
       return

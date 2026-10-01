@@ -10,7 +10,7 @@ Cloud jobs use admission, leases and fencing to prevent stale executors from pub
 
 ## Storage and deployment
 
-SQLite and PostgreSQL share the product contract. Component schema initialization is versioned, and an incompatible schema is rejected. PostgreSQL uses schema-owner initialization plus explicit `ternilo_runtime` grants and tenant-aware access. A shared PostgreSQL database does not provide complete multi-Server Node connection routing; deploy a single Server unless the missing coordination is implemented and validated.
+SQLite and PostgreSQL share the product contract. Component schema initialization is versioned, and an incompatible schema is rejected. PostgreSQL uses schema-owner initialization plus explicit `ternilo_runtime` grants and tenant-aware access. [Cross-Server Node routing](server-cluster.md) requires explicit instance origins and a shared master key; its network/browser and restricted PostgreSQL acceptance remains pending, so released production deployments continue using one Server.
 
 Backups must retain the database and matching master key/configuration. Online SQLite snapshots and stopped full archives have different consistency boundaries. See [deployment](deployment.md) and [release acceptance](release-packaging.md).
 

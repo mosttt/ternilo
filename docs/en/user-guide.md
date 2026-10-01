@@ -26,6 +26,17 @@ See [collaboration](collaboration.md), [models](models.md), [settings](settings.
 
 ## History loading
 
-Streamed text fragments, tool events and status records count as underlying events, not visible messages. Histories below 10,000 events load completely. Larger histories initially load the latest 5,000 events and offer **Load earlier** in batches of up to 5,000. Each API request remains bounded to 1,000 events; the interface combines consecutive pages. Loading old events does not rewind the independent live cursor.
+The history API pages by raw events, not tokens or visible messages. Each request reads up to 1,000 events. Small histories below 10,000 events are filled automatically; larger histories normally start with 5,000 recent events. The first page appears immediately and starts Live catch-up while older pages merge in the background. A boundary inside a turn is extended to that turn's beginning, so one long reasoning round does not require a manual “Load earlier” action just because it contains many fragments.
+
+Recent conversations use a bounded memory cache within the same account and space. Returning restores existing history and metadata immediately and resumes Live from the last accepted sequence. The cache is not persisted in browser storage and is cleared on logout or account/space changes; denied or unreadable sessions lose their cached content. Local, Desktop and Server use the same strategy. Streamed text is coalesced every 100 ms without discarding events; tool results and terminal state are processed immediately.
+
+Local and Node “Stop and send all” acknowledges after saving queued inputs and restart intent and signalling cancellation. The execution host waits for the old run to release execution before sending the queue. A later explicit stop cancels restart intent. Acceptance is not proof of process exit. Optional Cloud Worker execution still waits up to 30 seconds for terminal confirmation and preserves pending inputs if confirmation is unavailable.
 
 Workspace display names are unique within the same account and project. When another computer opens a same-named folder, the dialog adds the computer identifier, such as `Pictures (d)`. This does not rename the directory or remove the offline computer's workspace/history. A manually duplicated name produces an explicit validation message. The dialog loads project/computer lists when opened and refreshes them on request, without continuous polling.
+
+
+## Computer groups and demand loading
+
+The sidebar groups workspaces by computer by default. The grouping menu also supports workspace groups and a flat list. Computer collapse and ordering preferences are saved without changing execution bindings.
+
+“Only online computers” is available in computer mode. Initial state, Live workbench updates, search and archived lists request only visible resources on online computers. Server filters offline metadata before reading it rather than downloading everything and hiding it in the browser. Managed execution resources remain visible. Disabling the switch reloads all visible computers in the selected space. Switching replaces the subscription and discards stale responses; connectivity does not change authorization or delete history.

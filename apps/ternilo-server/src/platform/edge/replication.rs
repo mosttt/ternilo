@@ -191,6 +191,14 @@ impl EdgeGateway {
                             break;
                         }
                         let refresh_events = invalidation.dirty.events;
+                        if self
+                            .journal
+                            .notify_live(route, &connected.lease, now)
+                            .await
+                            .is_err()
+                        {
+                            break;
+                        }
                         let _ = self.live_notify.send(EdgeLiveNotification::Session {
                             tenant_id: route.tenant_id.clone(),
                             executor_id: route.executor_id.clone(),

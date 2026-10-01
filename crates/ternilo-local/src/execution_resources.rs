@@ -27,7 +27,7 @@ pub(crate) struct ExecutionResources {
 }
 impl ExecutionResources {
     pub(crate) async fn open(data_dir: &Path) -> Result<Self, HarnessError> {
-        let path = data_dir.join("execution-resources.json");
+        let path = data_dir.join("runtime/execution-resources.json");
         let owners = match tokio::fs::read(&path).await {
             Ok(data) => serde_json::from_slice(&data).map_err(|error| {
                 HarnessError::execution(format!("read execution resource ownership: {error}"))
