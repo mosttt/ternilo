@@ -92,6 +92,7 @@ fn run(args: Args) -> Result<(), AnyError> {
                 token: None,
                 node_id: None,
                 no_local_web: Some(false),
+                open_browser: false,
                 allow_insecure_gateway: None,
             }))
             .map_err(Into::into);

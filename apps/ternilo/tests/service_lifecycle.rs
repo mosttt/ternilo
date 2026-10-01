@@ -284,6 +284,12 @@ async fn headless_service_keeps_management_without_serving_the_browser() -> Test
     let connection = wait_ready(&mut service, &data, &client).await?;
     assert!(!connection.info.browser_enabled);
     assert!(!connection.info.remote_enabled);
+    let rejected = command()
+        .args(["serve", "--open-browser", "--data-dir"])
+        .arg(&data)
+        .output()?;
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8(rejected.stderr)?.contains("requires the local web UI"));
     let origin = connection.info.origin();
     for route in [
         "/",
@@ -316,5 +322,120 @@ async fn headless_service_keeps_management_without_serving_the_browser() -> Test
     stop_http(&client, &connection).await?;
     service.wait_success().await?;
     assert!(!data.join("runtime/service.json").exists());
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn browser_launch_uses_the_actual_origin_and_is_not_persisted() -> TestResult {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temporary = tempfile::tempdir()?;
+    let launcher = temporary.path().join("xdg-open");
+    let opened = temporary.path().join("opened-urls");
+    fs::write(
+        &launcher,
+        "#!/bin/sh\nprintf '%s\\n' \"$1\" >> \"$TERNILO_TEST_BROWSER_URLS\"\n",
+    )?;
+    fs::set_permissions(&launcher, fs::Permissions::from_mode(0o700))?;
+    let mut paths = vec![temporary.path().to_path_buf()];
+    paths.extend(std::env::split_paths(
+        &std::env::var_os("PATH").unwrap_or_default(),
+    ));
+    let path = std::env::join_paths(paths)?;
+    let client = client()?;
+    for (index, flag) in ["--open-browser", "--open-brower"].into_iter().enumerate() {
+        let data = temporary.path().join(format!("data-{index}"));
+        let mut start = command();
+        start
+            .args(["serve", "--listen", "127.0.0.1:0", "--data-dir"])
+            .arg(&data)
+            .arg(flag)
+            .env("PATH", &path)
+            .env("TERNILO_TEST_BROWSER_URLS", &opened);
+        let mut service = ChildGuard::spawn(start, temporary.path(), &format!("browser-{index}"))?;
+        let connection = wait_ready(&mut service, &data, &client).await?;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Ok(urls) = fs::read_to_string(&opened)
+                && urls.lines().last() == Some(connection.info.origin().as_str())
+            {
+                assert_eq!(urls.lines().count(), index + 1);
+                assert!(!urls.contains(&connection.api_token));
+                break;
+            }
+            service.ensure_running()?;
+            assert!(Instant::now() < deadline, "browser launcher was not called");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert_eq!(
+            client.get(connection.info.origin()).send().await?.status(),
+            StatusCode::OK
+        );
+        let config: Value = serde_json::from_slice(&fs::read(data.join("config.json"))?)?;
+        assert!(config.get("open_browser").is_none());
+        stop_http(&client, &connection).await?;
+        service.wait_success().await?;
+
+        let mut restart = command();
+        restart
+            .args(["serve", "--data-dir"])
+            .arg(&data)
+            .env("PATH", &path)
+            .env("TERNILO_TEST_BROWSER_URLS", &opened);
+        let mut restarted = ChildGuard::spawn(
+            restart,
+            temporary.path(),
+            &format!("browser-restart-{index}"),
+        )?;
+        let next = wait_ready(&mut restarted, &data, &client).await?;
+        stop_http(&client, &next).await?;
+        restarted.wait_success().await?;
+        assert_eq!(fs::read_to_string(&opened)?.lines().count(), index + 1);
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn browser_launcher_failure_keeps_the_service_running() -> TestResult {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temporary = tempfile::tempdir()?;
+    let launcher = temporary.path().join("xdg-open");
+    fs::write(&launcher, "#!/bin/sh\nexit 1\n")?;
+    fs::set_permissions(&launcher, fs::Permissions::from_mode(0o700))?;
+    let data = temporary.path().join("data");
+    let mut start = command();
+    start
+        .args(["serve", "--listen", "127.0.0.1:0", "--data-dir"])
+        .arg(&data)
+        .arg("--open-browser")
+        .env("PATH", temporary.path());
+    let mut service = ChildGuard::spawn(start, temporary.path(), "browser-failure")?;
+    let client = client()?;
+    let connection = wait_ready(&mut service, &data, &client).await?;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let (_, stderr) = service.output()?;
+        if stderr.contains("Could not open the browser") {
+            assert!(stderr.contains(&connection.info.origin()));
+            assert!(!stderr.contains(&connection.api_token));
+            break;
+        }
+        service.ensure_running()?;
+        assert!(
+            Instant::now() < deadline,
+            "missing browser failure diagnostic"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    service.ensure_running()?;
+    assert_eq!(
+        client.get(connection.info.origin()).send().await?.status(),
+        StatusCode::OK
+    );
+    stop_http(&client, &connection).await?;
+    service.wait_success().await?;
     Ok(())
 }

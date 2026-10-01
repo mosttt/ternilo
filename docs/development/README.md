@@ -16,6 +16,8 @@
 - [OIDC 来源与公网地址](oidc-browser-origin.md)：浏览器加密能力、回调来源与错误配置恢复。
 - [跨 Server 共享权限通知](resource-notifications.md)：持久失效提示、双 Server 验收与资源交接约束。
 - [当前剩余任务清单](remaining-task-audit.md)：本阶段收尾、发行、后续产品能力和 Work 预留的完整分类。
+- [电脑管理闭环](computer-management.md)：本轮名称／备注、详情、暂停／恢复及保留历史的移除登记；凭据轮换后移。
+- [本地服务自动打开浏览器](local-browser-launch.md)：本次启动的浏览器开关、就绪检测和失败时继续服务。
 - [资源管理权交接](resource-ownership.md)：当前管理者、原执行身份、版本冲突与共享保留；真实浏览器和受限 PostgreSQL 验收通过。
 - [跨 Server Node 路由](server-node-routing.md)：租约持有者转发、输入授权版本及合并变化提示；实际 TCP 与受限 PostgreSQL 合同通过，浏览器联调待完成。
 - [Work 资源与执行边界](execution-coordination.md)：托管电脑、容器归属、节点绑定与现有执行接口的衔接。

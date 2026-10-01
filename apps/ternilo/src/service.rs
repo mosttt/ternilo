@@ -14,8 +14,9 @@ use serde::{Deserialize, Serialize};
 use ternilo_protocol::{HarnessError, RunLimits};
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
-use tokio_util::task::TaskTracker;
+use tokio_util::task::{AbortOnDropHandle, TaskTracker};
 
+mod browser;
 mod config;
 pub(crate) use config::LocalServiceConfig;
 
@@ -53,6 +54,9 @@ pub struct ServeOptions {
     #[arg(long, env = "TERNILO_LOCAL_NO_LOCAL_WEB", action = clap::ArgAction::Set,
         num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub no_local_web: Option<bool>,
+    /// Open the local web UI in the default browser once the service is ready.
+    #[arg(long, alias = "open-brower")]
+    pub open_browser: bool,
     /// Permit plaintext ws:// for development and tests.
     #[arg(long, env = "TERNILO_LOCAL_ALLOW_INSECURE_GATEWAY", action = clap::ArgAction::Set,
         num_args = 0..=1, require_equals = true, default_missing_value = "true")]
@@ -209,7 +213,13 @@ pub async fn stop(data_dir: &Path) -> Result<(), HarnessError> {
 }
 
 pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
+    let open_browser = options.open_browser;
     let options = options.load().await?;
+    if open_browser && options.no_local_web {
+        return Err(HarnessError::invalid(
+            "--open-browser requires the local web UI; use --no-local-web=false to enable it",
+        ));
+    }
     let data_dir = options.data_dir.clone();
     if let Some(connection) = discover(&data_dir).await? {
         println!("Ternilo local web: {}", connection.info.origin());
@@ -259,9 +269,11 @@ pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
         let web = crate::web::serve_managed(
             listener,
             Arc::clone(&application),
-            connection.api_token,
+            connection.api_token.clone(),
             Some(control),
         );
+        let _browser = open_browser
+            .then(|| AbortOnDropHandle::new(tokio::spawn(browser::open_when_ready(connection))));
         let gateway = async {
             if options.gateway_url.is_some() {
                 Box::pin(crate::node::connect(
