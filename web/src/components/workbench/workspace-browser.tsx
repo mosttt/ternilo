@@ -659,7 +659,8 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
       : groupWorkspacesByComputer(orderedWorkspaces).map(computer => {
         const collapseKey = computerCollapseKey(computer.id)
         const isExpanded = !view.collapsedComputers.includes(collapseKey)
-        const label = computer.kind === 'node' ? computer.nodeId ? t('computer.name', { name: computer.nodeId }) : t('computer.unknown')
+        const computerName = computer.workspaces.find(workspace => workspace.node_name)?.node_name ?? computer.nodeId
+        const label = computer.kind === 'node' ? computerName ? t('computer.name', { name: computerName }) : t('computer.unknown')
           : t(computer.kind === 'cloud' ? 'computer.cloud' : 'computer.local')
         const online = computer.workspaces.some(workspace => workspace.status !== 'offline' && workspace.status !== 'error')
         const Icon = computer.kind === 'cloud' ? Cloud : Laptop

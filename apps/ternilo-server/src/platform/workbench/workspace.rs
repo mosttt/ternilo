@@ -280,6 +280,16 @@ async fn load_state_by_archive(
             .await?
     };
     let mut workspaces = Vec::with_capacity(records.len());
+    let executor_ids = records
+        .iter()
+        .filter_map(|record| record.executor_id.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let computer_names = state
+        .store
+        .computer_display_names(user, tenant_id, &executor_ids)
+        .await?;
     let mut paths = BTreeMap::new();
     for record in records {
         let connected = if let Some(executor_id) = &record.executor_id {
@@ -296,7 +306,11 @@ async fn load_state_by_archive(
                 record.workspace_id.as_str(),
             )
             .await?;
-        let workspace = WorkbenchWorkspace::from_record(record, connected).with_access(access);
+        let mut workspace = WorkbenchWorkspace::from_record(record, connected).with_access(access);
+        workspace.node_name = workspace
+            .node_id
+            .as_ref()
+            .and_then(|id| computer_names.get(id).cloned());
         paths.insert(workspace.workspace_id.clone(), workspace.path.clone());
         workspaces.push(workspace);
     }

@@ -170,6 +170,15 @@ it('switches computer, workspace and single-list grouping through the persisted 
   expect(JSON.parse(localStorage.getItem('ternilo.sidebar-view-v1')!).groupBy).toBe('computer')
 })
 
+it('shows a computer display name without changing its group identity', async () => {
+  computerWorkspaces()
+  mocks.workbench.snapshot.workspaces = mocks.workbench.snapshot.workspaces.map(workspace => workspace.node_id === 'a' ? { ...workspace, node_name: '开发电脑' } : workspace)
+  await renderBrowser(true)
+  const group = host.querySelector('[data-sidebar-computer-group="node:a"]')!
+  expect(group.querySelector('[data-sidebar-computer-title]')?.textContent).toBe('电脑 开发电脑')
+  expect(group.querySelectorAll('[data-sidebar-workspace-group]')).toHaveLength(2)
+})
+
 it('uses a persisted online-only switch and restores full loading outside computer grouping', async () => {
   computerWorkspaces()
   await renderBrowser(true)

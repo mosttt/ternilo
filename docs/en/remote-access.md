@@ -19,6 +19,8 @@ The single-line command works in Bash, PowerShell and CMD. Replace the example t
 
 A Node credential is for that computer's reconnects. Do not reuse another computer's or another account's credential. Revoke and register the computer again if the credential is lost or needs replacement.
 
+[Computer management](computers.md) supports display names, notes, on-demand details and reversible suspension. Suspension retains the original credential. Removing registration revokes access and hides the entry while retaining workspaces and history.
+
 ## Multiple instances on one computer
 
 Multiple instances can all connect to the same Server. Give each a different listening port, data directory, Node ID and credential. Register `home-a` and `home-b` separately, then run these commands in separate terminals:

@@ -34,6 +34,15 @@ it('shows computer, workspace and owner-authorized path without storing the path
   expect(fixture.request).toHaveBeenCalledWith('/workspaces/work/location', { signal: expect.any(AbortSignal), cache: 'no-store', headers: { 'x-ternilo-tenant': 'personal' } })
 })
 
+it('uses the edited computer name in the session breadcrumb without changing its identity', async () => {
+  fixture.workspace!.node_name = '开发电脑'
+  fixture.request.mockResolvedValue({ status: 'available', path: '/home/alice/project' })
+  await render()
+  expect(host.textContent).toContain('电脑 开发电脑 · Reader')
+  expect(host.textContent).not.toContain('desktop-alice')
+  expect(fixture.workspace!.node_id).toBe('desktop-alice')
+})
+
 it('does not read a private path for a shared viewer or an offline computer', async () => {
   fixture.workspace!.access = { owner_user_id: 'alice', storage_user_id: 'alice', ownership_revision: 0, is_execution_owner: false, is_owner: false, role_limited: false, permissions: { view: true, submit: true, stop: true, configure: false }, sources: [] }
   await render()

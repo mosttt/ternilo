@@ -361,6 +361,7 @@ pub struct ExecutorRecord {
     pub state: String,
     pub enrolled_at_ms: u64,
     pub last_seen_at_ms: Option<u64>,
+    pub management: crate::ComputerManagement,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

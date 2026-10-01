@@ -16,7 +16,8 @@ interface WorkspaceLocation {
 
 export function workspacePlacementLabel(workspace: Workspace, t: ReturnType<typeof useTranslate<'workspace'>>) {
   if (workspace.placement === 'cloud') return t('placement.cloud')
-  return workspace.node_id ? t('placement.computer', { name: workspace.node_id }) : t('placement.local')
+  const name = workspace.node_name ?? workspace.node_id
+  return name ? t('placement.computer', { name }) : t('placement.local')
 }
 
 function createdLabel(createdAt: number, added: boolean, t: ReturnType<typeof useTranslate<'workspace'>>) {

@@ -73,7 +73,7 @@ impl EdgeStore {
         principal: &crate::NodePrincipal,
     ) -> Result<(), HarnessError> {
         let mut tx = self.transaction(&principal.scope.tenant_id).await?;
-        let active: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM control_node_credentials credential JOIN control_executors executor ON executor.tenant_id = credential.tenant_id AND executor.executor_id = credential.executor_id JOIN control_users account ON account.user_id = executor.owner_user_id WHERE credential.tenant_id = $1 AND credential.executor_id = $2 AND credential.credential_id = $3 AND executor.owner_user_id = $4 AND credential.revoked_at_ms IS NULL AND executor.state <> 'revoked' AND account.status = 'active'")
+        let active: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM control_node_credentials credential JOIN control_executors executor ON executor.tenant_id = credential.tenant_id AND executor.executor_id = credential.executor_id JOIN control_users account ON account.user_id = executor.owner_user_id LEFT JOIN control_computer_management m ON m.tenant_id=executor.tenant_id AND m.executor_id=executor.executor_id WHERE credential.tenant_id = $1 AND credential.executor_id = $2 AND credential.credential_id = $3 AND executor.owner_user_id = $4 AND credential.revoked_at_ms IS NULL AND executor.state <> 'revoked' AND account.status = 'active' AND m.suspended_at_ms IS NULL AND m.removed_at_ms IS NULL")
             .bind(principal.scope.tenant_id.as_str()).bind(principal.executor_id.as_str())
             .bind(&principal.credential_id).bind(principal.scope.user_id.as_str())
             .fetch_one(&mut *tx).await.map_err(database_error)?;

@@ -135,6 +135,7 @@ pub(crate) struct CreateDirectoryRequest {
 #[derive(Serialize)]
 pub(crate) struct ExecutionTarget {
     pub(crate) executor_id: ExecutorId,
+    pub(crate) display_name: Option<String>,
     pub(crate) project_id: Option<String>,
     pub(crate) state: String,
     pub(crate) connected: bool,
@@ -145,6 +146,7 @@ impl ExecutionTarget {
     pub(crate) fn from_record(record: ExecutorRecord, connected: bool) -> Self {
         Self {
             executor_id: record.executor_id,
+            display_name: record.management.display_name,
             project_id: record.project_id,
             state: record.state,
             connected,
@@ -164,6 +166,7 @@ pub(crate) struct WorkbenchWorkspace {
     pub(crate) updated_at_ms: u64,
     pub(crate) placement: WorkspacePlacement,
     pub(crate) node_id: Option<ExecutorId>,
+    pub(crate) node_name: Option<String>,
     pub(crate) status: String,
     pub(crate) project_id: String,
     pub(crate) owner_user_id: UserId,
@@ -196,6 +199,7 @@ impl WorkbenchWorkspace {
             updated_at_ms: record.updated_at_ms,
             placement: record.placement,
             node_id: record.executor_id,
+            node_name: None,
             status,
             project_id: record.project_id,
             owner_user_id: record.owner_user_id,

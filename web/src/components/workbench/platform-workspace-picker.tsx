@@ -54,7 +54,7 @@ export function PlatformWorkspacePicker({ open, onOpenChange, createSessionAfter
                   {setup.executors.length ? <Select id="workspace-executor" className={styles.select} value={executorId} disabled={saving || setup.workspaceCreated} onValueChange={value => setup.changeExecutor(value)}>
                     {!selectedExecutor && <option disabled value={executorId}>{t('picker.executor.unavailable')}</option>}
                     {setup.executors.map(executor => <option value={executor.executor_id} key={executor.executor_id}>
-                      {t('picker.executor.option', { id: executor.executor_id, status: t(executor.connected ? 'status.online' : 'status.offline') })}
+                      {t('picker.executor.option', { id: executor.display_name ?? executor.executor_id, status: t(executor.connected ? 'status.online' : 'status.offline') })}
                     </option>)}
                   </Select> : !loading && <div className={styles.empty}>
                     <p>{t('picker.executor.empty')}</p>

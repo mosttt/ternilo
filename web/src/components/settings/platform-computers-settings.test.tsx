@@ -10,6 +10,10 @@ import {
   listOwnedComputers,
   listPlatformProjects,
   revokeOwnedComputer,
+  getComputerDetails,
+  updateComputer,
+  setComputerSuspended,
+  removeComputerRegistration,
 } from './platform-admin-api'
 
 vi.mock('./platform-admin-api', () => ({
@@ -20,11 +24,13 @@ vi.mock('./platform-admin-api', () => ({
   listPlatformProjects: vi.fn(),
   revokeComputer: vi.fn(),
   revokeOwnedComputer: vi.fn(),
+  getComputerDetails: vi.fn(), updateComputer: vi.fn(), setComputerSuspended: vi.fn(), removeComputerRegistration: vi.fn(),
 }))
 
 const computer: ManagedExecutionTarget = {
   executor_id: 'home-node', project_id: 'project-a', state: 'active', connected: true,
   enrolled_at_ms: 1_700_000_000_000, last_seen_at_ms: 1_700_000_000_100,
+  management: { display_name: null, notes: '', suspended_at_ms: null, removed_at_ms: null, revision: 0 },
 }
 const project: ProjectRecord = {
   tenant_id: 'tenant-a', project_id: 'project-a', name: 'Project A', created_at_ms: 1,
@@ -46,6 +52,10 @@ beforeEach(() => {
     executorId: 'home-node',
   })
   vi.mocked(revokeOwnedComputer).mockResolvedValue(undefined)
+  vi.mocked(setComputerSuspended).mockResolvedValue({ management: computer.management })
+  vi.mocked(removeComputerRegistration).mockResolvedValue(undefined)
+  vi.mocked(updateComputer).mockResolvedValue({ management: { ...computer.management, display_name: '开发电脑', revision: 1 } })
+  vi.mocked(getComputerDetails).mockResolvedValue({ connected: true, details: { executor: computer, management: computer.management, owner: { user_id: 'owner', username: 'owner' }, hello: null, workspace_count: 2, session_count: 5, credential_issued_at_ms: 1_700_000_000_000, credential_last_used_at_ms: null } })
 })
 
 afterEach(() => {
@@ -162,4 +172,38 @@ describe('Platform computer states', () => {
     expect(revokeOwnedComputer).toHaveBeenCalledWith('tenant-member', 'home-node')
     expect(host.textContent).toContain('电脑已吊销')
   })
+})
+
+it('loads details on demand and saves metadata with the observed version', async () => {
+  await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-a" scope="owned" /></LocaleProvider>))
+  expect(getComputerDetails).not.toHaveBeenCalled()
+  await settle(() => button('详情与编辑', host).click())
+  expect(getComputerDetails).toHaveBeenCalledWith('tenant-a', 'home-node', 'owned', expect.any(AbortSignal))
+  const dialog = document.querySelector('[data-computer-details]')!
+  await settle(() => setInput(dialog.querySelector<HTMLInputElement>('input')!, '开发电脑'))
+  await settle(() => button('保存电脑信息', dialog).click())
+  expect(updateComputer).toHaveBeenCalledWith('tenant-a', 'home-node', 'owned', { display_name: '开发电脑', notes: '', expected_revision: 0 })
+  expect(document.querySelector('[data-computer-details]')).toBeNull()
+})
+
+it('requires confirmation for suspending access and removing only the registration', async () => {
+  await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-a" scope="owned" /></LocaleProvider>))
+  await settle(() => button('暂停接入', host).click())
+  expect(setComputerSuspended).not.toHaveBeenCalled()
+  const confirmation = document.querySelector('[data-settings-dialog]')!
+  await settle(() => button('暂停接入', confirmation).click())
+  expect(setComputerSuspended).toHaveBeenCalledWith('tenant-a', 'home-node', 'owned', { suspended: true, expected_revision: 0 })
+  await settle(() => button('移除登记', host).click())
+  expect(document.body.textContent).toContain('关联工作区、会话历史和电脑上的项目文件全部保留')
+  expect(removeComputerRegistration).not.toHaveBeenCalled()
+  await settle(() => button('移除登记', document.querySelector('[data-settings-dialog]')!).click())
+  expect(removeComputerRegistration).toHaveBeenCalledWith('tenant-a', 'home-node', 'owned', 0)
+})
+
+it('closes the current computer details when the space changes', async () => {
+  await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-a" scope="owned" /></LocaleProvider>))
+  await settle(() => button('详情与编辑', host).click())
+  await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-b" scope="owned" /></LocaleProvider>))
+  expect(document.querySelector('[data-computer-details]')).toBeNull()
+  expect(getComputerDetails).toHaveBeenCalledTimes(1)
 })

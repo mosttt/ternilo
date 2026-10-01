@@ -56,8 +56,10 @@ use spaces::{
 };
 mod computers;
 use computers::{
-    consume_enrollment, create_enrollment, create_owned_enrollment, list_executors,
-    list_owned_executors, revoke_executor, revoke_owned_executor,
+    consume_enrollment, create_enrollment, create_owned_enrollment, get_managed_computer,
+    get_owned_computer, list_executors, list_owned_executors, remove_managed_computer,
+    remove_owned_computer, revoke_executor, revoke_owned_executor, suspend_managed_computer,
+    suspend_owned_computer, update_managed_computer, update_owned_computer,
 };
 mod tenant_services;
 use tenant_services::{
@@ -233,14 +235,26 @@ fn api_router() -> Router {
         )
         .push(groups::router())
         .push(
-            Router::with_path("executors")
-                .get(list_executors)
-                .push(Router::with_path("{executor_id}").delete(revoke_executor)),
+            Router::with_path("executors").get(list_executors).push(
+                Router::with_path("{executor_id}")
+                    .get(get_managed_computer)
+                    .patch(update_managed_computer)
+                    .delete(revoke_executor)
+                    .push(Router::with_path("suspension").put(suspend_managed_computer))
+                    .push(Router::with_path("registration").delete(remove_managed_computer)),
+            ),
         )
         .push(
             Router::with_path("my-computers")
                 .get(list_owned_executors)
-                .push(Router::with_path("{executor_id}").delete(revoke_owned_executor)),
+                .push(
+                    Router::with_path("{executor_id}")
+                        .get(get_owned_computer)
+                        .patch(update_owned_computer)
+                        .delete(revoke_owned_executor)
+                        .push(Router::with_path("suspension").put(suspend_owned_computer))
+                        .push(Router::with_path("registration").delete(remove_owned_computer)),
+                ),
         )
         .push(Router::with_path("enrollments").post(create_enrollment))
         .push(Router::with_path("my-computer-enrollments").post(create_owned_enrollment))

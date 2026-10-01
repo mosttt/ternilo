@@ -135,7 +135,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
           {expanded ? <ChevronDown className={css.chevron} size={14} /> : <ChevronRight className={css.chevron} size={14} />}
         </span>
         <span className={css.workspaceTitle} data-sidebar-workspace-title="">{workspace.title}</span>
-        {showPlacement && <span className={css.machineLabel} data-sidebar-workspace-machine="" title={placementLabel}>{workspace.node_id ?? placementLabel}</span>}
+        {showPlacement && <span className={css.machineLabel} data-sidebar-workspace-machine="" title={placementLabel}>{workspace.node_name ?? workspace.node_id ?? placementLabel}</span>}
         {!computerGrouped && <span
           className={css.statusDot}
           data-sidebar-workspace-status=""

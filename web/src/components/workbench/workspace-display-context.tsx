@@ -4,6 +4,7 @@ import { useWorkbench } from '@/state/workbench'
 import { useTranslate } from '@/i18n/provider'
 import { workspaceDisplayPath } from '@/domain/workspace-display'
 import type { ProjectRecord } from '@/types'
+import { workspacePlacementLabel } from './workspace-location'
 
 export const WorkspaceDisplayContext = React.createContext<string | null>(null)
 
@@ -34,7 +35,7 @@ export function useWorkspaceDisplay() {
   }, [platform, key, workspace?.project_id, currentTenantId, currentTenantRole])
   const location = readable && resolved?.key === key ? resolved : null
   const path = !platform ? workspace?.path ?? session?.workspace_path ?? '' : location?.status === 'available' ? location.path ?? '' : ''
-  const identity = workspace ? [workspace.node_id ? t('placement.computer', { name: workspace.node_id }) : t(workspace.placement === 'cloud' ? 'placement.cloud' : 'placement.local'), workspace.title].join(' · ') : workspaceDisplayPath(workspace, session, t)
+  const identity = workspace ? [workspacePlacementLabel(workspace, t), workspace.title].join(' · ') : workspaceDisplayPath(workspace, session, t)
   const hint = remote ? workspace.access?.is_owner === false ? t('location.ownerOnly') : !readable || location?.status === 'offline' ? t('location.offline') : !location ? t('location.loading') : t('location.unavailable') : platform ? t('location.cloud') : ''
   return {
     label: identity,

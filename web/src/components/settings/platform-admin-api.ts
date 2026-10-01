@@ -1,5 +1,7 @@
 import { api } from '@/api/client'
 import type {
+  ComputerDetailsResponse,
+  ComputerManagement,
   AuditEntry,
   EnrollmentGrant,
   ManagedExecutionTarget,
@@ -102,6 +104,26 @@ export async function revokeOwnedComputer(tenantId: string, executorId: string) 
     `${tenantResource(tenantId, 'my-computers')}/${encodeURIComponent(executorId)}`,
     { method: 'DELETE' },
   )
+}
+
+function computerResource(tenantId: string, executorId: string, scope: 'owned' | 'managed') {
+  return `${tenantResource(tenantId, scope === 'owned' ? 'my-computers' : 'executors')}/${encodeURIComponent(executorId)}`
+}
+
+export function getComputerDetails(tenantId: string, executorId: string, scope: 'owned' | 'managed', signal?: AbortSignal) {
+  return api.request<ComputerDetailsResponse>(computerResource(tenantId, executorId, scope), { signal })
+}
+
+export function updateComputer(tenantId: string, executorId: string, scope: 'owned' | 'managed', body: { display_name: string | null; notes: string; expected_revision: number }) {
+  return api.request<{ management: ComputerManagement }>(computerResource(tenantId, executorId, scope), { method: 'PATCH', body })
+}
+
+export function setComputerSuspended(tenantId: string, executorId: string, scope: 'owned' | 'managed', body: { suspended: boolean; expected_revision: number }) {
+  return api.request<{ management: ComputerManagement }>(`${computerResource(tenantId, executorId, scope)}/suspension`, { method: 'PUT', body })
+}
+
+export function removeComputerRegistration(tenantId: string, executorId: string, scope: 'owned' | 'managed', expectedRevision: number) {
+  return api.request<void>(`${computerResource(tenantId, executorId, scope)}/registration`, { method: 'DELETE', body: { expected_revision: expectedRevision } })
 }
 
 export async function getTenantQuota(tenantId: string) {

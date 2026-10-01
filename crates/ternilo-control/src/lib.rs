@@ -4,6 +4,8 @@ mod account_status_store;
 mod account_store;
 pub use account_status_store::AccountStatusAction;
 mod auth;
+mod computer_management;
+pub use computer_management::{ComputerDetails, ComputerManagement, ComputerUpdate};
 mod authentication_settings;
 mod crypto;
 mod edge_models;

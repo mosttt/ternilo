@@ -8,6 +8,14 @@ use super::{
 };
 
 impl EdgeGateway {
+    pub(crate) fn notify_computer_changed(&self, tenant: &TenantId, executor: &ExecutorId) {
+        self.event_notify.notify_waiters();
+        let _ = self.live_notify.send(EdgeLiveNotification::Rescan {
+            tenant_id: tenant.clone(),
+            executor_id: executor.clone(),
+        });
+    }
+
     pub(crate) async fn serve(self: Arc<Self>, principal: NodePrincipal, mut socket: WebSocket) {
         let Some((hello, connection_id, now, lease)) =
             self.handshake(&principal, &mut socket).await

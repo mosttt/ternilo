@@ -115,6 +115,7 @@ queued → leased → running | cancel_requested
 ### Enrollment、配额与审计
 
 - Enrollment token 最长一小时且只能消费一次；Node credential 只保存哈希，签发后没有时间到期，直到显式吊销电脑才失效。已登记电脑不能刷新或重新签发 credential；需要新 credential 时先吊销，再重新登记。
+- 电脑管理使用独立 `computer_management` 组件。`/tenants/{tenant}/my-computers/{id}` 为本人入口，`/tenants/{tenant}/executors/{id}` 为具有对应职责的空间入口：`GET` 读取详情，`PATCH` 保存 `{display_name, notes, expected_revision}`，`PUT /suspension` 保存 `{suspended, expected_revision}`，`DELETE /registration` 接收 `{expected_revision}` 并移除登记；原 `DELETE` 仍表示吊销。状态操作按版本拒绝冲突，暂停不能经原凭据重新连接，恢复沿用原凭据，移除保留关联工作区和历史。详情和列表采用较新的服务端心跳或认证时间。
 - Control 限制 Node 数、并发 run、月度 model token、secret 和扩展数量；Run 预留与模型 attempt 分配在数据库事务中处理，不重复预占同一空间额度。结算只接受 Server 观察到的用量，不提供客户端自报实际消耗的 commit 接口。
 - 空间管理 → 用量供当前空间 owner/admin 按 UTC 月查看 token ledger 与 reservation，并单列不受月份筛选影响的全时段异常；member/viewer 无入口且 API 拒绝。它不是金额账单：空间预算和相关用量按 Run 首次预留的 UTC 月份归属，平台模型授权按逻辑模型请求接受月份归属；各次重试保持该月份。页面分别显示已知消耗、未知预留和活跃 Run 剩余预留，可相加查看占用；当前配额上限不是历史快照。
 - 审计日志 append-only，并以 SHA-256 hash chain 连接；支付、定价、发票和税务属于外部运营系统，不是 usage ledger 的职责。

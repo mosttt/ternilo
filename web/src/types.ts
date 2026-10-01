@@ -40,6 +40,7 @@ export interface Workspace {
   updated_at_ms: number
   placement?: 'local_node' | 'cloud'
   node_id?: string | null
+  node_name?: string | null
   status?: 'online' | 'offline' | 'ready' | 'provisioning' | 'error'
   project_id?: string
   owner_user_id?: string
@@ -67,6 +68,7 @@ export interface ProjectRecord {
 
 export interface ExecutionTarget {
   executor_id: string
+  display_name?: string | null
   project_id?: string | null
   state: 'enrolled' | 'active' | 'revoked'
   connected: boolean
@@ -116,6 +118,29 @@ export interface ResourceShare {
 
 export interface ManagedExecutionTarget extends ExecutionTarget {
   enrolled_at_ms: number
+  management: ComputerManagement
+}
+
+export interface ComputerManagement {
+  display_name: string | null
+  notes: string
+  suspended_at_ms: number | null
+  removed_at_ms: number | null
+  revision: number
+}
+
+export interface ComputerDetailsResponse {
+  connected: boolean
+  details: {
+    executor: Omit<ManagedExecutionTarget, 'connected'>
+    management: ComputerManagement
+    owner: { user_id: string; username: string }
+    hello: { protocol_version: number; instance_nonce: string; catalog_revision: string; capabilities: string[] } | null
+    workspace_count: number
+    session_count: number
+    credential_issued_at_ms: number | null
+    credential_last_used_at_ms: number | null
+  }
 }
 
 export interface TenantQuota {

@@ -57,6 +57,8 @@
 .metadata { margin-top: 4px; line-height: 1.45; }
 
 .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.computerRow { grid-template-columns: minmax(0, 1fr) minmax(140px, 0.42fr); }
+.computerRow > .actions { grid-column: 1 / -1; }
 .status { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; }
 .status::before { width: 8px; height: 8px; border-radius: 999px; background: var(--muted-foreground); content: ""; }
 .status[data-online="true"]::before { background: var(--success); }
@@ -175,7 +177,7 @@
   .searchForm { grid-template-columns: minmax(0, 1fr); }
   .searchForm button { width: fit-content; min-height: 40px; }
   .pagination { align-items: flex-start; flex-direction: column; }
-  .formGrid, .row { grid-template-columns: minmax(0, 1fr); }
+  .formGrid, .row, .computerRow { grid-template-columns: minmax(0, 1fr); }
   .quotaGrid, .auditFacts { grid-template-columns: minmax(0, 1fr); }
   .actions { justify-content: stretch; }
   .actions > button { flex: 1; }

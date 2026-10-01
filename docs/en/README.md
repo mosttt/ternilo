@@ -17,6 +17,8 @@ Formal guides are organized in parallel English and Simplified Chinese directori
 
 ## Everyday use
 
+- [Computer management](computers.md): names, notes, details, suspend/resume access, revocation and removal with history retained.
+
 - [Workspaces and conversations](user-guide.md): projects, folders, sessions, queues, permissions, and exports.
 - [Model configuration](models.md): providers, protocols, reasoning, context windows, and request timeouts.
 - [Settings and presets](settings.md): configuration ownership, Agent presets, tool calls, and execution limits.

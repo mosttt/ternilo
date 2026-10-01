@@ -221,6 +221,7 @@ impl ControlStore {
         crate::resource_ownership::initialize(database).await?;
         crate::identity_session_details::initialize(database).await?;
         crate::oidc_sessions::initialize(database).await?;
+        crate::computer_management::initialize(database).await?;
         crate::node_account_cleanup::initialize(database).await
     }
 
@@ -1140,6 +1141,11 @@ impl ControlStore {
                 return Err(HarnessError::invalid("enrollment project does not exist"));
             }
         }
+        ternilo_storage::lock(
+            &mut transaction,
+            &format!("computer-management:{tenant_id}:{executor_id}"),
+        )
+        .await?;
         // The quota row serializes enrollment creation for this tenant. Active,
         // unconsumed grants count too, so concurrent tokens cannot overbook nodes.
         let max_nodes = sqlx::query_scalar::<_, i32>(ternilo_storage::for_update(
@@ -1284,6 +1290,13 @@ impl ControlStore {
         let owner = UserId::new(owner);
         ternilo_storage::lock(&mut transaction, &format!("ternilo:account-role:{owner}")).await?;
         crate::account_store::require_active_account_in(&mut transaction, &owner).await?;
+        let enrolled_executor:String=sqlx::query_scalar("SELECT executor_id FROM control_executor_enrollments WHERE tenant_id=$1 AND token_hash=$2")
+            .bind(tenant.as_str()).bind(&hash).fetch_one(&mut *transaction).await.map_err(database_error)?;
+        ternilo_storage::lock(
+            &mut transaction,
+            &format!("computer-management:{tenant}:{enrolled_executor}"),
+        )
+        .await?;
         let row = sqlx::query(ternilo_storage::for_update(&transaction,
             "SELECT enrollment_id, tenant_id, created_by AS user_id, project_id, executor_id FROM control_executor_enrollments WHERE tenant_id = $1 AND token_hash = $2 AND consumed_at_ms IS NULL AND expires_at_ms > $3",
             "SELECT enrollment_id, tenant_id, created_by AS user_id, project_id, executor_id FROM control_executor_enrollments WHERE tenant_id = $1 AND token_hash = $2 AND consumed_at_ms IS NULL AND expires_at_ms > $3 FOR UPDATE",
@@ -1324,6 +1337,8 @@ impl ControlStore {
             .bind(tenant_id.as_str()).bind(executor_id.as_str()).bind(&project_id).bind(user_id.as_str())
             .bind(to_i64(now_ms, "executor enrollment timestamp")?)
             .execute(&mut *transaction).await.map_err(database_error)?;
+        sqlx::query("UPDATE control_computer_management SET suspended_at_ms=NULL,removed_at_ms=NULL,revision=revision+1 WHERE tenant_id=$1 AND executor_id=$2")
+            .bind(tenant_id.as_str()).bind(executor_id.as_str()).execute(&mut *transaction).await.map_err(database_error)?;
         sqlx::query("INSERT INTO control_node_credentials (credential_id, tenant_id, executor_id, token_hash, issued_at_ms) VALUES ($1, $2, $3, $4, $5)")
             .bind(&credential_id).bind(tenant_id.as_str()).bind(executor_id.as_str())
             .bind(token_hash(&credential_token).to_vec()).bind(to_i64(now_ms, "credential issue timestamp")?)
@@ -1364,8 +1379,8 @@ impl ControlStore {
         let tenant = token_tenant(&mut transaction, &hash, false).await?;
         set_tenant(&mut transaction, &tenant).await?;
         let row = sqlx::query(ternilo_storage::for_update(&transaction,
-            "SELECT credential.tenant_id, executor.owner_user_id AS user_id, executor.project_id, credential.executor_id, credential.credential_id FROM control_node_credentials AS credential JOIN control_executors AS executor ON executor.tenant_id = credential.tenant_id AND executor.executor_id = credential.executor_id WHERE credential.tenant_id = $1 AND credential.token_hash = $2 AND credential.revoked_at_ms IS NULL AND executor.state != 'revoked'",
-            "SELECT credential.tenant_id, executor.owner_user_id AS user_id, executor.project_id, credential.executor_id, credential.credential_id FROM control_node_credentials AS credential JOIN control_executors AS executor ON executor.tenant_id = credential.tenant_id AND executor.executor_id = credential.executor_id WHERE credential.tenant_id = $1 AND credential.token_hash = $2 AND credential.revoked_at_ms IS NULL AND executor.state != 'revoked' FOR UPDATE OF executor",
+            "SELECT credential.tenant_id, executor.owner_user_id AS user_id, executor.project_id, credential.executor_id, credential.credential_id FROM control_node_credentials AS credential JOIN control_executors AS executor ON executor.tenant_id = credential.tenant_id AND executor.executor_id = credential.executor_id LEFT JOIN control_computer_management m ON m.tenant_id=executor.tenant_id AND m.executor_id=executor.executor_id WHERE credential.tenant_id = $1 AND credential.token_hash = $2 AND credential.revoked_at_ms IS NULL AND executor.state != 'revoked' AND m.suspended_at_ms IS NULL AND m.removed_at_ms IS NULL",
+            "SELECT credential.tenant_id, executor.owner_user_id AS user_id, executor.project_id, credential.executor_id, credential.credential_id FROM control_node_credentials AS credential JOIN control_executors AS executor ON executor.tenant_id = credential.tenant_id AND executor.executor_id = credential.executor_id LEFT JOIN control_computer_management m ON m.tenant_id=executor.tenant_id AND m.executor_id=executor.executor_id WHERE credential.tenant_id = $1 AND credential.token_hash = $2 AND credential.revoked_at_ms IS NULL AND executor.state != 'revoked' AND m.suspended_at_ms IS NULL AND m.removed_at_ms IS NULL FOR UPDATE OF executor",
         ))
         .bind(tenant.as_str()).bind(hash)
         .fetch_optional(&mut *transaction)
@@ -1436,39 +1451,19 @@ impl ControlStore {
             &mut transaction,
             tenant_id,
             &actor.user_id,
-            ControlAction::ExecutorRead,
+            ControlAction::ExecutorManage,
         )
         .await?;
-        let rows = sqlx::query(
-            "SELECT executor_id, project_id, state, enrolled_at_ms, last_seen_at_ms
-             FROM control_executors WHERE tenant_id = $1 ORDER BY executor_id",
-        )
+        let rows = sqlx::query(concat!(
+            include_str!("computer_management/executor_select.sql"),
+            " WHERE e.tenant_id=$1 AND m.removed_at_ms IS NULL ORDER BY e.executor_id"
+        ))
         .bind(tenant_id.as_str())
         .fetch_all(&mut *transaction)
         .await
         .map_err(database_error)?;
         transaction.commit().await.map_err(database_error)?;
-        rows.into_iter()
-            .map(|row| {
-                Ok(ExecutorRecord {
-                    executor_id: ExecutorId::new(
-                        row.try_get::<String, _>("executor_id")
-                            .map_err(database_error)?,
-                    ),
-                    project_id: row.try_get("project_id").map_err(database_error)?,
-                    state: row.try_get("state").map_err(database_error)?,
-                    enrolled_at_ms: from_i64(
-                        row.try_get("enrolled_at_ms").map_err(database_error)?,
-                        "executor enrollment timestamp",
-                    )?,
-                    last_seen_at_ms: row
-                        .try_get::<Option<i64>, _>("last_seen_at_ms")
-                        .map_err(database_error)?
-                        .map(|value| from_i64(value, "executor last-seen timestamp"))
-                        .transpose()?,
-                })
-            })
-            .collect()
+        rows.iter().map(executor_record).collect()
     }
 
     pub async fn list_owned_executors(
@@ -1485,12 +1480,7 @@ impl ControlStore {
             ControlAction::ExecutorRead,
         )
         .await?;
-        let rows = sqlx::query(
-            "SELECT executor_id, project_id, state, enrolled_at_ms, last_seen_at_ms
-             FROM control_executors
-             WHERE tenant_id = $1 AND owner_user_id = $2
-             ORDER BY executor_id",
-        )
+        let rows = sqlx::query(concat!(include_str!("computer_management/executor_select.sql")," WHERE e.tenant_id=$1 AND e.owner_user_id=$2 AND m.removed_at_ms IS NULL ORDER BY e.executor_id"))
         .bind(tenant_id.as_str())
         .bind(actor.user_id.as_str())
         .fetch_all(&mut *transaction)
@@ -1516,11 +1506,7 @@ impl ControlStore {
             ControlAction::ExecutorRead,
         )
         .await?;
-        let row = sqlx::query(
-            "SELECT executor_id, project_id, state, enrolled_at_ms, last_seen_at_ms
-             FROM control_executors
-             WHERE tenant_id = $1 AND owner_user_id = $2 AND executor_id = $3",
-        )
+        let row = sqlx::query(concat!(include_str!("computer_management/executor_select.sql")," WHERE e.tenant_id=$1 AND e.owner_user_id=$2 AND e.executor_id=$3 AND m.removed_at_ms IS NULL"))
         .bind(tenant_id.as_str())
         .bind(actor.user_id.as_str())
         .bind(executor_id.as_str())
@@ -1583,6 +1569,11 @@ impl ControlStore {
         let mut transaction = self.database.begin().await?;
         set_tenant(&mut transaction, tenant_id).await?;
         require_action(&mut transaction, tenant_id, &actor.user_id, action).await?;
+        ternilo_storage::lock(
+            &mut transaction,
+            &format!("computer-management:{tenant_id}:{executor_id}"),
+        )
+        .await?;
         // Match account revocation and enrollment consumption: enrollment, executor, credential.
         sqlx::query(
             "UPDATE control_executor_enrollments SET consumed_at_ms = $3
@@ -3838,8 +3829,9 @@ fn validate_slug(slug: &str) -> Result<(), HarnessError> {
     }
 }
 
-fn executor_record(row: &AnyRow) -> Result<ExecutorRecord, HarnessError> {
+pub(crate) fn executor_record(row: &AnyRow) -> Result<ExecutorRecord, HarnessError> {
     Ok(ExecutorRecord {
+        management: crate::computer_management::management_record(row)?,
         executor_id: ExecutorId::new(
             row.try_get::<String, _>("executor_id")
                 .map_err(database_error)?,

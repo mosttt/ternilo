@@ -198,10 +198,10 @@ impl ControlStore {
         let hash = crate::crypto::token_hash(token).to_vec();
         let tenant = crate::store::token_tenant(&mut tx, &hash, false).await?;
         set_tenant_scope(&mut tx, &tenant).await?;
-        let row = sqlx::query("SELECT c.credential_id,c.executor_id,c.revoked_at_ms,e.owner_user_id,e.state,u.status
+        let row = sqlx::query("SELECT c.credential_id,c.executor_id,c.revoked_at_ms,e.owner_user_id,e.state,u.status,m.suspended_at_ms,m.removed_at_ms
             FROM control_node_credentials c JOIN control_executors e
             ON e.tenant_id=c.tenant_id AND e.executor_id=c.executor_id
-            JOIN control_users u ON u.user_id=e.owner_user_id WHERE c.tenant_id=$1 AND c.token_hash=$2")
+            JOIN control_users u ON u.user_id=e.owner_user_id LEFT JOIN control_computer_management m ON m.tenant_id=e.tenant_id AND m.executor_id=e.executor_id WHERE c.tenant_id=$1 AND c.token_hash=$2")
             .bind(tenant.as_str()).bind(hash).fetch_optional(&mut *tx).await.map_err(database_error)?
             .ok_or_else(|| HarnessError::policy("invalid Node cleanup credential"))?;
         let principal = CleanupPrincipal {
@@ -262,7 +262,15 @@ impl ControlStore {
             tenant_id: principal.tenant,
             executor_id: principal.executor,
             credential_id: principal.credential,
-            connection_allowed: active,
+            connection_allowed: active
+                && row
+                    .try_get::<Option<i64>, _>("suspended_at_ms")
+                    .map_err(database_error)?
+                    .is_none()
+                && row
+                    .try_get::<Option<i64>, _>("removed_at_ms")
+                    .map_err(database_error)?
+                    .is_none(),
             authorizations,
             requests,
         };

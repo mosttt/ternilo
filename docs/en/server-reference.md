@@ -26,6 +26,8 @@ Native browser session management uses `GET /api/v1/auth/sessions`, `DELETE /api
 
 Authentication settings use owner-only `GET/PUT /api/v1/admin/instance/authentication`. `/auth/config` returns public login metadata. Administrative account, team, enrollment and model APIs enforce their own roles. Model device authorization and model grants are separate from browser login sessions and Node credentials.
 
+Computer management uses an independent `computer_management` component. The owned `/api/v1/tenants/{tenant}/my-computers/{id}` and administrative `/api/v1/tenants/{tenant}/executors/{id}` routes support `GET` details and `PATCH {display_name, notes, expected_revision}`. `PUT /suspension` accepts `{suspended, expected_revision}`; `DELETE /registration` accepts `{expected_revision}` and removes registration while retaining resource bindings and history. The existing base `DELETE` revokes access. Updates reject stale versions. Suspension blocks new connections; resuming retains the original credential. Last contact uses the latest Server-observed heartbeat or authentication time. See [computer management](computers.md).
+
 Live transport supplies authenticated state/events and uses independent cursors from bounded history paging. SDKs should follow [remote SDKs](remote-sdks.md) rather than assume mutations are safely retryable. For complete wire definitions consult `crates/ternilo-protocol/` and the route modules under `apps/ternilo-server/src/platform/` in the source tree.
 
 ## Node cleanup confirmation

@@ -40,6 +40,7 @@ pub(super) async fn list_executors(
             "connected": connected,
             "enrolled_at_ms": record.enrolled_at_ms,
             "last_seen_at_ms": record.last_seen_at_ms,
+            "management": record.management,
         }));
     }
     Ok(Json(json!({ "executors": executors })))
@@ -70,6 +71,7 @@ pub(super) async fn list_owned_executors(
             "connected": connected,
             "enrolled_at_ms": record.enrolled_at_ms,
             "last_seen_at_ms": record.last_seen_at_ms,
+            "management": record.management,
         }));
     }
     Ok(Json(json!({ "executors": executors })))
@@ -192,4 +194,179 @@ pub(super) async fn consume_enrollment(
             }
         })?;
     Ok(Json(json!({ "credential": credential })))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ComputerSuspensionRequest {
+    suspended: bool,
+    expected_revision: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ComputerRemovalRequest {
+    expected_revision: u64,
+}
+
+async fn computer_details(
+    request: &mut Request,
+    depot: &mut Depot,
+    owned: bool,
+) -> Result<Json<Value>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let executor = ExecutorId::new(path_parameter(request, "executor_id")?);
+    let state = app_state(depot);
+    let details = state
+        .store
+        .computer_details(actor(depot), &tenant, &executor, owned)
+        .await?;
+    let connected = state.edge.is_connected(&tenant, &executor).await;
+    Ok(Json(json!({"details":details,"connected":connected})))
+}
+
+async fn computer_update(
+    request: &mut Request,
+    depot: &mut Depot,
+    owned: bool,
+) -> Result<Json<Value>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let executor = ExecutorId::new(path_parameter(request, "executor_id")?);
+    let body = request
+        .parse_json::<ternilo_control::ComputerUpdate>()
+        .await
+        .map_err(invalid_request)?;
+    let state = app_state(depot);
+    let management = state
+        .store
+        .update_computer(actor(depot), &tenant, &executor, owned, &body, now_ms()?)
+        .await?;
+    state.edge.notify_computer_changed(&tenant, &executor);
+    Ok(Json(json!({"management":management})))
+}
+
+async fn computer_suspension(
+    request: &mut Request,
+    depot: &mut Depot,
+    owned: bool,
+) -> Result<Json<Value>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let executor = ExecutorId::new(path_parameter(request, "executor_id")?);
+    let body = request
+        .parse_json::<ComputerSuspensionRequest>()
+        .await
+        .map_err(invalid_request)?;
+    let state = app_state(depot);
+    let management = state
+        .store
+        .set_computer_suspended(
+            actor(depot),
+            &tenant,
+            &executor,
+            owned,
+            body.suspended,
+            body.expected_revision,
+            now_ms()?,
+        )
+        .await?;
+    if body.suspended {
+        state
+            .edge
+            .disconnect(
+                &tenant,
+                &executor,
+                "this computer's Server access is suspended",
+            )
+            .await;
+    }
+    state.edge.notify_computer_changed(&tenant, &executor);
+    Ok(Json(json!({"management":management})))
+}
+
+async fn computer_removal(
+    request: &mut Request,
+    depot: &mut Depot,
+    owned: bool,
+) -> Result<StatusCode, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let executor = ExecutorId::new(path_parameter(request, "executor_id")?);
+    let body = request
+        .parse_json::<ComputerRemovalRequest>()
+        .await
+        .map_err(invalid_request)?;
+    let state = app_state(depot);
+    state
+        .store
+        .remove_computer_registration(
+            actor(depot),
+            &tenant,
+            &executor,
+            owned,
+            body.expected_revision,
+            now_ms()?,
+        )
+        .await?;
+    state
+        .edge
+        .disconnect(&tenant, &executor, "this computer registration was removed")
+        .await;
+    state.edge.notify_computer_changed(&tenant, &executor);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[handler]
+pub(super) async fn get_managed_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Value>, ApiError> {
+    computer_details(request, depot, false).await
+}
+#[handler]
+pub(super) async fn get_owned_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Value>, ApiError> {
+    computer_details(request, depot, true).await
+}
+#[handler]
+pub(super) async fn update_managed_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Value>, ApiError> {
+    computer_update(request, depot, false).await
+}
+#[handler]
+pub(super) async fn update_owned_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Value>, ApiError> {
+    computer_update(request, depot, true).await
+}
+#[handler]
+pub(super) async fn suspend_managed_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Value>, ApiError> {
+    computer_suspension(request, depot, false).await
+}
+#[handler]
+pub(super) async fn suspend_owned_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Value>, ApiError> {
+    computer_suspension(request, depot, true).await
+}
+#[handler]
+pub(super) async fn remove_managed_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<StatusCode, ApiError> {
+    computer_removal(request, depot, false).await
+}
+#[handler]
+pub(super) async fn remove_owned_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<StatusCode, ApiError> {
+    computer_removal(request, depot, true).await
 }
