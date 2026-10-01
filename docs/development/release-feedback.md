@@ -1,6 +1,6 @@
 # 发行反馈与交付状态
 
-[v0.1.3](https://github.com/mosttt/ternilo/releases/tag/v0.1.3) 已公开发布，包含四平台程序和 28 项附件；[完整发行检查](https://github.com/mosttt/ternilo/actions/runs/36765832448)已通过。发行源码为 `cf965e47905303b488f3b2303821540b6b9a2b7c`，后续主分支只完善验收流程和开发记录。
+[v0.1.3](https://github.com/mosttt/ternilo/releases/tag/v0.1.3) 已公开发布，包含四平台程序和 28 项附件；[完整发行检查](https://github.com/mosttt/ternilo/actions/runs/36765832448)已通过。发行源码为 `cf965e47905303b488f3b2303821540b6b9a2b7c`。本记录描述该发行；本地 main 的后续功能尚未进入新 Release。
 
 ## 当前结果
 
@@ -32,6 +32,6 @@
 
 ## 待完成项
 
-资源所有权交接、跨 Server 的 Node 命令路由和实时事件同步继续按项目计划推进；共享权限通知已完成。Work 保持独立资源、存储与执行授权的设计预留。
+资源管理权交接及工作台性能／目录分类已合入本地 main 并通过阶段验收；Node 跨 Server 路由已通过实际 TCP 与受限 PostgreSQL 合同，尚需浏览器联调。新版本推送、跨平台回归及发行尚未完成。完整分类见[当前剩余任务](remaining-task-audit.md)；Work 保持独立设计预留。
 
 构建安装器不等于发行者签名或所有物理设备的安装验收。Desktop 安装器目前未签名／公证，自动更新关闭；Server 镜像目前发布 Linux amd64。

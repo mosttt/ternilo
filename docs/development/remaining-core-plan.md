@@ -36,4 +36,8 @@
 
 ## 后续 P2
 
-项目共享继承和 Server 远程 SDK 已完成。[账号命令投递](account-command-revocation.md)禁止停用后旧输入重放；托管运行取消按当前执行授权账号处理。[Node 清理](node-account-cleanup.md)已实现持久撤销、启动授权屏障、选择性执行收尾及实际完成回执。[跨 Server 共享权限通知](resource-notifications.md)已通过双库和双 Server 浏览器验收。[资源管理权交接](resource-ownership.md)已实现，SQLite／Server HTTP／前端回归通过，真实浏览器与 PostgreSQL 验收待环境允许后完成，尚未发布。[跨实例 Node 路由](server-node-routing.md)源码已实现，定向 HTTP／SQLite 验证通过，实际 TCP／浏览器和 PostgreSQL 验收待完成。当前优先完成[工作台性能与目录分类](workbench-performance-and-layout.md)，包含按电脑分组及在线资源按需加载、会话切换缓存、完整轮次补读、目标手动启用和停止并发送的快速确认。跨主机存储迁移、Work 容器调度和正式容量结论仍需单独实现与验证，不作为当前本机／单 Server 闭环的前提。
+项目共享继承、Server 远程 SDK、账号命令撤销、Node 持久清理和跨 Server 共享权限通知已完成。[资源管理权交接](resource-ownership.md)已通过真实浏览器及受限 PostgreSQL 验收。[跨实例 Node 路由](server-node-routing.md)已通过 HTTP／SQLite、实际 TCP 和受限 PostgreSQL 合同，仍需真实双 Server 浏览器联调。
+
+[工作台性能与目录分类](workbench-performance-and-layout.md)已合并本地 main，包含电脑分组、在线资源按需加载、会话缓存、完整轮次补读、手动目标及本机／Cloud 停止并发送。用户重新编译后确认单用户注册展示修复。电脑状态、复选框和跨页面菜单已通过真实浏览器验收，随后完成跨平台阶段验收和发行。Claude 官方模型列表问题按用户要求后移。
+
+完整优先级和产品未支持范围统一记录在[当前剩余任务清单](remaining-task-audit.md)，区分本次发版任务、后续扩展及 Work 设计，避免把旧验收状态当作仍未实现。

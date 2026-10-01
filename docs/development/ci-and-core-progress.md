@@ -1,6 +1,6 @@
 # CI 与客户端／Server 闭环进度
 
-`v0.1.3` 已公开发布，包含四平台客户端／Server、桌面安装器和 28 项附件。发行源码为 `cf965e47905303b488f3b2303821540b6b9a2b7c`，完成 Node 账号清理、OIDC 来源校验和跨 Server 共享权限通知。后续主分支提交完善验收流程与开发记录，程序源码保持一致。
+`v0.1.3` 已公开发布，包含四平台客户端／Server、桌面安装器和 28 项附件。发行源码为 `cf965e47905303b488f3b2303821540b6b9a2b7c`，完成 Node 账号清理、OIDC 来源校验和跨 Server 共享权限通知。以下发行验证对应 v0.1.3；本地 main 已合入后续功能，新版本尚未发行。
 
 ## 当前结果
 
@@ -41,9 +41,9 @@ Desktop 安装器暂未签名／公证，自动更新关闭；Server 镜像提�
 
 ## 后续范围
 
-1. [资源管理权交接](resource-ownership.md)已实现，保持执行／存储身份、历史作者和用量归属。SQLite／Server HTTP／前端回归通过，真实浏览器和受限 PostgreSQL 验收待完成，尚未发布。
-2. 跨 Server 共享权限通知已完成，Node 连接持有者的命令转发与实时事件同步仍需实现；当前按单 Server 部署。
+1. [资源管理权交接](resource-ownership.md)已实现并合入本地 main，保持执行／存储身份、历史作者和用量归属。SQLite／Server HTTP／前端、真实浏览器和受限 PostgreSQL 验收通过，尚未发布。
+2. 跨 Server 共享权限通知已完成；[Node 连接持有者转发和事件补读](server-node-routing.md)已实现并通过实际 TCP 及受限 PostgreSQL 合同，真实双 Server 浏览器联调待完成；生产继续按已验收的单 Server 部署。
 
 Work 保留持久资源 ID、宿主节点、版本化执行接口和授权边界的设计；不增加当前闭环不需要的容器调度、空页面或占位程序。具体约束见[Work 资源与执行边界](execution-coordination.md)。
 
-2026-10-01：正在落实[工作台性能与配置目录](workbench-performance-and-layout.md)。功能优先；本阶段完成后再推进 GitHub 验收和发行。
+2026-10-01：[工作台性能与配置目录](workbench-performance-and-layout.md)及单用户注册展示已合入本地 main，用户重新编译后确认注册修复。电脑状态、复选框与菜单收尾通过真实浏览器及 979 项前端测试。功能优先；跨平台阶段验收后再推进 GitHub 发行。完整清单见[当前剩余任务](remaining-task-audit.md)。
