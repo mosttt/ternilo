@@ -2,6 +2,8 @@
 
 The instance owner configures OIDC and Cloudflare Turnstile under **Platform administration → Instance settings → Sign-in and human verification**. Ordinary users and platform administrators cannot read or modify these settings. Saved changes apply to new requests without restart, use revision checks against concurrent edits, and override deployment-file defaults. Native password login remains available.
 
+Single-user mode permits only the instance owner and rejects new account registration. The accounts page shows a mode notice; registration policy, approval settings and account invitations appear only in multi-user mode.
+
 ## OIDC
 
 Configure the public HTTPS URL, issuer, client ID and scopes including `openid`. Register the displayed callback URL with the identity provider. Browser sign-in uses authorization code with S256 PKCE and validates the signed ID Token, issuer, audience, timestamps, nonce and related claims. UserInfo must match the verified subject. An OAuth-only provider without the OIDC contract needs its own integration.

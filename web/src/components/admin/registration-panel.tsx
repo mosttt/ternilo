@@ -13,9 +13,17 @@ import css from './admin.module.css'
 
 export function RegistrationPanel() {
   const t = useTranslate('admin')
+  const { serverIdentity } = useWorkbench()
+  if (serverIdentity?.instance.mode !== 'multi_user') {
+    return <p className={css.hint} data-registration-disabled="">{t('registration.singleUser')}</p>
+  }
+  return <RegistrationSettingsEditor />
+}
+
+function RegistrationSettingsEditor() {
+  const t = useTranslate('admin')
   const { serverIdentity, notify } = useWorkbench()
   const canEdit = serverIdentity?.platform_role === 'owner' || serverIdentity?.platform_role === 'admin'
-  const multiUser = serverIdentity?.instance.mode === 'multi_user'
   const [settings, setSettings] = React.useState<RegistrationSettings | null>(null)
   const [draft, setDraft] = React.useState<RegistrationSettings | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -54,7 +62,6 @@ export function RegistrationPanel() {
   return <>
     <section className={css.panel} data-registration-settings="">
       <GroupHeader title={t('registration.title')} description={t('registration.description')} />
-      {!multiUser && <p className={css.hint}>{t('registration.singleUser')}</p>}
       {loading ? <p className={css.state} role="status"><LoaderCircle className="size-4 animate-spin" />{t('loading')}</p>
         : draft && <form className={css.registrationForm} onSubmit={event => { event.preventDefault(); void save() }}>
           <Field>
@@ -77,6 +84,6 @@ export function RegistrationPanel() {
         </form>}
       {error && <div className={css.state} role="alert"><span>{error}</span>{!settings && <Button variant="outline" onClick={reload}>{t('retry')}</Button>}</div>}
     </section>
-    {canEdit && multiUser && !loading && settings?.mode === 'invite' && draft?.mode === 'invite' && <InvitationPanel key={settings.revision} />}
+    {canEdit && !loading && settings?.mode === 'invite' && draft?.mode === 'invite' && <InvitationPanel key={settings.revision} />}
   </>
 }

@@ -47,12 +47,36 @@ it('reloads a concurrent policy change without retrying the stale write', async 
   expect(host.querySelector('select')!.value).toBe('invite')
 })
 
-it('shows policy read-only to an auditor and retains settings without invitations in single-user mode', async () => {
+it('shows multi-user registration policy read-only to an auditor', async () => {
   workbench.serverIdentity.platform_role = 'auditor'
-  workbench.serverIdentity.instance.mode = 'single_user'
   await mount()
   expect(host.querySelector('select')!.disabled).toBe(true)
-  expect(host.textContent).toContain('切换到多用户后生效')
   expect(host.querySelector('[data-admin-invitations]')).toBeNull()
   expect(button('保存注册设置')).toBeUndefined()
+})
+
+it('hides single-user registration controls and does not load registration or invitation settings', async () => {
+  workbench.serverIdentity.instance.mode = 'single_user'
+  await mount()
+  expect(host.textContent).toContain('不能注册新账号')
+  expect(host.querySelector('[data-registration-settings]')).toBeNull()
+  expect(host.querySelector('select')).toBeNull()
+  expect(host.querySelector('input[type="checkbox"]')).toBeNull()
+  expect(host.querySelector('[data-admin-invitations]')).toBeNull()
+  expect(button('保存注册设置')).toBeUndefined()
+  expect(api.request).not.toHaveBeenCalled()
+})
+
+it('loads the preserved policy only after switching to multi-user mode and unmounts it when disabled', async () => {
+  workbench.serverIdentity.instance.mode = 'single_user'
+  await mount()
+  expect(api.request).not.toHaveBeenCalled()
+  workbench.serverIdentity.instance.mode = 'multi_user'
+  await mount()
+  expect(host.querySelector('select')!.value).toBe('invite')
+  expect(vi.mocked(api.request).mock.calls.filter(([path]) => path === '/admin/registration')).toHaveLength(1)
+  workbench.serverIdentity.instance.mode = 'single_user'
+  await mount()
+  expect(host.querySelector('[data-registration-settings]')).toBeNull()
+  expect(vi.mocked(api.request).mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(0)
 })

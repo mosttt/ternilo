@@ -4,6 +4,8 @@
 
 保存成功后，新请求使用新配置，无需重启。修改采用版本校验；其他页面已保存时会拒绝覆盖，需要重新加载。数据库中的配置优先于部署文件及 OIDC 环境变量；在网页中关闭功能不会重新启用部署文件里的旧值。用户名和密码登录始终保留。
 
+单用户模式仅允许实例所有者访问，不接受新账号注册。账号页只显示模式说明；切换到多用户模式后，才显示注册方式、审核设置和账号邀请管理。
+
 ## OAuth 2.0／OIDC
 
 启用后填写 Server 公网 HTTPS 根地址、Issuer、Client ID 和 Scopes。Scopes 必须包含 `openid`。在身份提供方登记页面显示的回调地址，例如 `https://ternilo.example.com/auth/callback`。网页登录不需要填写 Audience；“高级兼容设置”中的 Audience 只用于仍直接携带上游 JWT access token 的旧 API 客户端，一般留空。
