@@ -669,6 +669,9 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
             {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Icon size={14} />
             <span className={css.computerTitle} data-sidebar-computer-title="">{label}</span>
             {!online && <span className={css.computerOffline}>{workspaceT('status.offline')}</span>}
+            <span className={css.computerStatus} data-sidebar-computer-status="" data-offline={online ? undefined : ''}
+              title={`${label} · ${workspaceT(online ? 'status.online' : 'status.offline')}`}
+              aria-label={`${label} · ${workspaceT(online ? 'status.online' : 'status.offline')}`} />
             <span className={css.computerCount} aria-label={t('computer.workspaces', { n: computer.workspaces.length })}>{computer.workspaces.length}</span>
           </button>
           {isExpanded && <div className={css.computerBody} role="group">{computer.workspaces.map(renderWorkspace)}</div>}

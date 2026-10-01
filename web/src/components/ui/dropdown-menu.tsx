@@ -1,10 +1,31 @@
 import * as React from 'react'
+import { flushSync } from 'react-dom'
 import { Check, ChevronRight, Circle } from 'lucide-react'
 import { DropdownMenu as DropdownPrimitive } from 'radix-ui'
+import { NAVIGATION_START_EVENT } from '@/app/navigation'
 import { cn } from '@/lib/utils'
 
-export function DropdownMenu({ modal = false, ...props }: React.ComponentProps<typeof DropdownPrimitive.Root>) {
-  return <DropdownPrimitive.Root modal={modal} {...props} />
+const DropdownOpenContext = React.createContext(false)
+
+export function DropdownMenu({ modal = false, open, defaultOpen, onOpenChange, ...props }: React.ComponentProps<typeof DropdownPrimitive.Root>) {
+  const [localOpen, setLocalOpen] = React.useState(defaultOpen ?? false)
+  const isOpen = open ?? localOpen
+  const changeOpen = React.useCallback((next: boolean) => {
+    setLocalOpen(next)
+    onOpenChange?.(next)
+  }, [onOpenChange])
+  React.useLayoutEffect(() => {
+    if (!isOpen) return
+    // Close the portal before navigation hides its cached Activity and suspends effects.
+    const close = () => flushSync(() => changeOpen(false))
+    window.addEventListener(NAVIGATION_START_EVENT, close)
+    return () => {
+      window.removeEventListener(NAVIGATION_START_EVENT, close)
+    }
+  }, [isOpen, changeOpen])
+  return <DropdownOpenContext.Provider value={isOpen}>
+    <DropdownPrimitive.Root modal={modal} open={isOpen} onOpenChange={changeOpen} {...props} />
+  </DropdownOpenContext.Provider>
 }
 export const DropdownMenuTrigger = DropdownPrimitive.Trigger
 export const DropdownMenuGroup = DropdownPrimitive.Group
@@ -13,12 +34,15 @@ export const DropdownMenuSub = DropdownPrimitive.Sub
 export const DropdownMenuRadioGroup = DropdownPrimitive.RadioGroup
 
 export function DropdownMenuContent({ className, sideOffset = 6, ...props }: React.ComponentProps<typeof DropdownPrimitive.Content>) {
+  // Do not leave Radix Presence waiting for effects after its Activity becomes hidden.
+  const open = React.useContext(DropdownOpenContext)
+  if (!open) return null
   return (
     <DropdownPrimitive.Portal>
       <DropdownPrimitive.Content
         data-ternilo-dismiss-layer=""
         sideOffset={sideOffset}
-        className={cn('z-50 min-w-48 overflow-hidden rounded-lg border bg-popover p-1 text-popover-foreground shadow-xl outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95', className)}
+        className={cn('z-50 min-w-48 overflow-hidden rounded-lg border bg-popover p-1 text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95', className)}
         {...props}
       />
     </DropdownPrimitive.Portal>
@@ -39,8 +63,8 @@ export function DropdownMenuRadioItem({ className, children, ...props }: React.C
 }
 
 export function DropdownMenuCheckboxItem({ className, children, ...props }: React.ComponentProps<typeof DropdownPrimitive.CheckboxItem>) {
-  return <DropdownPrimitive.CheckboxItem className={cn('relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none data-[highlighted]:bg-accent', className)} {...props}>
-    <span className="absolute left-2 flex size-4 items-center justify-center"><DropdownPrimitive.ItemIndicator><Check className="size-4" /></DropdownPrimitive.ItemIndicator></span>{children}
+  return <DropdownPrimitive.CheckboxItem className={cn('relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-accent', className)} {...props}>
+    <span data-slot="dropdown-menu-checkbox-indicator" aria-hidden="true" className="absolute left-2 flex size-4 items-center justify-center rounded-sm border border-current"><DropdownPrimitive.ItemIndicator><Check className="size-3" /></DropdownPrimitive.ItemIndicator></span>{children}
   </DropdownPrimitive.CheckboxItem>
 }
 

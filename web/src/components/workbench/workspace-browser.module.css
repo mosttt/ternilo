@@ -186,6 +186,8 @@
 .computerHeader > svg { flex: none; }
 .computerTitle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .computerOffline, .computerCount { flex: none; color: var(--label-tertiary); font-size: 11px; }
+.computerStatus { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.computerStatus[data-offline] { background: var(--label-tertiary); }
 .computerBody { margin-left: 10px; padding-left: 3px; border-left: 1px solid var(--border); }
 .computerBody > .group { margin-bottom: 6px; }
 

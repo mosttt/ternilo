@@ -4,7 +4,9 @@
 
 ## 按电脑分组与在线资源按需加载
 
-侧边栏默认 computer 分组，可切换 workspace 或 flat。电脑组折叠状态按账号与空间保存，自动展开当前会话所在电脑，排序只调整本组资源，不改变物理绑定。在线电脑开关仅在电脑分组中生效。
+侧边栏默认 computer 分组，可切换 workspace 或 flat。电脑组折叠状态按账号与空间保存，自动展开当前会话所在电脑，排序只调整本组资源，不改变物理绑定。在线电脑开关仅在电脑分组中生效。电脑行显示状态，内部工作区不重复显示圆点；按工作区分组仍显示工作区状态。复选框在未选中时也显示边框。
+
+通用菜单在页面导航前关闭；原生历史先使用已渲染的路由快照完成菜单关闭，再通知页面变化。内容关闭时直接卸载，避免缓存 Activity 隐藏后暂停 Radix Presence 的收尾，导致 Portal 留在左上角。工作台与会话缓存保持。
 
 开关贯穿初始 `/state`、Live WebSocket、搜索和归档。Server 根据当前租约和原 Node 凭据确定在线电脑，Control 在 SQL 中过滤工作区／会话，读取之前排除离线元信息；Cloud 资源保留。开启后的冷启动不下载离线数据，关闭后重新请求全部可见资源。筛选切换清理旧 HTTP／Live 代号，拒绝迟到旧范围结果。
 
@@ -36,7 +38,7 @@ HTTP 验证包含一个 JSON 合法但无法解析为 EdgeSessionMetadata 的离
 
 本机分类为 config、secrets、data、cache、runtime，serve 根配置统一 config.json。本机配置首次私有原子发布，后续 CLI／env 只覆盖本次启动；相对 Profile 基于实例目录。桌面未显式提供 listen 时读取同一总配置，服务日志位于 runtime/service.log；桌面无终端后台启动、保存工作区、按总配置重开和正常停止已通过 Linux 实际程序验收。Server／Worker 使用 --config-dir 和对应 CONFIG_DIR 环境变量选择目录，内部固定读取 config.json；Worker 不再保留第二套目录参数。Server 默认 SQLite 位于 data/db/server.sqlite3，Docker 总配置和 WorkerPolicy 路径同步调整。可选 Worker 使用 config.json 和 data/workspaces；部署备份／恢复与对应测试同步更新。Work 只落实目录及持久卷的设计约束。
 
-正式说明见[配置目录](../zh-CN/data-layout.md)、[工作台使用](../zh-CN/user-guide.md)和[目标行为](../zh-CN/agents.md)。运行中的实例未自动移动或替换。临时构建与浏览器产物位于独立目录，不覆盖在线实例的 target/debug 或根 dist。
+正式说明见[配置目录](../zh-CN/data-layout.md)、[工作台使用](../zh-CN/user-guide.md)和[目标行为](../zh-CN/agents.md)。运行中的实例未自动移动或替换。验收程序位于独立构建目录，不覆盖在线实例的 target/debug；用户要求直接编译 main 后，根 Web 资源已同步构建并随源码提交。
 
 ## 验证与交付状态
 
@@ -47,5 +49,6 @@ HTTP 验证包含一个 JSON 合法但无法解析为 EdgeSessionMetadata 的离
 - 托管队列 SQLite 4 项生命周期通过；受限 PostgreSQL 的快速确认／持久重开／资源清理合同、完整 FIFO／作者／预算合同和资源管理权交接合同通过。
 - Server 全套尝试 130 项通过，发现两项单连接池文件列表回归；释放列表／权限事务后查询 Node 在线状态，两项真实 WebSocket 上传及大文件下载定向回归通过。跨 Server 实际 TCP 转发与受限 PostgreSQL 路由／DDL 隔离合同通过。
 - 桌面 6 项参数／环境／原生来源单元测试通过；Linux 桌面后台程序启动、数据保存、按根配置重开、正常停止通过。Cloud、Local、Server、Desktop all-targets Clippy 严格检查通过。
-- 构建与浏览器产物位于独立的 target/workbench-validation；不替换运行中的程序。当前 4321 Server 实测仍返回旧前端资源，不包含电脑分组／在线筛选标记；源码与新构建已包含。
-- 本阶段与[单用户注册展示修复](single-user-registration-ui.md)均已合并 main，可从最新源码直接编译。Web 页面在 Rust 编译时嵌入程序，因此构建顺序为先 Web、后 Rust。GitHub 推送、跨平台发行和运行实例升级均未完成，不把本机验收称为已上线。
+- 验收程序与浏览器产物位于独立的 target/workbench-validation；不替换用户运行中的程序。用户已重新编译并确认[单用户注册展示](single-user-registration-ui.md)修复。
+- 本阶段已合并 main，可从最新源码直接编译。Web 页面在 Rust 编译时嵌入程序，因此构建顺序为先 Web、后 Rust。GitHub 推送和新版本跨平台发行尚未完成，不把本机验收称为已公开发行。
+- 界面收尾后的前端全套 151 文件／979 项通过；TypeScript、i18n、86 篇正式文档及 Web 构建通过。真实 Chromium 配合独立 Server 和两台 Node 验证电脑状态、两种复选框状态、在线范围冷加载、导航到设置／文件／模型／管理页、浏览器前进／返回和受控工作区菜单，手机渲染、控制台及 HTTP 检查通过。验收加载当前 Web 资源，不修改业务 API 或用户运行中的服务。

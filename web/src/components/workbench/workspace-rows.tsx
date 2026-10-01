@@ -136,12 +136,13 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
         </span>
         <span className={css.workspaceTitle} data-sidebar-workspace-title="">{workspace.title}</span>
         {showPlacement && <span className={css.machineLabel} data-sidebar-workspace-machine="" title={placementLabel}>{workspace.node_id ?? placementLabel}</span>}
-        <span
+        {!computerGrouped && <span
           className={css.statusDot}
+          data-sidebar-workspace-status=""
           data-offline={online ? undefined : ''}
           title={`${placementLabel} · ${statusLabel}`}
           aria-label={`${placementLabel} · ${statusLabel}`}
-        />
+        />}
       </button>
       {(permissions.configure || permissions.submit || isOwner || onShare) && <span className={css.rowActions}>
         <DropdownMenu open={menuOpen} onOpenChange={open => { setMenuOpen(open); if (open) setHoverOpen(false) }}>

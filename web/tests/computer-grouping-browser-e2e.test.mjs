@@ -58,6 +58,11 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
     page = await context.newPage()
+    if (process.env.TERNILO_E2E_ASSET_DIR) {
+      for (const [asset, contentType] of [['app.js', 'text/javascript'], ['app.css', 'text/css']]) {
+        await page.route(`${origin}/assets/${asset}`, route => route.fulfill({ path: path.join(process.env.TERNILO_E2E_ASSET_DIR, asset), contentType }))
+      }
+    }
     const errors = []
     const requests = []
     const states = []
@@ -83,10 +88,25 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     assert.match(await beta.textContent(), /电脑 beta/s)
     assert.equal(await alpha.locator('[data-sidebar-workspace-row]').count(), 1)
     assert.equal(await beta.locator('[data-sidebar-workspace-row]').count(), 1)
+    assert.equal(await alpha.locator('[data-sidebar-computer-status]').getAttribute('data-offline'), '')
+    assert.equal(await beta.locator('[data-sidebar-computer-status]').getAttribute('data-offline'), null)
+    assert.equal(await page.locator('[data-sidebar-workspace-status]').count(), 0)
+    const statusColors = await page.locator('[data-sidebar-computer-status]').evaluateAll(dots => dots.map(dot => getComputedStyle(dot).backgroundColor))
+    assert.notEqual(statusColors[0], statusColors[1], 'online and offline computer indicators must look different')
+    assert.ok(statusColors.every(color => color !== 'rgba(0, 0, 0, 0)'), 'status indicators must have a visible color')
 
     const options = page.getByRole('button', { name: '视图选项', exact: true })
     await options.click()
-    await page.getByRole('menuitemcheckbox', { name: '只显示在线电脑', exact: true }).click()
+    const toggle = page.getByRole('menuitemcheckbox', { name: '只显示在线电脑', exact: true })
+    assert.equal(await toggle.getAttribute('aria-checked'), 'false')
+    const box = toggle.locator('[data-slot="dropdown-menu-checkbox-indicator"]')
+    const boxStyle = await box.evaluate(element => {
+      const style = getComputedStyle(element)
+      return { border: parseFloat(style.borderTopWidth), width: element.getBoundingClientRect().width }
+    })
+    assert.ok(boxStyle.border >= 1 && boxStyle.width >= 14, 'unchecked state must show a visible checkbox')
+    assert.equal(await box.locator('svg').count(), 0)
+    await toggle.click()
     await alpha.waitFor({ state: 'detached' })
     await beta.waitFor()
     const online = states.findLast(state => state.url.searchParams.get('online_computers_only') === 'true')
@@ -110,9 +130,12 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     assert.ok(sockets.slice(coldSockets).every(url => new URL(url).searchParams.get('online_computers_only') === 'true'))
 
     await options.click()
+    assert.equal(await toggle.getAttribute('aria-checked'), 'true')
+    assert.equal(await box.locator('svg').count(), 1)
     await page.getByRole('menuitem', { name: '按工作区', exact: true }).click()
     await page.locator('[data-sidebar-workspace-row]').filter({ hasText: 'Pictures alpha' }).waitFor()
     assert.equal(await page.locator('[data-sidebar-computer-group]').count(), 0)
+    assert.equal(await page.locator('[data-sidebar-workspace-status]').count(), 2)
     await options.click()
     assert.equal(await page.getByRole('menuitemcheckbox', { name: '只显示在线电脑', exact: true }).count(), 0)
     await page.getByRole('menuitem', { name: '按电脑', exact: true }).click()
@@ -126,6 +149,33 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     assert.equal((await all.body).workspaces.length, 2)
     assert.equal((await all.body).sessions.length, 2)
 
+    for (const [label, pathname] of [['用户设置', '/settings/general'], ['文件', '/files'], ['我的模型', '/models'], ['平台管理', '/admin']]) {
+      await options.click()
+      await page.getByRole('menu').waitFor()
+      await page.getByRole('button', { name: label, exact: true }).click()
+      await page.waitForURL(url => url.pathname === pathname)
+      assert.equal(await page.getByRole('menu', { includeHidden: true }).count(), 0, `${label} must dismiss cached workbench menus`)
+      await page.goBack()
+      await beta.waitFor()
+      assert.equal(await page.getByRole('menu', { includeHidden: true }).count(), 0, 'returning must not restore an open portal')
+    }
+    await options.click()
+    await page.getByRole('menu').waitFor()
+    await page.goForward()
+    await page.waitForURL(url => url.pathname === '/admin')
+    await page.getByRole('menu', { includeHidden: true }).waitFor({ state: 'detached', timeout: 3000 })
+    assert.equal(await page.getByRole('menu', { includeHidden: true }).count(), 0, 'browser forward must close menus before hiding the workbench')
+    await page.goBack()
+    await beta.waitFor()
+    await beta.locator('[data-sidebar-workspace-row]').hover()
+    await page.getByRole('button', { name: '工作区“Pictures beta”的操作', exact: true }).click()
+    await page.getByRole('menu').waitFor()
+    await page.getByRole('button', { name: '用户设置', exact: true }).click()
+    await page.waitForURL(url => url.pathname === '/settings/general')
+    assert.equal(await page.getByRole('menu', { includeHidden: true }).count(), 0, 'controlled workspace menus must also close on navigation')
+    await page.goBack()
+    await beta.waitFor()
+
     const artifact = process.env.TERNILO_E2E_ARTIFACT_DIR
     if (artifact) {
       await mkdir(artifact, { recursive: true })
@@ -138,6 +188,10 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     if (artifact) await page.screenshot({ path: path.join(artifact, 'computer-groups-mobile.png'), fullPage: true })
     assert.deepEqual(errors, [])
   } catch (error) {
+    if (page && process.env.TERNILO_E2E_ARTIFACT_DIR) {
+      await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+      await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'computer-groups-failure.png'), fullPage: true }).catch(() => {})
+    }
     throw new Error(`${error.stack}\n${server?.diagnostics() ?? ''}\n${processes.map(process => process.diagnostics()).join('\n')}`)
   } finally {
     await browser?.close()
