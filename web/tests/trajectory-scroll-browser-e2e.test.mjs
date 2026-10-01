@@ -36,8 +36,8 @@ test('ordinary histories load completely and a mobile virtual trajectory stays s
       add('assistant_message_delta', { step: 1, delta: `Result ${turn}` })
       add('turn_failed', { message: `Fixture stopped ${turn}` })
     }
-    await mkdir(path.join(data, 'sessions'), { recursive: true })
-    await writeFile(path.join(data, 'sessions', `${Buffer.from(session.identity.session_id).toString('hex')}.jsonl`), events.map(event => JSON.stringify(event)).join('\n') + '\n')
+    await mkdir(path.join(data, 'data', 'sessions'), { recursive: true })
+    await writeFile(path.join(data, 'data', 'sessions', `${Buffer.from(session.identity.session_id).toString('hex')}.jsonl`), events.map(event => JSON.stringify(event)).join('\n') + '\n')
     app = startProcess(binary, args)
     await waitForHttp(origin, app)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })

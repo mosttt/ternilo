@@ -10,7 +10,7 @@ import { freePort, repository, startProcess, stopProcess, waitForHttp } from './
 import { localApi, until } from './model-device-fixture.mjs'
 
 
-test('bounded history loads recent events, pages older reasoning and resumes Live on desktop and mobile', { timeout: 120_000 }, async () => {
+test('a long thinking round loads completely, switches from cache and resumes Live on desktop and mobile', { timeout: 120_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-history-'))
   const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ?? directory
   await mkdir(artifacts, { recursive: true })
@@ -19,7 +19,7 @@ test('bounded history loads recent events, pages older reasoning and resumes Liv
   const data = path.join(directory, 'data')
   const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data]
   let app, browser, page
-  const errors = [], subscriptions = [], streamed = []
+  const errors = [], subscriptions = [], streamed = [], historyRequests = []
   try {
     app = startProcess(binary, args)
     await waitForHttp(origin, app)
@@ -31,8 +31,8 @@ test('bounded history loads recent events, pages older reasoning and resumes Liv
     const sessionId = session.identity.session_id
     await stopProcess(app)
     const expected = history()
-    await mkdir(path.join(data, 'sessions'), { recursive: true })
-    await writeFile(path.join(data, 'sessions', `${Buffer.from(sessionId).toString('hex')}.jsonl`), expected.map(event => JSON.stringify(event)).join('\n') + '\n')
+    await mkdir(path.join(data, 'data', 'sessions'), { recursive: true })
+    await writeFile(path.join(data, 'data', 'sessions', `${Buffer.from(sessionId).toString('hex')}.jsonl`), expected.map(event => JSON.stringify(event)).join('\n') + '\n')
     app = startProcess(binary, args)
     await waitForHttp(origin, app)
     api = await localApi(origin)
@@ -40,9 +40,13 @@ test('bounded history loads recent events, pages older reasoning and resumes Liv
     page = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     page.on('websocket', socket => {
       socket.on('framesent', ({ payload }) => { const frame = JSON.parse(String(payload)); if (frame.type === 'subscribe') subscriptions.push(frame) })
-      socket.on('framereceived', ({ payload }) => { const frame = JSON.parse(String(payload)); if (frame.type === 'event_batch') streamed.push(...frame.events) })
+      socket.on('framereceived', ({ payload }) => { const frame = JSON.parse(String(payload)); if (frame.type === 'event_batch' && frame.session_id === sessionId) streamed.push(...frame.events) })
     })
     page.on('pageerror', error => errors.push(error.message))
+    page.on('request', request => {
+      const url = new URL(request.url())
+      if (url.pathname.endsWith('/history')) historyRequests.push(url)
+    })
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`) })
     const started = Date.now()
@@ -51,19 +55,27 @@ test('bounded history loads recent events, pages older reasoning and resumes Liv
     console.log(`Long history visible in ${Date.now() - started} ms (${expected.length} events)`)
     for (const asset of ['app.js', 'app.css']) {
       const served = await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer()
-      const built = await readFile(path.join(repository, 'web/dist/assets', asset))
+      const built = await readFile(path.join(process.env.TERNILO_E2E_ASSET_DIR ?? path.join(repository, 'web/dist/assets'), asset))
       assert.equal(createHash('sha256').update(Buffer.from(served)).digest('hex'), createHash('sha256').update(built).digest('hex'))
     }
     assert.equal((await api(`/sessions/${sessionId}/events`)).length, expected.length)
-    assert.equal(await page.locator('[data-turn-process]').count(), 0, 'partial history stays expanded')
     const row = page.locator('[data-reasoning-row]')
     await row.getByRole('button').click()
-    const text = await row.locator('[data-reasoning-body]').textContent()
+    const text = expected.filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join('')
+    await until(() => row.locator('[data-reasoning-body]').textContent(), value => value === text, 'complete thinking round')
     await until(async () => subscriptions.at(-1), frame => frame?.after_seq === expected.length - 1, 'live resumes after the bounded page')
-    const recent = expected.slice(-5000)
-    assert.equal(text, recent.filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''))
-    await page.getByRole('button', { name: '加载更早', exact: true }).click()
-    await until(async () => row.locator('[data-reasoning-body]').textContent(), value => value === expected.slice(-10000).filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join(''), 'older reasoning page')
+    assert.equal(await page.getByRole('button', { name: '加载更早', exact: true }).count(), 0, 'one thinking round must not be cut into pages')
+    const other = await api('/sessions', { body: { workspace_id: workspace.workspace_id } })
+    await api(`/sessions/${other.identity.session_id}/commands/feedback`, { body: { text: 'Another conversation' } })
+    await page.locator(`[data-session-id="${other.identity.session_id}"] [data-sidebar-session-button]`).click()
+    await until(async () => subscriptions.at(-1), frame => frame?.session_id === other.identity.session_id, 'other session loaded')
+    const beforeSwitch = historyRequests.length
+    const switchStarted = Date.now()
+    await page.locator(`[data-session-id="${sessionId}"] [data-sidebar-session-button]`).click()
+    await page.getByText('History preserved.', { exact: true }).waitFor({ timeout: 2_000 })
+    await until(async () => subscriptions.at(-1), frame => frame?.session_id === sessionId, 'cached session resumes Live')
+    assert.equal(historyRequests.length, beforeSwitch, 'switching back must not reread long history')
+    console.log(`Cached long conversation visible in ${Date.now() - switchStarted} ms without REST history`)
     const seen = []
     let before
     do {
@@ -73,6 +85,8 @@ test('bounded history loads recent events, pages older reasoning and resumes Liv
       before = result.next_before_seq
     } while (before !== null)
     assert.deepEqual(seen, expected.map(event => event.seq))
+    const turnProcess = page.locator('[data-turn-process]')
+    if (await turnProcess.getAttribute('aria-expanded') === 'false') await turnProcess.click()
     await row.getByRole('button').click()
     await page.getByRole('tab', { name: '轨迹', exact: true }).click()
     await page.locator('[data-trajectory-state="ready"]').waitFor()
@@ -80,9 +94,9 @@ test('bounded history loads recent events, pages older reasoning and resumes Liv
     await page.setViewportSize({ width: 390, height: 844 })
     await page.reload()
     await page.getByText('History preserved.', { exact: true }).waitFor()
-    assert.equal(await page.locator('[data-turn-process]').count(), 0)
+    if (await turnProcess.count() && await turnProcess.getAttribute('aria-expanded') === 'false') await turnProcess.tap()
     await row.getByRole('button').tap()
-    assert.equal(await row.locator('[data-reasoning-body]').textContent(), text)
+    await until(() => row.locator('[data-reasoning-body]').textContent(), value => value === text, 'complete mobile thinking round')
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
     const receipt = await api(`/sessions/${sessionId}/commands/feedback`, { body: { text: 'Bounded history live continuity' } })
     await until(async () => streamed, events => receipt.events.every(event => events.some(item => item.seq === event.seq)), 'new canonical events after paging and reload')

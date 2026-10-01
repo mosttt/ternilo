@@ -770,6 +770,58 @@ it('shows the first page before slower earlier pages and completes one long thin
   controller.dispose()
 })
 
+it('keeps the last accepted history cursor retryable when background backfill fails while Live advances', async () => {
+  let rejectBackfill!: (error: Error) => void
+  let backfillAttempts = 0
+  const api = new FakeApi(async path => {
+    if (!path.includes('before_seq=')) return {
+      events: Array.from({ length: 1_000 }, (_, index) => event(5_000 + index)),
+      next_before_seq: 5_000,
+    }
+    backfillAttempts += 1
+    if (backfillAttempts === 1) return new Promise((_, reject) => { rejectBackfill = reject })
+    return { events: [event(4_999)], next_before_seq: 4_999 }
+  })
+  const { deps, live } = dependencies(api)
+  const controller = new SessionController(deps)
+  controller.start()
+  controller.setTarget('session', true)
+  await flush()
+  live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
+    complete: true, events: [event(6_000)], next_seq: 6_001 })
+  rejectBackfill(new Error('backfill disconnected'))
+  await vi.waitFor(() => expect(controller.getSnapshot().olderHistoryError).toBe('backfill disconnected'))
+  expect(controller.getSnapshot()).toMatchObject({ loading: false, historyError: '', nextBeforeSeq: 5_000 })
+  live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
+    complete: true, events: [event(6_001)], next_seq: 6_002 })
+  expect(controller.getSnapshot().olderHistoryError).toBe('backfill disconnected')
+  await controller.loadOlderHistory()
+  expect(api.calls.at(-1)?.path).toContain('before_seq=5000')
+  expect(controller.getSnapshot()).toMatchObject({ nextBeforeSeq: 4_999, olderHistoryError: '' })
+  expect(controller.getSnapshot().events.at(0)?.seq).toBe(4_999)
+  expect(controller.getSnapshot().events.at(-1)?.seq).toBe(6_001)
+  controller.dispose()
+})
+
+it('ignores a failed obsolete backfill after Live resets the history baseline', async () => {
+  let rejectBackfill!: (error: Error) => void
+  const api = new FakeApi(async path => path.includes('before_seq=')
+    ? new Promise((_, reject) => { rejectBackfill = reject })
+    : { events: Array.from({ length: 1_000 }, (_, index) => event(5_000 + index)), next_before_seq: 5_000 })
+  const { deps, live } = dependencies(api)
+  const controller = new SessionController(deps)
+  controller.start()
+  controller.setTarget('session', true)
+  await flush()
+  live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: true,
+    complete: true, events: [event(0)], next_seq: 1 })
+  rejectBackfill(new Error('obsolete read failed'))
+  await flush()
+  expect(controller.getSnapshot()).toMatchObject({ events: [event(0)], loading: false,
+    nextBeforeSeq: null, historyError: '', olderHistoryError: '' })
+  controller.dispose()
+})
+
 it('evicts older conversations when the cache reaches its session limit', async () => {
   const api = new FakeApi(async () => ({ events: [event(0)], next_before_seq: null }))
   const { deps } = dependencies(api)

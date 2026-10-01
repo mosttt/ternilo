@@ -13,6 +13,8 @@ use crate::{
 };
 
 mod batches;
+mod restart;
+pub(crate) use restart::complete_restart_in;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CloudSubmissionReceipt {
@@ -291,7 +293,8 @@ impl CloudStore {
                 (tenant_id, user_id, session_id, paused, error, next_position, updated_at_ms)
              VALUES ($1, $2, $3, 0, NULL, 0, $4)
              ON CONFLICT (tenant_id, user_id, session_id) DO UPDATE
-             SET paused = 0, error = NULL, updated_at_ms = EXCLUDED.updated_at_ms",
+             SET paused = CASE WHEN cloud_session_inboxes.restart_after_run_id IS NULL
+                 THEN 0 ELSE 1 END, error = NULL, updated_at_ms = EXCLUDED.updated_at_ms",
         )
         .bind(tenant_id.as_str())
         .bind(user_id.as_str())
@@ -865,12 +868,14 @@ impl CloudStore {
         let user_id = &owner_id;
         set_scope(&mut transaction, tenant_id, user_id).await?;
         require_owned_session(&mut transaction, tenant_id, user_id, session_id).await?;
+        crate::store::lock_session_in(&mut transaction, tenant_id, session_id).await?;
         sqlx::query(
             "INSERT INTO cloud_session_inboxes
                 (tenant_id, user_id, session_id, paused, error, next_position, updated_at_ms)
              VALUES ($1, $2, $3, 1, $4, 0, $5)
              ON CONFLICT (tenant_id, user_id, session_id) DO UPDATE
-             SET paused = 1, error = EXCLUDED.error, updated_at_ms = EXCLUDED.updated_at_ms",
+             SET paused = 1, restart_after_run_id = NULL, error = EXCLUDED.error,
+                 updated_at_ms = EXCLUDED.updated_at_ms",
         )
         .bind(tenant_id.as_str())
         .bind(user_id.as_str())

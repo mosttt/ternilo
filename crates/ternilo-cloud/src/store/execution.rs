@@ -757,6 +757,14 @@ async fn complete_submission_in(
         item.try_get::<String, _>("session_id")
             .map_err(database_error)?,
     );
+    crate::inbox::complete_restart_in(
+        tx,
+        tenant,
+        &session,
+        run,
+        to_i64(now_ms, "cloud completion timestamp")?,
+    )
+    .await?;
     crate::inbox::promote_head(
         tx,
         tenant,

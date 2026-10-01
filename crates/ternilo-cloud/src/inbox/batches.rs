@@ -156,7 +156,8 @@ impl CloudStore {
         crate::store::lock_session_in(&mut transaction, tenant, session).await?;
         let now = to_i64(now_ms, "queue resume time")?;
         sqlx::query(
-            "UPDATE cloud_session_inboxes SET paused=0, error=NULL, updated_at_ms=$3
+            "UPDATE cloud_session_inboxes SET paused=0, restart_after_run_id=NULL,
+                error=NULL, updated_at_ms=$3
             WHERE tenant_id=$1 AND session_id=$2",
         )
         .bind(tenant.as_str())

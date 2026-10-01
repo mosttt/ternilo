@@ -21,6 +21,8 @@ use ternilo_transport::{
     ExecutorCommand, ExecutorCommandBody, ExecutorHello, ExecutorId, ExecutorKind, ExecutorScope,
 };
 
+#[path = "support/inbox_restart.rs"]
+mod inbox_restart;
 mod support;
 #[path = "support/worker_storage.rs"]
 mod worker_storage;

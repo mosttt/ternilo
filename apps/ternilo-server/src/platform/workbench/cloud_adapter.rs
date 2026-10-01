@@ -804,57 +804,16 @@ impl<'a> CloudAdapter<'a> {
         session: &CloudSessionRecord,
         submission_id: SubmissionId,
     ) -> Result<SessionSubmission, HarnessError> {
-        let inbox = self.inbox(session).await?;
-        let submission = inbox
-            .items
-            .into_iter()
-            .find(|item| item.id == submission_id)
-            .ok_or_else(|| HarnessError::invalid(format!("unknown submission {submission_id}")))?;
-        if submission.placement != SubmissionPlacement::Queued {
-            return Ok(submission);
-        }
         self.state
             .cloud
-            .pause_session_inbox(
+            .restart_session_inbox(
                 self.tenant_id,
                 &self.actor.user_id,
                 &session.session_id,
-                None,
+                &submission_id,
                 now_ms()?,
             )
-            .await?;
-        if let Some(run_id) = inbox.active_run_id {
-            self.cancel(session, &run_id).await?;
-            let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
-            loop {
-                if self
-                    .state
-                    .cloud
-                    .get_run(self.tenant_id, &run_id)
-                    .await?
-                    .state
-                    .terminal()
-                {
-                    break;
-                }
-                if tokio::time::Instant::now() >= deadline {
-                    return Err(HarnessError::unavailable(
-                        "the current run is still stopping; pending inputs are preserved",
-                    ));
-                }
-                tokio::time::sleep(Duration::from_millis(50)).await;
-            }
-        }
-        self.state
-            .cloud
-            .resume_session_inbox(
-                self.tenant_id,
-                &self.actor.user_id,
-                &session.session_id,
-                now_ms()?,
-            )
-            .await?;
-        Ok(submission)
+            .await
     }
 
     pub(crate) async fn turn(
@@ -940,18 +899,16 @@ impl<'a> CloudAdapter<'a> {
         if run.user_id != session.user_id || run.session_id != session.session_id {
             return Err(HarnessError::invalid("run does not exist"));
         }
-        if !run.state.terminal() {
-            self.state
-                .cloud
-                .pause_session_inbox(
-                    self.tenant_id,
-                    &self.actor.user_id,
-                    &session.session_id,
-                    None,
-                    now_ms()?,
-                )
-                .await?;
-        }
+        self.state
+            .cloud
+            .pause_session_inbox(
+                self.tenant_id,
+                &self.actor.user_id,
+                &session.session_id,
+                None,
+                now_ms()?,
+            )
+            .await?;
         self.state
             .cloud
             .cancel_run_as(

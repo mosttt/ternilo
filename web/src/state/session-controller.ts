@@ -328,16 +328,13 @@ export class SessionController implements SessionRuntimeActions {
     this.cachedSessions.delete(this.sessionId)
     this.cachedSessions.set(this.sessionId, { snapshot, buffer: this.eventBuffer, bytes })
     let totalBytes = 0
-    let totalEvents = 0
     for (const cached of this.cachedSessions.values()) {
       totalBytes += cached.bytes
-      totalEvents += cached.buffer.events.length
     }
-    while (this.cachedSessions.size > 8 || totalEvents > 30_000 || totalBytes > 24 * 1024 * 1024) {
+    while (this.cachedSessions.size > 8 || totalBytes > 24 * 1024 * 1024) {
       const oldest = this.cachedSessions.keys().next().value!
       const cached = this.cachedSessions.get(oldest)!
       totalBytes -= cached.bytes
-      totalEvents -= cached.buffer.events.length
       this.cachedSessions.delete(oldest)
     }
   }
@@ -414,10 +411,12 @@ export class SessionController implements SessionRuntimeActions {
 
   private async loadInitialHistory(sessionId: string, generation: number, signal: AbortSignal) {
     const revision = this.historyRevision
+    const accepted = { page: null as SessionEventPage | null }
     let subscribed = false
     try {
       const page = await this.readHistoryBatch(sessionId, signal, undefined, page => {
         if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return false
+        accepted.page = page
         this.mergeEvents(sessionId, page.events)
         this.updateSnapshot({ loadedSessionId: sessionId, loading: false })
         if (!subscribed) {
@@ -429,8 +428,14 @@ export class SessionController implements SessionRuntimeActions {
       if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return
       this.updateSnapshot({ nextBeforeSeq: page.next_before_seq })
     } catch (cause) {
-      if (!this.isCurrent(sessionId, generation, signal)) return
-      this.updateSnapshot({ loadedSessionId: sessionId, loading: false, historyError: errorMessage(cause) })
+      if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return
+      this.updateSnapshot({
+        loadedSessionId: sessionId,
+        loading: false,
+        ...(accepted.page
+          ? { nextBeforeSeq: accepted.page.next_before_seq, olderHistoryError: errorMessage(cause) }
+          : { historyError: errorMessage(cause) }),
+      })
     } finally {
       if (this.isCurrent(sessionId, generation, signal)) this.initialHistoryLoading = false
     }

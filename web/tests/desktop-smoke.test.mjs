@@ -75,7 +75,7 @@ async function stopDesktop(process_) {
 async function stopService(dataDirectory) {
   let connection
   try {
-    connection = JSON.parse(await readFile(path.join(dataDirectory, 'service.json'), 'utf8'))
+    connection = JSON.parse(await readFile(path.join(dataDirectory, 'runtime', 'service.json'), 'utf8'))
   } catch (error) {
     if (error.code === 'ENOENT') return
     throw error
@@ -87,7 +87,7 @@ async function stopService(dataDirectory) {
   assert.equal(response.status, 202)
   const deadline = Date.now() + 15_000
   while (Date.now() < deadline) {
-    try { await readFile(path.join(dataDirectory, 'service.json')) } catch (error) {
+    try { await readFile(path.join(dataDirectory, 'runtime', 'service.json')) } catch (error) {
       if (error.code === 'ENOENT') return
       throw error
     }
@@ -215,12 +215,12 @@ test('desktop reuses a service started by the CLI and keeps its workspace state'
   let desktop
   try {
     const initial = await waitForApplication(cli)
-    const before = JSON.parse(await readFile(path.join(dataDirectory, 'service.json'), 'utf8'))
+    const before = JSON.parse(await readFile(path.join(dataDirectory, 'runtime', 'service.json'), 'utf8'))
     desktop = startDesktop(temporary, dataDirectory, randomUUID(), workspaceLink(workspace))
     const attached = await waitForApplication(desktop)
     assert.deepEqual(attached, initial)
     await waitForWorkspaces(initial.origin, initial.token, [workspace])
-    const after = JSON.parse(await readFile(path.join(dataDirectory, 'service.json'), 'utf8'))
+    const after = JSON.parse(await readFile(path.join(dataDirectory, 'runtime', 'service.json'), 'utf8'))
     assert.equal(after.info.service_id, before.info.service_id)
     assert.equal(after.info.pid, child.pid)
     await stopDesktop(desktop)

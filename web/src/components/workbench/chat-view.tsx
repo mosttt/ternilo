@@ -10,7 +10,7 @@ import type { Translate } from '@/i18n/runtime'
 import type { PendingSubmissionEcho, SessionEvent, SessionProjection } from '@/types'
 import type { DetailsSelection } from './details-panel'
 import { ToolCallTree } from './tool-call-tree'
-import { ReasoningRow } from './reasoning-row'
+import { ReasoningRow, type ReasoningDisclosure } from './reasoning-row'
 import { ContextInjectionRow, SystemPromptRow } from './chat/context-injection-row'
 import { ConversationEventRow } from './chat/event-rows'
 import { AssistantMessageItem, PendingSubmissionBubble, UserMessageItem } from './chat/message-item'
@@ -94,7 +94,7 @@ function TurnStatus({ startedAt, phase, t }: { startedAt: number; phase: Executi
   </div>
 }
 
-function ConversationItemView({ item, events, sessionId, selection, onSelect, onRegenerate, onEdit, regenerateDisabled, omitReasoning, t }: {
+function ConversationItemView({ item, events, sessionId, selection, onSelect, onRegenerate, onEdit, regenerateDisabled, omitReasoning, reasoningDisclosure, t }: {
   item: ConversationItem
   events: readonly SessionEvent[]
   sessionId: string
@@ -104,6 +104,7 @@ function ConversationItemView({ item, events, sessionId, selection, onSelect, on
   onEdit?(event: SessionEvent, input: string): Promise<void>
   regenerateDisabled?: boolean
   omitReasoning?: boolean
+  reasoningDisclosure?: ReasoningDisclosure
   t: ChatTranslate
 }) {
   if (item.kind === 'user') return <UserMessageItem sessionId={sessionId} event={item.event} content={item.content} onRegenerate={onRegenerate} onEdit={onEdit} regenerateDisabled={regenerateDisabled} />
@@ -123,6 +124,7 @@ function ConversationItemView({ item, events, sessionId, selection, onSelect, on
     streaming={item.streaming}
     interrupted={item.interrupted}
     omitReasoning={omitReasoning}
+    reasoningDisclosure={reasoningDisclosure}
     t={t}
   />
   if (item.kind === 'tool') return <ToolCallTree
@@ -158,6 +160,7 @@ function TurnBlock({ turn, latest, events, sessionId, assistantTails, projection
   const answerRef = React.useRef<HTMLDivElement>(null)
   const sectionRef = React.useRef<HTMLElement>(null)
   const [disclosure, setDisclosure] = React.useState({ generation: '', open: false })
+  const [openedReasoningSteps, setOpenedReasoningSteps] = React.useState(() => new Set<number>())
   const folding = compact && turn.foldable
   const generationChanged = disclosure.generation !== turn.generation
   const active = typeof document === 'undefined' ? null : document.activeElement
@@ -169,7 +172,7 @@ function TurnBlock({ turn, latest, events, sessionId, assistantTails, projection
     const contains = (trace: typeof item.trace): boolean => trace.id === selection.trace.id || trace.children.some(contains)
     return contains(item.trace)
   })
-  const initialOpen = focusedMember || focusedInlineReasoning || selectedMember
+  const initialOpen = focusedMember || focusedInlineReasoning || selectedMember || openedReasoningSteps.size > 0
   const open = !folding || selectedMember || (generationChanged ? initialOpen : disclosure.open)
 
   React.useLayoutEffect(() => {
@@ -193,6 +196,16 @@ function TurnBlock({ turn, latest, events, sessionId, assistantTails, projection
   >
     {turn.items.map((item, itemIndex) => {
       const rows: React.ReactNode[] = []
+      const reasoningStep = item.event.step ?? 0
+      const reasoningDisclosure: ReasoningDisclosure = {
+        open: openedReasoningSteps.has(reasoningStep),
+        onToggle: () => setOpenedReasoningSteps(current => {
+          const next = new Set(current)
+          if (next.has(reasoningStep)) next.delete(reasoningStep)
+          else next.add(reasoningStep)
+          return next
+        }),
+      }
       if (folding && !controlRendered && itemIndex === turn.processControlIndex) {
         controlRendered = true
         rows.push(<TurnProcessControl
@@ -215,7 +228,7 @@ function TurnBlock({ turn, latest, events, sessionId, assistantTails, projection
             if (node) memberRefs.current.set(`inline-${item.key}`, node)
             else memberRefs.current.delete(`inline-${item.key}`)
           }}
-        ><ReasoningRow reasoning={item.reasoning} /></div>)
+        ><ReasoningRow reasoning={item.reasoning} disclosure={reasoningDisclosure} /></div>)
       }
       const body = <ConversationItemView
         item={item}
@@ -227,6 +240,7 @@ function TurnBlock({ turn, latest, events, sessionId, assistantTails, projection
         onEdit={onEdit}
         regenerateDisabled={regenerateDisabled}
         omitReasoning={folding && turn.inlineReasoning && item.key === turn.finalAnswerKey}
+        reasoningDisclosure={reasoningDisclosure}
         t={t}
       />
       if (turn.processKeys.has(item.key)) {

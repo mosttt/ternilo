@@ -41,7 +41,8 @@ def main():
         for attempt in range(2):
             with (root / f"service-{attempt}.log").open("w+b") as log:
                 process = subprocess.Popen(
-                    [str(executable), "--service", "--listen", "127.0.0.1:0", "--data-dir", str(state)],
+                    [str(executable), "--service", "--data-dir", str(state)]
+                    + (["--listen", "127.0.0.1:0"] if attempt == 0 else []),
                     stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=environment,
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                 )
@@ -52,12 +53,13 @@ def main():
                         if process.poll() is not None:
                             log.seek(0)
                             raise AssertionError(f"Desktop service exited: {log.read().decode(errors='replace')}")
-                        discovery = state / "service.json"
+                        discovery = state / "runtime" / "service.json"
                         if discovery.is_file():
                             connection = json.loads(discovery.read_text())
                             break
                         time.sleep(0.1)
                     assert connection is not None, "Desktop service did not register"
+                    assert json.loads((state / "config.json").read_text())["listen"] == "127.0.0.1:0"
                     assert request(connection, "/service")["version"] == args.expected_version
                     if attempt == 0:
                         saved = request(connection, "/workspaces", {"path": str(workspace)})
@@ -68,7 +70,7 @@ def main():
                         assert any(session["identity"]["session_id"] == expected_session for session in snapshot["sessions"])
                     request(connection, "/service/stop", {})
                     assert process.wait(timeout=30) == 0, "Desktop service did not shut down cleanly"
-                    assert not (state / "service.json").exists(), "Service discovery survived shutdown"
+                    assert not (state / "runtime" / "service.json").exists(), "Service discovery survived shutdown"
                 finally:
                     if process.poll() is None:
                         process.kill()

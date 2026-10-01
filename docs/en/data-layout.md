@@ -15,7 +15,7 @@ The root is `$XDG_DATA_HOME/ternilo`, otherwise `~/.local/share/ternilo`; `--dat
 | `data/attachments/objects/`, `data/extensions/` | Attachment objects and installed extensions |
 | `data/db/` | Agent Team, inbox, preferences and Node transport SQLite databases |
 | `cache/` | Session search and projection SQLite indexes |
-| `runtime/` | Service discovery, writer/startup locks and execution resource cleanup records |
+| `runtime/` | Service discovery, Desktop's `service.log`, writer/startup locks and execution resource cleanup records |
 
 SQLite `-wal` and `-shm` files stay beside their database. Queues, input authors, attachments and transport receipts are durable data, not disposable caches.
 

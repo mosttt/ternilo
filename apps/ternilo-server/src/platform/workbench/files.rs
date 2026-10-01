@@ -82,6 +82,7 @@ pub(super) async fn file_page(
     let mut last_cursor: Option<SessionFileCursor> = None;
     let mut items = Vec::new();
     let mut permissions = BTreeMap::new();
+    let mut executors = BTreeMap::new();
     let mut connections = BTreeMap::new();
     let mut offline = BTreeSet::new();
     for row in rows {
@@ -125,20 +126,9 @@ pub(super) async fn file_page(
         let executor = row
             .try_get::<Option<String>, _>("executor_id")
             .map_err(database_error)?;
-        let status = match executor {
-            Some(executor) => {
-                let connected = connected(state, tenant, &executor, &mut connections).await;
-                if !connected {
-                    offline.insert((workspace.clone(), executor));
-                }
-                if connected {
-                    FileSourceStatus::Online
-                } else {
-                    FileSourceStatus::Offline
-                }
-            }
-            None => FileSourceStatus::Online,
-        };
+        if let Some(executor) = executor {
+            executors.insert(session.clone(), executor);
+        }
         let kind = match row
             .try_get::<String, _>("kind")
             .map_err(database_error)?
@@ -169,7 +159,7 @@ pub(super) async fn file_page(
                 .map(unsigned)
                 .transpose()?,
             run_id: RunId::new(row.try_get::<String, _>("run_id").map_err(database_error)?),
-            source_status: status,
+            source_status: FileSourceStatus::Online,
             attachment_index: u32::try_from(
                 row.try_get::<i64, _>("attachment_index")
                     .map_err(database_error)?,
@@ -178,6 +168,15 @@ pub(super) async fn file_page(
         });
     }
     tx.commit().await.map_err(database_error)?;
+    // Credential and lease checks may acquire a connection; release the inventory transaction first.
+    for item in &mut items {
+        if let Some(executor) = executors.get(&item.session_id)
+            && !connected(state, tenant, executor, &mut connections).await
+        {
+            item.source_status = FileSourceStatus::Offline;
+            offline.insert((item.workspace_id.clone(), executor.clone()));
+        }
+    }
     offline.extend(offline_sources(state, user, tenant, query, &mut connections).await?);
     Ok(SessionFilePage {
         items,
@@ -213,7 +212,7 @@ async fn offline_sources(
         .fetch_all(&mut *tx)
         .await
         .map_err(database_error)?;
-    let mut sources = BTreeSet::new();
+    let mut authorized = BTreeSet::new();
     for row in rows {
         let resource = row
             .try_get::<String, _>("resource_id")
@@ -236,17 +235,21 @@ async fn offline_sources(
         let executor = row
             .try_get::<String, _>("executor_id")
             .map_err(database_error)?;
-        if !connected(state, tenant, &executor, connections).await {
-            sources.insert((
-                WorkspaceId::new(
-                    row.try_get::<String, _>("workspace_id")
-                        .map_err(database_error)?,
-                ),
-                executor,
-            ));
-        }
+        authorized.insert((
+            WorkspaceId::new(
+                row.try_get::<String, _>("workspace_id")
+                    .map_err(database_error)?,
+            ),
+            executor,
+        ));
     }
     tx.commit().await.map_err(database_error)?;
+    let mut sources = BTreeSet::new();
+    for (workspace, executor) in authorized {
+        if !connected(state, tenant, &executor, connections).await {
+            sources.insert((workspace, executor));
+        }
+    }
     Ok(sources)
 }
 

@@ -127,7 +127,7 @@ async function waitForFile(file, expected) {
 }
 
 async function snapshotNodeSessionFiles(dataDirectory) {
-  const directory = path.join(dataDirectory, 'sessions')
+  const directory = path.join(dataDirectory, 'data', 'sessions')
   const files = (await readdir(directory)).sort()
   return Object.fromEntries(await Promise.all(files.map(async file => [
     file,
@@ -714,7 +714,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     assert.equal(await viewerSettings.getByRole('button', { name: '我的机器', exact: true }).count(), 0)
     assert.equal(await viewerSettings.getByRole('button', { name: '平台管理', exact: true }).count(), 0)
     await viewerSettings.getByRole('button', { name: '返回工作台' }).click()
-    const viewerNodeStateBefore = await readFile(path.join(memberNodeData, 'state.json'), 'utf8')
+    const viewerNodeStateBefore = await readFile(path.join(memberNodeData, 'data', 'state.json'), 'utf8')
     const viewerNodeSessionsBefore = await snapshotNodeSessionFiles(memberNodeData)
     const viewerMutationAudit = await memberPage.evaluate(async ({ sessionId, nodeId, directory }) => {
       const token = sessionStorage.getItem('ternilo.oidc.access') ?? ''
@@ -776,7 +776,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     assert.equal(viewerMutationAudit.afterQueue.status, 200)
     assert.deepEqual(viewerMutationAudit.afterState.body, viewerMutationAudit.beforeState.body)
     assert.deepEqual(viewerMutationAudit.afterQueue.body, viewerMutationAudit.beforeQueue.body)
-    assert.equal(await readFile(path.join(memberNodeData, 'state.json'), 'utf8'), viewerNodeStateBefore)
+    assert.equal(await readFile(path.join(memberNodeData, 'data', 'state.json'), 'utf8'), viewerNodeStateBefore)
     assert.deepEqual(await snapshotNodeSessionFiles(memberNodeData), viewerNodeSessionsBefore)
     await assert.rejects(stat(path.join(memberSelectedWorkspace, 'viewer-turn-bypass.txt')), { code: 'ENOENT' })
     await assert.rejects(stat(path.join(memberSelectedWorkspace, 'viewer-queue-bypass.txt')), { code: 'ENOENT' })
@@ -869,12 +869,12 @@ test('Control browser drives an enrolled local Node workspace without connecting
     await prompt.waitFor()
     assert.equal(await page.evaluate(() => localStorage.getItem('ternilo.current-session')), sessionId)
 
-    const localStateText = await readFile(path.join(nodeData, 'state.json'), 'utf8')
-    const localSessionFiles = (await readdir(path.join(nodeData, 'sessions')))
+    const localStateText = await readFile(path.join(nodeData, 'data', 'state.json'), 'utf8')
+    const localSessionFiles = (await readdir(path.join(nodeData, 'data', 'sessions')))
       .filter(file => file.endsWith('.jsonl'))
     assert.ok(localSessionFiles.length > 0)
     const localEventLog = (await Promise.all(localSessionFiles.map(file => (
-      readFile(path.join(nodeData, 'sessions', file), 'utf8')
+      readFile(path.join(nodeData, 'data', 'sessions', file), 'utf8')
     )))).join('\n')
     assert.equal(localStateText.includes(selectedWorkspace), true)
     assert.equal(localStateText.includes('<local-workspace>'), false)

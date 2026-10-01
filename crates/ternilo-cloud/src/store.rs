@@ -1260,6 +1260,14 @@ async fn initialize_database(database: &Database) -> Result<(), HarnessError> {
         .await?;
     database
         .initialize(
+            "cloud_inbox_restart",
+            1,
+            include_str!("schema/inbox_restart.sql"),
+            "",
+        )
+        .await?;
+    database
+        .initialize(
             "cloud_account_cleanup",
             1,
             include_str!("schema/account_cleanup.sql"),

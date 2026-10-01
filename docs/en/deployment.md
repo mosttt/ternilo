@@ -15,7 +15,7 @@ ternilo-server init
 ternilo-server serve
 ```
 
-Initialization produces the instance configuration and setup path; retain its secrets privately. Use the actual config path for subsequent operator commands. Do not overwrite an existing instance to reset a password; use [account recovery](account-recovery.md).
+Initialization produces the instance configuration and setup path; retain its secrets privately. Use the actual instance directory with `--config-dir` for subsequent operator commands; the program reads `config.json` inside it. Do not overwrite an existing instance to reset a password; use [account recovery](account-recovery.md).
 
 Expose Server through HTTPS and a reverse proxy that supports WebSocket upgrades and disables inappropriate streaming buffering. Keep personal Ternilo ports on loopback. Docker's default published Server port is also loopback for an external proxy. For accurate session IP metadata, configure only the exact trusted proxy addresses; see [settings](settings.md).
 

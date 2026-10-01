@@ -29,7 +29,7 @@ test('offline log repair keeps a backup, restores browser history and allows new
     const workspace = await api('/workspaces', { body: { path: folder } })
     const session = await api('/sessions', { body: { workspace_id: workspace.workspace_id } })
     const id = session.identity.session_id
-    const log = path.join(data, 'sessions', `${Buffer.from(id).toString('hex')}.jsonl`)
+    const log = path.join(data, 'data', 'sessions', `${Buffer.from(id).toString('hex')}.jsonl`)
     await stopProcess(app)
     const events = [
       { type: 'turn_started' },

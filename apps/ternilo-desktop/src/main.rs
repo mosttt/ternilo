@@ -18,8 +18,6 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_notification::NotificationExt;
 use ternilo_local::default_data_dir;
 
-const DEFAULT_DESKTOP_LISTEN: &str = "127.0.0.1:3210";
-
 type AnyError = Box<dyn Error + Send + Sync + 'static>;
 
 struct InitialLinks(Mutex<Vec<String>>);
@@ -28,12 +26,8 @@ struct InitialLinks(Mutex<Vec<String>>);
 #[command(about = "Ternilo native desktop shell", version)]
 struct Args {
     /// Loopback address used by the shared Local Web host.
-    #[arg(
-        long,
-        env = "TERNILO_DESKTOP_LISTEN",
-        default_value = DEFAULT_DESKTOP_LISTEN
-    )]
-    listen: SocketAddr,
+    #[arg(long, env = "TERNILO_DESKTOP_LISTEN")]
+    listen: Option<SocketAddr>,
     #[arg(
         long = "profile",
         env = "TERNILO_DESKTOP_PROFILES",
@@ -77,7 +71,9 @@ fn run(args: Args) -> Result<(), AnyError> {
         .thread_name("ternilo-desktop-core")
         .build()?;
     let data_dir = data_dir.map_or_else(default_data_dir, Ok)?;
-    if listen.ip() != std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST) {
+    if listen
+        .is_some_and(|address| address.ip() != std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+    {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "desktop listen address must use 127.0.0.1",
@@ -87,7 +83,7 @@ fn run(args: Args) -> Result<(), AnyError> {
     if service {
         return application_runtime
             .block_on(ternilo::service::run(ternilo::service::ServeOptions {
-                listen: Some(listen),
+                listen,
                 profile_layers,
                 data_dir: Some(data_dir),
                 max_steps: None,
@@ -164,28 +160,33 @@ fn run(args: Args) -> Result<(), AnyError> {
 
 async fn connect_local_service(
     data_dir: &std::path::Path,
-    listen: SocketAddr,
+    listen: Option<SocketAddr>,
     profiles: &[PathBuf],
 ) -> Result<ternilo::service::ServiceConnection, AnyError> {
     let _start_lock = ternilo::service::start_lock(data_dir).await?;
     if let Some(connection) = ternilo::service::discover(data_dir).await? {
         return require_browser(connection);
     }
-    let log_path = data_dir.join("service.log");
-    let log = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)?;
+    let log_path = data_dir.join("runtime/service.log");
+    let mut log_options = std::fs::OpenOptions::new();
+    log_options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        log_options.mode(0o600);
+    }
+    let log = log_options.open(&log_path)?;
     let mut command = std::process::Command::new(std::env::current_exe()?);
     command
         .arg("--service")
-        .arg("--listen")
-        .arg(listen.to_string())
         .arg("--data-dir")
         .arg(data_dir)
         .stdin(Stdio::null())
         .stdout(log.try_clone()?)
         .stderr(log);
+    if let Some(listen) = listen {
+        command.arg("--listen").arg(listen.to_string());
+    }
     for profile in profiles {
         command.arg("--profile").arg(profile);
     }
@@ -387,6 +388,14 @@ mod tests {
     #[test]
     fn desktop_cli_metadata_is_valid_and_exposes_runtime_environment() {
         Args::command().debug_assert();
+        assert!(
+            Args::command()
+                .get_arguments()
+                .find(|argument| argument.get_id() == "listen")
+                .unwrap()
+                .get_default_values()
+                .is_empty()
+        );
         let command = Args::command();
         for (id, environment) in [
             ("listen", "TERNILO_DESKTOP_LISTEN"),
@@ -429,7 +438,7 @@ mod tests {
             let from_env = Args::try_parse_from(["ternilo-desktop"]).unwrap();
             assert_eq!(
                 from_env.listen,
-                "127.0.0.1:4325".parse::<std::net::SocketAddr>().unwrap()
+                Some("127.0.0.1:4325".parse::<std::net::SocketAddr>().unwrap())
             );
             assert_eq!(
                 from_env.profile_layers,
@@ -459,7 +468,7 @@ mod tests {
             .unwrap();
             assert_eq!(
                 from_cli.listen,
-                "127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap()
+                Some("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
             );
             assert_eq!(
                 from_cli.profile_layers,

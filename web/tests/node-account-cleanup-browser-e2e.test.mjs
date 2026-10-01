@@ -51,8 +51,8 @@ test('offline computer cleanup stays pending until its revoked credential report
     await serverRequest(origin,`/questions/${questions[0].question.id}/answer?session_id=${session.identity.session_id}`,{...memberScope,body:{selected:['Allow once'],custom:null}})
     await until(()=>serverRequest(origin,`/sessions/${session.identity.session_id}/queue`,memberScope),body=>body.items.length===0 && !body.active_run_id,'the scheduled task must finish persisting before Node disconnects')
     const savedEvents=async()=>{
-      const files=(await readdir(path.join(nodeData,'sessions'))).filter(file=>file.endsWith('.jsonl'))
-      return (await Promise.all(files.map(file=>readFile(path.join(nodeData,'sessions',file),'utf8')))).flatMap(text=>text.trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)))
+      const files=(await readdir(path.join(nodeData,'data','sessions'))).filter(file=>file.endsWith('.jsonl'))
+      return (await Promise.all(files.map(file=>readFile(path.join(nodeData,'data','sessions',file),'utf8')))).flatMap(text=>text.trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)))
     }
     const originalEvents=await savedEvents()
     assert.ok(originalEvents.some(event=>event.run_id==='cleanup-schedule-owner' && event.type==='user_message' && event.provenance?.author?.user_id===member.user.user_id))

@@ -399,7 +399,7 @@ impl LocalApplication {
                     {
                         self.inbox.requeue(session_id, &item.id, now_ms()?).await?;
                     }
-                    self.inbox.pause(session_id).await?;
+                    // settle_session_inbox already parked cancellation; preserve an accepted restart.
                     return Ok(());
                 }
                 Err(error) => {

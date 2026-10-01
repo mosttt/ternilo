@@ -243,6 +243,26 @@ describe('ChatView turn process and navigation', () => {
     expect(document.activeElement).toBe(tool)
   })
 
+  it('preserves expanded reasoning when background history completes a foldable turn', () => {
+    const recent = [
+      event(3, 'assistant_reasoning_delta', 'run-1', { step: 1, delta: 'visible thought' }),
+      event(4, 'assistant_message_delta', 'run-1', { step: 1, delta: 'answer' }),
+      event(5, 'turn_failed', 'run-1', { message: 'interrupted' }),
+    ]
+    render(recent)
+    act(() => host.querySelector<HTMLButtonElement>('[data-reasoning-row] [data-disclosure-row]')!.click())
+    expect(host.querySelector('[data-reasoning-body]')?.textContent).toBe('visible thought')
+    render([
+      event(0, 'turn_started'),
+      event(1, 'user_message', 'run-1', { content: 'question' }),
+      event(2, 'step_started', 'run-1', { step: 1 }),
+      ...recent,
+    ])
+    expect(host.querySelector('[data-turn-process]')?.getAttribute('aria-expanded')).toBe('true')
+    expect(host.querySelector('[data-reasoning-body]')?.textContent).toBe('visible thought')
+    expect(host.querySelector('[data-turn-inline-reasoning]')?.hasAttribute('hidden')).toBe(false)
+  })
+
   it('honors the persisted Normal transcript mode', () => {
     window.localStorage.setItem(transcriptViewStorageKey, 'normal')
     render(processTurn(true))

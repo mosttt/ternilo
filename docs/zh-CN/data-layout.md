@@ -32,6 +32,7 @@ ternilo/
 │   └── session-projections.sqlite3
 └── runtime/
     ├── service.json
+    ├── service.log
     ├── writer.lock
     ├── service-start.lock
     └── execution-resources.json

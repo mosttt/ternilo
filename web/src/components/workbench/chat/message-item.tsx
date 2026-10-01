@@ -8,7 +8,7 @@ import { AssistantMarkdown } from './assistant-markdown'
 import { MessageAttachments } from '../message-attachments'
 import { PendingUserMessageActions, UserMessageActions } from '../message-actions'
 import { SubmissionReferenceChips } from '../reference-chips'
-import { ReasoningRow } from '../reasoning-row'
+import { ReasoningRow, type ReasoningDisclosure } from '../reasoning-row'
 import { InputIdentity } from '../input-identity'
 import css from './message-item.module.css'
 
@@ -89,6 +89,7 @@ export function AssistantMessageItem({
   streaming,
   interrupted,
   omitReasoning,
+  reasoningDisclosure,
   t,
 }: {
   content: string
@@ -97,10 +98,11 @@ export function AssistantMessageItem({
   streaming: boolean
   interrupted?: boolean
   omitReasoning?: boolean
+  reasoningDisclosure?: ReasoningDisclosure
   t: ChatTranslate
 }) {
   return <article className={css.assistantRow} data-role="assistant" data-streaming={streaming || undefined}>
-    {!omitReasoning && reasoning && <ReasoningRow reasoning={reasoning} />}
+    {!omitReasoning && reasoning && <ReasoningRow reasoning={reasoning} disclosure={reasoningDisclosure} />}
     <AssistantMarkdown source={content} streaming={streaming} interrupted={interrupted} t={t} />
   </article>
 }

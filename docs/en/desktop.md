@@ -19,6 +19,8 @@ ternilo stop --data-dir /path/to/ternilo-data
 
 Use the data directory configured for that instance. A browser and desktop window can share one service; two independent services must use separate directories and ports. See [multiple instances](remote-access.md#multiple-instances-on-one-computer). Desktop's single-instance window behavior does not create a new Node on every launch.
 
+Without `--listen` or `TERNILO_DESKTOP_LISTEN`, Desktop reads the listening address from the instance's `config.json`; the first launch defaults to `127.0.0.1:3210`. Explicit overrides apply only to that launch and do not rewrite an existing configuration. Native capabilities require `127.0.0.1`. Background services launched by Desktop write their log to `runtime/service.log` inside the data directory.
+
 Release Windows builds use the GUI subsystem, so launching the desktop app does not create a controlling console window. The CLI and Server retain console behavior. The child background service is launched without a visible console.
 
 ## Native integration

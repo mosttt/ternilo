@@ -17,7 +17,12 @@ function latestLine(text: string) {
   return newline === -1 ? visible : visible.slice(newline + 1)
 }
 
-export function ReasoningRow({ reasoning }: { reasoning: AssistantReasoning }) {
+export interface ReasoningDisclosure {
+  open: boolean
+  onToggle(): void
+}
+
+export function ReasoningRow({ reasoning, disclosure }: { reasoning: AssistantReasoning; disclosure?: ReasoningDisclosure }) {
   const t = useTranslate('chat')
   const [open, setOpen] = React.useState(false)
   const [now, setNow] = React.useState(Date.now())
@@ -43,8 +48,8 @@ export function ReasoningRow({ reasoning }: { reasoning: AssistantReasoning }) {
       icon={<Brain />}
       title={t('message.think')}
       summary={<><DisclosureSeparator /><span ref={summaryRef} className={css.summary} data-reasoning-summary="" data-follow-end={reasoning.running || undefined}>{summary}</span>{duration != null && <span className={css.duration} data-reasoning-duration="">{formatDuration(duration)}</span>}</>}
-      open={open}
-      onToggle={() => setOpen(value => !value)}
+      open={disclosure?.open ?? open}
+      onToggle={disclosure?.onToggle ?? (() => setOpen(value => !value))}
       rowClassName={css.row}
     >
       <div className={css.body} data-reasoning-body="">{reasoning.text}</div>

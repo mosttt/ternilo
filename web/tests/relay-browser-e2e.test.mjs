@@ -840,7 +840,7 @@ test('unified Server browser drives its enrolled Node and local web observes the
 
     const terminal = await waitForTerminalEvent(localOrigin, localSessionId, activeRunId, localApiToken)
     const durableTerminal = await waitForJsonlEvent(
-      path.join(nodeData, 'sessions', `${Buffer.from(localSessionId, 'utf8').toString('hex')}.jsonl`),
+      path.join(nodeData, 'data', 'sessions', `${Buffer.from(localSessionId, 'utf8').toString('hex')}.jsonl`),
       event => event.run_id === activeRunId && event.type === 'turn_cancelled',
     )
     assert.equal(durableTerminal.seq, terminal.seq)
