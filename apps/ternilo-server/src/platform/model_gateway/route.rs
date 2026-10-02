@@ -85,7 +85,8 @@ pub(super) fn resolve(
 pub(super) fn public_provider(binding: &RunModelBinding) -> &str {
     match binding {
         RunModelBinding::Platform { .. } => "platform",
-        RunModelBinding::UserProvider { provider_id, .. } => provider_id,
+        RunModelBinding::UserProvider { provider_id, .. }
+        | RunModelBinding::ComputerProvider { provider_id, .. } => provider_id,
     }
 }
 

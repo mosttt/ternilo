@@ -269,6 +269,7 @@ export interface PlatformWorkspaceCreateInput {
 }
 
 export type ModelSelection =
+  | { provider: 'computer_provider'; executor_id: string; provider_id: string; model: string; reasoning_effort?: ReasoningEffort }
   | { provider: 'account_provider'; owner_user_id: string; provider_id: string; model: string; reasoning_effort?: ReasoningEffort }
   | { provider: 'profile_default' }
   | {

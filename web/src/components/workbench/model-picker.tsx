@@ -6,6 +6,7 @@ import { supportedReasoningEfforts } from '@/domain/model-reasoning'
 import { currentCloudModel, invalidateCloudModelInventory, loadCloudModelInventory, modelSelectionKey, peekCloudModelInventory, subscribeCloudModelInventory, type CloudModelCurrent } from '@/domain/cloud-model-inventory'
 import { PlatformModelItems } from './platform-model-items'
 import { ProviderModelItems } from './provider-model-items'
+import { ComputerModelItems } from './computer-model-items'
 import { isAccountConnectionProvider, isConnectionProvider } from '@/components/models/model-device-types'
 import { useAccountProviders } from './use-account-providers'
 import { executionTargetHeaders, executionTargetKey, executionTargetPath, type ExecutionTarget } from '@/domain/execution-target'
@@ -51,12 +52,12 @@ function selectedProviderModel(selection: ModelSelection, providers: ProviderPro
 }
 
 function effectiveEffort(selection: ModelSelection, model: Pick<ResolvedProviderModel, 'reasoning'> | null | undefined) {
-  if (selection.provider !== 'named_provider' && selection.provider !== 'platform_model' && selection.provider !== 'account_provider') return undefined
+  if (selection.provider !== 'named_provider' && selection.provider !== 'platform_model' && selection.provider !== 'account_provider' && selection.provider !== 'computer_provider') return undefined
   return selection.reasoning_effort ?? model?.reasoning?.default_effort ?? undefined
 }
 
 export function withReasoningEffort(selection: ModelSelection, effort?: ReasoningEffort): ModelSelection {
-  if (selection.provider !== 'named_provider' && selection.provider !== 'platform_model' && selection.provider !== 'account_provider') return selection
+  if (selection.provider !== 'named_provider' && selection.provider !== 'platform_model' && selection.provider !== 'account_provider' && selection.provider !== 'computer_provider') return selection
   const { reasoning_effort: _previous, ...model } = selection
   return effort === undefined ? model : { ...model, reasoning_effort: effort }
 }
@@ -144,7 +145,7 @@ export function ModelPicker({
   const [loadedCloud, setCloudInventory] = React.useState(() => ({ key: targetKey, inventory: peekCloudModelInventory(target) }))
   const cloudInventory = loadedCloud.key === targetKey ? loadedCloud.inventory : null
   const selection = currentSession?.model ?? cloudInventory?.current?.selection ?? { provider: 'profile_default' as const }
-  const serverBacked = cloud || Boolean(platform && (selection.provider === 'account_provider' || selection.provider === 'platform_model'))
+  const serverBacked = cloud || Boolean(platform && (selection.provider === 'account_provider' || selection.provider === 'platform_model' || selection.provider === 'computer_provider'))
   const sharedAccount = selection.provider === 'account_provider' && platform && selection.owner_user_id !== serverIdentity?.user.user_id
   const selectionKey = modelSelectionKey(selection)
   const [cloudStatus, setCloudStatus] = React.useState<'loading' | 'ready' | 'error'>('loading')
@@ -153,7 +154,7 @@ export function ModelPicker({
   const credentials = cloud ? cloudInventory?.credentials ?? null : cachedCredentials
   const status = cloud ? cloudStatus : providerStatus
   const loadError = cloud ? cloudError : providerError
-  const selectedProviders = sharedAccount ? [] : selection.provider === 'account_provider' ? accounts.inventory?.providers ?? [] : providers
+  const selectedProviders = sharedAccount || selection.provider === 'computer_provider' ? [] : selection.provider === 'account_provider' ? accounts.inventory?.providers ?? [] : providers
   const cloudGeneration = React.useRef(0)
   const loadCloud = React.useCallback(async (force = false) => {
     if (!platform) return
@@ -257,7 +258,7 @@ export function ModelPicker({
   const selectedLabel = cloud && selection.provider === 'profile_default' ? t('cloud.choose') : selection.provider === 'profile_default' && effectiveProfile && !profileAvailable
     ? t('provider.configure')
     : modelLabel(selection, selectedProviders, t('default'), cloudCurrent)
-  const triggerLabel = `${selectedLabel}${selection.provider === 'account_provider' ? ` · ${t(sharedAccount ? 'source.sharedAccount' : 'source.account')}` : edge && selection.provider === 'platform_model' ? ` · ${t('cloud.platform')}` : edge ? ` · ${t('source.node')}` : cloud && selection.provider === 'named_provider' ? ` · ${t('cloud.byok')}` : ''}${currentEffort ? ` · ${currentEffort}` : ''}`
+  const triggerLabel = `${selectedLabel}${selection.provider === 'computer_provider' ? ` · ${cloudCurrent?.source_name || t('source.computer')}` : selection.provider === 'account_provider' ? ` · ${t(sharedAccount ? 'source.sharedAccount' : 'source.account')}` : edge && selection.provider === 'platform_model' ? ` · ${t('cloud.platform')}` : edge ? ` · ${t('source.node')}` : cloud && selection.provider === 'named_provider' ? ` · ${t('cloud.byok')}` : ''}${currentEffort ? ` · ${currentEffort}` : ''}`
   const usableModels = usableProviderModels(providers, credentials)
   const providerCatalogEmpty = status === 'ready' && usableModels === 0
   const profilePending = selection.provider === 'profile_default' && (!effectiveProfile || !catalog)
@@ -287,7 +288,7 @@ export function ModelPicker({
       if (currentSession) {
         await updateSession(currentSession.identity.session_id, { model })
         if (platform) invalidateCloudModelInventory(target)
-        if (!rememberDefault || model.provider === 'account_provider' || (edge && model.provider === 'platform_model')) {
+        if (!rememberDefault || model.provider === 'account_provider' || model.provider === 'computer_provider' || (edge && model.provider === 'platform_model')) {
           notify(t('updated'))
           return
         }
@@ -326,18 +327,19 @@ export function ModelPicker({
               <ProviderModelItems providers={platform ? providers : providers.filter(provider => !isConnectionProvider(provider.id))} credentials={credentials} selection={selection} label={t(cloud ? 'source.account' : 'source.node')} onSelect={model => void select(model)} />
               {!platform && providers.some(provider => isConnectionProvider(provider.id) && !isAccountConnectionProvider(provider.id)) && <ProviderModelItems providers={providers.filter(provider => isConnectionProvider(provider.id) && !isAccountConnectionProvider(provider.id))} credentials={credentials} selection={selection} label={t('source.connectedPlatform')} onSelect={model => void select(model)} />}
               {!platform && providers.some(provider => isAccountConnectionProvider(provider.id)) && <ProviderModelItems providers={providers.filter(provider => isAccountConnectionProvider(provider.id))} credentials={credentials} selection={selection} label={t('source.connectedAccount')} onSelect={model => void select(model)} />}
-              {platform && <PlatformModelItems key={targetKey} target={target} selection={selection} onSelect={model => void select(model)} />}
+              {edge && currentTenantId && <ComputerModelItems key={`computer:${targetKey}`} tenantId={currentTenantId} executionComputerId={currentWorkspace?.node_id ?? undefined} selection={selection} onSelect={model => void select(model)} />}
+              {platform && <PlatformModelItems key={`platform:${targetKey}`} target={target} selection={selection} onSelect={model => void select(model)} />}
   </>
   const reasoningItems = reasoning ? <>
               <DropdownMenuItem onSelect={() => void select(withReasoningEffort(selection))}>
                 <div className="min-w-0 flex-1"><div>{t('effort.modelDefault')} · {reasoning.default_effort}</div><div className="text-xs text-muted-foreground">{t('effort.modelDefaultDescription')}</div></div>
-                {(selection.provider === 'named_provider' || selection.provider === 'platform_model' || selection.provider === 'account_provider') && selection.reasoning_effort === undefined && currentEffort === reasoning.default_effort && <Check />}
+                {(selection.provider === 'named_provider' || selection.provider === 'platform_model' || selection.provider === 'account_provider' || selection.provider === 'computer_provider') && selection.reasoning_effort === undefined && currentEffort === reasoning.default_effort && <Check />}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {supportedReasoningEfforts(reasoning).map(effort => (
                 <DropdownMenuItem key={effort} onSelect={() => void select(withReasoningEffort(selection, effort))}>
                   <code className="min-w-0 flex-1 text-sm">{effort}</code>
-                  {(selection.provider === 'named_provider' || selection.provider === 'platform_model' || selection.provider === 'account_provider') && selection.reasoning_effort === effort && <Check />}
+                  {(selection.provider === 'named_provider' || selection.provider === 'platform_model' || selection.provider === 'account_provider' || selection.provider === 'computer_provider') && selection.reasoning_effort === effort && <Check />}
                 </DropdownMenuItem>
               ))}
   </> : null

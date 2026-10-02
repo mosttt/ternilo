@@ -223,6 +223,7 @@ impl ControlStore {
         crate::oidc_sessions::initialize(database).await?;
         crate::computer_management::initialize(database).await?;
         crate::service_accounts::initialize(database).await?;
+        crate::computer_models::initialize(database).await?;
         crate::node_account_cleanup::initialize(database).await
     }
 

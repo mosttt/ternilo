@@ -39,6 +39,8 @@ mod cluster_tests;
 mod commands;
 mod connection;
 mod forwarding;
+mod model_forwarding;
+pub(crate) use model_forwarding::{ComputerModelEvent, ComputerModelStream};
 mod replication;
 pub(crate) use forwarding::{router as peer_router, validate_cluster_origin};
 
@@ -92,6 +94,11 @@ pub(crate) struct EdgeGateway {
     executors: RwLock<BTreeMap<RouteKey, ConnectedExecutor>>,
     resource_locks: Mutex<BTreeMap<RouteKey, Arc<Mutex<()>>>>,
     pending: Mutex<BTreeMap<(TenantId, CommandId), PendingCall>>,
+    model_calls: Arc<
+        std::sync::Mutex<
+            BTreeMap<ternilo_transport::ModelRequestId, model_forwarding::PendingModel>,
+        >,
+    >,
     event_notify: Arc<Notify>,
     live_notify: broadcast::Sender<EdgeLiveNotification>,
     next_id: AtomicU64,
@@ -110,6 +117,7 @@ impl EdgeGateway {
             executors: RwLock::new(BTreeMap::new()),
             resource_locks: Mutex::new(BTreeMap::new()),
             pending: Mutex::new(BTreeMap::new()),
+            model_calls: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             event_notify: Arc::new(Notify::new()),
             live_notify,
             next_id: AtomicU64::new(1),

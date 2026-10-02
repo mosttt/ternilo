@@ -10,6 +10,7 @@ import type { InputAuthor } from '@/types'
 import type { ModelUsage } from './model-service-api'
 import { ModelDirectory, errorMessage, useModelDate, useModelPage } from './model-service-ui'
 import { SourcePicker, modelCenterPath } from './model-sources'
+import { ComputerModelUsage } from './computer-model-usage'
 import css from './model-service.module.css'
 
 interface Computer {
@@ -48,6 +49,7 @@ export function ComputerUsage() {
   const [loading, setLoading] = React.useState(true)
   const [revision, reload] = React.useReducer(value => value + 1, 0)
   const [month, setMonth] = React.useState(() => new Date().toISOString().slice(0, 7))
+  const [forwardedOpen, setForwardedOpen] = React.useState(false)
   const id = React.useId()
   const computers = tenant && loaded?.scope === scope ? loaded.computers : []
   const selectedId = parameters.get('computer') || computers[0]?.executor_id || ''
@@ -76,6 +78,10 @@ export function ComputerUsage() {
       <Field><Label htmlFor={id}>{t('computerUsageMonth')}</Label><Input id={id} type="month" min="1970-01" max="9999-12" value={month} onChange={event => setMonth(event.target.value)} /></Field>
     </div>}
     {selected && month && <ComputerUsageRecords key={`${scope}:${selected.executor_id}:${month}:${revision}`} tenantId={tenantId} computer={selected} month={month} />}
+    {tenant && <details open={forwardedOpen} onToggle={event => setForwardedOpen(event.currentTarget.open)}>
+      <summary>{t('forwardedUsageTitle')}</summary>
+      {forwardedOpen && <ComputerModelUsage key={`${scope}:${revision}`} tenantId={tenantId} />}
+    </details>}
   </section>
 }
 

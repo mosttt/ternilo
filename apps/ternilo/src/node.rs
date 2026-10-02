@@ -254,6 +254,7 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
                             HarnessError::invalid(format!("decode gateway control frame: {error}"))
                         })?;
                     match frame {
+                        ControlFrame::ModelRetryPermit { request_id, attempt, error } => models.permit(&request_id, attempt, error)?,
                         ControlFrame::ModelRequest { request_id, scope, request } => {
                             models.start(request_id, &scope, *request)?;
                         }

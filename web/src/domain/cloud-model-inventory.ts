@@ -46,6 +46,7 @@ function storeFor(target: ExecutionTarget) {
 }
 
 export function modelSelectionKey(selection: ModelSelection) {
+  if (selection.provider === 'computer_provider') return JSON.stringify([selection.provider, selection.executor_id, selection.provider_id, selection.model, selection.reasoning_effort ?? null])
   if (selection.provider === 'platform_model') return JSON.stringify([selection.provider, selection.grant_id, selection.model_id, selection.reasoning_effort ?? null])
   if (selection.provider === 'account_provider') return JSON.stringify([selection.provider, selection.owner_user_id, selection.provider_id, selection.model, selection.reasoning_effort ?? null])
   if (selection.provider === 'named_provider') return JSON.stringify([selection.provider, selection.provider_id, selection.model, selection.reasoning_effort ?? null])

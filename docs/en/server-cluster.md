@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/server-cluster.md)
 
-The current source includes cross-Server Node forwarding and live-change catch-up; milestone acceptance remains pending. Released production deployments should continue using one Server. Sharing PostgreSQL alone does not establish complete failover.
+The current source includes cross-Server Node forwarding, live-change catch-up and computer-model streaming, verified in a real two-instance browser flow with a restricted PostgreSQL runtime role. Deploy matching versions containing these features. Sharing PostgreSQL and routing calls do not establish complete storage failover.
 
 Participating Servers must use the same version, database and `secret_master_key`. Each sets its own `cluster_url`, reachable by other instances. This identifies one instance rather than a load balancer, and is separate from the browser login `public_url`. Every instance needs a distinct address that routes directly to it.
 
@@ -23,3 +23,5 @@ Transient credentials, directories and file contents do not enter the shared com
 Each Node has a coalesced change revision in the shared database. Other instances catch up authorized history and current state while browsers keep their normal live subscriptions. Rolled-back transactions produce no committed hint. Synchronized history remains available offline; operations requiring the computer return unavailable after disconnect or lease expiry.
 
 This coordinates Node connections and calls without moving directories, relocating Server/Worker storage, taking over unsupervised external processes or implementing Work container scheduling. Existing quotas, restricted PostgreSQL, backup and persistent-volume requirements remain in the [deployment guide](deployment.md). See the [architecture](architecture.md#remote-paths) for scope.
+
+Cross-computer models use the separate `/api/v1/internal/node/model` WebSocket channel. Reverse proxies must also allow WebSocket upgrades on that path. The channel verifies its signature, freshness, source owner, current connection lease and executor capability. Output, attempt reports, cancellation and fresh retry permits travel over the same connection. Requests do not enter durable replay queues; replacing the source connection ends in-flight calls.

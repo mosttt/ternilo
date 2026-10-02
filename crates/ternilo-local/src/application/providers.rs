@@ -18,7 +18,9 @@ impl LocalApplication {
         validate_model(&selection)?;
         if matches!(
             selection,
-            ModelSelection::AccountProvider { .. } | ModelSelection::PlatformModel { .. }
+            ModelSelection::AccountProvider { .. }
+                | ModelSelection::PlatformModel { .. }
+                | ModelSelection::ComputerProvider { .. }
         ) {
             return Err(HarnessError::policy(
                 "Server models are authorized per session, not as a computer default",

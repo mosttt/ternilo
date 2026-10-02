@@ -256,7 +256,7 @@ pub(super) async fn handle_application_inner(
                             title,
                             permissions,
                             model,
-                            server_model,
+                            server_model: server_model.map(|snapshot| *snapshot),
                             agent_preset,
                             profile_plugins,
                             mode,

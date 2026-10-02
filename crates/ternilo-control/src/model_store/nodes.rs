@@ -217,7 +217,8 @@ fn require_principal(
                 ternilo_protocol::RunModelBinding::Platform { grant_id, .. } => {
                     Some(grant_id.as_str())
                 }
-                ternilo_protocol::RunModelBinding::UserProvider { .. } => None,
+                ternilo_protocol::RunModelBinding::UserProvider { .. }
+                | ternilo_protocol::RunModelBinding::ComputerProvider { .. } => None,
             }
     {
         return Err(HarnessError::policy("Node model request identity changed"));

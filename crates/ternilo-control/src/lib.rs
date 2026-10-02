@@ -5,7 +5,11 @@ mod account_store;
 pub use account_status_store::AccountStatusAction;
 mod auth;
 mod computer_management;
+mod computer_models;
 pub use computer_management::{ComputerDetails, ComputerManagement, ComputerUpdate};
+pub use computer_models::{
+    ComputerModelAttemptRecord, ComputerModelRequestPage, ComputerModelRequestRecord,
+};
 mod authentication_settings;
 mod crypto;
 mod edge_models;

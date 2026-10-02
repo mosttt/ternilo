@@ -40,7 +40,7 @@ export function modelSelectionIsUsable(
   credentials: CredentialInventory | null,
   profileAvailable = false,
 ) {
-  if (selection.provider === 'platform_model') return false
+  if (selection.provider === 'platform_model' || selection.provider === 'computer_provider') return false
   if (selection.provider === 'account_provider') return profileAvailable
   if (selection.provider === 'open_ai_compatible') {
     return Boolean(selection.base_url.trim() && selection.model.trim())

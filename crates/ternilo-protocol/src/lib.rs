@@ -4,7 +4,8 @@ mod provider_usage;
 pub use provider_usage::{ProviderUsageRoute, ReportedModelUsage};
 mod model_gateway;
 pub use model_gateway::{
-    ComputerModelRequest, ModelGatewayFrame, NodeModelRequest, ScheduleModelOrigin,
+    ComputerModelAttempt, ComputerModelRequest, ModelGatewayFrame, NodeModelRequest,
+    ScheduleModelOrigin,
 };
 
 mod model_device;
@@ -593,6 +594,13 @@ pub enum ReasoningEffort {
 pub enum DefaultModelSelection {
     #[default]
     ProfileDefault,
+    ComputerProvider {
+        executor_id: String,
+        provider_id: String,
+        model: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reasoning_effort: Option<ReasoningEffort>,
+    },
     NamedProvider {
         provider_id: String,
         model: String,
@@ -632,6 +640,20 @@ impl DefaultModelSelection {
         }
         match self {
             Self::ProfileDefault => Ok(()),
+            Self::ComputerProvider {
+                executor_id,
+                provider_id,
+                model,
+                ..
+            } => {
+                model_binding::validate_reference(executor_id, "source computer", 128)?;
+                if !valid_provider_id(provider_id) {
+                    return Err(HarnessError::invalid(
+                        "invalid computer Provider identifier",
+                    ));
+                }
+                model_binding::validate_reference(model, "computer model", 200)
+            }
             Self::PlatformModel {
                 grant_id, model_id, ..
             } => {

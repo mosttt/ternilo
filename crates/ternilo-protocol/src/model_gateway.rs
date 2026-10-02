@@ -50,6 +50,7 @@ pub struct ComputerModelRequest {
     pub protocol: crate::ProviderProtocol,
     pub defaults: crate::ProviderModelDefaults,
     pub reasoning_effort: Option<crate::ReasoningEffort>,
+    pub max_attempts: u32,
     pub request: ModelRequest,
 }
 
@@ -63,6 +64,11 @@ impl ComputerModelRequest {
         crate::model_binding::validate_reference(&self.model, "computer model", 200)?;
         crate::validate_model_defaults(&self.defaults, "computer model request")?;
         self.request.run_id.validate()?;
+        if !(1..=8).contains(&self.max_attempts) {
+            return Err(HarnessError::invalid(
+                "computer model requires 1 to 8 attempts",
+            ));
+        }
         self.resolved_model()
             .reasoning_value(self.reasoning_effort)?;
         Ok(())
@@ -78,6 +84,22 @@ impl ComputerModelRequest {
             reasoning: self.defaults.reasoning.clone(),
         }
     }
+}
+
+/// Usage is reported by the source computer, not observed by Server itself.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ComputerModelAttempt {
+    Started {
+        attempt: u32,
+    },
+    Finished {
+        attempt: u32,
+        http_status: Option<u16>,
+        usage: Option<crate::ReportedModelUsage>,
+        upstream_request_id: Option<String>,
+        error_code: Option<crate::ErrorCode>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

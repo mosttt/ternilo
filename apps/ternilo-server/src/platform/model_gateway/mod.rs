@@ -67,6 +67,12 @@ async fn node_model(
         .parse_json::<ternilo_protocol::NodeModelRequest>()
         .await
         .map_err(invalid_request)?;
+    if matches!(
+        &body.binding,
+        ternilo_protocol::RunModelBinding::ComputerProvider { .. }
+    ) {
+        return super::computer_models::respond(state, token, body, response).await;
+    }
     let (call, resolved) = AcceptedModelCall::accept_node(state, token, &body).await?;
     stream_response(response, call, body.request, resolved)
 }

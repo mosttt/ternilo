@@ -101,6 +101,11 @@ impl ControlStore {
         now_ms: u64,
     ) -> Result<DefaultModelSelection, HarnessError> {
         selection.validate()?;
+        if matches!(&selection, DefaultModelSelection::ComputerProvider { .. }) {
+            return Err(HarnessError::policy(
+                "computer models must be selected for an existing remote computer session",
+            ));
+        }
         let mut transaction = self.user_settings_transaction(actor, tenant_id).await?;
         sqlx::query(
             "INSERT INTO control_user_preferences

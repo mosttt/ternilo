@@ -203,7 +203,7 @@ impl<'a> EdgeAdapter<'a> {
                     title: update.title,
                     permissions: update.permissions,
                     model: update.model,
-                    server_model,
+                    server_model: server_model.map(Box::new),
                     agent_preset: update.agent_preset,
                     profile_plugins: update.profile_plugins,
                     mode: update.mode,

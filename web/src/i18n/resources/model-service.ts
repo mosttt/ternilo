@@ -13,6 +13,10 @@ export const zh = {
   computerUsageRecords: '设备调用记录',
   computerUsageEmpty: '所选月份没有匹配的已同步记录。旧版本或尚未同步的调用不会据此推算为零。',
   computerUsageReported: '设备报告',
+  forwardedUsageTitle: '跨电脑模型调用',
+  forwardedUsageDescription: '当前空间中你发起或由你提供模型的远程调用。用量由来源电脑报告，不计入 Server 平台模型预算；未返回的用量显示为未报告。',
+  forwardedExecution: '执行电脑：{name}',
+  forwardedSource: '模型电脑：{name}',
   computerUsageIncomplete: '结束结果未同步',
 
   reconcileAction: '核对用量',
@@ -331,6 +335,10 @@ export const en: Record<keyof typeof zh, string> = {
   computerUsageRecords: 'Device call records',
   computerUsageEmpty: 'No matching synchronized records for this month. Older or unsynchronized calls are not inferred to be zero.',
   computerUsageReported: 'Device reported',
+  forwardedUsageTitle: 'Cross-computer model requests',
+  forwardedUsageDescription: 'Remote requests you submitted or supplied a model for in this space. Usage is reported by the source computer and is separate from Server platform budgets. Missing usage remains unreported.',
+  forwardedExecution: 'Execution computer: {name}',
+  forwardedSource: 'Model computer: {name}',
   computerUsageIncomplete: 'Completion not synchronized',
 
   reconcileAction: 'Reconcile usage',

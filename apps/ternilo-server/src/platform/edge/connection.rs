@@ -188,6 +188,10 @@ impl EdgeGateway {
     pub(crate) async fn shutdown(&self) {
         let connections = std::mem::take(&mut *self.executors.write().await);
         self.pending.lock().await.clear();
+        self.model_calls
+            .lock()
+            .expect("computer model calls")
+            .clear();
         for (route, connection) in connections {
             let _ = connection.sender.try_send(ControlFrame::Shutdown {
                 reason: "Ternilo Server is shutting down".to_owned(),
@@ -379,6 +383,7 @@ impl EdgeGateway {
         route: &RouteKey,
         connection_id: &ConnectionId,
     ) {
+        self.fail_model_connection(route, connection_id);
         let keys = self
             .pending
             .lock()

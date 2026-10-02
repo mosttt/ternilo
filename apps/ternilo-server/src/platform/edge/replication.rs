@@ -65,6 +65,22 @@ impl EdgeGateway {
                 }
                 last_seen.store(now, Ordering::Relaxed);
                 match frame {
+                    ExecutorFrame::ModelOutput { request_id, frame } => {
+                        self.receive_model_event(
+                            route,
+                            &connected,
+                            &request_id,
+                            super::ComputerModelEvent::Output(frame),
+                        );
+                    }
+                    ExecutorFrame::ModelAttempt { request_id, event } => {
+                        self.receive_model_event(
+                            route,
+                            &connected,
+                            &request_id,
+                            super::ComputerModelEvent::Attempt(event),
+                        );
+                    }
                     ExecutorFrame::Heartbeat { .. } => {
                         if self.dispatch_available(route).await.is_err() {
                             break;
@@ -209,9 +225,7 @@ impl EdgeGateway {
                             activity: invalidation.activity,
                         });
                     }
-                    // Model outputs require a corresponding Server-side pending
-                    // invocation. No unsolicited result may become session data.
-                    ExecutorFrame::ModelOutput { .. } | ExecutorFrame::Hello { .. } => break,
+                    ExecutorFrame::Hello { .. } => break,
                 }
             } else if !message.is_ping() && !message.is_pong() {
                 break;

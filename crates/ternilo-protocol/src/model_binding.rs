@@ -8,6 +8,13 @@ use crate::{
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RunModelBinding {
+    ComputerProvider {
+        tenant_id: TenantId,
+        owner_user_id: UserId,
+        executor_id: String,
+        provider_id: String,
+        model: String,
+    },
     Platform {
         grant_id: String,
         model_id: String,
@@ -24,6 +31,23 @@ pub enum RunModelBinding {
 impl RunModelBinding {
     pub fn validate(&self) -> Result<(), HarnessError> {
         match self {
+            Self::ComputerProvider {
+                tenant_id,
+                owner_user_id,
+                executor_id,
+                provider_id,
+                model,
+            } => {
+                tenant_id.validate()?;
+                owner_user_id.validate()?;
+                validate_reference(executor_id, "source computer", 128)?;
+                if !crate::valid_provider_id(provider_id) {
+                    return Err(HarnessError::invalid(
+                        "invalid computer Provider identifier",
+                    ));
+                }
+                validate_reference(model, "computer model", 200)
+            }
             Self::Platform {
                 grant_id,
                 model_id,
@@ -53,7 +77,7 @@ impl RunModelBinding {
     pub fn model_id(&self) -> &str {
         match self {
             Self::Platform { model_id, .. } => model_id,
-            Self::UserProvider { model, .. } => model,
+            Self::UserProvider { model, .. } | Self::ComputerProvider { model, .. } => model,
         }
     }
 
@@ -64,7 +88,8 @@ impl RunModelBinding {
                 beneficiary_user_id,
                 ..
             } => beneficiary_user_id,
-            Self::UserProvider { owner_user_id, .. } => owner_user_id,
+            Self::UserProvider { owner_user_id, .. }
+            | Self::ComputerProvider { owner_user_id, .. } => owner_user_id,
         }
     }
 }
@@ -94,6 +119,17 @@ impl RunModelSnapshot {
     #[must_use]
     pub fn selection(&self) -> crate::DefaultModelSelection {
         match &self.binding {
+            RunModelBinding::ComputerProvider {
+                executor_id,
+                provider_id,
+                model,
+                ..
+            } => crate::DefaultModelSelection::ComputerProvider {
+                executor_id: executor_id.clone(),
+                provider_id: provider_id.clone(),
+                model: model.clone(),
+                reasoning_effort: self.reasoning_effort,
+            },
             RunModelBinding::Platform {
                 grant_id, model_id, ..
             } => crate::DefaultModelSelection::PlatformModel {

@@ -130,6 +130,17 @@ impl ControlStore {
                 "Node requested a model outside this session's account Provider",
             ));
         }
+        if matches!(
+            &snapshot.binding,
+            ternilo_protocol::RunModelBinding::ComputerProvider { .. }
+        ) && !matches!(
+            body.provenance.as_ref().map(|input| &input.author),
+            Some(InputAuthor::Account { .. })
+        ) {
+            return Err(HarnessError::policy(
+                "computer models require input submitted through Server",
+            ));
+        }
         let owner = snapshot.binding.beneficiary_user_id();
         let origin_run = schedules::verify(tx, node, body).await?;
         let actor = model_input_actor(tx, node, body, owner, &origin_run).await?;

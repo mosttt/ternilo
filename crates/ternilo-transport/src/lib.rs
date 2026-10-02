@@ -16,7 +16,7 @@ use ternilo_protocol::{
     TenantId, UserAnswer, UserId, WorkspaceId, WorkspaceRequest, validate_agent_preset_id,
 };
 
-pub const EXECUTOR_PROTOCOL_VERSION: u32 = 46;
+pub const EXECUTOR_PROTOCOL_VERSION: u32 = 47;
 
 mod cleanup;
 pub use cleanup::{
@@ -287,7 +287,7 @@ pub enum ApplicationOperation {
         permissions: Option<PermissionPreset>,
         model: Option<Value>,
         #[serde(default)]
-        server_model: Option<ternilo_protocol::RunModelSnapshot>,
+        server_model: Option<Box<ternilo_protocol::RunModelSnapshot>>,
         agent_preset: Option<String>,
         profile_plugins: Option<Vec<PluginEntry>>,
         mode: Option<SessionMode>,
@@ -1259,6 +1259,10 @@ impl AcceptedUploadBatch {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExecutorFrame {
+    ModelAttempt {
+        request_id: ModelRequestId,
+        event: ternilo_protocol::ComputerModelAttempt,
+    },
     ModelOutput {
         request_id: ModelRequestId,
         frame: Box<ternilo_protocol::ModelGatewayFrame>,
@@ -1304,6 +1308,11 @@ pub struct ExecutorLiveInvalidation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ControlFrame {
+    ModelRetryPermit {
+        request_id: ModelRequestId,
+        attempt: u32,
+        error: Option<HarnessError>,
+    },
     ModelRequest {
         request_id: ModelRequestId,
         scope: ExecutorScope,
@@ -1447,7 +1456,7 @@ mod tests {
 
     #[test]
     fn executor_live_capabilities_have_an_explicit_versioned_wire() {
-        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 46);
+        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 47);
         let mut peer = ExecutorHello {
             protocol_version: 40,
             executor_id: ExecutorId::new("native-model-peer"),

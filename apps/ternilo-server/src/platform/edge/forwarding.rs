@@ -104,23 +104,43 @@ impl ClusterForwarder {
         })
     }
 
-    fn mac(&self, body: &[u8]) -> Hmac<Sha256> {
+    fn mac(&self, domain: &[u8], body: &[u8]) -> Hmac<Sha256> {
         let mut mac =
             Hmac::<Sha256>::new_from_slice(&self.key).expect("HMAC accepts a 32-byte key");
-        mac.update(b"ternilo-server-peer-v1\0POST\0/api/v1/internal/node/call\0");
+        mac.update(domain);
         mac.update(body);
         mac
     }
 
     pub(super) fn sign(&self, body: &[u8]) -> String {
-        STANDARD.encode(self.mac(body).finalize().into_bytes())
+        self.sign_domain(
+            b"ternilo-server-peer-v1\0POST\0/api/v1/internal/node/call\0",
+            body,
+        )
     }
 
     pub(super) fn authenticate(&self, signature: &str, body: &[u8]) -> Result<(), HarnessError> {
+        self.authenticate_domain(
+            b"ternilo-server-peer-v1\0POST\0/api/v1/internal/node/call\0",
+            signature,
+            body,
+        )
+    }
+
+    pub(super) fn sign_domain(&self, domain: &[u8], body: &[u8]) -> String {
+        STANDARD.encode(self.mac(domain, body).finalize().into_bytes())
+    }
+
+    pub(super) fn authenticate_domain(
+        &self,
+        domain: &[u8],
+        signature: &str,
+        body: &[u8],
+    ) -> Result<(), HarnessError> {
         let signature = STANDARD
             .decode(signature)
             .map_err(|_| HarnessError::policy("invalid Server peer authentication"))?;
-        self.mac(body)
+        self.mac(domain, body)
             .verify_slice(&signature)
             .map_err(|_| HarnessError::policy("invalid Server peer authentication"))
     }
@@ -131,15 +151,31 @@ impl ClusterForwarder {
         instance_id: &str,
         now: u64,
     ) -> Result<(), HarnessError> {
-        if input.target_instance_id != instance_id
-            || input.issued_at_ms.abs_diff(now) > AUTH_WINDOW_MS
-            || input.timeout_ms == 0
-            || input.timeout_ms > MAX_TIMEOUT_MS
-            || input.request_id.len() != 32
-            || !input
-                .request_id
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit())
+        if input.timeout_ms == 0 || input.timeout_ms > MAX_TIMEOUT_MS {
+            return Err(HarnessError::policy("invalid Server peer request timeout"));
+        }
+        self.admit_identity(
+            &input.request_id,
+            &input.target_instance_id,
+            input.issued_at_ms,
+            instance_id,
+            now,
+        )
+        .await
+    }
+
+    pub(super) async fn admit_identity(
+        &self,
+        request_id: &str,
+        target: &str,
+        issued_at_ms: u64,
+        instance_id: &str,
+        now: u64,
+    ) -> Result<(), HarnessError> {
+        if target != instance_id
+            || issued_at_ms.abs_diff(now) > AUTH_WINDOW_MS
+            || request_id.len() != 32
+            || !request_id.bytes().all(|byte| byte.is_ascii_hexdigit())
         {
             return Err(HarnessError::policy(
                 "Server peer target, timestamp or request identity is invalid",
@@ -147,7 +183,7 @@ impl ClusterForwarder {
         }
         let mut recent = self.recent.lock().await;
         recent.retain(|_, expires| *expires > now);
-        if recent.contains_key(&input.request_id) {
+        if recent.contains_key(request_id) {
             return Err(HarnessError::conflict(
                 "Server peer call was already accepted; it cannot be replayed",
             ));
@@ -156,8 +192,8 @@ impl ClusterForwarder {
             return Err(HarnessError::unavailable("Server peer admission is busy"));
         }
         recent.insert(
-            input.request_id.clone(),
-            input.issued_at_ms.saturating_add(AUTH_WINDOW_MS + 1),
+            request_id.to_owned(),
+            issued_at_ms.saturating_add(AUTH_WINDOW_MS + 1),
         );
         Ok(())
     }
@@ -302,7 +338,9 @@ pub(super) fn validate_body(
 }
 
 pub(crate) fn router() -> Router {
-    Router::with_path("internal/node/call").post(forwarded_call)
+    Router::new()
+        .push(Router::with_path("internal/node/call").post(forwarded_call))
+        .push(super::model_forwarding::peer::router())
 }
 
 #[handler]

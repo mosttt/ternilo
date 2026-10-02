@@ -32,7 +32,7 @@ async fn sqlite_device_limits_authorization_and_expiry() {
 #[tokio::test]
 async fn sqlite_device_rate_limits_roll_across_sources_and_calendar_boundaries() {
     let (_directory, fixture) = sqlite().await;
-    rate::contract(&fixture).await;
+    Box::pin(rate::contract(&fixture)).await;
 }
 
 #[tokio::test]
@@ -108,7 +108,7 @@ async fn postgres_device_limits_contract_under_runtime_rls() {
     accounting::expiry(&fixture).await;
     competition::contract(&fixture).await;
     accounting::month_boundary(&fixture).await;
-    rate::contract(&fixture).await;
+    Box::pin(rate::contract(&fixture)).await;
     postgres::assert_scopes_cleared(&fixture.store).await;
     postgres::assert_transaction_scope_lifecycle(&fixture.store).await;
     let visible: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM control_model_devices")

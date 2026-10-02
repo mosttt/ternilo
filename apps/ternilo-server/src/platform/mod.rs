@@ -27,6 +27,7 @@ mod admin;
 mod auth;
 #[cfg(test)]
 mod cloud_access_tests;
+mod computer_models;
 mod diagnostics;
 mod edge;
 mod execution_maintenance;

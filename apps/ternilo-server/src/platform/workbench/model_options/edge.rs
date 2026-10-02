@@ -14,31 +14,15 @@ pub(super) async fn edge_model_options(
         .map_err(|error| HarnessError::invalid(error.to_string()))?;
     let current = if matches!(
         &selection,
-        DefaultModelSelection::AccountProvider { .. } | DefaultModelSelection::PlatformModel { .. }
+        DefaultModelSelection::AccountProvider { .. }
+            | DefaultModelSelection::PlatformModel { .. }
+            | DefaultModelSelection::ComputerProvider { .. }
     ) {
-        let mut current = None;
-        if let Some(saved) = &session.metadata.server_model {
-            let owner = saved.binding.beneficiary_user_id();
-            if state
-                .store
-                .require_edge_model_owner_access(owner, tenant, &session.session_id)
-                .await
-                .is_ok()
-            {
-                current = state
-                    .store
-                    .resolve_workload_model_snapshot(
-                        &user.user_id,
-                        owner,
-                        tenant,
-                        &saved.binding,
-                        None,
-                        crate::platform::http::now_ms()?,
-                    )
-                    .await
-                    .ok();
-            }
-        }
+        let current = if let Some(saved) = &session.metadata.server_model {
+            latest_snapshot(state, user, tenant, &session.session_id, saved, &selection).await?
+        } else {
+            None
+        };
         let mut snapshot = session.metadata.server_model;
         let available = snapshot
             .as_ref()
@@ -98,6 +82,56 @@ pub(super) async fn edge_model_options(
     })
 }
 
+async fn latest_snapshot(
+    state: &AppState,
+    user: &ControlUser,
+    tenant: &TenantId,
+    session: &ternilo_protocol::SessionId,
+    saved: &RunModelSnapshot,
+    selection: &DefaultModelSelection,
+) -> Result<Option<RunModelSnapshot>, HarnessError> {
+    let owner = saved.binding.beneficiary_user_id();
+    if state
+        .store
+        .require_edge_model_owner_access(owner, tenant, session)
+        .await
+        .is_err()
+    {
+        return Ok(None);
+    }
+    if matches!(selection, DefaultModelSelection::ComputerProvider { .. }) {
+        let mut latest = selection.clone();
+        if let DefaultModelSelection::ComputerProvider {
+            reasoning_effort, ..
+        } = &mut latest
+        {
+            *reasoning_effort = None;
+        }
+        return Ok(crate::platform::computer_models::resolve_selection(
+            state,
+            user,
+            tenant,
+            session,
+            Some(saved),
+            &latest,
+        )
+        .await
+        .ok());
+    }
+    Ok(state
+        .store
+        .resolve_workload_model_snapshot(
+            &user.user_id,
+            owner,
+            tenant,
+            &saved.binding,
+            None,
+            crate::platform::http::now_ms()?,
+        )
+        .await
+        .ok())
+}
+
 fn snapshot_still_available(saved: &RunModelSnapshot, current: &RunModelSnapshot) -> bool {
     saved.binding == current.binding
         && saved.protocol == current.protocol
@@ -129,6 +163,18 @@ pub(crate) async fn resolve_edge_selection(
 ) -> Result<Option<RunModelSnapshot>, HarnessError> {
     let selection: DefaultModelSelection = serde_json::from_value(value.clone())
         .map_err(|error| HarnessError::invalid(error.to_string()))?;
+    if matches!(&selection, DefaultModelSelection::ComputerProvider { .. }) {
+        return crate::platform::computer_models::resolve_selection(
+            state,
+            user,
+            tenant,
+            &mapping.session_id,
+            mapping.metadata.server_model.as_ref(),
+            &selection,
+        )
+        .await
+        .map(Some);
+    }
     if let DefaultModelSelection::PlatformModel {
         grant_id, model_id, ..
     } = &selection

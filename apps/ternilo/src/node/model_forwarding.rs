@@ -15,6 +15,7 @@ pub(super) struct ForwardedModels {
     scope: ExecutorScope,
     outgoing: mpsc::Sender<ExecutorFrame>,
     active: BTreeMap<ModelRequestId, RunCancellation>,
+    permits: BTreeMap<ModelRequestId, mpsc::Sender<(u32, Option<HarnessError>)>>,
     jobs: JoinSet<(ModelRequestId, Result<(), HarnessError>)>,
 }
 
@@ -29,6 +30,7 @@ impl ForwardedModels {
             scope,
             outgoing,
             active: BTreeMap::new(),
+            permits: BTreeMap::new(),
             jobs: JoinSet::new(),
         }
     }
@@ -71,6 +73,8 @@ impl ForwardedModels {
         }
         let cancellation = RunCancellation::new();
         self.active.insert(request_id.clone(), cancellation.clone());
+        let (permits, approvals) = mpsc::channel(1);
+        self.permits.insert(request_id.clone(), permits);
         let application = Arc::clone(&self.application);
         let outgoing = self.outgoing.clone();
         self.jobs.spawn(async move {
@@ -79,8 +83,20 @@ impl ForwardedModels {
                 outgoing: outgoing.clone(),
                 cancellation: cancellation.clone(),
             });
+            let protocol = request.protocol;
             let result = application
-                .complete_forwarded_model(request, output, cancellation)
+                .complete_forwarded_model(
+                    request,
+                    output,
+                    cancellation.clone(),
+                    Arc::new(attempts::SourceAttempts {
+                        request_id: request_id.clone(),
+                        outgoing: outgoing.clone(),
+                        cancellation,
+                        protocol,
+                        approvals: tokio::sync::Mutex::new(approvals),
+                    }),
+                )
                 .await;
             let frame = match result {
                 Ok(response) => ModelGatewayFrame::Complete { response },
@@ -111,12 +127,28 @@ impl ForwardedModels {
         Ok(())
     }
 
+    pub(super) fn permit(
+        &self,
+        request_id: &ModelRequestId,
+        attempt: u32,
+        error: Option<HarnessError>,
+    ) -> Result<(), HarnessError> {
+        request_id.validate()?;
+        if let Some(permits) = self.permits.get(request_id) {
+            permits
+                .try_send((attempt, error))
+                .map_err(|_| HarnessError::invalid("unexpected model retry permission"))?;
+        }
+        Ok(())
+    }
+
     pub(super) async fn reap(&mut self) -> Result<(), HarnessError> {
         if let Some(joined) = self.jobs.join_next().await {
             let (id, result) = joined.map_err(|_| {
                 HarnessError::execution("source computer model task ended unexpectedly")
             })?;
             self.active.remove(&id);
+            self.permits.remove(&id);
             result?;
         }
         Ok(())
@@ -128,6 +160,7 @@ impl ForwardedModels {
         }
         self.jobs.shutdown().await;
         self.active.clear();
+        self.permits.clear();
     }
 }
 
@@ -218,5 +251,6 @@ impl ModelOutput for ForwardedOutput {
     }
 }
 
+mod attempts;
 #[cfg(test)]
 mod tests;

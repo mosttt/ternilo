@@ -21,3 +21,19 @@ Reasoning choices use the provider/model's declared mapping. A removed or unavai
 Connected standalone clients can receive explicit Server authorization for account or platform models. Remote-control Node sessions instead use their Server-side session authorization; they do not require copying platform API keys onto the Node. See [model service](model-service.md).
 
 A shared session uses its owner's selected private model only within the allowed sharing scope. Configuration permission does not reveal unrelated private providers or keys. Scheduled work preserves its original input author and rechecks permissions. Direct device-provider usage is observation data, distinct from Server-metered model settlement; see [device usage](device-provider-usage.md) and [unknown usage reconciliation](model-usage-reconciliation.md).
+
+## Use another computer's model in a remote session
+
+In a Server-managed session on execution computer A, open Model → Models on other computers. Choose one of your computers B in the same space, then its Provider/model. The directory fetches B's catalog only after you select B. Names are displayed; bindings retain immutable computer IDs across renaming and reconnection.
+
+A runs the agent, files and tools. Model requests travel A → Server → B; B calls its upstream with its own configuration and key, then streams results back through Server to A. Keys are not copied to A or used to call the upstream directly from Server. This selection is exclusive to remote computer sessions; it cannot become a standalone-client or managed-workspace default.
+
+Initially selecting B requires ownership of B and configuration permission on the session. Authorized collaborators and service accounts may submit work using the saved binding while the source owner retains configuration permission. Requests, retries and active execution recheck authorization. An offline or paused source, revoked credentials, or changed Provider/key stops availability or execution. The system does not fall back to a same-named local Provider or replay interrupted requests. Computers connected to different Server instances use the [cluster channel](server-cluster.md).
+
+My Models → Usage → Device local → Cross-computer model calls loads separate request records on demand. They distinguish execution/source computers, the submitter and model owner. Counters are source-computer reports, separate from platform budgets; missing counters stay unreported. See [device usage](device-provider-usage.md).
+
+## Claude's official model catalog
+
+For Anthropic's official API, choose `anthropic-messages` and set the base URL to `https://api.anthropic.com/v1`. Discovery uses `GET /v1/models`, `x-api-key` and `anthropic-version: 2023-06-01`, rather than Chat Completions Bearer authentication. The base URL is the version root, not a full `/messages` or `/models` endpoint.
+
+Discovery follows `has_more`, `last_id` and `after_id`, preserving `display_name`, `max_input_tokens`, `max_tokens` and explicitly returned capabilities. Missing reasoning levels retain explicit configuration instead of inventing support. Reference: [Anthropic Models API](https://platform.claude.com/docs/en/api/models/list).

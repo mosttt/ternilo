@@ -276,6 +276,10 @@ impl ControlStore {
             .into());
         }
         match binding {
+            RunModelBinding::ComputerProvider { .. } => Err(HarnessError::policy(
+                "computer models are available only to Server-managed remote computer sessions",
+            )
+            .into()),
             RunModelBinding::Platform {
                 grant_id,
                 model_id,

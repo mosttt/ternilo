@@ -150,3 +150,25 @@ pub(super) async fn usage(
             .await?,
     ))
 }
+
+#[handler]
+pub(super) async fn forwarded_usage(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ternilo_control::ComputerModelRequestPage>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let query = request
+        .parse_queries::<ternilo_control::PageQuery>()
+        .map_err(crate::platform::http::invalid_request)?;
+    Ok(Json(
+        app_state(depot)
+            .store
+            .list_computer_model_requests(
+                actor(depot),
+                &tenant,
+                &query,
+                crate::platform::http::now_ms()?,
+            )
+            .await?,
+    ))
+}

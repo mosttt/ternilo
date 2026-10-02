@@ -270,7 +270,9 @@ impl LocalApplication {
             validate_model(&model)?;
             if matches!(
                 model,
-                ModelSelection::AccountProvider { .. } | ModelSelection::PlatformModel { .. }
+                ModelSelection::AccountProvider { .. }
+                    | ModelSelection::PlatformModel { .. }
+                    | ModelSelection::ComputerProvider { .. }
             ) {
                 let snapshot = update.server_model.ok_or_else(|| {
                     HarnessError::policy("Server models must be selected through their Server")

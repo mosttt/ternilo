@@ -1,4 +1,6 @@
 use super::*;
+#[path = "computer_models.rs"]
+mod computers;
 #[path = "edge_model_schedules.rs"]
 mod schedules;
 use ternilo_control::{
@@ -37,6 +39,10 @@ pub(super) async fn contract(
     lineage_contract(store, fixture, mapping, &node, &body).await;
     schedules::contract(store, fixture, mapping, &node, &body).await;
     ledger_contract(store, &principal, now).await;
+    Box::pin(computers::contract(
+        store, fixture, mapping, &node, &body, &snapshot,
+    ))
+    .await;
     store
         .set_resource_share(
             &fixture.alice,

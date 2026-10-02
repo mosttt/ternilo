@@ -70,6 +70,7 @@ impl Fixture {
                 protocol: ProviderProtocol::OpenAiChatCompletions,
                 defaults,
                 reasoning_effort: None,
+                max_attempts: 3,
                 request: ModelRequest {
                     run_id: RunId::new("remote-run"),
                     system_prompt: "remote system prompt".to_owned(),
@@ -138,10 +139,17 @@ async fn next(
     receiver: &mut mpsc::Receiver<ExecutorFrame>,
     id: &ModelRequestId,
 ) -> ModelGatewayFrame {
-    let frame = tokio::time::timeout(Duration::from_secs(5), receiver.recv())
-        .await
-        .unwrap()
-        .unwrap();
+    let frame = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let frame = receiver.recv().await.unwrap();
+            if matches!(frame, ExecutorFrame::ModelOutput { .. }) {
+                break frame;
+            }
+            assert!(!serde_json::to_string(&frame).unwrap().contains(SOURCE_KEY));
+        }
+    })
+    .await
+    .unwrap();
     assert!(!serde_json::to_string(&frame).unwrap().contains(SOURCE_KEY));
     let ExecutorFrame::ModelOutput { request_id, frame } = frame else {
         panic!("expected model output")
@@ -542,4 +550,76 @@ async fn websocket_completion_keeps_the_computer_connected_and_cancel_reaches_up
     upstream.await.unwrap();
     assert!(fixture.application.snapshot().await.sessions.is_empty());
     fixture.application.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn model_retries_wait_for_server_permission_and_respect_denial() {
+    for allow in [false, true] {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let fixture = Fixture::new(listener.local_addr().unwrap()).await;
+        let mut provider = fixture.application.provider_profiles().await.remove(0);
+        provider.max_attempts = 2;
+        fixture
+            .application
+            .upsert_provider_profile(provider)
+            .await
+            .unwrap();
+        let (mut models, mut receiver) = fixture.forwarding();
+        let id = ModelRequestId::new("retry-permission");
+        models
+            .start(id.clone(), &fixture.scope, fixture.request.clone())
+            .unwrap();
+        let (mut first, _) = accept_request(&listener).await;
+        first.write_all(b"HTTP/1.1 503 Service Unavailable\r\ncontent-length: 0\r\nconnection: close\r\n\r\n").await.unwrap();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if matches!(
+                    receiver.recv().await,
+                    Some(ExecutorFrame::ModelAttempt {
+                        event: ternilo_protocol::ComputerModelAttempt::Started { attempt: 2 },
+                        ..
+                    })
+                ) {
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), listener.accept())
+                .await
+                .is_err()
+        );
+        models
+            .permit(
+                &id,
+                2,
+                (!allow).then(|| HarnessError::policy("model access revoked")),
+            )
+            .unwrap();
+        if allow {
+            let (mut retry, _) = accept_request(&listener).await;
+            let body = "data: {\"choices\":[{\"delta\":{\"content\":\"authorized retry\"}}]}\n\ndata: [DONE]\n\n";
+            retry.write_all(format!("HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+            assert!(matches!(
+                next(&mut receiver, &id).await,
+                ModelGatewayFrame::Delta { .. }
+            ));
+            assert!(
+                matches!(next(&mut receiver, &id).await, ModelGatewayFrame::Complete { response } if response.attempts == 2)
+            );
+        } else {
+            assert!(
+                matches!(next(&mut receiver, &id).await, ModelGatewayFrame::Error { error } if error.code == ErrorCode::PolicyDenied)
+            );
+            assert!(
+                tokio::time::timeout(Duration::from_millis(50), listener.accept())
+                    .await
+                    .is_err()
+            );
+        }
+        models.reap().await.unwrap();
+        fixture.application.shutdown().await.unwrap();
+    }
 }

@@ -953,3 +953,6 @@ async fn cluster_http_forwarding_crosses_two_servers_without_retrying_ambiguous_
     serving.await.unwrap();
     fixture.edge.shutdown().await;
 }
+
+#[path = "model_forwarding/tests.rs"]
+mod computer_stream_tests;

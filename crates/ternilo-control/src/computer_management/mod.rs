@@ -199,22 +199,18 @@ impl ControlStore {
         }
         let mut tx = self.database.tenant_transaction(tenant).await?;
         require_action(&mut tx, tenant, &actor.user_id, ControlAction::TenantRead).await?;
-        let mut query = sqlx::QueryBuilder::<sqlx::Any>::new(
-            "SELECT e.executor_id,COALESCE(m.display_name,e.executor_id) AS name FROM control_executors e LEFT JOIN control_computer_management m ON m.tenant_id=e.tenant_id AND m.executor_id=e.executor_id WHERE e.tenant_id=",
+        let placeholders = (2..=executors.len() + 1)
+            .map(|index| format!("${index}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT e.executor_id,COALESCE(m.display_name,e.executor_id) AS name FROM control_executors e LEFT JOIN control_computer_management m ON m.tenant_id=e.tenant_id AND m.executor_id=e.executor_id WHERE e.tenant_id=$1 AND e.executor_id IN ({placeholders})"
         );
-        query
-            .push_bind(tenant.as_str())
-            .push(" AND e.executor_id IN (");
-        let mut ids = query.separated(",");
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql)).bind(tenant.as_str());
         for executor in executors {
-            ids.push_bind(executor.as_str());
+            query = query.bind(executor.as_str());
         }
-        ids.push_unseparated(")");
-        let rows = query
-            .build()
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(database_error)?;
+        let rows = query.fetch_all(&mut *tx).await.map_err(database_error)?;
         let result = rows
             .iter()
             .map(|row| {

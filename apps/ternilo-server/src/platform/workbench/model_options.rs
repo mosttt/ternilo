@@ -107,7 +107,8 @@ pub(crate) async fn resolve_selection(
                 reasoning_effort,
             )
         }
-        DefaultModelSelection::OpenAiCompatible { .. } => {
+        DefaultModelSelection::OpenAiCompatible { .. }
+        | DefaultModelSelection::ComputerProvider { .. } => {
             return Err(HarnessError::policy(
                 "Managed sessions require a platform model authorization or a saved user Provider",
             ));

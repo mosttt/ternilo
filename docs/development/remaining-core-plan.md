@@ -50,7 +50,7 @@
 
 ## 当前阶段验收与交付
 
-项目共享继承、Server 远程 SDK、账号命令撤销、Node 持久清理和跨 Server 共享权限通知已完成。[资源管理权交接](resource-ownership.md)已通过真实浏览器及受限 PostgreSQL 验收。[跨实例 Node 路由](server-node-routing.md)已通过 HTTP／SQLite、实际 TCP 和受限 PostgreSQL 合同，仍需真实双 Server 浏览器联调。
+项目共享继承、Server 远程 SDK、账号命令撤销、Node 持久清理和跨 Server 共享权限通知已完成。[资源管理权交接](resource-ownership.md)已通过真实浏览器及受限 PostgreSQL 验收。[跨实例 Node 路由](server-node-routing.md)已通过 HTTP／SQLite、实际 TCP 和受限 PostgreSQL 合同，2026-10-03 受限 PostgreSQL 真实双 Server 浏览器联调已通过，包含电脑模型转发、工具执行及撤权，见[模型转发记录](computer-model-forwarding.md)。
 
 [工作台性能与目录分类](workbench-performance-and-layout.md)已合并本地 main，包含电脑分组、在线资源按需加载、会话缓存、完整轮次补读、手动目标及本机／Cloud 停止并发送。用户重新编译后确认单用户注册展示修复。电脑状态、复选框和跨页面菜单已通过真实浏览器验收，随后完成跨平台阶段验收和发行。Claude 官方模型列表问题按用户要求后移。
 

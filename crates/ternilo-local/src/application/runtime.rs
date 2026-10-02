@@ -346,7 +346,9 @@ pub(super) fn session_profile(
     let mut profile = compose_profiles(layers);
     if matches!(
         model,
-        ModelSelection::AccountProvider { .. } | ModelSelection::PlatformModel { .. }
+        ModelSelection::AccountProvider { .. }
+            | ModelSelection::PlatformModel { .. }
+            | ModelSelection::ComputerProvider { .. }
     ) {
         if let Some(entry) = profile.plugins.iter_mut().find(|entry| entry.id == "model") {
             ternilo_builtins::BROKERED_MODEL_KIND.clone_into(&mut entry.kind);
