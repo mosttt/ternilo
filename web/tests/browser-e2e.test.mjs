@@ -1058,6 +1058,8 @@ test('shared workbench supports provider streaming, trajectory, stable scrolling
     await page.waitForFunction(() => document.querySelectorAll('article[data-role="assistant"]').length >= 2)
 
     const forkRow = page.locator('[data-sidebar-session-row]').filter({ hasText: '浏览器会话 (1)' })
+    await page.locator('[data-sidebar-session-row]').filter({ has: page.getByText('浏览器会话', { exact: true }) }).hover()
+    await page.locator('[data-radix-popper-content-wrapper] strong').filter({ hasText: /^浏览器会话$/ }).waitFor()
     await forkRow.hover()
     await forkRow.getByRole('button', { name: /的操作$/ }).click()
     await page.getByRole('menuitem', { name: '归档会话' }).click()
@@ -1294,12 +1296,17 @@ test('shared workbench supports provider streaming, trajectory, stable scrolling
     await page.waitForFunction(() => document.querySelectorAll('article[data-role="assistant"]').length >= 2)
 
     observations.webSockets.length = 0
+    // The composer loads skills after its command catalog; Live readiness alone
+    // does not mean this initial HTTP dependency chain has completed.
+    const restoredSkillCatalog = page.waitForResponse(response => response.request().method() === 'GET'
+      && /\/sessions\/[^/]+\/skills$/.test(new URL(response.url()).pathname) && response.status() === 200)
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.getByText('未分组', { exact: true }).waitFor()
     await page.getByText('浏览器会话 (1)', { exact: true }).first().waitFor()
     assert.equal(await page.locator('.session-title-row h1').textContent(), '浏览器会话 (1)')
     await page.waitForFunction(() => document.querySelectorAll('article[data-role="assistant"]').length >= 2)
     await page.locator('[data-sidebar-connection][data-live-state="ready"]').waitFor({ timeout: 30_000 })
+    await restoredSkillCatalog
 
     observations.requests.length = 0
     await page.waitForTimeout(30_000)

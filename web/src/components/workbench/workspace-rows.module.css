@@ -203,7 +203,7 @@
 .menuOpen .time { visibility: hidden; }
 
 .hoverCard {
-  z-index: 60;
+  z-index: 40;
   width: min(320px, calc(100vw - 24px));
   overflow: hidden;
   border: 1px solid var(--border);
