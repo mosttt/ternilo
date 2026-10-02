@@ -418,6 +418,9 @@ async fn node_registers_and_dispatches_application_rpc_over_a_real_websocket() {
     });
 
     let data = tempfile::tempdir().unwrap();
+    tokio::fs::write(data.path().join("config.json"), b"{}")
+        .await
+        .unwrap();
     let catalog = ternilo_local::catalog().unwrap();
     let catalog_revision = catalog.revision().to_owned();
     let application = Arc::new(

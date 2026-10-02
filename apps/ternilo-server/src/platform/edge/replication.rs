@@ -209,7 +209,9 @@ impl EdgeGateway {
                             activity: invalidation.activity,
                         });
                     }
-                    ExecutorFrame::Hello { .. } => break,
+                    // Model outputs require a corresponding Server-side pending
+                    // invocation. No unsolicited result may become session data.
+                    ExecutorFrame::ModelOutput { .. } | ExecutorFrame::Hello { .. } => break,
                 }
             } else if !message.is_ping() && !message.is_pong() {
                 break;

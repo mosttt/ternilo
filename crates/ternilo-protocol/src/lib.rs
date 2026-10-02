@@ -3,7 +3,9 @@
 mod provider_usage;
 pub use provider_usage::{ProviderUsageRoute, ReportedModelUsage};
 mod model_gateway;
-pub use model_gateway::{ModelGatewayFrame, NodeModelRequest, ScheduleModelOrigin};
+pub use model_gateway::{
+    ComputerModelRequest, ModelGatewayFrame, NodeModelRequest, ScheduleModelOrigin,
+};
 
 mod model_device;
 pub use model_device::*;

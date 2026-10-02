@@ -38,6 +38,7 @@ use tokio_util::task::TaskTracker;
 #[path = "node/control_redaction.rs"]
 mod control_redaction;
 
+mod model_forwarding;
 #[path = "node/model_gateway.rs"]
 mod model_gateway;
 
@@ -198,6 +199,11 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
     let (upload_acks, upload_ack_receiver) = mpsc::channel(2);
     let (event_acks, event_ack_receiver) = mpsc::channel(1);
     let mut tasks = tokio::task::JoinSet::new();
+    let mut models = model_forwarding::ForwardedModels::new(
+        Arc::clone(&config.application),
+        scope.clone(),
+        outgoing.clone(),
+    );
     tasks.spawn(websocket_writer(sink, receiver));
     tasks.spawn(uploads::pump(
         Arc::clone(&config.application),
@@ -234,6 +240,10 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
                 _ = tasks.join_next() => {
                     return Err(HarnessError::execution("gateway synchronization task ended; reconnecting"));
                 }
+                result = models.reap(), if !models.is_empty() => {
+                    result?;
+                    continue;
+                }
             };
             let message = message
                 .map_err(|error| HarnessError::execution(format!("read gateway frame: {error}")))?;
@@ -244,6 +254,10 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
                             HarnessError::invalid(format!("decode gateway control frame: {error}"))
                         })?;
                     match frame {
+                        ControlFrame::ModelRequest { request_id, scope, request } => {
+                            models.start(request_id, &scope, *request)?;
+                        }
+                        ControlFrame::ModelCancel { request_id } => models.cancel(&request_id)?,
                         ControlFrame::Command { command } => {
                             let application = Arc::clone(&config.application);
                             let replies = Arc::clone(&config.replies);
@@ -287,6 +301,7 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
     }
     .await;
     tasks.shutdown().await;
+    models.shutdown().await;
     read_result
 }
 
@@ -331,6 +346,7 @@ where
                     ExecutorCapability::Skills,
                     ExecutorCapability::SessionSteering,
                     ExecutorCapability::LiveInvalidations,
+                    ExecutorCapability::ModelForwarding,
                 ]),
             },
         },

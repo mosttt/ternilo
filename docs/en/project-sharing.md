@@ -20,6 +20,6 @@ Inheritance does not grant deletion, direct-share management, opt-in changes, ma
 
 Once all view access is lost, workbench lists, Live content, files and archives become inaccessible. Accepted tasks retain the existing queue and stop semantics; revoking sharing alone does not cancel them. An actor with stop permission can stop them explicitly.
 
-Control schema is `14`; the independent `project_sharing` component uses schema `1` for project user/group grants and workspace opt-in. Identity, storage bindings and direct grants are stored separately. PostgreSQL uses the schema owner to initialize components and restricted tenant RLS at runtime, including an invoker-rights access view. Executor protocol is `45`.
+Control schema is `14`; the independent `project_sharing` component uses schema `1` for project user/group grants and workspace opt-in. Identity, storage bindings and direct grants are stored separately. PostgreSQL uses the schema owner to initialize components and restricted tenant RLS at runtime, including an invoker-rights access view. Executor protocol is `46`.
 
 See the [Server reference](../zh-CN/server-reference.md), [deployment guide](../zh-CN/deployment.md) and [collaboration guide](../zh-CN/collaboration.md) for related API, upgrade and filesystem behavior.

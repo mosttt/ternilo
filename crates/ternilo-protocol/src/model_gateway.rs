@@ -4,7 +4,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ModelGatewayFrame {
     Delta {
@@ -31,6 +31,53 @@ pub enum ModelGatewayFrame {
     Error {
         error: HarnessError,
     },
+}
+
+impl ModelGatewayFrame {
+    #[must_use]
+    pub const fn is_terminal(&self) -> bool {
+        matches!(self, Self::Complete { .. } | Self::Error { .. })
+    }
+}
+
+/// A model invocation on its source computer. Endpoints and credentials are
+/// resolved on that computer and never supplied by the requesting computer.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComputerModelRequest {
+    pub provider_id: String,
+    pub model: String,
+    pub protocol: crate::ProviderProtocol,
+    pub defaults: crate::ProviderModelDefaults,
+    pub reasoning_effort: Option<crate::ReasoningEffort>,
+    pub request: ModelRequest,
+}
+
+impl ComputerModelRequest {
+    pub fn validate(&self) -> Result<(), HarnessError> {
+        if !crate::valid_provider_id(&self.provider_id) {
+            return Err(HarnessError::invalid(
+                "invalid computer Provider identifier",
+            ));
+        }
+        crate::model_binding::validate_reference(&self.model, "computer model", 200)?;
+        crate::validate_model_defaults(&self.defaults, "computer model request")?;
+        self.request.run_id.validate()?;
+        self.resolved_model()
+            .reasoning_value(self.reasoning_effort)?;
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn resolved_model(&self) -> crate::ResolvedProviderModel {
+        crate::ResolvedProviderModel {
+            id: self.model.clone(),
+            display_name: None,
+            context_window: self.defaults.context_window,
+            max_output_tokens: self.defaults.max_output_tokens,
+            reasoning: self.defaults.reasoning.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

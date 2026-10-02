@@ -65,6 +65,9 @@ pub(super) async fn test_application(
     data: &std::path::Path,
     workspace: &std::path::Path,
 ) -> (Arc<LocalApplication>, SessionId) {
+    tokio::fs::write(data.join("config.json"), b"{}")
+        .await
+        .unwrap();
     let application = Arc::new(
         LocalApplication::open(
             ternilo_local::catalog().unwrap(),

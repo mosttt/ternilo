@@ -53,6 +53,7 @@ mod subagents;
 use runtime::{resolve_named_provider, session_profile, validate_local_profile};
 mod history;
 mod input_references;
+mod model_forwarding;
 mod presets;
 mod providers;
 mod services;

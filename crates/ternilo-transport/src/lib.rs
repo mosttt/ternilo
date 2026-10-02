@@ -16,7 +16,7 @@ use ternilo_protocol::{
     TenantId, UserAnswer, UserId, WorkspaceId, WorkspaceRequest, validate_agent_preset_id,
 };
 
-pub const EXECUTOR_PROTOCOL_VERSION: u32 = 45;
+pub const EXECUTOR_PROTOCOL_VERSION: u32 = 46;
 
 mod cleanup;
 pub use cleanup::{
@@ -70,6 +70,7 @@ macro_rules! transport_id {
 transport_id!(ExecutorId);
 transport_id!(ConnectionId);
 transport_id!(CommandId);
+transport_id!(ModelRequestId);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -100,6 +101,7 @@ pub enum ExecutorCapability {
     AddressedSubagents,
     AgentTeamHost,
     LiveInvalidations,
+    ModelForwarding,
 }
 
 pub type ExecutorCapabilities = BTreeSet<ExecutorCapability>;
@@ -1257,6 +1259,10 @@ impl AcceptedUploadBatch {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExecutorFrame {
+    ModelOutput {
+        request_id: ModelRequestId,
+        frame: Box<ternilo_protocol::ModelGatewayFrame>,
+    },
     Hello {
         hello: ExecutorHello,
     },
@@ -1298,6 +1304,14 @@ pub struct ExecutorLiveInvalidation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ControlFrame {
+    ModelRequest {
+        request_id: ModelRequestId,
+        scope: ExecutorScope,
+        request: Box<ternilo_protocol::ComputerModelRequest>,
+    },
+    ModelCancel {
+        request_id: ModelRequestId,
+    },
     Welcome {
         protocol_version: u32,
         connection_id: ConnectionId,
@@ -1433,7 +1447,7 @@ mod tests {
 
     #[test]
     fn executor_live_capabilities_have_an_explicit_versioned_wire() {
-        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 45);
+        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 46);
         let mut peer = ExecutorHello {
             protocol_version: 40,
             executor_id: ExecutorId::new("native-model-peer"),

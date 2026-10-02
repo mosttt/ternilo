@@ -202,7 +202,7 @@ PostgreSQL 恢复先从备份提取 `database.dump`，用 `pg_restore --exit-on-
 
 先备份，再把 `.env` 中的 `TERNILO_IMAGE` 改为已经取得的明确新版本，执行 `./ternilo-deploy up`。遇到需要回退的情况，使用备份在新卷恢复原版本与匹配数据；不能假设旧程序能直接读取任意更新后的数据库。
 
-当前执行器协议为 `45`，包含账号输入授权证明、设备 Provider 用量事件、有界历史分页、队列编辑版本条件和归档恢复操作。Server、连接电脑上的 Ternilo 与独立 Worker 使用同一发行版本。执行器协议与自动化 JSON-RPC v1、ACP v1 分别管理。
+当前执行器协议为 `46`，包含账号输入授权证明、设备 Provider 用量事件、有界历史分页、队列编辑版本条件和归档恢复操作。Server、连接电脑上的 Ternilo 与独立 Worker 使用同一发行版本。执行器协议与自动化 JSON-RPC v1、ACP v1 分别管理。
 
 ### 轮换 secret master key
 
