@@ -136,10 +136,17 @@ pub(super) async fn list_workspaces(
     depot: &mut Depot,
 ) -> Result<Json<Value>, ApiError> {
     let tenant_id = tenant_parameter(request)?;
-    let workspaces = app_state(depot)
-        .store
-        .list_workspaces(actor(depot), &tenant_id)
-        .await?;
+    let store = &app_state(depot).store;
+    let workspaces = if depot
+        .get_typed::<ternilo_control::ServicePrincipal>()
+        .is_ok()
+    {
+        store
+            .list_accessible_workspaces(actor(depot), &tenant_id)
+            .await?
+    } else {
+        store.list_workspaces(actor(depot), &tenant_id).await?
+    };
     Ok(Json(json!({ "workspaces": workspaces })))
 }
 
@@ -238,10 +245,19 @@ pub(super) async fn get_workspace(
 ) -> Result<Json<Value>, ApiError> {
     let tenant_id = tenant_parameter(request)?;
     let workspace_id = WorkspaceId::new(path_parameter(request, "workspace_id")?);
-    let workspace = app_state(depot)
-        .store
-        .get_workspace(actor(depot), &tenant_id, &workspace_id)
-        .await?;
+    let store = &app_state(depot).store;
+    let workspace = if depot
+        .get_typed::<ternilo_control::ServicePrincipal>()
+        .is_ok()
+    {
+        store
+            .resolve_accessible_workspace(actor(depot), &tenant_id, &workspace_id)
+            .await?
+    } else {
+        store
+            .get_workspace(actor(depot), &tenant_id, &workspace_id)
+            .await?
+    };
     let access = app_state(depot)
         .store
         .resource_access(

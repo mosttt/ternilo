@@ -4,7 +4,7 @@ use salvo_core::{
 };
 use serde_json::{Value, json};
 use ternilo_control::{ServiceAccountCreate, ServiceAccountUpdate, ServiceCredentialCreate};
-use ternilo_protocol::UserId;
+use ternilo_protocol::{UserId, WorkspaceId};
 
 use super::{
     http::{ApiError, invalid_request, now_ms, path_parameter, tenant_parameter},
@@ -19,6 +19,11 @@ pub(super) fn router() -> Router {
         .push(
             Router::with_path("{service_account_id}")
                 .patch(update)
+                .push(
+                    Router::with_path("workspaces")
+                        .get(workspaces)
+                        .push(Router::with_path("{workspace_id}").put(set_workspace)),
+                )
                 .push(
                     Router::with_path("credentials")
                         .get(credentials)
@@ -68,6 +73,7 @@ async fn update(request: &mut Request, depot: &mut Depot) -> Result<Json<Value>,
         .store
         .update_service_account(actor(depot), &tenant, &id, &draft, now_ms()?)
         .await?;
+    app_state(depot).cloud_events.reauthenticate_user(&id);
     Ok(Json(json!({"service_account":account})))
 }
 
@@ -110,8 +116,45 @@ async fn revoke(request: &mut Request, depot: &mut Depot) -> Result<StatusCode, 
         .store
         .revoke_service_credential(actor(depot), &tenant, &id, &credential, now_ms()?)
         .await?;
+    app_state(depot).cloud_events.reauthenticate_user(&id);
     Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]
 mod tests;
+
+#[handler]
+async fn workspaces(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ternilo_control::ServiceWorkspacePage>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let id = UserId::new(path_parameter(request, "service_account_id")?);
+    let query = request
+        .parse_queries::<ternilo_control::PageQuery>()
+        .map_err(invalid_request)?;
+    Ok(Json(
+        app_state(depot)
+            .store
+            .service_account_workspaces(actor(depot), &tenant, &id, &query)
+            .await?,
+    ))
+}
+
+#[handler]
+async fn set_workspace(request: &mut Request, depot: &mut Depot) -> Result<StatusCode, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let id = UserId::new(path_parameter(request, "service_account_id")?);
+    let workspace = WorkspaceId::new(path_parameter(request, "workspace_id")?);
+    let draft = request
+        .parse_json::<ternilo_control::ServiceWorkspaceUpdate>()
+        .await
+        .map_err(invalid_request)?;
+    let state = app_state(depot);
+    state
+        .store
+        .set_service_workspace_access(actor(depot), &tenant, &id, &workspace, &draft, now_ms()?)
+        .await?;
+    state.edge.notify_resource_change(&tenant);
+    Ok(StatusCode::NO_CONTENT)
+}

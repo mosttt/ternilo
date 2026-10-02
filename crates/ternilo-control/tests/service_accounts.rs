@@ -4,6 +4,7 @@ use ternilo_control::{
 };
 use ternilo_protocol::{ErrorCode, TenantId};
 
+#[derive(Clone)]
 struct Fixture {
     store: ControlStore,
     owner: ControlUser,
@@ -450,6 +451,270 @@ async fn postgres_service_identity_and_credentials_use_tenant_runtime_grants() {
     runtime.set_username("ternilo_service_test").unwrap();
     runtime.set_password(Some("service-test-password")).unwrap();
     let fixture = Fixture::connect(runtime.as_str(), Some(&admin_url)).await;
-    identity_contract(fixture).await;
+    identity_contract(fixture.clone()).await;
+    workspace_access_contract(fixture).await;
     admin.close().await;
+}
+
+#[tokio::test]
+async fn service_workspaces_require_explicit_current_owner_grants_and_observed_permissions() {
+    workspace_access_contract(Fixture::new().await).await;
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "One lifecycle verifies owned discovery, pagination, explicit grants, stale edits, resource isolation and revocation on both databases."
+)]
+async fn workspace_access_contract(f: Fixture) {
+    use ternilo_control::{
+        PageQuery, ResourceAction, ResourceKind, ResourcePermissions, ServiceWorkspaceUpdate,
+    };
+    let account = f
+        .store
+        .create_service_account(
+            &f.owner,
+            &f.tenant,
+            &ServiceAccountCreate {
+                name: "workspace-grants".into(),
+                notes: String::new(),
+            },
+            3000,
+        )
+        .await
+        .unwrap();
+    let grant = f
+        .store
+        .create_service_credential(
+            &f.owner,
+            &f.tenant,
+            &account.service_account_id,
+            &ServiceCredentialCreate {
+                name: "read-only".into(),
+                scopes: vec![ServiceScope::ResourceRead],
+                expires_at_ms: 100_000,
+            },
+            3001,
+        )
+        .await
+        .unwrap();
+    let principal = f
+        .store
+        .authenticate_service_credential(&grant.access_token, &f.tenant, 3002)
+        .await
+        .unwrap();
+    let first = f
+        .store
+        .create_cloud_workspace(&f.owner, &f.tenant, &f.project, "Grant alpha", 3003)
+        .await
+        .unwrap();
+    f.store
+        .create_cloud_workspace(&f.owner, &f.tenant, &f.project, "Grant beta", 3003)
+        .await
+        .unwrap();
+    let private = f
+        .store
+        .create_cloud_workspace(
+            &principal.user,
+            &f.tenant,
+            &f.project,
+            "Grant private",
+            3003,
+        )
+        .await
+        .unwrap();
+    let query = PageQuery {
+        query: Some("Grant ".into()),
+        cursor: None,
+        limit: 1,
+    };
+    let page = f
+        .store
+        .service_account_workspaces(&f.owner, &f.tenant, &account.service_account_id, &query)
+        .await
+        .unwrap();
+    assert_eq!(page.workspaces.len(), 1);
+    assert!(page.workspaces[0].permissions.is_none());
+    assert_ne!(page.workspaces[0].workspace_id, private.workspace_id);
+    let next = f
+        .store
+        .service_account_workspaces(
+            &f.owner,
+            &f.tenant,
+            &account.service_account_id,
+            &PageQuery {
+                cursor: page.next_cursor.clone(),
+                ..query
+            },
+        )
+        .await
+        .unwrap();
+    assert!(page.next_cursor.is_some());
+    assert!(next.next_cursor.is_none());
+    assert_ne!(
+        page.workspaces[0].workspace_id,
+        next.workspaces[0].workspace_id
+    );
+    assert!(
+        f.store
+            .service_account_workspaces(
+                &principal.user,
+                &f.tenant,
+                &account.service_account_id,
+                &PageQuery::default()
+            )
+            .await
+            .is_err()
+    );
+    let read = ResourcePermissions {
+        view: true,
+        ..ResourcePermissions::default()
+    };
+    let execute = ResourcePermissions {
+        view: true,
+        submit: true,
+        stop: true,
+        configure: false,
+    };
+    let update = ServiceWorkspaceUpdate {
+        permissions: Some(read),
+        expected_permissions: None,
+    };
+    assert!(
+        f.store
+            .set_service_workspace_access(
+                &f.owner,
+                &f.tenant,
+                &account.service_account_id,
+                &private.workspace_id,
+                &update,
+                3004
+            )
+            .await
+            .is_err(),
+        "tenant owner cannot grant somebody else's private resources"
+    );
+    assert!(
+        f.store
+            .resolve_accessible_workspace(&principal.user, &f.tenant, &first.workspace_id)
+            .await
+            .is_err()
+    );
+    f.store
+        .set_service_workspace_access(
+            &f.owner,
+            &f.tenant,
+            &account.service_account_id,
+            &first.workspace_id,
+            &update,
+            3004,
+        )
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .resolve_accessible_workspace(&principal.user, &f.tenant, &first.workspace_id)
+            .await
+            .is_ok()
+    );
+    let access = f
+        .store
+        .resource_access(
+            &principal.user,
+            &f.tenant,
+            ResourceKind::Workspace,
+            first.workspace_id.as_str(),
+        )
+        .await
+        .unwrap();
+    access.require(ResourceAction::View).unwrap();
+    assert!(access.require(ResourceAction::Submit).is_err());
+    assert_eq!(
+        f.store
+            .set_service_workspace_access(
+                &f.owner,
+                &f.tenant,
+                &account.service_account_id,
+                &first.workspace_id,
+                &ServiceWorkspaceUpdate {
+                    permissions: Some(execute),
+                    expected_permissions: None
+                },
+                3005
+            )
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::Conflict
+    );
+    f.store
+        .set_service_workspace_access(
+            &f.owner,
+            &f.tenant,
+            &account.service_account_id,
+            &first.workspace_id,
+            &ServiceWorkspaceUpdate {
+                permissions: Some(execute),
+                expected_permissions: Some(read),
+            },
+            3006,
+        )
+        .await
+        .unwrap();
+    let access = f
+        .store
+        .resource_access(
+            &principal.user,
+            &f.tenant,
+            ResourceKind::Workspace,
+            first.workspace_id.as_str(),
+        )
+        .await
+        .unwrap();
+    access.require(ResourceAction::Submit).unwrap();
+    access.require(ResourceAction::Stop).unwrap();
+    assert!(
+        principal.require(ServiceScope::RunExecute).is_err(),
+        "resource permission cannot expand a credential's scopes"
+    );
+    f.store
+        .set_service_workspace_access(
+            &f.owner,
+            &f.tenant,
+            &account.service_account_id,
+            &first.workspace_id,
+            &ServiceWorkspaceUpdate {
+                permissions: None,
+                expected_permissions: Some(execute),
+            },
+            3007,
+        )
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .resolve_accessible_workspace(&principal.user, &f.tenant, &first.workspace_id)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        f.store
+            .get_workspace(&f.owner, &f.tenant, &first.workspace_id)
+            .await
+            .unwrap(),
+        first
+    );
+    assert!(
+        f.store
+            .set_service_workspace_access(
+                &f.owner,
+                &f.tenant,
+                &f.owner.user_id,
+                &first.workspace_id,
+                &update,
+                3008
+            )
+            .await
+            .is_err(),
+        "service grant entry cannot authorize an ordinary account in a personal space"
+    );
 }

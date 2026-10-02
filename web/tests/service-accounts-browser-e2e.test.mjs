@@ -81,7 +81,7 @@ test('service accounts create independent identities, constrain real API access 
     const session = await serverRequest(origin, '/sessions', { token: executeToken, tenantId: tenant, body: { workspace_id: workspace.workspace_id } })
     assert.equal(session.identity.user_id, id)
     assert.equal((await serverRequest(origin, `/sessions/${session.identity.session_id}/history?limit=100`, { token: executeToken, tenantId: tenant })).next_before_seq, null)
-    assert.equal(await status(origin, `/workspaces/${privateWorkspace.workspace_id}`, executeToken, tenant), 400)
+    assert.equal(await status(origin, `/workspaces/${privateWorkspace.workspace_id}`, executeToken, tenant), 403)
     const sdkEnvironment = { ...process.env, TERNILO_SDK_TEST_CONFIG: JSON.stringify({ origin, token: executeToken, tenant, service: id, session: session.identity.session_id }) }
     const typescript = await execute(process.execPath, ['--experimental-strip-types', path.join(repository, 'sdk/typescript/test/service-http-smoke.ts')], { cwd: repository, env: sdkEnvironment })
     assert.match(typescript.stdout, /TypeScript service HTTP verified/)

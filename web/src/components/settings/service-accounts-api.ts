@@ -40,3 +40,20 @@ export function issueServiceCredential(tenant: string, id: string, body: { name:
 export function revokeServiceCredential(tenant: string, id: string, credential: string) {
   return api.request<void>(`${credentials(tenant, id)}/${encodeURIComponent(credential)}`, { method: 'DELETE' })
 }
+
+export interface ServiceWorkspace {
+  workspace_id: string
+  name: string
+  placement: 'cloud' | 'local_node'
+  computer_name: string | null
+  permissions: import('@/types').ResourcePermissions | null
+}
+export interface ServiceWorkspacePage { workspaces: ServiceWorkspace[]; next_cursor: string | null }
+export function listServiceWorkspaces(tenant: string, id: string, query: string, cursor: string | null, signal: AbortSignal) {
+  const parameters = new URLSearchParams({ query, limit: '25' })
+  if (cursor) parameters.set('cursor', cursor)
+  return api.request<ServiceWorkspacePage>(`${accounts(tenant)}/${encodeURIComponent(id)}/workspaces?${parameters}`, { signal })
+}
+export function setServiceWorkspaceAccess(tenant: string, id: string, workspace: ServiceWorkspace, permissions: ServiceWorkspace['permissions']) {
+  return api.request<void>(`${accounts(tenant)}/${encodeURIComponent(id)}/workspaces/${encodeURIComponent(workspace.workspace_id)}`, { method: 'PUT', body: { permissions, expected_permissions: workspace.permissions } })
+}

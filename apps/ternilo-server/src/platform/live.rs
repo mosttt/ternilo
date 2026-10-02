@@ -178,6 +178,10 @@ async fn serve(state: AppState, mut socket: WebSocket, online_only: bool) {
                         after_seq,
                         metadata,
                     } => {
+                        if let Err(error) = authorize_connection(&state, &token, &tenant_id).await {
+                            let _ = send_frame(&mut socket, &error_frame(None, error)).await;
+                            break;
+                        }
                         if !valid_next_subscription_id(last_subscription_id, subscription_id) {
                             let frame = error_frame(None, HarnessError::invalid(
                                 "live subscription_id must be non-zero and strictly increasing",
@@ -206,6 +210,12 @@ async fn serve(state: AppState, mut socket: WebSocket, online_only: bool) {
             }
             frame = subscription_frames.recv() => {
                 let Some(frame) = frame else { break };
+                if token.starts_with("ter_t_")
+                    && let Err(error) = authorize_connection(&state, &token, &tenant_id).await
+                {
+                    let _ = send_frame(&mut socket, &error_frame(None, error)).await;
+                    break;
+                }
                 let active_subscription_id = subscription.as_ref().map(|active| active.id);
                 if !frame_matches_active_subscription(&frame, active_subscription_id) {
                     continue;
@@ -335,6 +345,14 @@ async fn authorize_connection(
     token: &str,
     tenant_id: &TenantId,
 ) -> Result<ControlUser, HarnessError> {
+    if token.starts_with("ter_t_") {
+        let principal = state
+            .store
+            .authenticate_service_credential(token, tenant_id, super::http::now_ms()?)
+            .await?;
+        principal.require(ternilo_control::ServiceScope::ResourceRead)?;
+        return Ok(principal.user);
+    }
     let (user, _) = super::auth::authenticate_token(state, token).await?;
     let actor = state.store.identity_session(user).await?.user;
     state

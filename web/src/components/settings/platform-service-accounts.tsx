@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { ServiceWorkspaces } from './service-workspaces'
 import { Copy, LoaderCircle, Plus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -49,10 +50,11 @@ function ServiceAccountEditor({ tenantId, initial, onClose, onChanged }: { tenan
   const [enabled, setEnabled] = React.useState(initial?.enabled ?? true)
   const [saving, setSaving] = React.useState(false)
   const [credentialBusy, setCredentialBusy] = React.useState(false)
+  const [workspaceBusy, setWorkspaceBusy] = React.useState(false)
   const [error, setError] = React.useState('')
   const [saved, setSaved] = React.useState(false)
   const id = React.useId()
-  const busy = saving || credentialBusy
+  const busy = saving || credentialBusy || workspaceBusy
   const save = async () => {
     if (busy || !name.trim()) return
     setSaving(true); setError(''); setSaved(false)
@@ -75,7 +77,8 @@ function ServiceAccountEditor({ tenantId, initial, onClose, onChanged }: { tenan
           <div className="flex flex-wrap items-center gap-3"><Button type="submit" disabled={busy || !name.trim()}>{saving && <LoaderCircle className="animate-spin" />}{account ? common('save') : t('create')}</Button>{saved && <p className="text-sm text-success" role="status">{t('saved')}</p>}</div>
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
         </form>
-        {account && <ServiceCredentials tenantId={tenantId} account={account} disabled={saving} onBusy={setCredentialBusy} />}
+        {account && <ServiceWorkspaces tenantId={tenantId} accountId={account.service_account_id} disabled={saving || credentialBusy || workspaceBusy} onBusy={setWorkspaceBusy} />}
+        {account && <ServiceCredentials tenantId={tenantId} account={account} disabled={saving || workspaceBusy} onBusy={setCredentialBusy} />}
       </div>
       <div className="flex justify-end"><Button variant="outline" disabled={busy} onClick={onClose}>{common('close')}</Button></div>
     </DialogContent>

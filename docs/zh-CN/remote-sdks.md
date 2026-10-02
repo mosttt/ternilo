@@ -74,6 +74,6 @@ try {
 
 SDK 通过真实 Server／Node 验证共享成员文件读写、分页、Server 重启后补读离线事件、去重和共享撤权。模型 Key 到工作台凭据转换、多 Server 路由与进程重启后的客户端游标保存仍由各自系统设计决定；应用需要自行持久化已处理游标及业务副作用，SDK 不提供跨进程恰好一次执行承诺。
 
-## 服务账号 HTTP 调用
+## 服务账号调用
 
-[服务账号](service-accounts.md)的 `ter_t_` 凭据可直接作为 `ServerClient` 的访问凭据，同时指定其空间 ID。`request`、分页 `history`、允许的创建／提交／停止 HTTP 方法使用相同的权限范围，不继承创建者身份。查询当前身份使用 `request("/me")`，不要用浏览器 `/auth/session`。当前服务凭据尚不用于 Live，因而不能用依赖 Live 的 `watch/run` 方法等待结果；服务账号的模型执行和带范围的 Live 支持继续推进。
+[服务账号](service-accounts.md)的 `ter_t_` 凭据可直接作为 `ServerClient` 的访问凭据，同时指定其空间 ID。`request`、分页 `history`、允许的创建／提交／停止 HTTP 方法使用相同的权限范围，不继承创建者身份。查询当前身份使用 `request("/me")`，不要用浏览器 `/auth/session`。`watch` 需要 `resource.read` 范围及会话查看权限；`run` 还需要 `run.execute` 和资源提交权限。服务凭据绑定的空间在 Live Hello 中继续校验。撤销工作区授权会结束失去查看权限的订阅；停用账号或撤销凭据会结束其连接。模型执行仍需对应模型的明确授权。

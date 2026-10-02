@@ -9,6 +9,8 @@ use crate::{
 };
 
 mod credentials;
+mod workspaces;
+pub use workspaces::{ServiceWorkspaceAccess, ServiceWorkspacePage, ServiceWorkspaceUpdate};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ServiceScope {

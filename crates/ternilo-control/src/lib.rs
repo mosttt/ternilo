@@ -69,6 +69,7 @@ pub use resource_ownership::{ResourceOwnership, ResourceOwnershipTransfer};
 pub use service_accounts::{
     ServiceAccount, ServiceAccountCreate, ServiceAccountUpdate, ServiceCredential,
     ServiceCredentialCreate, ServiceCredentialGrant, ServicePrincipal, ServiceScope,
+    ServiceWorkspaceAccess, ServiceWorkspacePage, ServiceWorkspaceUpdate,
 };
 pub use sharing_store::{
     CandidatePage, GrantPage, ResourceAccess, ResourceAccessSource, ResourceAccessSourceKind,

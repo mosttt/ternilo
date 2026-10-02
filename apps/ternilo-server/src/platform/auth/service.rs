@@ -46,7 +46,7 @@ fn route_scope(request: &Request) -> Option<ServiceScope> {
     match (request.method().as_str(), parts) {
         (
             "GET",
-            ["me" | "projects" | "workspaces" | "sessions" | "runs"]
+            ["me" | "state" | "projects" | "workspaces" | "sessions" | "runs"]
             | ["workspaces" | "runs", _]
             | ["workspaces", _, "location"]
             | [
