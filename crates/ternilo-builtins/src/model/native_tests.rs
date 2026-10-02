@@ -429,6 +429,15 @@ async fn native_discovery_paginates_and_does_not_infer_missing_thinking_levels()
         .unwrap();
         let requests = server.await.unwrap();
         assert_eq!(requests.len(), 2);
+        let headers = requests[0].0.to_ascii_lowercase();
+        assert!(headers.starts_with("get /v1/models "));
+        assert!(!headers.contains("authorization:"));
+        if protocol == ProviderProtocol::AnthropicMessages {
+            assert!(headers.contains("x-api-key: fixture-key"));
+            assert!(headers.contains("anthropic-version: 2023-06-01"));
+        } else {
+            assert!(headers.contains("x-goog-api-key: fixture-key"));
+        }
         assert!(
             requests[1]
                 .0

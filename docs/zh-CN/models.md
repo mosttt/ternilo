@@ -111,3 +111,5 @@ Ternilo 没有单独的思考时钟。选中命名 Provider（例如 `ds`）时�
 使用 Anthropic 官方 API 时，协议选择 `anthropic-messages`，API 地址填 `https://api.anthropic.com/v1`。模型发现请求为 `GET /v1/models`，使用 `x-api-key` 和 `anthropic-version: 2023-06-01`，不使用 Chat Completions 的 Bearer 鉴权。API 地址是版本入口，不是 `/messages` 或 `/models` 的完整路径。
 
 程序使用 `has_more`、`last_id` 与 `after_id` 读取后续页，读取 `display_name`、`max_input_tokens`、`max_tokens` 和实际返回的能力声明。未返回的推理档位继续沿用明确配置，不猜测支持范围。接口依据：[Anthropic 官方 Models API](https://platform.claude.com/docs/en/api/models/list)。
+
+获取失败时会显示上游 HTTP 状态及检查方向，例如 Key、权限、API 版本入口或限流；连接失败、超时和非 JSON 目录分别提示。上游原始错误正文与 Key 不返回浏览器。

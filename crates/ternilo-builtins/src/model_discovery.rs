@@ -99,7 +99,7 @@ fn require_models(
     protocol: ProviderProtocol,
 ) -> Result<(), HarnessError> {
     if models.is_empty() {
-        return Err(HarnessError::execution(format!(
+        return Err(HarnessError::unavailable(format!(
             "provider model discovery returned no models for {}",
             protocol.as_str()
         )));
@@ -208,18 +208,46 @@ pub async fn discover_provider_models(
             )]);
         }
         let response = request.send().await.map_err(|error| {
-            HarnessError::execution(format!("discover provider models: {}", error.without_url()))
+            let reason = if error.is_timeout() {
+                "timed out; check the connection and discovery timeout"
+            } else if error.is_connect() {
+                "could not connect; check the API address, network and TLS certificate"
+            } else {
+                "could not send the request; check the API address and credentials"
+            };
+            HarnessError::unavailable(format!("provider model discovery {reason}"))
         })?;
         let status = response.status();
         if !status.is_success() {
-            return Err(HarnessError::execution(format!(
-                "provider model discovery returned HTTP {status}"
+            let hint = match status.as_u16() {
+                401 => "check the API key and selected protocol",
+                403 => "check this key's model-list permission and provider restrictions",
+                404 => "check the versioned API base URL; omit the models or messages endpoint",
+                429 => "the provider rate limit was reached; retry later",
+                _ => "check the provider's availability and API configuration",
+            };
+            return Err(HarnessError::unavailable(format!(
+                "provider model discovery returned HTTP {status}; {hint}"
             )));
         }
-        let bytes = crate::read_provider_response(response, "model catalog").await?;
-        let value: Value = serde_json::from_slice(&bytes)
-            .map_err(|error| HarnessError::execution(format!("decode model catalog: {error}")))?;
-        models.extend(parse_catalog_page(&bytes, protocol)?);
+        let bytes = crate::read_provider_response(response, "model catalog")
+            .await
+            .map_err(|_| {
+                HarnessError::unavailable(
+                    "could not read provider model catalog; check the connection and response size",
+                )
+            })?;
+        let value: Value = serde_json::from_slice(&bytes).map_err(|_| {
+            HarnessError::unavailable(
+                "provider model catalog is not valid JSON; check the API base URL and protocol",
+            )
+        })?;
+        models.extend(parse_catalog_page(&bytes, protocol).map_err(|_| {
+            HarnessError::unavailable(format!(
+                "provider model catalog does not match {}; check the API base URL and protocol",
+                protocol.as_str()
+            ))
+        })?);
         let next = if protocol == ProviderProtocol::GoogleGemini {
             value["nextPageToken"].as_str()
         } else if protocol == ProviderProtocol::AnthropicMessages
@@ -230,7 +258,7 @@ pub async fn discover_provider_models(
                     .as_str()
                     .filter(|id| !id.is_empty())
                     .ok_or_else(|| {
-                        HarnessError::execution("Claude catalog pagination omitted last_id")
+                        HarnessError::unavailable("Claude catalog pagination omitted last_id")
                     })?,
             )
         } else {
@@ -240,7 +268,7 @@ pub async fn discover_provider_models(
             break;
         };
         if !seen.insert(next.to_owned()) {
-            return Err(HarnessError::execution(
+            return Err(HarnessError::unavailable(
                 "provider repeated its model catalog cursor",
             ));
         }

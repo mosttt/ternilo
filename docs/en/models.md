@@ -37,3 +37,5 @@ My Models → Usage → Device local → Cross-computer model calls loads separa
 For Anthropic's official API, choose `anthropic-messages` and set the base URL to `https://api.anthropic.com/v1`. Discovery uses `GET /v1/models`, `x-api-key` and `anthropic-version: 2023-06-01`, rather than Chat Completions Bearer authentication. The base URL is the version root, not a full `/messages` or `/models` endpoint.
 
 Discovery follows `has_more`, `last_id` and `after_id`, preserving `display_name`, `max_input_tokens`, `max_tokens` and explicitly returned capabilities. Missing reasoning levels retain explicit configuration instead of inventing support. Reference: [Anthropic Models API](https://platform.claude.com/docs/en/api/models/list).
+
+Discovery failures show the upstream HTTP status with guidance about keys, permissions, the versioned API root or rate limits. Connection failures, timeouts and non-JSON catalogs have separate messages. Raw upstream error bodies and keys are not returned to the browser.
