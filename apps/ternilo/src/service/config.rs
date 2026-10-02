@@ -33,7 +33,7 @@ impl Default for LocalServiceConfig {
             max_tool_calls: 0,
             gateway_url: None,
             token: None,
-            node_id: "home".into(),
+            node_id: String::new(),
             no_local_web: false,
             allow_insecure_gateway: false,
         }
@@ -41,6 +41,43 @@ impl Default for LocalServiceConfig {
 }
 
 impl LocalServiceConfig {
+    pub(crate) async fn persist_connection(
+        root: &std::path::Path,
+        gateway: &str,
+        token: &str,
+        node_id: &str,
+    ) -> Result<(), HarnessError> {
+        let path = root.join("config.json");
+        let original = tokio::fs::read(&path).await.map_err(|error| {
+            HarnessError::execution(format!("read connection configuration: {error}"))
+        })?;
+        let mut config: serde_json::Value = serde_json::from_slice(&original)
+            .map_err(|_| HarnessError::invalid("local config.json must contain valid JSON"))?;
+        let before = config.clone();
+        config["gateway_url"] = gateway.into();
+        config["token"] = token.into();
+        config["node_id"] = node_id.into();
+        config["allow_insecure_gateway"] = gateway.starts_with("ws:").into();
+        if config == before {
+            return Ok(());
+        }
+        let mut bytes = serde_json::to_vec_pretty(&config)
+            .map_err(|_| HarnessError::execution("encode validated connection configuration"))?;
+        bytes.push(b'\n');
+        let mut file = tempfile::NamedTempFile::new_in(root).map_err(|error| {
+            HarnessError::execution(format!("create private connection configuration: {error}"))
+        })?;
+        file.write_all(&bytes)
+            .and_then(|()| file.as_file().sync_all())
+            .map_err(|error| {
+                HarnessError::execution(format!("save connection configuration: {error}"))
+            })?;
+        file.persist(path).map_err(|error| {
+            HarnessError::execution(format!("publish connection configuration: {}", error.error))
+        })?;
+        Ok(())
+    }
+
     pub fn run_limits(&self) -> RunLimits {
         RunLimits {
             max_steps: self.max_steps,
@@ -177,6 +214,54 @@ impl ServeOptions {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[tokio::test]
+    async fn verified_connection_is_private_and_survives_a_plain_restart_without_rewriting_local_options()
+     {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().to_str().unwrap();
+        ServeOptions::parse_from([
+            "ternilo",
+            "--data-dir",
+            root,
+            "--listen",
+            "127.0.0.1:4567",
+            "--max-steps",
+            "12",
+        ])
+        .load()
+        .await
+        .unwrap();
+        LocalServiceConfig::persist_connection(
+            temporary.path(),
+            "ws://127.0.0.1:4321/api/v1/executors/connect",
+            "ter_n_recovered",
+            "ter_pc_fixed",
+        )
+        .await
+        .unwrap();
+        let reopened = ServeOptions::parse_from(["ternilo", "--data-dir", root])
+            .load()
+            .await
+            .unwrap();
+        assert_eq!(reopened.listen.port(), 4567);
+        assert_eq!(reopened.max_steps, 12);
+        assert_eq!(reopened.node_id, "ter_pc_fixed");
+        assert_eq!(reopened.token.as_deref(), Some("ter_n_recovered"));
+        assert!(reopened.allow_insecure_gateway);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(temporary.path().join("config.json"))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+    }
 
     #[tokio::test]
     async fn root_config_reopens_and_explicit_defaults_override_saved_values() {

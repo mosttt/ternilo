@@ -135,7 +135,7 @@ pub(crate) struct CreateDirectoryRequest {
 #[derive(Serialize)]
 pub(crate) struct ExecutionTarget {
     pub(crate) executor_id: ExecutorId,
-    pub(crate) display_name: Option<String>,
+    pub(crate) name: String,
     pub(crate) project_id: Option<String>,
     pub(crate) state: String,
     pub(crate) connected: bool,
@@ -146,7 +146,7 @@ impl ExecutionTarget {
     pub(crate) fn from_record(record: ExecutorRecord, connected: bool) -> Self {
         Self {
             executor_id: record.executor_id,
-            display_name: record.management.display_name,
+            name: record.management.name,
             project_id: record.project_id,
             state: record.state,
             connected,

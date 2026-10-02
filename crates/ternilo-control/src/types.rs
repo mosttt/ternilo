@@ -330,6 +330,7 @@ pub struct EnrollmentGrant {
     pub enrollment_id: String,
     pub tenant_id: TenantId,
     pub executor_id: ExecutorId,
+    pub name: String,
     pub expires_at_ms: u64,
     pub token: String,
 }

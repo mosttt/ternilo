@@ -76,13 +76,14 @@ test('goal execution, stop/resume and themed space switching work in real Local 
     const owner = (resource, options = {}) => serverRequest(application.origin, resource, { token: application.owner.session.access_token, ...options })
     const team = (await owner('/tenants', { body: { slug: 'goal-team', display_name: '目标验收工作空间' } })).tenant
     const project = (await owner('/projects', { tenantId: team.tenant_id })).projects[0]
-    const enrollment = (await owner(`/tenants/${team.tenant_id}/my-computer-enrollments`, { body: { executor_id: 'goal-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrollment = (await owner(`/tenants/${team.tenant_id}/my-computer-enrollments`, { body: { name: 'goal-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrolledComputerId = enrollment.executor_id
     const credential = (await serverRequest(application.origin, '/enrollments/consume', { body: { token: enrollment.token } })).credential
     const folder = path.join(directory, 'workspace')
     await mkdir(folder)
     const localOrigin = `http://127.0.0.1:${await freePort()}`
     const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [
-      'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'node'), '--node-id', 'goal-node',
+      'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolledComputerId,
       '--gateway-url', `${application.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway',
     ], { TERNILO_LOCAL_TOKEN: credential.token, XDG_STATE_HOME: path.join(directory, 'state') })
     processes.push(node)

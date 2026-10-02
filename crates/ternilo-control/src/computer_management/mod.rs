@@ -8,12 +8,14 @@ use ternilo_transport::{ExecutorHello, ExecutorId};
 use crate::{
     ControlAction, ControlStore, ControlUser,
     store::{append_audit, from_i64, require_action, to_i64},
-    types::require_bounded,
 };
+
+pub(crate) mod enrollment;
+pub(crate) mod names;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ComputerManagement {
-    pub display_name: Option<String>,
+    pub name: String,
     pub notes: String,
     pub suspended_at_ms: Option<u64>,
     pub removed_at_ms: Option<u64>,
@@ -23,7 +25,7 @@ pub struct ComputerManagement {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComputerUpdate {
-    pub display_name: Option<String>,
+    pub name: String,
     pub notes: String,
     pub expected_revision: u64,
 }
@@ -48,7 +50,8 @@ pub(crate) async fn initialize(database: &Database) -> Result<(), HarnessError> 
             include_str!("schema.sql"),
             include_str!("postgres.sql"),
         )
-        .await
+        .await?;
+    names::initialize(database).await
 }
 
 pub(crate) async fn management_in(
@@ -57,21 +60,25 @@ pub(crate) async fn management_in(
     executor: &ExecutorId,
 ) -> Result<ComputerManagement, HarnessError> {
     let row = sqlx::query(
-        "SELECT display_name,notes,suspended_at_ms,removed_at_ms,revision
+        "SELECT COALESCE(display_name,$3) AS name,notes,suspended_at_ms,removed_at_ms,revision
         FROM control_computer_management WHERE tenant_id=$1 AND executor_id=$2",
     )
     .bind(tenant.as_str())
+    .bind(executor.as_str())
     .bind(executor.as_str())
     .fetch_optional(&mut **tx)
     .await
     .map_err(database_error)?;
     let Some(row) = row else {
-        return Ok(ComputerManagement::default());
+        return Ok(ComputerManagement {
+            name: executor.to_string(),
+            ..ComputerManagement::default()
+        });
     };
     management_record(&row)
 }
 
-async fn persist_in(
+pub(crate) async fn persist_in(
     tx: &mut Transaction,
     tenant: &TenantId,
     executor: &ExecutorId,
@@ -82,7 +89,7 @@ async fn persist_in(
         VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(tenant_id,executor_id) DO UPDATE SET
         display_name=EXCLUDED.display_name,notes=EXCLUDED.notes,suspended_at_ms=EXCLUDED.suspended_at_ms,
         removed_at_ms=EXCLUDED.removed_at_ms,revision=EXCLUDED.revision")
-        .bind(tenant.as_str()).bind(executor.as_str()).bind(&management.display_name).bind(&management.notes)
+        .bind(tenant.as_str()).bind(executor.as_str()).bind(&management.name).bind(&management.notes)
         .bind(management.suspended_at_ms.map(|value| to_i64(value,"suspension timestamp")).transpose()?)
         .bind(management.removed_at_ms.map(|value| to_i64(value,"removal timestamp")).transpose()?)
         .bind(to_i64(management.revision,"computer revision")?)
@@ -153,7 +160,7 @@ pub(crate) fn management_record(
             .transpose()
     };
     Ok(ComputerManagement {
-        display_name: row.try_get("display_name").map_err(database_error)?,
+        name: row.try_get("name").map_err(database_error)?,
         notes: row.try_get("notes").map_err(database_error)?,
         suspended_at_ms: timestamp("suspended_at_ms")?,
         removed_at_ms: timestamp("removed_at_ms")?,
@@ -193,11 +200,11 @@ impl ControlStore {
         let mut tx = self.database.tenant_transaction(tenant).await?;
         require_action(&mut tx, tenant, &actor.user_id, ControlAction::TenantRead).await?;
         let mut query = sqlx::QueryBuilder::<sqlx::Any>::new(
-            "SELECT executor_id,display_name FROM control_computer_management WHERE tenant_id=",
+            "SELECT e.executor_id,COALESCE(m.display_name,e.executor_id) AS name FROM control_executors e LEFT JOIN control_computer_management m ON m.tenant_id=e.tenant_id AND m.executor_id=e.executor_id WHERE e.tenant_id=",
         );
         query
             .push_bind(tenant.as_str())
-            .push(" AND display_name IS NOT NULL AND executor_id IN (");
+            .push(" AND e.executor_id IN (");
         let mut ids = query.separated(",");
         for executor in executors {
             ids.push_bind(executor.as_str());
@@ -216,8 +223,7 @@ impl ControlStore {
                         row.try_get::<String, _>("executor_id")
                             .map_err(database_error)?,
                     ),
-                    row.try_get::<String, _>("display_name")
-                        .map_err(database_error)?,
+                    row.try_get::<String, _>("name").map_err(database_error)?,
                 ))
             })
             .collect();
@@ -327,34 +333,19 @@ impl ControlStore {
         input: &ComputerUpdate,
         now_ms: u64,
     ) -> Result<ComputerManagement, HarnessError> {
-        let name = input
-            .display_name
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty());
-        if let Some(name) = name {
-            require_bounded(name, "computer display name", 512)?;
-            if name.chars().count() > 128 {
-                return Err(HarnessError::invalid(
-                    "computer display name exceeds 128 characters",
-                ));
-            }
-            if name.chars().any(char::is_control) {
-                return Err(HarnessError::invalid(
-                    "computer display name cannot contain control characters",
-                ));
-            }
-        }
+        let name = names::validate(&input.name)?;
         if input.notes.chars().count() > 4000 {
             return Err(HarnessError::invalid(
                 "computer notes exceed 4000 characters",
             ));
         }
         let mut tx = self.database.tenant_transaction(tenant).await?;
-        require_computer_in(&mut tx, actor, tenant, executor, owned_only, true).await?;
+        let (owner, _, _) =
+            require_computer_in(&mut tx, actor, tenant, executor, owned_only, true).await?;
         let mut management = management_in(&mut tx, tenant, executor).await?;
         advance(&mut management, input.expected_revision)?;
-        management.display_name = name.map(str::to_owned);
+        names::reserve_in(&mut tx, tenant, executor, &owner, name, None, now_ms).await?;
+        management.name = name.to_owned();
         management.notes.clone_from(&input.notes);
         persist_in(&mut tx, tenant, executor, &management).await?;
         append_audit(
@@ -462,6 +453,8 @@ impl ControlStore {
         sqlx::query("UPDATE control_node_credentials SET revoked_at_ms=COALESCE(revoked_at_ms,$3) WHERE tenant_id=$1 AND executor_id=$2")
             .bind(tenant.as_str()).bind(executor.as_str()).bind(to_i64(now_ms,"removal timestamp")?).execute(&mut *tx).await.map_err(database_error)?;
         persist_in(&mut tx, tenant, executor, &management).await?;
+        sqlx::query("UPDATE control_computer_names SET name_key=NULL,reserved_until_ms=NULL WHERE tenant_id=$1 AND executor_id=$2")
+            .bind(tenant.as_str()).bind(executor.as_str()).execute(&mut *tx).await.map_err(database_error)?;
         append_audit(
             &mut tx,
             tenant,

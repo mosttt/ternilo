@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use ternilo_control::{
     AccountStatusAction, BrowserLoginKind, BrowserSessionAuthentication, BrowserSessions,
     ControlStore, ControlUser, InstanceMode, NativeRegistration, NativeSessionGrant, OidcPrincipal,
-    SecretCipher,
+    OidcSessionIdentity, SecretCipher,
 };
 use ternilo_protocol::ErrorCode;
 
@@ -132,15 +132,15 @@ async fn lists_only_owned_active_sessions_with_safe_stable_ids_and_current_marke
     assert_eq!(listed.current_login, BrowserLoginKind::Native);
     assert_eq!(listed.sessions.len(), 2);
     assert!(listed.sessions[0].is_current);
-    assert_eq!(listed.sessions[0].created_at_ms, 1_003);
+    assert_eq!(listed.sessions[0].created_at_ms, Some(1_003));
     assert_eq!(
         listed.sessions[0].expires_at_ms,
         fixture.member.session.expires_at_ms.unwrap()
     );
     assert!(!listed.sessions[1].is_current);
-    assert_eq!(listed.sessions[1].created_at_ms, 2_000);
+    assert_eq!(listed.sessions[1].created_at_ms, Some(2_000));
     let value = serde_json::to_value(&listed).unwrap();
-    assert_eq!(value["sessions"][0].as_object().unwrap().len(), 8);
+    assert_eq!(value["sessions"][0].as_object().unwrap().len(), 11);
     let encoded = value.to_string();
     for grant in [&fixture.owner, &fixture.member, &newer, &revoked, &expired] {
         let stored_hash = Sha256::digest(grant.access_token.as_bytes()).iter().fold(
@@ -572,5 +572,438 @@ async fn postgres_browser_activity_uses_production_runtime_grants() {
         .set_password(Some("session-details-password"))
         .unwrap();
     activity_contract(Fixture::with_database(runtime.as_str(), Some(&admin_url)).await).await;
+    admin.close().await;
+}
+
+fn local_oidc(token: &str) -> BrowserSessionAuthentication {
+    BrowserSessionAuthentication::OidcToken {
+        token: token.to_owned(),
+        binding: "session-management".into(),
+    }
+}
+
+fn oidc_identity(fixture: &Fixture) -> OidcSessionIdentity {
+    OidcSessionIdentity {
+        principal: fixture.principal.clone(),
+        nonce: "private-login-nonce".into(),
+        upstream_refresh_token: Some("private-upstream-refresh".into()),
+    }
+}
+
+#[tokio::test]
+async fn local_oidc_refresh_preserves_session_identity_first_login_and_activity_without_exposing_credentials()
+ {
+    unified_oidc_contract(Fixture::new().await).await;
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "One lifecycle verifies stable refresh identity, metadata, cross-kind revocation and restricted database grants."
+)]
+async fn unified_oidc_contract(f: Fixture) {
+    let identity = oidc_identity(&f);
+    let grant = f
+        .store
+        .create_oidc_session(&identity, "session-management", 61_000, 2_000)
+        .await
+        .unwrap();
+    f.store
+        .record_browser_session_activity(
+            &f.member.session.user,
+            &grant.access_token,
+            Some("Linux Firefox/123.0"),
+            Some("192.0.2.4".parse().unwrap()),
+            2_001,
+        )
+        .await
+        .unwrap();
+    let before = f
+        .store
+        .list_browser_sessions(
+            &f.member.session.user,
+            &local_oidc(&grant.access_token),
+            2_002,
+        )
+        .await
+        .unwrap();
+    assert_eq!(before.current_login, BrowserLoginKind::Oidc);
+    assert!(before.current_session_managed);
+    assert_eq!(before.sessions.len(), 2);
+    let current = &before.sessions[0];
+    assert_eq!(current.login_kind, BrowserLoginKind::Oidc);
+    assert!(current.is_current);
+    assert_eq!(current.created_at_ms, Some(2_000));
+    let public_id = current.session_id.clone();
+    let expiry = current.expires_at_ms;
+    let previous = f
+        .store
+        .oidc_refresh_session(
+            grant.refresh_token.as_deref().unwrap(),
+            "session-management",
+            3_000,
+        )
+        .await
+        .unwrap();
+    let next = f
+        .store
+        .replace_oidc_session(
+            &previous.identity,
+            "session-management",
+            63_000,
+            (
+                grant.refresh_token.as_deref().unwrap(),
+                previous.expires_at_ms + 1_000,
+            ),
+            3_000,
+        )
+        .await
+        .unwrap();
+    f.store
+        .record_browser_session_activity(
+            &f.member.session.user,
+            &next.access_token,
+            Some("changed-agent"),
+            Some("2001:db8::4".parse().unwrap()),
+            3_001,
+        )
+        .await
+        .unwrap();
+    let after = f
+        .store
+        .list_browser_sessions(
+            &f.member.session.user,
+            &local_oidc(&next.access_token),
+            3_002,
+        )
+        .await
+        .unwrap();
+    assert_eq!(after.sessions[0].session_id, public_id);
+    assert_eq!(after.sessions[0].created_at_ms, Some(2_000));
+    assert_eq!(after.sessions[0].expires_at_ms, expiry);
+    assert_eq!(after.sessions[0].access_expires_at_ms, 63_000);
+    assert_eq!(
+        after.sessions[0].user_agent.as_deref(),
+        Some("Linux Firefox/123.0")
+    );
+    assert_eq!(after.sessions[0].first_ip.as_deref(), Some("192.0.2.4"));
+    assert_eq!(after.sessions[0].last_ip.as_deref(), Some("2001:db8::4"));
+    assert_eq!(after.sessions[0].last_active_at_ms, Some(3_001));
+    let encoded = serde_json::to_string(&after).unwrap();
+    for secret in [
+        &next.access_token,
+        next.refresh_token.as_ref().unwrap(),
+        &identity.nonce,
+        identity.upstream_refresh_token.as_ref().unwrap(),
+    ] {
+        assert!(!encoded.contains(secret));
+    }
+    f.denied(
+        &f.member.session.user,
+        &local_oidc(&grant.access_token),
+        3_002,
+    )
+    .await;
+    assert_eq!(f.list(&f.owner, 3_002).await.sessions.len(), 1);
+    let revoked = f
+        .store
+        .revoke_other_browser_sessions(
+            &f.member.session.user,
+            &local_oidc(&next.access_token),
+            3_003,
+        )
+        .await
+        .unwrap();
+    assert_eq!(revoked.revoked_count, 1);
+    assert!(!revoked.current_revoked);
+    assert!(
+        f.store
+            .authenticate_native_token(&f.member.access_token, 3_004)
+            .await
+            .is_err()
+    );
+    let remaining = f
+        .store
+        .list_browser_sessions(
+            &f.member.session.user,
+            &local_oidc(&next.access_token),
+            3_004,
+        )
+        .await
+        .unwrap();
+    assert_eq!(remaining.sessions.len(), 1);
+    let revoked = f
+        .store
+        .revoke_browser_session(
+            &f.member.session.user,
+            &local_oidc(&next.access_token),
+            &public_id,
+            3_005,
+        )
+        .await
+        .unwrap();
+    assert_eq!(revoked.revoked_count, 1);
+    assert!(revoked.current_revoked);
+    assert!(
+        f.store
+            .authenticate_oidc_session(&next.access_token, "session-management", 3_006)
+            .await
+            .is_err()
+    );
+    assert!(
+        f.store
+            .oidc_refresh_session(
+                next.refresh_token.as_deref().unwrap(),
+                "session-management",
+                3_006
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(f.list(&f.owner, 3_006).await.sessions.len(), 1);
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "One lifecycle verifies both revocation directions and a captured refresh racing a deletion."
+)]
+async fn mixed_session_revocation_invalidates_oidc_access_and_refresh_and_never_revives_a_deleted_session()
+ {
+    let f = Fixture::new().await;
+    let identity = oidc_identity(&f);
+    let first = f
+        .store
+        .create_oidc_session(&identity, "session-management", 61_000, 2_000)
+        .await
+        .unwrap();
+    let second = f
+        .store
+        .create_oidc_session(&identity, "session-management", 62_000, 2_001)
+        .await
+        .unwrap();
+    let captured = f
+        .store
+        .oidc_refresh_session(
+            first.refresh_token.as_deref().unwrap(),
+            "session-management",
+            2_002,
+        )
+        .await
+        .unwrap();
+    let list = f.list(&f.member, 2_002).await;
+    let target = list
+        .sessions
+        .iter()
+        .find(|session| {
+            session.login_kind == BrowserLoginKind::Oidc && session.created_at_ms == Some(2_000)
+        })
+        .unwrap();
+    let revoked = f
+        .store
+        .revoke_browser_session(
+            &f.member.session.user,
+            &native(&f.member),
+            &target.session_id,
+            2_003,
+        )
+        .await
+        .unwrap();
+    assert_eq!(revoked.revoked_count, 1);
+    assert!(!revoked.current_revoked);
+    assert!(
+        f.store
+            .authenticate_oidc_session(&first.access_token, "session-management", 2_004)
+            .await
+            .is_err()
+    );
+    assert!(
+        f.store
+            .oidc_refresh_session(
+                first.refresh_token.as_deref().unwrap(),
+                "session-management",
+                2_004
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        f.store
+            .replace_oidc_session(
+                &captured.identity,
+                "session-management",
+                63_000,
+                (
+                    first.refresh_token.as_deref().unwrap(),
+                    captured.expires_at_ms
+                ),
+                2_004
+            )
+            .await
+            .is_err()
+    );
+    let others = f
+        .store
+        .revoke_other_browser_sessions(
+            &f.member.session.user,
+            &local_oidc(&second.access_token),
+            2_005,
+        )
+        .await
+        .unwrap();
+    assert_eq!(others.revoked_count, 1);
+    assert!(!others.current_revoked);
+    assert!(
+        f.store
+            .authenticate_native_token(&f.member.access_token, 2_006)
+            .await
+            .is_err()
+    );
+    let list = f
+        .store
+        .list_browser_sessions(
+            &f.member.session.user,
+            &local_oidc(&second.access_token),
+            2_006,
+        )
+        .await
+        .unwrap();
+    assert_eq!(list.sessions.len(), 1);
+    assert!(list.sessions[0].is_current);
+    let current = f
+        .store
+        .revoke_browser_session(
+            &f.member.session.user,
+            &local_oidc(&second.access_token),
+            &list.sessions[0].session_id,
+            2_007,
+        )
+        .await
+        .unwrap();
+    assert!(current.current_revoked);
+    assert_eq!(current.revoked_count, 1);
+    assert!(
+        f.store
+            .oidc_refresh_session(
+                second.refresh_token.as_deref().unwrap(),
+                "session-management",
+                2_008
+            )
+            .await
+            .is_err()
+    );
+    f.denied(
+        &f.member.session.user,
+        &local_oidc(&second.access_token),
+        2_008,
+    )
+    .await;
+    assert!(
+        f.store
+            .authenticate_native_token(&f.owner.access_token, 2_008)
+            .await
+            .is_ok()
+    );
+}
+
+#[tokio::test]
+async fn refreshable_oidc_sessions_remain_visible_after_access_expiry_and_enforce_account_and_client_binding()
+ {
+    let f = Fixture::new().await;
+    let grant = f
+        .store
+        .create_oidc_session(&oidc_identity(&f), "session-management", 61_000, 2_000)
+        .await
+        .unwrap();
+    f.denied(
+        &f.owner.session.user,
+        &local_oidc(&grant.access_token),
+        2_001,
+    )
+    .await;
+    f.denied(
+        &f.member.session.user,
+        &BrowserSessionAuthentication::OidcToken {
+            token: grant.access_token.clone(),
+            binding: "wrong-client".into(),
+        },
+        2_001,
+    )
+    .await;
+    let before = f.list(&f.member, 2_001).await;
+    let public_id = before
+        .sessions
+        .iter()
+        .find(|s| s.login_kind == BrowserLoginKind::Oidc)
+        .unwrap()
+        .session_id
+        .clone();
+    f.denied(
+        &f.member.session.user,
+        &local_oidc(&grant.access_token),
+        61_000,
+    )
+    .await;
+    let active = f.list(&f.member, 61_000).await;
+    assert_eq!(active.sessions.len(), 2);
+    assert!(
+        f.store
+            .oidc_refresh_session(
+                grant.refresh_token.as_deref().unwrap(),
+                "session-management",
+                61_000
+            )
+            .await
+            .is_ok()
+    );
+    let revoked = f
+        .store
+        .revoke_browser_session(
+            &f.member.session.user,
+            &native(&f.member),
+            &public_id,
+            61_001,
+        )
+        .await
+        .unwrap();
+    assert_eq!(revoked.revoked_count, 1);
+    assert!(
+        f.store
+            .oidc_refresh_session(
+                grant.refresh_token.as_deref().unwrap(),
+                "session-management",
+                61_002
+            )
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires TERNILO_TEST_DATABASE_URL pointing to a disposable PostgreSQL database"]
+async fn postgres_unified_oidc_sessions_use_production_runtime_grants() {
+    let admin_url = std::env::var("TERNILO_TEST_DATABASE_URL").unwrap();
+    assert!(admin_url.contains("ternilo_control_test"));
+    let admin = sqlx::PgPool::connect(&admin_url).await.unwrap();
+    sqlx::raw_sql("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+        .execute(&admin)
+        .await
+        .unwrap();
+    postgres_runtime::prepare_role(
+        &admin,
+        "ternilo_unified_sessions_test",
+        "unified-sessions-password",
+    )
+    .await;
+    let mut runtime = admin_url
+        .parse::<sqlx::any::AnyConnectOptions>()
+        .unwrap()
+        .database_url;
+    runtime
+        .set_username("ternilo_unified_sessions_test")
+        .unwrap();
+    runtime
+        .set_password(Some("unified-sessions-password"))
+        .unwrap();
+    unified_oidc_contract(Fixture::with_database(runtime.as_str(), Some(&admin_url)).await).await;
     admin.close().await;
 }

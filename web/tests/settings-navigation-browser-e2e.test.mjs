@@ -32,9 +32,10 @@ for (const platform of [false, true]) test(`settings, retained navigation and mo
       processes.push(server)
       const tenantId = server.owner.session.personal_tenant_id
       request = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
-      const enrolled = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'settings-computer', project_id: null, ttl_seconds: 600 } })
+      const enrolled = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'settings-computer', project_id: null, ttl_seconds: 600 } })
+      const enrolledComputerId = enrolled.enrollment.executor_id
       environment.TERNILO_LOCAL_TOKEN = (await request('/enrollments/consume', { body: { token: enrolled.enrollment.token } })).credential.token
-      args.push('--node-id', 'settings-computer', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway')
+      args.push('--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway')
     }
     const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), args, environment)
     processes.push(node)

@@ -64,10 +64,11 @@ test('project rules require workspace owner opt-in and revoke live, fork and arc
     await admin(`/projects/${project.project_id}`, { tenantId, method: 'PATCH', body: { name: 'Shared project' } })
     const group = await admin(`/tenants/${tenantId}/groups`, { body: { name: 'Project contributors', description: null } })
     await admin(`/tenants/${tenantId}/groups/${group.group_id}/members/${reader.identity.user.user_id}`, { method: 'PUT' })
-    const enrollment = (await machineOwner.request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'project-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrollment = (await machineOwner.request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'project-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrolledComputerId = enrollment.executor_id
     const credential = (await machineOwner.request('/enrollments/consume', { body: { token: enrollment.token } })).credential
     const nodeOrigin = `http://127.0.0.1:${await freePort()}`
-    const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'), '--node-id', 'project-node', '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], { ...environment, TERNILO_LOCAL_TOKEN: credential.token })
+    const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolledComputerId, '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], { ...environment, TERNILO_LOCAL_TOKEN: credential.token })
     processes.push(node); await waitForHttp(nodeOrigin, node)
     for (const target of [origin, nodeOrigin]) for (const asset of ['app.js', 'app.css']) {
       const served = Buffer.from(await (await fetch(`${target}/assets/${asset}`)).arrayBuffer())

@@ -20,7 +20,7 @@ export function ComputerDetailsDialog({ tenantId, executorId, scope, onClose, on
   const common = useTranslate('common')
   const id = React.useId()
   const [response, setResponse] = React.useState<ComputerDetailsResponse | null>(null)
-  const [displayName, setDisplayName] = React.useState('')
+  const [name, setName] = React.useState('')
   const [notes, setNotes] = React.useState('')
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
@@ -33,7 +33,7 @@ export function ComputerDetailsDialog({ tenantId, executorId, scope, onClose, on
     void getComputerDetails(tenantId, executorId, scope, controller.signal).then(next => {
       if (controller.signal.aborted) return
       setResponse(next)
-      setDisplayName(next.details.management.display_name ?? '')
+      setName(next.details.management.name)
       setNotes(next.details.management.notes)
     }).catch(cause => {
       if (!controller.signal.aborted) setError(cause instanceof ApiError && cause.status === 403 ? t('platform.permission') : t('computers.detailsError'))
@@ -46,12 +46,12 @@ export function ComputerDetailsDialog({ tenantId, executorId, scope, onClose, on
     setSaving(true)
     setError('')
     try {
-      const updated = await updateComputer(tenantId, executorId, scope, { display_name: displayName.trim() || null, notes, expected_revision: response.details.management.revision })
+      const updated = await updateComputer(tenantId, executorId, scope, { name: name.trim(), notes, expected_revision: response.details.management.revision })
       setResponse(current => current && ({ ...current, details: { ...current.details, management: updated.management } }))
       await onSaved()
       onClose()
     } catch (cause) {
-      setError(cause instanceof ApiError && cause.status === 409 ? t('computers.changed') : cause instanceof ApiError && cause.status === 403 ? t('platform.permission') : t('computers.saveError'))
+      setError(cause instanceof ApiError && cause.status === 409 ? t(cause.message.startsWith('computer name') ? 'computers.nameConflict' : 'computers.changed') : cause instanceof ApiError && cause.status === 403 ? t('platform.permission') : t('computers.saveError'))
     } finally { setSaving(false) }
   }
   const details = response?.details
@@ -77,8 +77,8 @@ export function ComputerDetailsDialog({ tenantId, executorId, scope, onClose, on
         <dl className="grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           {fields.map(([label, value]) => <React.Fragment key={label}><dt className="text-muted-foreground">{label}</dt><dd className="min-w-0 break-all">{value}</dd></React.Fragment>)}
         </dl>
-        <Field><Label htmlFor={`${id}-name`}>{t('computers.displayName')}</Label><Input id={`${id}-name`} value={displayName} maxLength={128} placeholder={executorId} disabled={saving} onChange={event => setDisplayName(event.target.value)} /><p className="text-xs text-muted-foreground">{t('computers.nameDescription')}</p></Field>
-        <Field><Label htmlFor={`${id}-notes`}>{t('computers.notes')}</Label><Textarea id={`${id}-notes`} value={notes} maxLength={4000} disabled={saving} onChange={event => setNotes(event.target.value)} /></Field>
+        <Field><Label htmlFor={`${id}-name`}>{t('computers.name')}</Label><Input id={`${id}-name`} value={name} maxLength={128} required disabled={saving || details.management.removed_at_ms != null} onChange={event => setName(event.target.value)} /><p className="text-xs text-muted-foreground">{t('computers.nameDescription')}</p></Field>
+        <Field><Label htmlFor={`${id}-notes`}>{t('computers.notes')}</Label><Textarea id={`${id}-notes`} value={notes} maxLength={4000} disabled={saving || details.management.removed_at_ms != null} onChange={event => setNotes(event.target.value)} /></Field>
         {details.hello && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">{t('computers.diagnostics')}</summary><dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
           <dt>{t('computers.protocol')}</dt><dd>{details.hello.protocol_version}</dd><dt>{t('computers.instance')}</dt><dd className="break-all">{details.hello.instance_nonce}</dd><dt>{t('computers.catalog')}</dt><dd className="break-all">{details.hello.catalog_revision}</dd><dt>{t('computers.capabilities')}</dt><dd className="break-all">{details.hello.capabilities.join(', ')}</dd>
         </dl></details>}
@@ -87,7 +87,7 @@ export function ComputerDetailsDialog({ tenantId, executorId, scope, onClose, on
       <DialogFooter>
         <Button variant="outline" disabled={saving} onClick={onClose}>{common('cancel')}</Button>
         {!loading && error && <Button variant="outline" disabled={saving} onClick={() => setReload(value => value + 1)}>{t('platform.refresh')}</Button>}
-        {details && <Button disabled={loading || saving} onClick={() => void save()}>{saving ? <LoaderCircle className="animate-spin" /> : <Save />}{t('computers.save')}</Button>}
+        {details && details.management.removed_at_ms == null && <Button disabled={loading || saving || !name.trim()} onClick={() => void save()}>{saving ? <LoaderCircle className="animate-spin" /> : <Save />}{t('computers.save')}</Button>}
       </DialogFooter>
     </DialogContent>
   </Dialog>

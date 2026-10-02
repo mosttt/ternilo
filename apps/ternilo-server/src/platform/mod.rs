@@ -57,9 +57,10 @@ use spaces::{
 mod computers;
 use computers::{
     consume_enrollment, create_enrollment, create_owned_enrollment, get_managed_computer,
-    get_owned_computer, list_executors, list_owned_executors, remove_managed_computer,
-    remove_owned_computer, revoke_executor, revoke_owned_executor, suspend_managed_computer,
-    suspend_owned_computer, update_managed_computer, update_owned_computer,
+    get_owned_computer, list_executors, list_owned_executors, recover_managed_computer,
+    recover_owned_computer, remove_managed_computer, remove_owned_computer, revoke_executor,
+    revoke_owned_executor, suspend_managed_computer, suspend_owned_computer,
+    update_managed_computer, update_owned_computer,
 };
 mod tenant_services;
 use tenant_services::{
@@ -241,6 +242,7 @@ fn api_router() -> Router {
                     .patch(update_managed_computer)
                     .delete(revoke_executor)
                     .push(Router::with_path("suspension").put(suspend_managed_computer))
+                    .push(Router::with_path("recovery").post(recover_managed_computer))
                     .push(Router::with_path("registration").delete(remove_managed_computer)),
             ),
         )
@@ -253,6 +255,7 @@ fn api_router() -> Router {
                         .patch(update_owned_computer)
                         .delete(revoke_owned_executor)
                         .push(Router::with_path("suspension").put(suspend_owned_computer))
+                        .push(Router::with_path("recovery").post(recover_owned_computer))
                         .push(Router::with_path("registration").delete(remove_owned_computer)),
                 ),
         )

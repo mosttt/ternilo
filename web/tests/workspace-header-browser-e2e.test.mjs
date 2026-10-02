@@ -26,12 +26,13 @@ test('workspace identity, controls, navigation and two-way deletion remain consi
     const tenantId = (await serverRequest(server.origin, '/tenants', { token: server.owner.session.access_token, body: { slug: 'design-tests', display_name: '设计团队' } })).tenant.tenant_id
     const request = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
     const { project } = await request('/projects', { body: { name: '设计项目' } })
-    const enrolled = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'design-desktop', project_id: project.project_id, ttl_seconds: 600 } })
+    const enrolled = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'design-desktop', project_id: project.project_id, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await request('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const origin = `http://127.0.0.1:${await freePort()}`
     const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
     const localArgs = ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node')]
-    const nodeArgs = [...localArgs, '--node-id', 'design-desktop', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+    const nodeArgs = [...localArgs, '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
     const environment = { TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'state') }
     node = startProcess(binary, nodeArgs, environment)
     await waitForHttp(origin, node)

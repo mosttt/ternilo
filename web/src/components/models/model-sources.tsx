@@ -97,7 +97,7 @@ export function ComputerModels() {
       const target = computerTarget(tenantId, computer)
       return <article key={`${tenantId}:${computer.executor_id}`} className={css.computer} data-model-computer={computer.executor_id}>
         <header className={css.computerHeader}>
-          <Laptop className="size-5 shrink-0" /><div className={css.identity}><strong>{computer.executor_id}</strong><p>{t(computer.connected ? 'computerOnline' : 'computerOffline')} · {t(computer.can_configure ? 'computerOwned' : 'computerShared')}</p></div>
+          <Laptop className="size-5 shrink-0" /><div className={css.identity}><strong>{computer.name}</strong><p>{t(computer.connected ? 'computerOnline' : 'computerOffline')} · {t(computer.can_configure ? 'computerOwned' : 'computerShared')}</p></div>
           <Button variant="outline" aria-expanded={open} onClick={() => navigate(modelCenterPath({ computer: open ? '' : computer.executor_id }, search))}>{t(open ? 'hideComputerModels' : 'showComputerModels')}</Button>
         </header>
         {open && <div className={css.computerBody}>
@@ -112,6 +112,7 @@ export function ComputerModels() {
 
 export interface ModelComputer {
   executor_id: string
+  name: string
   connected: boolean
   can_configure: boolean
   workspace_id: string | null

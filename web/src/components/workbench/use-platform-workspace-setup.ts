@@ -110,7 +110,7 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
       && workspace.access?.is_owner !== false && workspace.node_id !== executorId).map(workspace => workspace.title))
     let suggested = folder
     if (names.has(suggested)) {
-      const base = `${folder} (${executorId})`
+      const base = `${folder} (${selectedExecutor?.name ?? t('picker.executor.unavailable')})`
       suggested = base
       for (let number = 2; names.has(suggested); number++) suggested = `${base} (${number})`
     }

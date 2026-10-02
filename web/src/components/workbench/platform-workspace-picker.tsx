@@ -54,7 +54,7 @@ export function PlatformWorkspacePicker({ open, onOpenChange, createSessionAfter
                   {setup.executors.length ? <Select id="workspace-executor" className={styles.select} value={executorId} disabled={saving || setup.workspaceCreated} onValueChange={value => setup.changeExecutor(value)}>
                     {!selectedExecutor && <option disabled value={executorId}>{t('picker.executor.unavailable')}</option>}
                     {setup.executors.map(executor => <option value={executor.executor_id} key={executor.executor_id}>
-                      {t('picker.executor.option', { id: executor.display_name ?? executor.executor_id, status: t(executor.connected ? 'status.online' : 'status.offline') })}
+                      {t('picker.executor.option', { id: executor.name, status: t(executor.connected ? 'status.online' : 'status.offline') })}
                     </option>)}
                   </Select> : !loading && <div className={styles.empty}>
                     <p>{t('picker.executor.empty')}</p>
@@ -72,7 +72,7 @@ export function PlatformWorkspacePicker({ open, onOpenChange, createSessionAfter
                       <FolderOpen aria-hidden="true" />{t(path ? 'picker.directory.change' : 'picker.local.choose')}
                     </Button>
                   </div>
-                  {selectedExecutor && <p className={styles.description}>{t('picker.directory.onComputer', { name: executorId })}</p>}
+                  {selectedExecutor && <p className={styles.description}>{t('picker.directory.onComputer', { name: selectedExecutor.name })}</p>}
                 </Field>
               </>}
               <WorkspaceProjectFields setup={setup} onManageProjects={() => { onOpenChange(false); navigate('/spaces/current?tab=projects') }} />
@@ -104,7 +104,7 @@ export function PlatformWorkspacePicker({ open, onOpenChange, createSessionAfter
       apiBase={`/executors/${encodeURIComponent(executorId)}/directories`}
       initialPath={path || undefined}
       onChoosePath={setup.choosePath}
-      title={t('picker.nodeBrowser.title', { id: executorId })}
+      title={t('picker.nodeBrowser.title', { id: selectedExecutor?.name ?? t('picker.executor.unavailable') })}
       description={t('picker.nodeBrowser.description')}
       confirmLabel={t('picker.directory.confirm')}
     />}

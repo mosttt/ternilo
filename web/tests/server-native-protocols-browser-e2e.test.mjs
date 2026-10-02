@@ -131,8 +131,8 @@ for (const protocol of ['google-gemini', 'anthropic-messages']) {
       processes.push(server)
       const tenantId = server.owner.session.personal_tenant_id
       const request = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
-      const executorId = 'native-node'
-      const enrollment = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: executorId, project_id: null, ttl_seconds: 600 } })
+      const enrollment = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'native-node', project_id: null, ttl_seconds: 600 } })
+      const executorId = enrollment.enrollment.executor_id
       const credential = await request('/enrollments/consume', { body: { token: enrollment.enrollment.token } })
       const nodeOrigin = `http://127.0.0.1:${await freePort()}`
       const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [

@@ -53,8 +53,8 @@ beforeEach(() => {
     return (path === '/projects'
       ? { projects: [{ project_id: 'project', name: 'My project' }] }
       : { executors: [
-        { executor_id: 'other-computer', connected: true },
-        { executor_id: 'my-vps', connected: true },
+        { executor_id: 'other-computer', name: 'other-computer', connected: true },
+        { executor_id: 'my-vps', name: 'my-vps', connected: true },
       ] }) as never
   })
 })

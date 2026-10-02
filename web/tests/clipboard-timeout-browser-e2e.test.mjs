@@ -36,11 +36,12 @@ test('copying, regeneration after success or failure, and cancellable timeouts w
     processes.push(server)
     const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, ...options })
     const tenant = server.owner.session.personal_tenant_id
-    const enrolled = await owner(`/tenants/${tenant}/my-computer-enrollments`, { body: { executor_id: 'clipboard-machine', project_id: null, ttl_seconds: 600 } })
+    const enrolled = await owner(`/tenants/${tenant}/my-computer-enrollments`, { body: { name: 'clipboard-machine', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await owner('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const localOrigin = `http://127.0.0.1:${await freePort()}`
     const app = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [
-      'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'local'), '--node-id', 'clipboard-machine',
+      'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'local'), '--node-id', enrolledComputerId,
       '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway',
     ], { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token })
     processes.push(app)

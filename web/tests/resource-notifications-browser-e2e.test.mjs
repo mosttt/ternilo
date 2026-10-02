@@ -37,14 +37,15 @@ test('sharing changes on one Server update and revoke another Server browser wit
     const owner = (resource, options = {}) => admin(resource, { tenantId, ...options })
     const remote = (resource, options = {}) => serverRequest(secondOrigin, resource, { token: reader.access_token, tenantId, ...options })
     const project = (await owner('/projects')).projects[0]
-    const { enrollment } = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'second-server-node', project_id: project.project_id, ttl_seconds: 600 } })
+    const { enrollment } = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'second-server-node', project_id: project.project_id, ttl_seconds: 600 } })
+    const enrolledComputerId = enrollment.executor_id
     const { credential } = await owner('/enrollments/consume', { body: { token: enrollment.token } })
     const nodeOrigin = `http://127.0.0.1:${await freePort()}`
     // Node and reader use Server B; all permission mutations use Server A.
     // This checks distributed notifications independently of cross-Server RPC routing.
     const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [
       'serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'),
-      '--node-id', 'second-server-node', '--gateway-url', `${secondOrigin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway',
+      '--node-id', enrolledComputerId, '--gateway-url', `${secondOrigin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway',
     ], { ...environment, TERNILO_LOCAL_TOKEN: credential.token })
     processes.push(node)
     await waitForHttp(nodeOrigin, node)

@@ -128,8 +128,8 @@ test('native Server Files preserves Node versions, enforces ownership and explai
     const team = (await serverRequest(origin, '/tenants', { token, body: { slug: 'files-team', display_name: 'Files team' } })).tenant
     const tenantId = team.tenant_id
     const project = (await serverRequest(origin, '/projects', { token, tenantId })).projects[0]
-    const nodeId = 'files-browser-node'
-    const enrollment = (await serverRequest(origin, `/tenants/${tenantId}/my-computer-enrollments`, { token, body: { executor_id: nodeId, project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrollment = (await serverRequest(origin, `/tenants/${tenantId}/my-computer-enrollments`, { token, body: { name: 'files-browser-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const nodeId = enrollment.executor_id
     const credential = (await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })).credential
     const nodeOrigin = `http://127.0.0.1:${await freePort()}`
     const nodeEnvironment = Object.fromEntries(Object.keys(process.env).filter(key => key.startsWith('TERNILO_')).map(key => [key, undefined]))

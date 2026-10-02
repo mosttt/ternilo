@@ -19,6 +19,7 @@ import {
   revokeOwnedComputer,
   setComputerSuspended,
   removeComputerRegistration,
+  recoverNodeLaunch,
   type NodeLaunchCommand,
 } from './platform-admin-api'
 import styles from './platform-settings.module.css'
@@ -29,6 +30,7 @@ function errorCopy(
   t: ReturnType<typeof useTranslate<'settings'>>,
 ) {
   if (cause instanceof ApiError && cause.status === 403) return t('platform.permission')
+  if (action === 'enrollment' && cause instanceof ApiError && cause.status === 409) return t('computers.nameConflict')
   return t(action === 'load'
     ? 'computers.loadError'
     : action === 'enrollment'
@@ -55,7 +57,12 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
   const [message, setMessage] = React.useState('')
-  const [executorId, setExecutorId] = React.useState('')
+  const [computerName, setComputerName] = React.useState('')
+  const [includeRemoved, setIncludeRemoved] = React.useState(false)
+  const [recoveryTarget, setRecoveryTarget] = React.useState<ManagedExecutionTarget | null>(null)
+  const [recoveryName, setRecoveryName] = React.useState('')
+  const [recovering, setRecovering] = React.useState(false)
+  const [recoveryError, setRecoveryError] = React.useState('')
   const [projectId, setProjectId] = React.useState('')
   const [generating, setGenerating] = React.useState(false)
   const [launch, setLaunch] = React.useState<NodeLaunchCommand | null>(null)
@@ -86,7 +93,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
     setError('')
     try {
       const [nextComputers, nextProjects] = await Promise.all([
-        owned ? listOwnedComputers(tenantId) : listManagedComputers(tenantId),
+        owned ? listOwnedComputers(tenantId, includeRemoved) : listManagedComputers(tenantId, includeRemoved),
         listPlatformProjects(),
       ])
       setComputers(nextComputers)
@@ -97,23 +104,23 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
     } finally {
       setLoading(false)
     }
-  }, [owned, t, tenantId])
+  }, [owned, t, tenantId, includeRemoved])
 
   React.useEffect(() => { void load() }, [load])
 
   const generate = async () => {
-    const normalized = executorId.trim()
+    const normalized = computerName.trim()
     if (!normalized) return
     setGenerating(true)
     setError('')
     setMessage('')
     try {
       const next = await (owned ? createOwnedNodeLaunch : createNodeLaunch)(tenantId, {
-        executorId: normalized,
+        name: normalized,
         projectId: projectId || undefined,
       })
       setLaunch(next)
-      setExecutorId('')
+      setComputerName('')
       await load()
     } catch (cause) {
       setError(errorCopy(cause, 'enrollment', t))
@@ -143,6 +150,20 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
     setLaunch(null)
     setCopied(false)
     setCopyError('')
+  }
+
+  const recover = async () => {
+    if (!recoveryTarget || !recoveryName.trim()) return
+    setRecovering(true)
+    setRecoveryError('')
+    try {
+      const next = await recoverNodeLaunch(tenantId,recoveryTarget,scope,recoveryName.trim())
+      setRecoveryTarget(null)
+      setLaunch(next)
+      await load()
+    } catch (cause) {
+      setRecoveryError(cause instanceof ApiError && cause.status === 409 ? t(cause.message.startsWith('computer name') ? 'computers.nameConflict' : 'computers.changed') : errorCopy(cause,'enrollment',t))
+    } finally { setRecovering(false) }
   }
 
   const changeLifecycle = async () => {
@@ -185,13 +206,15 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
           }}
         >
           <Field>
-            <Label htmlFor="platform-computer-id">{t('computers.id')}</Label>
+            <Label htmlFor="platform-computer-name">{t('computers.name')}</Label>
             <Input
-              id="platform-computer-id"
+              id="platform-computer-name"
               autoComplete="off"
-              value={executorId}
-              placeholder={t('computers.idPlaceholder')}
-              onChange={event => setExecutorId(event.target.value)}
+              value={computerName}
+              required
+              maxLength={128}
+              placeholder={t('computers.namePlaceholder')}
+              onChange={event => setComputerName(event.target.value)}
             />
           </Field>
           <Field>
@@ -201,7 +224,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
               {projects.map(project => <option value={project.project_id} key={project.project_id}>{project.name}</option>)}
             </Select>
           </Field>
-          <Button type="submit" disabled={generating || !executorId.trim()}>
+          <Button type="submit" disabled={generating || !computerName.trim()}>
             {generating ? <LoaderCircle className={styles.spinner} /> : <Laptop />}
             {generating ? t('computers.generating') : t('computers.generate')}
           </Button>
@@ -213,11 +236,11 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
       {loading && computers.length ? <p className="mt-4 text-sm text-muted-foreground" role="status">{t('platform.loading')}</p> : null}
       {message ? <p className="mt-4 text-sm text-success" role="status">{message}</p> : null}
 
-      <div className="mt-8 flex items-center justify-between gap-3">
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">{t(owned ? 'computers.myList' : 'computers.list')}</h3>
-        <Button type="button" variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
+        <div className="flex flex-wrap justify-end gap-1"><Button type="button" variant="ghost" size="sm" aria-pressed={includeRemoved} onClick={() => setIncludeRemoved(value => !value)}>{t(includeRemoved ? 'computers.hideRemoved' : 'computers.showRemoved')}</Button><Button type="button" variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
           <RefreshCw className={loading ? styles.spinner : ''} />{t('platform.refresh')}
-        </Button>
+        </Button></div>
       </div>
 
       {loading && !computers.length ? (
@@ -233,10 +256,11 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
           {computers.map(computer => {
             const project = projects.find(item => item.project_id === computer.project_id)
             const suspended = computer.management.suspended_at_ms != null
+            const removed = computer.management.removed_at_ms != null
             return (
               <article className={`${styles.row} ${styles.computerRow}`} key={computer.executor_id} data-platform-computer={computer.executor_id}>
                 <div className={styles.identity}>
-                  <strong>{computer.management.display_name ?? computer.executor_id}</strong>
+                  <strong>{computer.management.name}</strong>
                   {computer.management.notes && <div className={`${styles.metadata} max-w-96 truncate`} title={computer.management.notes}>{computer.management.notes}</div>}
                   <div className={styles.metadata}>{project?.name ?? computer.project_id ?? t('computers.allProjects')}</div>
                   <div className={styles.metadata}>{t('computers.enrolled', { time: formatTime(computer.enrolled_at_ms) })}</div>
@@ -246,7 +270,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
                     <span className={styles.status} data-online={String(computer.connected)}>
                       {t(suspended ? 'computers.suspended' : computer.connected ? 'computers.online' : 'computers.offline')}
                     </span>
-                    <span className={styles.state}>{t(`computers.state.${computer.state}`)}</span>
+                    <span className={styles.state}>{removed ? t('computers.removedState') : t(`computers.state.${computer.state}`)}</span>
                   </div>
                   <div className={styles.metadata}>
                     {computer.last_seen_at_ms
@@ -256,7 +280,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
                 </div>
                 <div className={styles.actions}>
                   <Button type="button" variant="outline" size="sm" onClick={() => setDetailsTarget(computer.executor_id)}><Info />{t('computers.details')}</Button>
-                  <Button type="button" variant="outline" size="sm" disabled={computer.state === 'revoked'} onClick={() => setLifecycleTarget({ computer, action: suspended ? 'resume' : 'suspend' })}>{suspended ? <Play /> : <Pause />}{t(suspended ? 'computers.resume' : 'computers.suspend')}</Button>
+                  {computer.state === 'revoked' ? <Button type="button" variant="outline" size="sm" onClick={() => { setRecoveryTarget(computer); setRecoveryName(computer.management.name); setRecoveryError('') }}><RefreshCw />{t('computers.recover')}</Button> : <Button type="button" variant="outline" size="sm" onClick={() => setLifecycleTarget({ computer, action: suspended ? 'resume' : 'suspend' })}>{suspended ? <Play /> : <Pause />}{t(suspended ? 'computers.resume' : 'computers.suspend')}</Button>}
                   <Button
                     type="button"
                     variant="outline"
@@ -267,7 +291,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
                   >
                     <ShieldX />{t('computers.revoke')}
                   </Button>
-                  <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setLifecycleTarget({ computer, action: 'remove' })}><Trash2 />{t('computers.remove')}</Button>
+                  {!removed && <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setLifecycleTarget({ computer, action: 'remove' })}><Trash2 />{t('computers.remove')}</Button>}
                 </div>
               </article>
             )
@@ -279,7 +303,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
         <DialogContent className="max-w-2xl" data-node-launch-dialog="">
           <DialogHeader>
             <DialogTitle>{t('command.title')}</DialogTitle>
-            <DialogDescription>{t('command.description')}</DialogDescription>
+            <DialogDescription>{t(launch?.recovery ? 'command.recoveryDescription' : 'command.description')}</DialogDescription>
           </DialogHeader>
           <p className={styles.notice}>{t('command.warning')}</p>
           {launch ? (
@@ -308,7 +332,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
       <ActionDialog
         open={Boolean(revokeTarget)}
         title={t('computers.revokeTitle')}
-        description={t('computers.revokeDescription', { name: revokeTarget?.management.display_name ?? revokeTarget?.executor_id ?? '' })}
+        description={t('computers.revokeDescription', { name: revokeTarget?.management.name ?? '' })}
         cancelLabel={commonT('cancel')}
         confirmLabel={t('computers.revoke')}
         busyLabel={t('computers.revoking')}
@@ -318,10 +342,18 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
         onConfirm={() => void revoke()}
       />
       {detailsTarget && <ComputerDetailsDialog key={`${tenantId}:${scope}:${detailsTarget}`} tenantId={tenantId} executorId={detailsTarget} scope={scope} formatTime={formatTime} onClose={() => setDetailsTarget(null)} onSaved={load} />}
+      <Dialog open={Boolean(recoveryTarget)} onOpenChange={open => { if (!open && !recovering) setRecoveryTarget(null) }}>
+        <DialogContent className="max-w-lg" data-computer-recovery="">
+          <DialogHeader><DialogTitle>{t('computers.recoverTitle')}</DialogTitle><DialogDescription>{t('computers.recoverDescription', { name: recoveryTarget?.management.name ?? '' })}</DialogDescription></DialogHeader>
+          <Field><Label htmlFor="computer-recovery-name">{t('computers.name')}</Label><Input id="computer-recovery-name" required maxLength={128} value={recoveryName} disabled={recovering} onChange={event => setRecoveryName(event.target.value)} /><p className="text-xs text-muted-foreground">{t('computers.nameDescription')}</p></Field>
+          {recoveryError && <p role="alert" className="text-sm text-destructive">{recoveryError}</p>}
+          <DialogFooter><Button variant="outline" disabled={recovering} onClick={() => setRecoveryTarget(null)}>{commonT('cancel')}</Button><Button disabled={recovering || !recoveryName.trim()} onClick={() => void recover()}>{recovering ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}{t('computers.recoverGenerate')}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ActionDialog
         open={Boolean(lifecycleTarget)}
         title={t(lifecycleTarget?.action === 'remove' ? 'computers.removeTitle' : lifecycleTarget?.action === 'resume' ? 'computers.resumeTitle' : 'computers.suspendTitle')}
-        description={t(lifecycleTarget?.action === 'remove' ? 'computers.removeDescription' : lifecycleTarget?.action === 'resume' ? 'computers.resumeDescription' : 'computers.suspendDescription', { name: lifecycleTarget?.computer.management.display_name ?? lifecycleTarget?.computer.executor_id ?? '' })}
+        description={t(lifecycleTarget?.action === 'remove' ? 'computers.removeDescription' : lifecycleTarget?.action === 'resume' ? 'computers.resumeDescription' : 'computers.suspendDescription', { name: lifecycleTarget?.computer.management.name ?? '' })}
         cancelLabel={commonT('cancel')}
         confirmLabel={t(lifecycleTarget?.action === 'remove' ? 'computers.remove' : lifecycleTarget?.action === 'resume' ? 'computers.resume' : 'computers.suspend')}
         busyLabel={t('computers.changing')}

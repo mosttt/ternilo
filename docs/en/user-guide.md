@@ -32,7 +32,7 @@ Recent conversations use a bounded memory cache within the same account and spac
 
 Local, Node and optional Cloud Worker “Stop and send all” acknowledge after saving queued inputs and restart intent and signalling cancellation. The execution host waits for the old run to release execution before sending the queue. A later explicit stop cancels restart intent. Acceptance is not proof of process exit. Cloud stores restart intent and the stop request in one transaction and retains them across Server restarts; the queue resumes after Worker or lease cleanup terminates the relevant run and releases its resources.
 
-Workspace display names are unique within the same account and project. When another computer opens a same-named folder, the dialog adds the computer identifier, such as `Pictures (d)`. This does not rename the directory or remove the offline computer's workspace/history. A manually duplicated name produces an explicit validation message. The dialog loads project/computer lists when opened and refreshes them on request, without continuous polling.
+Workspace display names are unique within the same account and project. When another computer opens a same-named folder, the dialog adds the computer name, such as `Pictures (d)`. This does not rename the directory or remove the offline computer's workspace/history. A manually duplicated name produces an explicit validation message. The dialog loads project/computer lists when opened and refreshes them on request, without continuous polling.
 
 
 ## Computer groups and demand loading

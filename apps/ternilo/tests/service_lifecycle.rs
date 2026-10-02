@@ -344,55 +344,49 @@ async fn browser_launch_uses_the_actual_origin_and_is_not_persisted() -> TestRes
     ));
     let path = std::env::join_paths(paths)?;
     let client = client()?;
-    for (index, flag) in ["--open-browser", "--open-brower"].into_iter().enumerate() {
-        let data = temporary.path().join(format!("data-{index}"));
-        let mut start = command();
-        start
-            .args(["serve", "--listen", "127.0.0.1:0", "--data-dir"])
-            .arg(&data)
-            .arg(flag)
-            .env("PATH", &path)
-            .env("TERNILO_TEST_BROWSER_URLS", &opened);
-        let mut service = ChildGuard::spawn(start, temporary.path(), &format!("browser-{index}"))?;
-        let connection = wait_ready(&mut service, &data, &client).await?;
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            if let Ok(urls) = fs::read_to_string(&opened)
-                && urls.lines().last() == Some(connection.info.origin().as_str())
-            {
-                assert_eq!(urls.lines().count(), index + 1);
-                assert!(!urls.contains(&connection.api_token));
-                break;
-            }
-            service.ensure_running()?;
-            assert!(Instant::now() < deadline, "browser launcher was not called");
-            tokio::time::sleep(Duration::from_millis(20)).await;
+    let data = temporary.path().join("data");
+    let mut start = command();
+    start
+        .args(["serve", "--listen", "127.0.0.1:0", "--data-dir"])
+        .arg(&data)
+        .arg("--open-browser")
+        .env("PATH", &path)
+        .env("TERNILO_TEST_BROWSER_URLS", &opened);
+    let mut service = ChildGuard::spawn(start, temporary.path(), "browser")?;
+    let connection = wait_ready(&mut service, &data, &client).await?;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Ok(urls) = fs::read_to_string(&opened)
+            && urls.lines().last() == Some(connection.info.origin().as_str())
+        {
+            assert_eq!(urls.lines().count(), 1);
+            assert!(!urls.contains(&connection.api_token));
+            break;
         }
-        assert_eq!(
-            client.get(connection.info.origin()).send().await?.status(),
-            StatusCode::OK
-        );
-        let config: Value = serde_json::from_slice(&fs::read(data.join("config.json"))?)?;
-        assert!(config.get("open_browser").is_none());
-        stop_http(&client, &connection).await?;
-        service.wait_success().await?;
-
-        let mut restart = command();
-        restart
-            .args(["serve", "--data-dir"])
-            .arg(&data)
-            .env("PATH", &path)
-            .env("TERNILO_TEST_BROWSER_URLS", &opened);
-        let mut restarted = ChildGuard::spawn(
-            restart,
-            temporary.path(),
-            &format!("browser-restart-{index}"),
-        )?;
-        let next = wait_ready(&mut restarted, &data, &client).await?;
-        stop_http(&client, &next).await?;
-        restarted.wait_success().await?;
-        assert_eq!(fs::read_to_string(&opened)?.lines().count(), index + 1);
+        service.ensure_running()?;
+        assert!(Instant::now() < deadline, "browser launcher was not called");
+        tokio::time::sleep(Duration::from_millis(20)).await;
     }
+    assert_eq!(
+        client.get(connection.info.origin()).send().await?.status(),
+        StatusCode::OK
+    );
+    let config: Value = serde_json::from_slice(&fs::read(data.join("config.json"))?)?;
+    assert!(config.get("open_browser").is_none());
+    stop_http(&client, &connection).await?;
+    service.wait_success().await?;
+
+    let mut restart = command();
+    restart
+        .args(["serve", "--data-dir"])
+        .arg(&data)
+        .env("PATH", &path)
+        .env("TERNILO_TEST_BROWSER_URLS", &opened);
+    let mut restarted = ChildGuard::spawn(restart, temporary.path(), "browser-restart")?;
+    let next = wait_ready(&mut restarted, &data, &client).await?;
+    stop_http(&client, &next).await?;
+    restarted.wait_success().await?;
+    assert_eq!(fs::read_to_string(&opened)?.lines().count(), 1);
     Ok(())
 }
 

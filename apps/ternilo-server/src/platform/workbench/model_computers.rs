@@ -12,6 +12,7 @@ use ternilo_transport::ExecutorId;
 #[derive(Serialize)]
 pub(super) struct ModelComputer {
     executor_id: ExecutorId,
+    name: String,
     connected: bool,
     can_configure: bool,
     workspace_id: Option<WorkspaceId>,
@@ -39,6 +40,7 @@ pub(super) async fn list(
             record.executor_id.clone(),
             ModelComputer {
                 executor_id: record.executor_id,
+                name: record.management.name,
                 connected: false,
                 can_configure: role.allows(ControlAction::RunReserve),
                 workspace_id: None,
@@ -57,6 +59,7 @@ pub(super) async fn list(
         if let Some(executor) = workspace.executor_id {
             computers.entry(executor.clone()).or_insert(ModelComputer {
                 executor_id: executor,
+                name: String::new(),
                 connected: false,
                 can_configure: false,
                 workspace_id: Some(workspace.workspace_id),
@@ -73,6 +76,7 @@ pub(super) async fn list(
             .entry(session.executor_id.clone())
             .or_insert(ModelComputer {
                 executor_id: session.executor_id,
+                name: String::new(),
                 connected: false,
                 can_configure: false,
                 workspace_id: None,
@@ -80,7 +84,21 @@ pub(super) async fn list(
             });
     }
     let mut computers: Vec<_> = computers.into_values().collect();
+    let names = state
+        .store
+        .computer_display_names(
+            user,
+            &tenant,
+            &computers
+                .iter()
+                .map(|computer| computer.executor_id.clone())
+                .collect::<Vec<_>>(),
+        )
+        .await?;
     for computer in &mut computers {
+        if let Some(name) = names.get(&computer.executor_id) {
+            computer.name.clone_from(name);
+        }
         computer.connected = state
             .edge
             .is_connected(&tenant, &computer.executor_id)

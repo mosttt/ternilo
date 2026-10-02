@@ -163,7 +163,7 @@ async fn sessions_require_current_login_and_public_ids_are_not_credentials() {
     let sessions = listed["sessions"].as_array().unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0]["is_current"], true);
-    assert_eq!(sessions[0].as_object().unwrap().len(), 8);
+    assert_eq!(sessions[0].as_object().unwrap().len(), 11);
     let public_id = sessions[0]["session_id"].as_str().unwrap();
     fixture
         .denied(Some(public_id), StatusCode::UNAUTHORIZED)
@@ -379,6 +379,90 @@ async fn sessions_obey_account_ban_and_paused_access_while_logout_remains_availa
             .await
             .status_code,
         Some(StatusCode::NO_CONTENT)
+    );
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn native_management_lists_and_revokes_local_oidc_sessions_with_refresh_invalidation() {
+    let fixture = Fixture::new().await;
+    let now = now_ms().unwrap();
+    let identity = ternilo_control::OidcSessionIdentity {
+        principal: OidcPrincipal {
+            issuer: "https://sessions.example.test".into(),
+            subject: "member".into(),
+            email: None,
+            display_name: None,
+        },
+        nonce: "session-private-nonce".into(),
+        upstream_refresh_token: Some("session-private-upstream-refresh".into()),
+    };
+    let oidc = fixture
+        .state
+        .store
+        .create_oidc_session(&identity, "session-api", now + 60_000, now)
+        .await
+        .unwrap();
+    let listed = fixture.list(&fixture.member).await;
+    assert_eq!(listed["current_session_managed"], true);
+    let rows = listed["sessions"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    let local = rows.iter().find(|s| s["login_kind"] == "oidc").unwrap();
+    assert_eq!(local["is_current"], false);
+    assert_eq!(local["issuer"], identity.principal.issuer);
+    for secret in [
+        &oidc.access_token,
+        oidc.refresh_token.as_ref().unwrap(),
+        identity.upstream_refresh_token.as_ref().unwrap(),
+    ] {
+        assert!(!listed.to_string().contains(secret));
+    }
+    let path = format!("sessions/{}", local["session_id"].as_str().unwrap());
+    let mut notifications = fixture.state.cloud_events.subscribe();
+    let mut cross = fixture
+        .request("DELETE", &path, Some(&fixture.owner.access_token))
+        .await;
+    assert_eq!(cross.status_code, Some(StatusCode::CONFLICT));
+    let _: Value = cross.take_json().await.unwrap();
+    assert!(reauthentication_targets(&mut notifications).is_empty());
+    let mut response = fixture
+        .request("DELETE", &path, Some(&fixture.member.access_token))
+        .await;
+    assert_eq!(response.status_code, Some(StatusCode::OK));
+    assert_eq!(
+        response.take_json::<Value>().await.unwrap(),
+        serde_json::json!({"revoked_count":1,"current_revoked":false})
+    );
+    assert_eq!(
+        reauthentication_targets(&mut notifications),
+        vec![fixture.member.session.user.user_id.clone()]
+    );
+    assert!(
+        fixture
+            .state
+            .store
+            .authenticate_oidc_session(&oidc.access_token, "session-api", now + 1)
+            .await
+            .is_err()
+    );
+    assert!(
+        fixture
+            .state
+            .store
+            .oidc_refresh_session(
+                oidc.refresh_token.as_deref().unwrap(),
+                "session-api",
+                now + 1
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        fixture.list(&fixture.member).await["sessions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
     );
     fixture.close().await;
 }

@@ -32,7 +32,8 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     const team = (await owner('/tenants', { body: { slug: 'workspace-files', display_name: 'Workspace files' } })).tenant
     await owner(`/tenants/${team.tenant_id}/members/${member.user.user_id}`, { method: 'PUT', body: { role: 'member' } })
     const project = (await owner('/projects', { tenantId: team.tenant_id })).projects[0]
-    const enrollment = (await owner(`/tenants/${team.tenant_id}/my-computer-enrollments`, { body: { executor_id: 'files-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrollment = (await owner(`/tenants/${team.tenant_id}/my-computer-enrollments`, { body: { name: 'files-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrolledComputerId = enrollment.executor_id
     const credential = (await serverRequest(application.origin, '/enrollments/consume', { body: { token: enrollment.token } })).credential
     const folder = path.join(directory, 'workspace with spaces;literal')
     const binaries = path.join(directory, 'bin')
@@ -54,7 +55,7 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     await chmod(path.join(binaries, 'code'), 0o700)
     const localOrigin = `http://127.0.0.1:${await freePort()}`
     const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [
-      'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'node'), '--node-id', 'files-node',
+      'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolledComputerId,
       '--gateway-url', `${application.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway',
     ], { TERNILO_LOCAL_TOKEN: credential.token, XDG_STATE_HOME: path.join(directory, 'state'), XDG_DATA_HOME: desktopData, PATH: binaries, DISPLAY: ':fixture', TERNILO_LAUNCH_SECRET: 'must-not-reach-application' })
     processes.push(node)

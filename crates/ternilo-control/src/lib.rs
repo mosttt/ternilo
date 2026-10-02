@@ -46,8 +46,8 @@ pub use crypto::{EncryptedSecret, SecretCipher};
 pub use edge_store::EdgeStore;
 pub use group_store::{GroupInput, GroupPage, GroupRecord, MemberPage, PageQuery};
 pub use identity_sessions::{
-    BrowserLoginKind, BrowserSessionAuthentication, BrowserSessionRevocation, BrowserSessions,
-    NativeBrowserSession,
+    BrowserLoginKind, BrowserSession, BrowserSessionAuthentication, BrowserSessionRevocation,
+    BrowserSessions,
 };
 pub use identity_store::{
     AccountLoginMethods, IdentitySession, InstanceMode, InstanceSettings, NativeRegistration,

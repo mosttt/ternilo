@@ -56,12 +56,13 @@ test('Node retains a long model call across control reconnects and never replays
     const owner = (resource, options = {}) => serverRequest(serverOrigin, resource, { token: account.session.access_token, tenantId: account.session.personal_tenant_id, ...options })
     await owner('/credentials', { body: { name: 'SAME_PROVIDER_KEY', value: 'recovery-private-key' } })
     await owner('/providers', { body: profile(remote.baseUrl) })
-    const enrolled = await owner(`/tenants/${account.session.personal_tenant_id}/my-computer-enrollments`, { body: { executor_id: 'recovery-node', project_id: null, ttl_seconds: 600 } })
+    const enrolled = await owner(`/tenants/${account.session.personal_tenant_id}/my-computer-enrollments`, { body: { name: 'recovery-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await owner('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     proxy = await controlProxy(serverOrigin)
     const origin = `http://127.0.0.1:${await freePort()}`
     const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
-    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', 'recovery-node', '--gateway-url', proxy.url, '--allow-insecure-gateway']
+    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolledComputerId, '--gateway-url', proxy.url, '--allow-insecure-gateway']
     const startNode = async () => {
       node = startProcess(binary, args, { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token })
       processes.push(node); await waitForHttp(origin, node)
@@ -87,7 +88,7 @@ test('Node retains a long model call across control reconnects and never replays
     }
     await open()
     await choose(page, 'account')
-    const connected = expected => until(() => owner('/model-computers'), values => values.some(value => value.executor_id === 'recovery-node' && value.connected === expected), `computer connection ${expected}`)
+    const connected = expected => until(() => owner('/model-computers'), values => values.some(value => value.executor_id === enrolledComputerId && value.connected === expected), `computer connection ${expected}`)
     const history = () => local(`/sessions/${nodeSessionId}/events`)
     const ledger = () => owner('/model-access/requests?limit=100')
     const begin = async marker => {

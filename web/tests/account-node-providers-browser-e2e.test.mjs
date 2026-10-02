@@ -79,10 +79,11 @@ test('Server account and computer Providers stay independent and execute on the 
     tenantId = tenant.tenant_id
     await page.reload()
     await selectSpace(page, tenantId)
-    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'provider-node', project_id: null, ttl_seconds: 600 } })
+    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'provider-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await owner('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const origin = `http://127.0.0.1:${await freePort()}`, data = path.join(directory, 'node-data')
-    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data, '--node-id', 'provider-node', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data, '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
     const env = { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token }
     node = startProcess(binary, args, env); processes.push(node); await waitForHttp(origin, node)
     let local = await localApi(origin)

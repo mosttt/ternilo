@@ -48,6 +48,7 @@ pub struct ServeOptions {
     /// This computer's Server credential. Prefer the environment to command-line secrets.
     #[arg(long, env = "TERNILO_LOCAL_TOKEN", hide_env_values = true)]
     pub token: Option<String>,
+    /// System-assigned computer ID from the Server-generated connection command.
     #[arg(long, env = "TERNILO_LOCAL_NODE_ID")]
     pub node_id: Option<String>,
     /// Disable the local browser UI while keeping the management API available.
@@ -55,7 +56,7 @@ pub struct ServeOptions {
         num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub no_local_web: Option<bool>,
     /// Open the local web UI in the default browser once the service is ready.
-    #[arg(long, alias = "open-brower")]
+    #[arg(long)]
     pub open_browser: bool,
     /// Permit plaintext ws:// for development and tests.
     #[arg(long, env = "TERNILO_LOCAL_ALLOW_INSECURE_GATEWAY", action = clap::ArgAction::Set,

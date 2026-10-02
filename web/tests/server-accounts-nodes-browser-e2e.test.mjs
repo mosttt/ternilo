@@ -187,11 +187,14 @@ async function verifySharingManagement(page, origin, entry, kind, memberId, arti
 }
 async function enrollNode(page, origin, node, processes) {
   const settings = await openSettings(page, '我的机器')
-  await settings.getByLabel('电脑 ID', { exact: true }).fill(node.id)
+  node.name ??= node.id
+  await settings.getByLabel('电脑名称', { exact: true }).fill(node.name)
   await settings.getByRole('button', { name: '生成启动命令', exact: true }).click()
   const launch = page.getByRole('dialog', { name: '启动 Ternilo Node' })
   const command = await launch.locator('[data-node-launch-command]').textContent()
   const token = /--token "([^"\s]+)"/.exec(command)?.[1]
+  node.id = /--node-id="([^"\s]+)"/.exec(command)?.[1]
+  assert.ok(node.id)
   assert.ok(token)
   await launch.getByRole('button', { name: '我已保存，关闭', exact: true }).click()
   await closeSettings(page)
@@ -202,7 +205,7 @@ async function enrollNode(page, origin, node, processes) {
   const local = await jsonRequest(node.origin, '/state', node.token)
   assert.equal(local.workspaces.length, 1)
   assert.equal(local.workspaces[0].path, node.workspacePath)
-  await jsonRequest(node.origin, `/workspaces/${local.workspaces[0].workspace_id}`, node.token, { title: `${node.id} history` }, 'PATCH')
+  await jsonRequest(node.origin, `/workspaces/${local.workspaces[0].workspace_id}`, node.token, { title: `${node.name} history` }, 'PATCH')
   return local
 }
 async function discovered(page, origin, ids) {

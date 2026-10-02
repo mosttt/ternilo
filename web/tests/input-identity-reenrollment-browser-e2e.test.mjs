@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -121,7 +121,8 @@ test('re-enrolled Node keeps old account inputs readable without asserting an un
   await mkdir(artifacts, { recursive: true })
   const observations = { assets: {}, errors: [], responses: [] }
   const model = await modelFixture()
-  const dataRoot = path.join(directory, 'node')
+  let dataRoot = path.join(directory, 'node')
+  let currentComputerId
   const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
   const isolatedEnvironment = Object.fromEntries(Object.keys(process.env).filter(key => key.startsWith('TERNILO_')).map(key => [key, undefined]))
   let application, node, browser, page, directOutcome
@@ -135,8 +136,10 @@ test('re-enrolled Node keeps old account inputs readable without asserting an un
     const team = (await ownerRequest('/tenants', { body: { slug: 'reenrollment-team', display_name: 'Re-enrollment team' } })).tenant
     const request = (resource, options = {}) => ownerRequest(resource, { tenantId: team.tenant_id, ...options })
     const project = (await request('/projects')).projects[0]
-    async function startNode(executorId) {
-      const enrollment = (await ownerRequest(`/tenants/${team.tenant_id}/my-computer-enrollments`, { body: { executor_id: executorId, project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    async function startNode(name) {
+      const enrollment = (await ownerRequest(`/tenants/${team.tenant_id}/my-computer-enrollments`, { body: { name, project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+      const executorId = enrollment.executor_id
+      currentComputerId = executorId
       const credential = (await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })).credential
       const nodeOrigin = `http://127.0.0.1:${await freePort()}`
       node = startProcess(binary, ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', dataRoot, '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway', '--node-id', executorId], { ...isolatedEnvironment, TERNILO_LOCAL_TOKEN: credential.token })
@@ -158,7 +161,7 @@ test('re-enrolled Node keeps old account inputs readable without asserting an un
     await local('/credentials', { body: { name: 'REENROLLMENT_MODEL_KEY', value: 'fixture-key' } })
     await local('/providers', { body: { id: 'reenrollment-fixture', display_name: 'Re-enrollment model', base_url: model.baseUrl, protocol: 'openai-responses', api_key_ref: 'REENROLLMENT_MODEL_KEY', defaults: { context_window: 128000, max_output_tokens: 4096 }, models: [{ id: 'identity-model', settings: { mode: 'inherit' } }], timeout_ms: 60000, max_attempts: 1, retry_base_delay_ms: 50 } })
     await local(`/sessions/${localSessionId}`, { method: 'PATCH', body: { model: { provider: 'named_provider', provider_id: 'reenrollment-fixture', model: 'identity-model' } } })
-    const oldSessionId = await discover(request, 'identity-before')
+    const oldSessionId = await discover(request, currentComputerId)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const contextOptions = { viewport: { width: 1440, height: 960 }, permissions: ['clipboard-read', 'clipboard-write'], serviceWorkers: 'block' }
     let context = await browser.newContext(contextOptions)
@@ -177,9 +180,12 @@ test('re-enrolled Node keeps old account inputs readable without asserting an un
     model.release(OLD_HOLD)
     await context.close()
     await stopProcess(node); node = undefined
-    await ownerRequest(`/tenants/${team.tenant_id}/my-computers/identity-before`, { method: 'DELETE' })
+    await ownerRequest(`/tenants/${team.tenant_id}/my-computers/${currentComputerId}`, { method: 'DELETE' })
+    const copiedRoot = path.join(directory,'independent-node')
+    await cp(dataRoot,copiedRoot,{ recursive:true,filter: source => !source.endsWith('node-authorizations.json') && !source.includes(`${path.sep}runtime`) && !source.endsWith('.writer.lock') })
+    dataRoot = copiedRoot
     local = await startNode('identity-after')
-    const newSessionId = await discover(request, 'identity-after')
+    const newSessionId = await discover(request, currentComputerId)
     assert.notEqual(newSessionId, oldSessionId, 'new executor receives an independent public mapping')
     const history = await until(() => request(`/sessions/${newSessionId}/events`), events => messages(events, OLD_MESSAGE).length === 1, 'historical output is readable through the new route')
     for (const event of history.filter(event => event.type === 'user_message')) assertUnknown(event)

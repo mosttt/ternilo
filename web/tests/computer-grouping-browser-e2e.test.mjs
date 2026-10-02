@@ -29,14 +29,15 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     const folder = path.join(directory, 'Pictures')
     await mkdir(folder)
     const workspaces = []
-    for (const id of ['alpha', 'beta']) {
+    for (const name of ['alpha', 'beta']) {
       const { enrollment } = await serverRequest(origin, `/tenants/${scope.tenantId}/my-computer-enrollments`, {
-        token: scope.token, body: { executor_id: id, project_id: null, ttl_seconds: 600 },
+        token: scope.token, body: { name, project_id: null, ttl_seconds: 600 },
       })
+      const id = enrollment.executor_id
       const { credential } = await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })
       const localOrigin = `http://127.0.0.1:${await freePort()}`
       const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [
-        'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, id),
+        'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, name),
         '--node-id', id, '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`,
         '--token', credential.token, '--allow-insecure-gateway',
       ])
@@ -45,15 +46,15 @@ test('computer groups and online-only cold loads preserve separate workspaces on
       await until(() => serverRequest(origin, '/execution-targets', scope),
         value => value.executors.some(executor => executor.executor_id === id && executor.connected), `${id} must connect`)
       const { workspace } = await serverRequest(origin, '/workspaces', { ...scope, body: {
-        project_id: identity.personal_project_id, name: `Pictures ${id}`, placement: 'local_node', executor_id: id, path: folder,
+        project_id: identity.personal_project_id, name: `Pictures ${name}`, placement: 'local_node', executor_id: id, path: folder,
       } })
       const session = await serverRequest(origin, '/sessions', { ...scope, body: { workspace_id: workspace.workspace_id } })
-      workspaces.push({ workspace, session })
+      workspaces.push({ workspace, session, id, name })
     }
     assert.notEqual(workspaces[0].workspace.workspace_id, workspaces[1].workspace.workspace_id)
     await stopProcess(processes[0])
     await until(() => serverRequest(origin, '/state', scope),
-      value => value.workspaces.find(workspace => workspace.node_id === 'alpha')?.status === 'offline', 'alpha must be offline')
+      value => value.workspaces.find(workspace => workspace.node_id === workspaces[0].id)?.status === 'offline', 'alpha must be offline')
 
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
@@ -80,8 +81,8 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     await page.getByLabel('用户名', { exact: true }).fill(server.owner.username)
     await page.getByLabel('密码', { exact: true }).fill(server.owner.password)
     await page.getByRole('button', { name: '登录', exact: true }).click()
-    const alpha = page.locator('[data-sidebar-computer-group="node:alpha"]')
-    const beta = page.locator('[data-sidebar-computer-group="node:beta"]')
+    const alpha = page.locator(`[data-sidebar-computer-group="node:${workspaces[0].id}"]`)
+    const beta = page.locator(`[data-sidebar-computer-group="node:${workspaces[1].id}"]`)
     await alpha.waitFor()
     await beta.waitFor()
     assert.match(await alpha.textContent(), /电脑 alpha.*离线/s)
@@ -111,7 +112,7 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     await beta.waitFor()
     const online = states.findLast(state => state.url.searchParams.get('online_computers_only') === 'true')
     assert.ok(online, 'online-only changes must request a scoped state')
-    assert.deepEqual((await online.body).workspaces.map(workspace => workspace.node_id), ['beta'])
+    assert.deepEqual((await online.body).workspaces.map(workspace => workspace.node_id), [workspaces[1].id])
     assert.equal((await online.body).sessions.length, 1)
 
     const coldStart = requests.length
@@ -124,7 +125,7 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     assert.ok(requests.slice(coldStart).filter(url => url.pathname === '/api/v1/state')
       .every(url => url.searchParams.get('online_computers_only') === 'true'), 'cold start must not request all workspaces')
     for (const state of states.slice(coldStates)) {
-      assert.deepEqual((await state.body).workspaces.map(workspace => workspace.node_id), ['beta'])
+      assert.deepEqual((await state.body).workspaces.map(workspace => workspace.node_id), [workspaces[1].id])
     }
     await until(() => Promise.resolve(sockets.slice(coldSockets)), value => value.length > 0, 'cold start must open scoped Live')
     assert.ok(sockets.slice(coldSockets).every(url => new URL(url).searchParams.get('online_computers_only') === 'true'))

@@ -7,9 +7,15 @@ use super::{
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CreateEnrollmentRequest {
-    executor_id: String,
+    name: String,
     project_id: Option<String>,
     ttl_seconds: Option<u64>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+struct ComputerListQuery {
+    include_removed: bool,
 }
 
 #[derive(Deserialize)]
@@ -25,7 +31,13 @@ pub(super) async fn list_executors(
 ) -> Result<Json<Value>, ApiError> {
     let tenant_id = tenant_parameter(request)?;
     let state = app_state(depot);
-    let records = state.store.list_executors(actor(depot), &tenant_id).await?;
+    let query = request
+        .parse_queries::<ComputerListQuery>()
+        .map_err(invalid_request)?;
+    let records = state
+        .store
+        .list_computers(actor(depot), &tenant_id, false, query.include_removed)
+        .await?;
     let mut executors = Vec::with_capacity(records.len());
     for record in records {
         let connected = record.state != "revoked"
@@ -35,6 +47,7 @@ pub(super) async fn list_executors(
                 .await;
         executors.push(json!({
             "executor_id": record.executor_id,
+            "name": record.management.name,
             "project_id": record.project_id,
             "state": record.state,
             "connected": connected,
@@ -53,9 +66,12 @@ pub(super) async fn list_owned_executors(
 ) -> Result<Json<Value>, ApiError> {
     let tenant_id = tenant_parameter(request)?;
     let state = app_state(depot);
+    let query = request
+        .parse_queries::<ComputerListQuery>()
+        .map_err(invalid_request)?;
     let records = state
         .store
-        .list_owned_executors(actor(depot), &tenant_id)
+        .list_computers(actor(depot), &tenant_id, true, query.include_removed)
         .await?;
     let mut executors = Vec::with_capacity(records.len());
     for record in records {
@@ -66,6 +82,7 @@ pub(super) async fn list_owned_executors(
                 .await;
         executors.push(json!({
             "executor_id": record.executor_id,
+            "name": record.management.name,
             "project_id": record.project_id,
             "state": record.state,
             "connected": connected,
@@ -131,11 +148,12 @@ pub(super) async fn create_enrollment(
         .map_err(invalid_request)?;
     let enrollment = app_state(depot)
         .store
-        .create_enrollment(
+        .create_computer_enrollment(
             actor(depot),
             &tenant_id,
             body.project_id.as_deref(),
-            ExecutorId::new(body.executor_id),
+            &body.name,
+            false,
             Duration::from_secs(body.ttl_seconds.unwrap_or(600)),
             now_ms()?,
         )
@@ -158,11 +176,12 @@ pub(super) async fn create_owned_enrollment(
         .map_err(invalid_request)?;
     let enrollment = app_state(depot)
         .store
-        .create_owned_enrollment(
+        .create_computer_enrollment(
             actor(depot),
             &tenant_id,
             body.project_id.as_deref(),
-            ExecutorId::new(body.executor_id),
+            &body.name,
+            true,
             Duration::from_secs(body.ttl_seconds.unwrap_or(600)),
             now_ms()?,
         )
@@ -207,6 +226,56 @@ struct ComputerSuspensionRequest {
 #[serde(deny_unknown_fields)]
 struct ComputerRemovalRequest {
     expected_revision: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ComputerRecoveryRequest {
+    name: String,
+    expected_revision: u64,
+}
+
+async fn computer_recovery(
+    request: &mut Request,
+    depot: &mut Depot,
+    owned: bool,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let executor = ExecutorId::new(path_parameter(request, "executor_id")?);
+    let body = request
+        .parse_json::<ComputerRecoveryRequest>()
+        .await
+        .map_err(invalid_request)?;
+    let enrollment = app_state(depot)
+        .store
+        .recover_computer_enrollment(
+            actor(depot),
+            &tenant,
+            &executor,
+            &body.name,
+            owned,
+            body.expected_revision,
+            Duration::from_secs(600),
+            now_ms()?,
+        )
+        .await?;
+    Ok((StatusCode::CREATED, Json(json!({"enrollment":enrollment}))))
+}
+
+#[handler]
+pub(super) async fn recover_owned_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    computer_recovery(request, depot, true).await
+}
+
+#[handler]
+pub(super) async fn recover_managed_computer(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    computer_recovery(request, depot, false).await
 }
 
 async fn computer_details(

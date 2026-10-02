@@ -33,11 +33,12 @@ test('scheduled account models retain their creator across later input, revocati
     const personal = (resource, options = {}) => member(resource, { tenantId: account.personal_tenant_id, ...options })
     await personal('/credentials', { body: { name: 'SAME_PROVIDER_KEY', value: 'scheduled-private-key' } })
     await personal('/providers', { body: profile(remote.baseUrl) })
-    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'schedule-node', project_id: null, ttl_seconds: 600 } })
+    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'schedule-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await owner('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const origin = `http://127.0.0.1:${await freePort()}`
     const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
-    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', 'schedule-node', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
     const env = { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token }
     const start = async () => { node = startProcess(binary, args, env); processes.push(node); await waitForHttp(origin, node) }
     await start()

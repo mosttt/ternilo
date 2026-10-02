@@ -38,18 +38,19 @@ impl Fixture {
         let owner = account.session.user;
         let tenant = account.session.personal_tenant_id;
         let project = account.session.personal_project_id;
-        let executor = ExecutorId::new("home");
         let enrollment = store
-            .create_owned_enrollment(
+            .create_computer_enrollment(
                 &owner,
                 &tenant,
                 Some(&project),
-                executor.clone(),
+                "home",
+                true,
                 Duration::from_secs(600),
                 1001,
             )
             .await
             .unwrap();
+        let executor = enrollment.executor_id.clone();
         let credential = store
             .consume_enrollment(&enrollment.token, 1002)
             .await
@@ -74,7 +75,7 @@ async fn computer_metadata_and_reversible_suspension_keep_original_identity() {
         .await
         .unwrap();
     let update = ComputerUpdate {
-        display_name: Some("  工作电脑  ".into()),
+        name: "  工作电脑  ".into(),
         notes: "桌面上的开发环境\n保留文件".into(),
         expected_revision: 0,
     };
@@ -83,7 +84,7 @@ async fn computer_metadata_and_reversible_suspension_keep_original_identity() {
         .update_computer(&f.owner, &f.tenant, &f.executor, true, &update, 1011)
         .await
         .unwrap();
-    assert_eq!(management.display_name.as_deref(), Some("工作电脑"));
+    assert_eq!(management.name, "工作电脑");
     assert_eq!(management.revision, 1);
     assert_eq!(
         f.store
@@ -156,7 +157,7 @@ async fn computer_metadata_and_reversible_suspension_keep_original_identity() {
         .await
         .unwrap();
     assert_eq!(list.len(), 1);
-    assert_eq!(list[0].management.display_name.as_deref(), Some("工作电脑"));
+    assert_eq!(list[0].management.name, "工作电脑");
 }
 
 #[tokio::test]
@@ -325,7 +326,7 @@ async fn computer_operations_enforce_ownership_and_current_tenant_role() {
         ErrorCode::PolicyDenied
     );
     let update = ComputerUpdate {
-        display_name: Some("Private computer".into()),
+        name: "Private computer".into(),
         notes: String::new(),
         expected_revision: 0,
     };
@@ -347,6 +348,48 @@ async fn computer_operations_enforce_ownership_and_current_tenant_role() {
             .code,
         ErrorCode::PolicyDenied
     );
+    f.store
+        .revoke_executor(&f.owner, &tenant, &executor, 2008)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.store
+            .recover_computer_enrollment(
+                &f.owner,
+                &tenant,
+                &executor,
+                "Private computer",
+                true,
+                1,
+                Duration::from_secs(600),
+                2008,
+            )
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::PolicyDenied
+    );
+    let recovery = f
+        .store
+        .recover_computer_enrollment(
+            &f.owner,
+            &tenant,
+            &executor,
+            "Private computer",
+            false,
+            1,
+            Duration::from_secs(600),
+            2008,
+        )
+        .await
+        .unwrap();
+    let recovered = f
+        .store
+        .consume_enrollment(&recovery.token, 2008)
+        .await
+        .unwrap();
+    assert_eq!(recovered.scope.user_id, member.user_id);
+    assert_eq!(recovered.executor_id, executor);
     f.store
         .set_membership(&f.owner, &tenant, &member.user_id, TenantRole::Viewer, 2009)
         .await
@@ -420,13 +463,17 @@ async fn postgres_computer_management_enforces_runtime_scope_and_retains_binding
     .await
     .unwrap();
     let f = Fixture::with_store(store).await;
+    f.store
+        .synchronize_node_cleanup(&f.credential.token, "postgres-original-directory", 1010)
+        .await
+        .unwrap();
     let principal = f
         .store
         .authenticate_node(&f.credential.token, 1010)
         .await
         .unwrap();
     let update = ComputerUpdate {
-        display_name: Some("PostgreSQL computer".into()),
+        name: "PostgreSQL computer".into(),
         notes: "runtime scoped".into(),
         expected_revision: 0,
     };
@@ -510,6 +557,51 @@ async fn postgres_computer_management_enforces_runtime_scope_and_retains_binding
             .unwrap(),
         workspace
     );
+    let removed = f
+        .store
+        .computer_details(&f.owner, &f.tenant, &f.executor, true)
+        .await
+        .unwrap();
+    let restored = f
+        .store
+        .recover_computer_enrollment(
+            &f.owner,
+            &f.tenant,
+            &f.executor,
+            "恢复后的电脑",
+            true,
+            removed.management.revision,
+            Duration::from_secs(600),
+            1017,
+        )
+        .await
+        .unwrap();
+    assert_eq!(restored.executor_id, f.executor);
+    let credential = f
+        .store
+        .consume_enrollment(&restored.token, 1018)
+        .await
+        .unwrap();
+    assert_eq!(credential.executor_id, f.executor);
+    assert_eq!(credential.scope.user_id, f.owner.user_id);
+    assert_eq!(credential.project_id, Some(f.project.clone()));
+    assert!(
+        f.store
+            .synchronize_node_cleanup(&credential.token, "other-directory", 1019)
+            .await
+            .is_err()
+    );
+    f.store
+        .synchronize_node_cleanup(&credential.token, "postgres-original-directory", 1019)
+        .await
+        .unwrap();
+    let computer = f
+        .store
+        .owned_executor(&f.owner, &f.tenant, &f.executor)
+        .await
+        .unwrap();
+    assert_eq!(computer.management.name, "恢复后的电脑");
+    assert_eq!(computer.management.removed_at_ms, None);
     f.store.database().close().await;
     admin.close().await;
 }
@@ -571,4 +663,267 @@ async fn revoked_computer_details_keep_recorded_credential_dates() {
     assert_eq!(details.executor.state, "revoked");
     assert_eq!(details.credential_issued_at_ms, Some(1002));
     assert_eq!(details.credential_last_used_at_ms, Some(1010));
+}
+
+#[tokio::test]
+async fn generated_identity_and_name_reservations_are_distinct_and_expire() {
+    let f = Fixture::new().await;
+    assert!(f.executor.as_str().starts_with("ter_pc_"));
+    assert_ne!(f.executor.as_str(), "home");
+    let first = f
+        .store
+        .create_computer_enrollment(
+            &f.owner,
+            &f.tenant,
+            None,
+            " Pending 💻 ",
+            true,
+            Duration::from_millis(10),
+            2000,
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.name, "Pending 💻");
+    assert_ne!(first.executor_id, f.executor);
+    assert_eq!(
+        f.store
+            .create_computer_enrollment(
+                &f.owner,
+                &f.tenant,
+                None,
+                "Pending 💻",
+                true,
+                Duration::from_millis(10),
+                2001
+            )
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::Conflict
+    );
+    let second = f
+        .store
+        .create_computer_enrollment(
+            &f.owner,
+            &f.tenant,
+            None,
+            "Pending 💻",
+            true,
+            Duration::from_secs(600),
+            2011,
+        )
+        .await
+        .unwrap();
+    assert_ne!(second.executor_id, first.executor_id);
+    assert!(
+        f.store
+            .consume_enrollment(&first.token, 2012)
+            .await
+            .is_err()
+    );
+    f.store
+        .consume_enrollment(&second.token, 2012)
+        .await
+        .unwrap();
+    let update = ComputerUpdate {
+        name: "home".into(),
+        notes: String::new(),
+        expected_revision: 0,
+    };
+    assert_eq!(
+        f.store
+            .update_computer(
+                &f.owner,
+                &f.tenant,
+                &second.executor_id,
+                true,
+                &update,
+                2013
+            )
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::Conflict
+    );
+    let invalid = ComputerUpdate {
+        name: " ".into(),
+        ..update
+    };
+    assert_eq!(
+        f.store
+            .update_computer(
+                &f.owner,
+                &f.tenant,
+                &second.executor_id,
+                true,
+                &invalid,
+                2014
+            )
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidInput
+    );
+}
+
+#[tokio::test]
+async fn recovery_retains_identity_owner_project_and_the_original_storage_binding() {
+    let f = Fixture::new().await;
+    f.store
+        .synchronize_node_cleanup(&f.credential.token, "original-directory", 2000)
+        .await
+        .unwrap();
+    f.store
+        .revoke_owned_executor(&f.owner, &f.tenant, &f.executor, 2001)
+        .await
+        .unwrap();
+    let grant = f
+        .store
+        .recover_computer_enrollment(
+            &f.owner,
+            &f.tenant,
+            &f.executor,
+            "改名后的电脑",
+            true,
+            0,
+            Duration::from_secs(600),
+            2002,
+        )
+        .await
+        .unwrap();
+    assert_eq!(grant.executor_id, f.executor);
+    let restored = f
+        .store
+        .consume_enrollment(&grant.token, 2003)
+        .await
+        .unwrap();
+    assert_eq!(restored.executor_id, f.executor);
+    assert_eq!(restored.scope.user_id, f.owner.user_id);
+    assert_eq!(restored.project_id, Some(f.project.clone()));
+    assert!(
+        f.store
+            .authenticate_node(&f.credential.token, 2004)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        f.store
+            .synchronize_node_cleanup(&restored.token, "different-directory", 2004)
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::PolicyDenied
+    );
+    f.store
+        .synchronize_node_cleanup(&restored.token, "original-directory", 2004)
+        .await
+        .unwrap();
+    let computer = f
+        .store
+        .owned_executor(&f.owner, &f.tenant, &f.executor)
+        .await
+        .unwrap();
+    assert_eq!(computer.management.name, "改名后的电脑");
+    assert_eq!(computer.management.removed_at_ms, None);
+    assert_eq!(
+        f.store
+            .recover_computer_enrollment(
+                &f.owner,
+                &f.tenant,
+                &f.executor,
+                "other",
+                true,
+                computer.management.revision,
+                Duration::from_secs(600),
+                2005
+            )
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::Conflict
+    );
+}
+
+#[tokio::test]
+async fn removed_name_can_be_used_by_a_new_identity_and_old_identity_recovery_requires_a_unique_name()
+ {
+    let f = Fixture::new().await;
+    f.store
+        .remove_computer_registration(&f.owner, &f.tenant, &f.executor, true, 0, 2000)
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .list_owned_executors(&f.owner, &f.tenant)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        f.store
+            .list_computers(&f.owner, &f.tenant, true, true)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    let new = f
+        .store
+        .create_computer_enrollment(
+            &f.owner,
+            &f.tenant,
+            None,
+            "home",
+            true,
+            Duration::from_secs(600),
+            2001,
+        )
+        .await
+        .unwrap();
+    assert_ne!(new.executor_id, f.executor);
+    f.store.consume_enrollment(&new.token, 2002).await.unwrap();
+    assert_eq!(
+        f.store
+            .recover_computer_enrollment(
+                &f.owner,
+                &f.tenant,
+                &f.executor,
+                "home",
+                true,
+                1,
+                Duration::from_secs(600),
+                2003
+            )
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::Conflict
+    );
+    let recovered = f
+        .store
+        .recover_computer_enrollment(
+            &f.owner,
+            &f.tenant,
+            &f.executor,
+            "原电脑",
+            true,
+            1,
+            Duration::from_secs(600),
+            2004,
+        )
+        .await
+        .unwrap();
+    assert_eq!(recovered.executor_id, f.executor);
+    f.store
+        .consume_enrollment(&recovered.token, 2005)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.store
+            .list_owned_executors(&f.owner, &f.tenant)
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
 }

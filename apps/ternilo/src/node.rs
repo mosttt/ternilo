@@ -181,6 +181,13 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
     config
         .application
         .set_directory_account_owner(scope.user_id.clone())?;
+    crate::service::LocalServiceConfig::persist_connection(
+        config.application.data_dir(),
+        config.gateway_url,
+        config.token,
+        config.executor_id.as_str(),
+    )
+    .await?;
 
     println!(
         "Ternilo node {} connected for tenant={} user={}",

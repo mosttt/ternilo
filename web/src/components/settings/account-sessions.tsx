@@ -7,8 +7,11 @@ import { ActionDialog, GroupHeader } from './settings-ui'
 
 interface BrowserSession {
   session_id: string
-  created_at_ms: number
+  login_kind: 'native' | 'oidc'
+  issuer?: string | null
+  created_at_ms: number | null
   expires_at_ms: number
+  access_expires_at_ms: number
   is_current: boolean
   user_agent?: string | null
   first_ip?: string | null
@@ -18,6 +21,7 @@ interface BrowserSession {
 
 interface BrowserSessions {
   current_login: 'native' | 'oidc'
+  current_session_managed: boolean
   sessions: BrowserSession[]
 }
 
@@ -102,19 +106,19 @@ export function AccountSessions() {
     }
   }
 
-  const formatTime = (timestamp: number) => new Date(timestamp).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')
-  const oidc = data?.current_login === 'oidc'
-  const bulkLabel = translate(oidc ? 'revokeAllNative' : 'revokeOthers')
+  const formatTime = (timestamp: number | null | undefined) => timestamp == null ? translate('notRecorded') : new Date(timestamp).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')
+  const unmanaged = data?.current_login === 'oidc' && data.current_session_managed === false
+  const bulkLabel = translate(unmanaged ? 'revokeAll' : 'revokeOthers')
   const dialogTitle = target === 'others' ? bulkLabel : translate(target?.is_current ? 'revokeCurrent' : 'revoke')
   const dialogDescription = target === 'others'
-    ? translate(oidc ? 'confirmAllNative' : 'confirmOthers')
+    ? translate(unmanaged ? 'confirmAll' : 'confirmOthers')
     : target?.is_current ? translate('confirmCurrent')
       : translate('confirmSession', { time: target ? formatTime(target.created_at_ms) : '' })
   const choose = (session: BrowserSession | 'others') => { setMutationError(''); setTarget(session) }
 
   return <section className="mt-5 min-w-0 border-t pt-5" data-account-sessions="" aria-busy={loading || busy}>
     <GroupHeader title={translate('title')} description={translate('description')} />
-    {oidc && <p className="mb-4 rounded-lg bg-muted p-3 text-sm leading-relaxed" data-account-sessions-oidc="">{translate('oidcNotice')}</p>}
+    {unmanaged && <p className="mb-4 rounded-lg bg-muted p-3 text-sm leading-relaxed" data-account-sessions-oidc="">{translate('oidcNotice')}</p>}
     <div className="mb-4 flex flex-wrap gap-2">
       <Button type="button" className="min-h-10" variant="outline" disabled={loading || busy} onClick={() => setRevision(value => value + 1)}>{translate('refresh')}</Button>
       <Button type="button" className="min-h-10" variant="outline" disabled={loading || busy || !data?.sessions.some(session => !session.is_current)} onClick={() => choose('others')}>{bulkLabel}</Button>
@@ -127,8 +131,10 @@ export function AccountSessions() {
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
             <span>{translate('session', { id: session.session_id.slice(-8) })}</span>
+            <span className="rounded-md bg-muted px-2 py-1 text-xs">{translate(session.login_kind === 'native' ? 'nativeLogin' : 'oidcLogin')}</span>
             {session.is_current && <span className="rounded-md bg-muted px-2 py-1 text-xs" data-current-session="">{translate('current')}</span>}
           </div>
+          {session.issuer && <p className="break-words text-xs text-muted-foreground">{translate('issuer', { issuer: session.issuer })}</p>}
           <p className="break-words text-sm">{describeDevice(session.user_agent) ?? translate('unknownDevice')}</p>
           <p className="break-words text-xs text-muted-foreground">{translate('hostnameUnavailable')}</p>
           <p className="break-words text-xs text-muted-foreground">{translate('firstIp', { ip: session.first_ip ?? translate('notRecorded') })}</p>
@@ -136,11 +142,12 @@ export function AccountSessions() {
           <p className="break-words text-xs text-muted-foreground">{translate('lastActive', { time: session.last_active_at_ms == null ? translate('notRecorded') : formatTime(session.last_active_at_ms) })}</p>
           <p className="break-words text-xs text-muted-foreground">{translate('created', { time: formatTime(session.created_at_ms) })}</p>
           <p className="break-words text-xs text-muted-foreground">{translate('expires', { time: formatTime(session.expires_at_ms) })}</p>
-          {session.user_agent && <details className="text-xs text-muted-foreground">
+          {session.access_expires_at_ms !== session.expires_at_ms && <p className="break-words text-xs text-muted-foreground">{translate('accessExpires', { time: formatTime(session.access_expires_at_ms) })}</p>}
+          <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">{translate('technicalDetails')}</summary>
-            <p className="mt-1 break-all">{session.user_agent}</p>
+            <p className="mt-1 break-all">{session.user_agent ?? translate('notRecorded')}</p>
             <p className="mt-1 break-all">{session.session_id}</p>
-          </details>}
+          </details>
         </div>
         <Button type="button" className="min-h-10 shrink-0" variant="outline" disabled={busy || loading} onClick={() => choose(session)}>{translate(session.is_current ? 'revokeCurrent' : 'revoke')}</Button>
       </li>)}

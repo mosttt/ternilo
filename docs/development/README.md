@@ -9,6 +9,7 @@
 - [有界会话历史](bounded-session-history.md)：分页、实时续读及归档读取。
 - [未知模型用量核对](model-usage-reconciliation.md)：用量来源、账本核对和幂等性。
 - [Windows 持久化与桌面入口](windows-persistence-desktop.md)：平台行为与退出边界。
+- [本站登录会话统一管理](oidc-session-management.md)：密码与本站 OIDC 会话的统一查看、活动详情、稳定刷新身份与撤销。
 - [浏览器会话详情](browser-session-details.md)：账号隔离、活动记录与来源 IP。
 - [MCP 目录刷新与可选重连](mcp-refresh-reconnect.md)：通知处理、调用边界和有限重连预算。
 - [账号任务清理](account-task-cleanup.md)：托管执行授权、作者批次隔离和执行端确认。

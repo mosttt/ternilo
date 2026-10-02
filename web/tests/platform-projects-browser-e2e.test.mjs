@@ -281,13 +281,13 @@ test('returning to the same session after project rename updates its title locat
     const request = (resource, options = {}) => serverRequest(origin, resource, { token, tenantId, ...options })
     const { project } = await request('/projects', { body: { name: 'Title project before' } })
     const enrolled = await request(`/tenants/${tenantId}/my-computer-enrollments`, {
-      body: { executor_id: 'project-title-node', project_id: project.project_id, ttl_seconds: 600 },
+      body: { name: 'project-title-node', project_id: project.project_id, ttl_seconds: 600 },
     })
     const credential = await request('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const nodeOrigin = `http://127.0.0.1:${await freePort()}`
     const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
     node = startProcess(binary, ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'),
-      '--node-id', 'project-title-node', '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], {
+      '--node-id', enrolled.enrollment.executor_id, '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], {
       TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'state'),
     })
     await waitForHttp(nodeOrigin, node)

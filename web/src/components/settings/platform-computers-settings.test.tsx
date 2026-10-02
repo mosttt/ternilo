@@ -14,6 +14,7 @@ import {
   updateComputer,
   setComputerSuspended,
   removeComputerRegistration,
+  recoverNodeLaunch,
 } from './platform-admin-api'
 
 vi.mock('./platform-admin-api', () => ({
@@ -25,12 +26,13 @@ vi.mock('./platform-admin-api', () => ({
   revokeComputer: vi.fn(),
   revokeOwnedComputer: vi.fn(),
   getComputerDetails: vi.fn(), updateComputer: vi.fn(), setComputerSuspended: vi.fn(), removeComputerRegistration: vi.fn(),
+  recoverNodeLaunch: vi.fn(),
 }))
 
 const computer: ManagedExecutionTarget = {
-  executor_id: 'home-node', project_id: 'project-a', state: 'active', connected: true,
+  executor_id: 'home-node', name: '工作电脑', project_id: 'project-a', state: 'active', connected: true,
   enrolled_at_ms: 1_700_000_000_000, last_seen_at_ms: 1_700_000_000_100,
-  management: { display_name: null, notes: '', suspended_at_ms: null, removed_at_ms: null, revision: 0 },
+  management: { name: '工作电脑', notes: '', suspended_at_ms: null, removed_at_ms: null, revision: 0 },
 }
 const project: ProjectRecord = {
   tenant_id: 'tenant-a', project_id: 'project-a', name: 'Project A', created_at_ms: 1,
@@ -50,11 +52,12 @@ beforeEach(() => {
   vi.mocked(createOwnedNodeLaunch).mockResolvedValue({
     command: 'ternilo serve --token secret --node-id home-node',
     executorId: 'home-node',
+    name: '工作电脑',
   })
   vi.mocked(revokeOwnedComputer).mockResolvedValue(undefined)
   vi.mocked(setComputerSuspended).mockResolvedValue({ management: computer.management })
   vi.mocked(removeComputerRegistration).mockResolvedValue(undefined)
-  vi.mocked(updateComputer).mockResolvedValue({ management: { ...computer.management, display_name: '开发电脑', revision: 1 } })
+  vi.mocked(updateComputer).mockResolvedValue({ management: { ...computer.management, name: '开发电脑', revision: 1 } })
   vi.mocked(getComputerDetails).mockResolvedValue({ connected: true, details: { executor: computer, management: computer.management, owner: { user_id: 'owner', username: 'owner' }, hello: null, workspace_count: 2, session_count: 5, credential_issued_at_ms: 1_700_000_000_000, credential_last_used_at_ms: null } })
 })
 
@@ -115,13 +118,13 @@ describe('Platform computer states', () => {
     vi.mocked(listPlatformProjects).mockResolvedValueOnce([project])
     await settle(() => refreshButton().click())
     expect(host.querySelector('[data-platform-list-state]')?.getAttribute('data-platform-list-state')).toBe('ready')
-    expect(host.textContent).toContain('home-node')
+    expect(host.textContent).toContain('工作电脑')
     expect(host.textContent).toContain('Project A')
   })
 
   it('keeps the last ready list visible while refresh is pending and after a local error', async () => {
     await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-a" /></LocaleProvider>))
-    expect(host.textContent).toContain('home-node')
+    expect(host.textContent).toContain('工作电脑')
     let rejectComputers!: (cause: Error) => void
     vi.mocked(listManagedComputers).mockReturnValueOnce(new Promise((_resolve, reject) => { rejectComputers = reject }))
     vi.mocked(listPlatformProjects).mockResolvedValueOnce([project])
@@ -130,7 +133,7 @@ describe('Platform computer states', () => {
       refreshButton().click()
       await Promise.resolve()
     })
-    expect(host.textContent).toContain('home-node')
+    expect(host.textContent).toContain('工作电脑')
     expect(host.textContent).toContain('正在加载')
 
     await act(async () => {
@@ -139,7 +142,7 @@ describe('Platform computer states', () => {
       await Promise.resolve()
     })
     expect(host.querySelector('[data-platform-list-state]')?.getAttribute('data-platform-list-state')).toBe('ready')
-    expect(host.textContent).toContain('home-node')
+    expect(host.textContent).toContain('工作电脑')
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('电脑列表加载失败')
   })
 
@@ -151,16 +154,16 @@ describe('Platform computer states', () => {
     expect(host.querySelector('[data-my-computers]')).toBeTruthy()
     expect(host.querySelector('[data-platform-computers]')).toBeNull()
     expect(host.textContent).toContain('我的机器')
-    expect(host.textContent).toContain('只属于当前账号')
+    expect(host.textContent).toContain('当前账号、当前空间')
     expect(host.textContent).toContain('我的已登记电脑')
-    expect(listOwnedComputers).toHaveBeenCalledWith('tenant-member')
+    expect(listOwnedComputers).toHaveBeenCalledWith('tenant-member',false)
     expect(listManagedComputers).not.toHaveBeenCalled()
 
-    const id = host.querySelector<HTMLInputElement>('#platform-computer-id')!
+    const id = host.querySelector<HTMLInputElement>('#platform-computer-name')!
     await settle(() => setInput(id, 'member-laptop'))
     await settle(() => button('生成启动命令', host).click())
     expect(createOwnedNodeLaunch).toHaveBeenCalledWith('tenant-member', {
-      executorId: 'member-laptop',
+      name: 'member-laptop',
       projectId: undefined,
     })
     expect(document.querySelector('[data-node-launch-command]')?.textContent).toContain('--token secret')
@@ -182,7 +185,7 @@ it('loads details on demand and saves metadata with the observed version', async
   const dialog = document.querySelector('[data-computer-details]')!
   await settle(() => setInput(dialog.querySelector<HTMLInputElement>('input')!, '开发电脑'))
   await settle(() => button('保存电脑信息', dialog).click())
-  expect(updateComputer).toHaveBeenCalledWith('tenant-a', 'home-node', 'owned', { display_name: '开发电脑', notes: '', expected_revision: 0 })
+  expect(updateComputer).toHaveBeenCalledWith('tenant-a', 'home-node', 'owned', { name: '开发电脑', notes: '', expected_revision: 0 })
   expect(document.querySelector('[data-computer-details]')).toBeNull()
 })
 
@@ -206,4 +209,26 @@ it('closes the current computer details when the space changes', async () => {
   await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-b" scope="owned" /></LocaleProvider>))
   expect(document.querySelector('[data-computer-details]')).toBeNull()
   expect(getComputerDetails).toHaveBeenCalledTimes(1)
+})
+
+it('loads removed registrations only on request and recovers the observed original identity', async () => {
+  const removed: ManagedExecutionTarget = { ...computer, state: 'revoked', connected: false, management: { ...computer.management, removed_at_ms: 42, revision: 7 } }
+  vi.mocked(listOwnedComputers).mockImplementation(async (_tenant, includeRemoved) => includeRemoved ? [removed] : [])
+  vi.mocked(recoverNodeLaunch).mockResolvedValue({ command: 'ternilo serve --node-id home-node --token ter_n_recovered',executorId: 'home-node',name: '恢复电脑',recovery:true })
+  await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-a" scope="owned" /></LocaleProvider>))
+  expect(listOwnedComputers).toHaveBeenCalledWith('tenant-a',false)
+  expect(host.querySelector('[data-platform-computer]')).toBeNull()
+  await settle(() => button('查看已移除登记',host).click())
+  expect(listOwnedComputers).toHaveBeenLastCalledWith('tenant-a',true)
+  expect(host.textContent).toContain('工作电脑')
+  expect(host.textContent).not.toContain('home-node')
+  expect(getComputerDetails).not.toHaveBeenCalled()
+  await settle(() => button('恢复原电脑接入',host).click())
+  const dialog = document.querySelector('[data-computer-recovery]')!
+  await settle(() => setInput(dialog.querySelector<HTMLInputElement>('input')!,'恢复电脑'))
+  expect(recoverNodeLaunch).not.toHaveBeenCalled()
+  await settle(() => button('生成恢复命令',dialog).click())
+  expect(recoverNodeLaunch).toHaveBeenCalledWith('tenant-a',removed,'owned','恢复电脑')
+  expect(document.querySelector('[data-node-launch-command]')?.textContent).toContain('home-node')
+  expect(document.body.textContent).toContain('正常停止原实例')
 })

@@ -5,6 +5,7 @@ Public credential formats and browser session IDs use `ter_` followed by a purpo
 | Prefix | Purpose |
 |---|---|
 | `ter_s_` | Public browser-session ID for inspection/revocation; not a login credential |
+| `ter_pc_` | System-generated permanent computer instance ID; not an access credential |
 | `ter_a_` | Native account access credential |
 | `ter_o_` | Ternilo-issued OIDC access credential |
 | `ter_r_` | OIDC refresh credential |

@@ -170,7 +170,7 @@ test('Control and Node complete enrollment, RPC, offline recovery, and shutdown 
     controls.push(process)
     return process
   }
-  const executorId = 'core-node'
+  let executorId
   const startNode = credential => {
     const process = startProcess(nodeBinary, ['serve',
       '--gateway-url', `${origin.replace('http://', 'ws://')}/api/v1/executors/connect`,
@@ -206,7 +206,7 @@ test('Control and Node complete enrollment, RPC, offline recovery, and shutdown 
         token,
         tenant,
         method: 'POST',
-        body: { executor_id: executorId, project_id: project.project_id, ttl_seconds: 600 },
+        body: { name: 'core-node', project_id: project.project_id, ttl_seconds: 600 },
       },
       201,
     )
@@ -214,6 +214,7 @@ test('Control and Node complete enrollment, RPC, offline recovery, and shutdown 
       method: 'POST',
       body: { token: enrollment.enrollment.token },
     }, 200)
+    executorId = consumed.credential.executor_id
     const credential = consumed.credential.token
     assert.ok(credential)
 

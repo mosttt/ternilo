@@ -238,15 +238,16 @@ async function createEnrollmentThroughUi(page, nodeId, projectId) {
   const settings = await openSpaceManagement(page)
   assert.equal(await settings.getByRole('button', { name: '打开配置目录' }).count(), 0)
   await settings.getByRole('tab', { name: '电脑', exact: true }).click()
-  await settings.getByLabel('电脑 ID').fill(nodeId)
+  await settings.getByLabel('电脑名称').fill(nodeId)
   await selectChoice(settings.getByLabel('绑定项目'), projectId)
   await settings.getByRole('button', { name: '生成启动命令' }).click()
   const launch = page.getByRole('dialog', { name: '启动 Ternilo Node' })
   await launch.waitFor()
   const command = await launch.locator('[data-node-launch-command]').textContent() ?? ''
   assert.match(command, /ternilo serve/)
-  assert.match(command, /--gateway-url 'ws:\/\/127\.0\.0\.1:\d+\/api\/v1\/executors\/connect'/)
-  assert.match(command, new RegExp(`--node-id '${nodeId}'`))
+  assert.match(command, /--gateway-url "ws:\/\/127\.0\.0\.1:\d+\/api\/v1\/executors\/connect"/)
+  const computerId = /--node-id="([^"\s]+)"/.exec(command)?.[1]
+  assert.match(computerId,/^ter_pc_/)
   const credential = /--token "([^"\s]+)"/.exec(command)?.[1]
   assert.ok(credential)
   await launch.getByRole('button', { name: '复制命令' }).click()
@@ -256,7 +257,7 @@ async function createEnrollmentThroughUi(page, nodeId, projectId) {
   assert.equal(await page.locator('[data-node-launch-command]').count(), 0)
   assert.equal((await settings.textContent() ?? '').includes(credential), false)
   await closeSpaceManagement(page)
-  return credential
+  return { credential, id: computerId }
 }
 
 async function createOwnedEnrollmentThroughUi(page, nodeId, projectId) {
@@ -267,14 +268,15 @@ async function createOwnedEnrollmentThroughUi(page, nodeId, projectId) {
   await settings.waitFor()
   await settings.getByRole('button', { name: '我的机器', exact: true }).click()
   assert.equal(await settings.getByRole('button', { name: '平台管理', exact: true }).count(), 0)
-  await settings.getByLabel('电脑 ID').fill(nodeId)
+  await settings.getByLabel('电脑名称').fill(nodeId)
   await selectChoice(settings.getByLabel('绑定项目'), projectId)
   await settings.getByRole('button', { name: '生成启动命令' }).click()
   const launch = page.getByRole('dialog', { name: '启动 Ternilo Node' })
   await launch.waitFor()
   const command = await launch.locator('[data-node-launch-command]').textContent() ?? ''
   assert.match(command, /ternilo serve/)
-  assert.match(command, new RegExp(`--node-id '${nodeId}'`))
+  const computerId = /--node-id="([^"\s]+)"/.exec(command)?.[1]
+  assert.match(computerId,/^ter_pc_/)
   const credential = /--token "([^"\s]+)"/.exec(command)?.[1]
   assert.ok(credential)
   await launch.getByRole('button', { name: '我已保存，关闭' }).click()
@@ -282,7 +284,7 @@ async function createOwnedEnrollmentThroughUi(page, nodeId, projectId) {
   assert.equal((await settings.textContent() ?? '').includes(credential), false)
   await settings.getByRole('button', { name: '返回工作台' }).click()
   await settings.waitFor({ state: 'detached' })
-  return credential
+  return { credential, id: computerId }
 }
 
 async function registerMemberThroughOidc(browser, origin, oidc) {
@@ -406,6 +408,7 @@ async function waitForExecutionTarget(page, nodeId, connected = true) {
 
 async function chooseNodeWorkspace(page, {
   nodeId,
+  nodeName,
   baseDirectory,
   selectedDirectory,
   connectNode,
@@ -449,7 +452,7 @@ async function chooseNodeWorkspace(page, {
   assert.match(await placementDialog.getByLabel('运行电脑').locator('option:checked').textContent() ?? '', /在线/)
   await chooseDirectory.click()
 
-  const directoryDialog = page.getByRole('dialog', { name: `选择 ${nodeId} 上的工作文件夹` })
+  const directoryDialog = page.getByRole('dialog', { name: `选择 ${nodeName} 上的工作文件夹` })
   await directoryDialog.waitFor()
   await directoryDialog.getByRole('button', { name: '编辑文件夹路径' }).click()
   await directoryDialog.getByRole('textbox', { name: '编辑文件夹路径' }).fill(baseDirectory)
@@ -474,7 +477,7 @@ async function chooseNodeWorkspace(page, {
   await directoryDialog.waitFor({ state: 'detached' })
   await placementDialog.getByRole('button', { name: '打开并开始会话', exact: true }).click()
   await placementDialog.waitFor({ state: 'detached' })
-  const workspaceTitle = page.locator('[data-sidebar-workspace-title]').filter({ hasText: nodeId })
+  const workspaceTitle = page.locator(`[data-sidebar-computer-group="node:${nodeId}"] [data-sidebar-workspace-title]`).filter({ hasText: workspaceName })
   await workspaceTitle.waitFor()
   assert.equal(await workspaceTitle.evaluate(element => [...element.childNodes]
     .filter(node => node.nodeType === Node.TEXT_NODE)
@@ -575,8 +578,8 @@ test('Control browser drives an enrolled local Node workspace without connecting
     TERNILO_SECRET_MASTER_KEY: Buffer.alloc(32, 19).toString('base64'),
   }
   let control
-  const nodeId = 'home-e2e'
-  const memberNodeId = 'member-home-e2e'
+  const nodeName = 'home-e2e', memberNodeName = 'member-home-e2e'
+  let nodeId, memberNodeId
   let node
   let memberNode
   let memberCredentialToken
@@ -657,7 +660,9 @@ test('Control browser drives an enrolled local Node workspace without connecting
     await selectSpace(memberPage, teamId)
     oidc.selectIdentity('owner')
 
-    memberCredentialToken = await createOwnedEnrollmentThroughUi(memberPage, memberNodeId, projectId)
+    const memberEnrollment = await createOwnedEnrollmentThroughUi(memberPage, memberNodeName, projectId)
+    memberNodeId = memberEnrollment.id
+    memberCredentialToken = memberEnrollment.credential
     await memberPage.getByRole('button', { name: '选择工作文件夹' }).last().click()
     const memberPlacementPreview = memberPage.getByRole('dialog', { name: '打开工作区' })
     await memberPlacementPreview.waitFor()
@@ -668,6 +673,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
 
     await chooseNodeWorkspace(memberPage, {
       nodeId: memberNodeId,
+      nodeName: memberNodeName,
       baseDirectory: memberWorkspaceRoot,
       selectedDirectory: memberSelectedWorkspace,
       workspaceName: 'Member Workspace',
@@ -786,7 +792,9 @@ test('Control browser drives an enrolled local Node workspace without connecting
     await stopProcess(memberNode)
     await memberContext.close()
 
-    const credentialToken = await createEnrollmentThroughUi(page, nodeId, projectId)
+    const enrollment = await createEnrollmentThroughUi(page, nodeName, projectId)
+    nodeId = enrollment.id
+    const credentialToken = enrollment.credential
     const startNode = gatewayUrl => {
       node = startProcess(nodeBinary, ['serve',
         '--gateway-url', gatewayUrl,
@@ -804,6 +812,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     }
     await chooseNodeWorkspace(page, {
       nodeId,
+      nodeName,
       baseDirectory: workspaceRoot,
       selectedDirectory: selectedWorkspace,
       connectNode: async () => {

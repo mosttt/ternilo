@@ -1057,7 +1057,11 @@ impl ControlStore {
             actor,
             tenant_id,
             project_id,
-            executor_id,
+            crate::computer_management::enrollment::EnrollmentIdentity {
+                name: executor_id.to_string(),
+                executor_id,
+                recovery_revision: None,
+            },
             ttl,
             now_ms,
             ControlAction::ExecutorManage,
@@ -1079,7 +1083,11 @@ impl ControlStore {
             actor,
             tenant_id,
             project_id,
-            executor_id,
+            crate::computer_management::enrollment::EnrollmentIdentity {
+                name: executor_id.to_string(),
+                executor_id,
+                recovery_revision: None,
+            },
             ttl,
             now_ms,
             ControlAction::RunReserve,
@@ -1089,17 +1097,20 @@ impl ControlStore {
     }
 
     #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-    async fn create_enrollment_with_action(
+    pub(crate) async fn create_enrollment_with_action(
         &self,
         actor: &ControlUser,
         tenant_id: &TenantId,
         project_id: Option<&str>,
-        executor_id: ExecutorId,
+        identity: crate::computer_management::enrollment::EnrollmentIdentity,
         ttl: Duration,
         now_ms: u64,
         action: ControlAction,
         owned_only: bool,
     ) -> Result<EnrollmentGrant, HarnessError> {
+        let executor_id = identity.executor_id;
+        let mut computer_name =
+            crate::computer_management::names::validate(&identity.name)?.to_owned();
         tenant_id.validate()?;
         executor_id.validate()?;
         if ttl.is_zero() || ttl > Duration::from_hours(1) {
@@ -1124,7 +1135,71 @@ impl ControlStore {
         .await?;
         set_tenant(&mut transaction, tenant_id).await?;
         require_action(&mut transaction, tenant_id, &actor.user_id, action).await?;
-        if let Some(project_id) = project_id {
+        ternilo_storage::lock(
+            &mut transaction,
+            &format!("computer-management:{tenant_id}:{executor_id}"),
+        )
+        .await?;
+        let previous = sqlx::query("SELECT owner_user_id,project_id,state FROM control_executors WHERE tenant_id=$1 AND executor_id=$2")
+            .bind(tenant_id.as_str()).bind(executor_id.as_str()).fetch_optional(&mut *transaction).await.map_err(database_error)?;
+        let mut owner = actor.user_id.to_string();
+        let mut project_id = project_id.map(str::to_owned);
+        let mut recovery = None;
+        if let Some(revision) = identity.recovery_revision {
+            let previous = previous
+                .as_ref()
+                .ok_or_else(|| HarnessError::invalid("computer does not exist"))?;
+            owner = previous.try_get("owner_user_id").map_err(database_error)?;
+            if owned_only && owner != actor.user_id.as_str() {
+                return Err(HarnessError::policy("computer belongs to another account"));
+            }
+            if previous
+                .try_get::<String, _>("state")
+                .map_err(database_error)?
+                != "revoked"
+            {
+                return Err(HarnessError::conflict(
+                    "only revoked or removed computers need recovery; resume suspended computers with their original credential",
+                ));
+            }
+            project_id = previous.try_get("project_id").map_err(database_error)?;
+            let mut management = crate::computer_management::management_in(
+                &mut transaction,
+                tenant_id,
+                &executor_id,
+            )
+            .await?;
+            if management.revision != revision {
+                return Err(HarnessError::conflict(
+                    "computer settings changed; refresh before recovery",
+                ));
+            }
+            management.revision = revision
+                .checked_add(1)
+                .ok_or_else(|| HarnessError::conflict("computer revision exhausted"))?;
+            management.name.clone_from(&computer_name);
+            recovery = Some(management);
+        } else if let Some(previous) = &previous {
+            if previous
+                .try_get::<String, _>("owner_user_id")
+                .map_err(database_error)?
+                != owner
+            {
+                return Err(HarnessError::policy(
+                    "computer identity cannot be assigned to another account",
+                ));
+            }
+            computer_name = crate::computer_management::management_in(
+                &mut transaction,
+                tenant_id,
+                &executor_id,
+            )
+            .await?
+            .name;
+        }
+        crate::account_store::require_active_account_in(&mut transaction, &UserId::new(&owner))
+            .await?;
+        if let Some(project_id) = &project_id {
             let exists = sqlx::query_scalar::<_, i64>(
                 "SELECT CAST(EXISTS(
                     SELECT 1 FROM control_projects
@@ -1141,11 +1216,6 @@ impl ControlStore {
                 return Err(HarnessError::invalid("enrollment project does not exist"));
             }
         }
-        ternilo_storage::lock(
-            &mut transaction,
-            &format!("computer-management:{tenant_id}:{executor_id}"),
-        )
-        .await?;
         // The quota row serializes enrollment creation for this tenant. Active,
         // unconsumed grants count too, so concurrent tokens cannot overbook nodes.
         let max_nodes = sqlx::query_scalar::<_, i32>(ternilo_storage::for_update(
@@ -1231,6 +1301,36 @@ impl ControlStore {
         if !executor_is_reserved && reserved_nodes >= i64::from(max_nodes) {
             return Err(HarnessError::policy("tenant node quota is exhausted"));
         }
+        let name_expiry = if previous.is_none()
+            || recovery
+                .as_ref()
+                .is_some_and(|management| management.removed_at_ms.is_some())
+        {
+            Some(expires_at_ms)
+        } else {
+            None
+        };
+        crate::computer_management::names::reserve_in(
+            &mut transaction,
+            tenant_id,
+            &executor_id,
+            &owner,
+            &computer_name,
+            name_expiry,
+            now_ms,
+        )
+        .await?;
+        if let Some(management) = &recovery {
+            sqlx::query("UPDATE control_executor_enrollments SET consumed_at_ms=$3 WHERE tenant_id=$1 AND executor_id=$2 AND consumed_at_ms IS NULL")
+                .bind(tenant_id.as_str()).bind(executor_id.as_str()).bind(now).execute(&mut *transaction).await.map_err(database_error)?;
+            crate::computer_management::persist_in(
+                &mut transaction,
+                tenant_id,
+                &executor_id,
+                management,
+            )
+            .await?;
+        }
         sqlx::query(
             "INSERT INTO control_executor_enrollments
                 (enrollment_id, tenant_id, project_id, executor_id, token_hash,
@@ -1239,11 +1339,11 @@ impl ControlStore {
         )
         .bind(&enrollment_id)
         .bind(tenant_id.as_str())
-        .bind(project_id)
+        .bind(project_id.as_deref())
         .bind(executor_id.as_str())
         .bind(token_hash)
         .bind(expiry)
-        .bind(actor.user_id.as_str())
+        .bind(&owner)
         .bind(now)
         .execute(&mut *transaction)
         .await
@@ -1266,6 +1366,7 @@ impl ControlStore {
             enrollment_id,
             tenant_id: tenant_id.clone(),
             executor_id,
+            name: computer_name,
             expires_at_ms,
             token,
         })
@@ -1337,11 +1438,20 @@ impl ControlStore {
             .bind(tenant_id.as_str()).bind(executor_id.as_str()).bind(&project_id).bind(user_id.as_str())
             .bind(to_i64(now_ms, "executor enrollment timestamp")?)
             .execute(&mut *transaction).await.map_err(database_error)?;
-        sqlx::query("UPDATE control_computer_management SET suspended_at_ms=NULL,removed_at_ms=NULL,revision=revision+1 WHERE tenant_id=$1 AND executor_id=$2")
-            .bind(tenant_id.as_str()).bind(executor_id.as_str()).execute(&mut *transaction).await.map_err(database_error)?;
+        let name = crate::computer_management::names::activate_in(
+            &mut transaction,
+            &tenant_id,
+            &executor_id,
+        )
+        .await?;
+        sqlx::query("INSERT INTO control_computer_management(tenant_id,executor_id,display_name) VALUES($1,$2,$3) ON CONFLICT(tenant_id,executor_id) DO UPDATE SET display_name=EXCLUDED.display_name,suspended_at_ms=NULL,removed_at_ms=NULL,revision=control_computer_management.revision+1")
+            .bind(tenant_id.as_str()).bind(executor_id.as_str()).bind(name).execute(&mut *transaction).await.map_err(database_error)?;
         sqlx::query("INSERT INTO control_node_credentials (credential_id, tenant_id, executor_id, token_hash, issued_at_ms) VALUES ($1, $2, $3, $4, $5)")
             .bind(&credential_id).bind(tenant_id.as_str()).bind(executor_id.as_str())
             .bind(token_hash(&credential_token).to_vec()).bind(to_i64(now_ms, "credential issue timestamp")?)
+            .execute(&mut *transaction).await.map_err(database_error)?;
+        sqlx::query("INSERT INTO control_node_storage_bindings(tenant_id,credential_id,storage_instance_id,created_at_ms) SELECT $1,$2,b.storage_instance_id,$4 FROM control_node_credentials c JOIN control_node_storage_bindings b ON b.tenant_id=c.tenant_id AND b.credential_id=c.credential_id WHERE c.tenant_id=$1 AND c.executor_id=$3 AND c.credential_id<>$2 ORDER BY c.issued_at_ms DESC LIMIT 1")
+            .bind(tenant_id.as_str()).bind(&credential_id).bind(executor_id.as_str()).bind(to_i64(now_ms,"credential issue timestamp")?)
             .execute(&mut *transaction).await.map_err(database_error)?;
         append_audit(
             &mut transaction,
@@ -1445,20 +1555,37 @@ impl ControlStore {
         actor: &ControlUser,
         tenant_id: &TenantId,
     ) -> Result<Vec<ExecutorRecord>, HarnessError> {
+        self.list_computers(actor, tenant_id, false, false).await
+    }
+
+    pub async fn list_computers(
+        &self,
+        actor: &ControlUser,
+        tenant_id: &TenantId,
+        owned_only: bool,
+        include_removed: bool,
+    ) -> Result<Vec<ExecutorRecord>, HarnessError> {
         let mut transaction = self.database.begin().await?;
         set_tenant(&mut transaction, tenant_id).await?;
         require_action(
             &mut transaction,
             tenant_id,
             &actor.user_id,
-            ControlAction::ExecutorManage,
+            if owned_only {
+                ControlAction::ExecutorRead
+            } else {
+                ControlAction::ExecutorManage
+            },
         )
         .await?;
         let rows = sqlx::query(concat!(
             include_str!("computer_management/executor_select.sql"),
-            " WHERE e.tenant_id=$1 AND m.removed_at_ms IS NULL ORDER BY e.executor_id"
+            " WHERE e.tenant_id=$1 AND (NOT $2 OR e.owner_user_id=$3) AND ($4 OR m.removed_at_ms IS NULL) ORDER BY COALESCE(m.display_name,e.executor_id),e.executor_id"
         ))
         .bind(tenant_id.as_str())
+        .bind(owned_only)
+        .bind(actor.user_id.as_str())
+        .bind(include_removed)
         .fetch_all(&mut *transaction)
         .await
         .map_err(database_error)?;
@@ -1471,23 +1598,7 @@ impl ControlStore {
         actor: &ControlUser,
         tenant_id: &TenantId,
     ) -> Result<Vec<ExecutorRecord>, HarnessError> {
-        let mut transaction = self.database.begin().await?;
-        set_tenant(&mut transaction, tenant_id).await?;
-        require_action(
-            &mut transaction,
-            tenant_id,
-            &actor.user_id,
-            ControlAction::ExecutorRead,
-        )
-        .await?;
-        let rows = sqlx::query(concat!(include_str!("computer_management/executor_select.sql")," WHERE e.tenant_id=$1 AND e.owner_user_id=$2 AND m.removed_at_ms IS NULL ORDER BY e.executor_id"))
-        .bind(tenant_id.as_str())
-        .bind(actor.user_id.as_str())
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(database_error)?;
-        transaction.commit().await.map_err(database_error)?;
-        rows.iter().map(executor_record).collect()
+        self.list_computers(actor, tenant_id, true, false).await
     }
 
     pub async fn owned_executor(

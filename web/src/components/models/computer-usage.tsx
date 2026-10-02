@@ -16,6 +16,7 @@ interface Computer {
   executor_id: string
   state: string
   connected: boolean
+  management: { name: string }
 }
 interface Observation {
   session_id: string
@@ -71,7 +72,7 @@ export function ComputerUsage() {
     {loading && !computers.length && <p role="status">{t('loading')}</p>}
     {!loading && !computers.length && <p className={css.state}>{t('computerUsageNoComputers')}</p>}
     {computers.length > 0 && <div className={css.fields}>
-      <SourcePicker label={t('computerUsageComputer')} value={selected?.executor_id ?? ''} options={computers.map(value => ({ id: value.executor_id, name: `${value.executor_id} · ${t(value.connected ? 'computerOnline' : 'computerOffline')}` }))} onChange={computer => navigate(modelCenterPath({ computer }, search))} />
+      <SourcePicker label={t('computerUsageComputer')} value={selected?.executor_id ?? ''} options={computers.map(value => ({ id: value.executor_id, name: `${value.management.name} · ${t(value.connected ? 'computerOnline' : 'computerOffline')}` }))} onChange={computer => navigate(modelCenterPath({ computer }, search))} />
       <Field><Label htmlFor={id}>{t('computerUsageMonth')}</Label><Input id={id} type="month" min="1970-01" max="9999-12" value={month} onChange={event => setMonth(event.target.value)} /></Field>
     </div>}
     {selected && month && <ComputerUsageRecords key={`${scope}:${selected.executor_id}:${month}:${revision}`} tenantId={tenantId} computer={selected} month={month} />}

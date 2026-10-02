@@ -27,17 +27,17 @@ test('another computer can open an offline computer’s same-named folder withou
     const request = (resource, options = {}) => account(resource, { tenantId: tenant.tenant_id, ...options })
     const project = (await request('/projects')).projects[0]
     const startNode = async id => {
-      const enrollment = (await request(`/tenants/${tenant.tenant_id}/my-computer-enrollments`, { body: { executor_id: id, project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+      const enrollment = (await request(`/tenants/${tenant.tenant_id}/my-computer-enrollments`, { body: { name: id, project_id: project.project_id, ttl_seconds: 600 } })).enrollment
       const credential = (await request('/enrollments/consume', { body: { token: enrollment.token } })).credential
       assert.match(credential.token, /^ter_n_/)
       const origin = `http://127.0.0.1:${await freePort()}`
       const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [
-        'serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, id), `--node-id=${id}`,
+        'serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, id), `--node-id=${enrollment.executor_id}`,
         '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--token', credential.token, '--allow-insecure-gateway',
       ])
       processes.push(node)
       await waitForHttp(origin, node)
-      return { node, local: await localApi(origin) }
+      return { node, id: enrollment.executor_id, local: await localApi(origin) }
     }
     const folder = path.join(directory, 'Pictures')
     await mkdir(folder)
@@ -49,8 +49,8 @@ test('another computer can open an offline computer’s same-named folder withou
     const oldWorkspaceId = initial.workspaces[0].workspace_id
     await stopProcess(old.node)
     await until(() => request('/state'), state => state.workspaces[0].status === 'offline', 'first computer offline')
-    await startNode('d')
-    await until(() => request('/execution-targets'), value => value.executors.some(node => node.executor_id === 'd' && node.connected), 'second computer online')
+    const currentNode = await startNode('d')
+    await until(() => request('/execution-targets'), value => value.executors.some(node => node.executor_id === currentNode.id && node.connected), 'second computer online')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     page = await browser.newPage({ viewport: { width: 1280, height: 960 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
@@ -73,7 +73,7 @@ test('another computer can open an offline computer’s same-named folder withou
     const chooseFolder = async () => {
       await page.getByRole('button', { name: '添加工作区', exact: true }).click()
       let dialog = page.getByRole('dialog', { name: '打开工作区', exact: true })
-      await selectChoice(dialog.locator('#workspace-executor'), 'd')
+      await selectChoice(dialog.locator('#workspace-executor'), currentNode.id)
       await dialog.getByRole('button', { name: '选择文件夹', exact: true }).click()
       const picker = page.getByRole('dialog', { name: '选择 d 上的工作文件夹', exact: true })
       await picker.getByRole('button', { name: '编辑文件夹路径', exact: true }).click()
@@ -104,10 +104,10 @@ test('another computer can open an offline computer’s same-named folder withou
     await name.fill('Pictures (d)')
     await dialog.getByRole('button', { name: '打开并开始会话', exact: true }).click()
     await dialog.waitFor({ state: 'hidden' })
-    const current = await until(() => request('/state'), state => state.sessions.some(session => state.workspaces.some(workspace => workspace.node_id === 'd' && workspace.workspace_id === session.workspace_id)), 'new computer session created')
+    const current = await until(() => request('/state'), state => state.sessions.some(session => state.workspaces.some(workspace => workspace.node_id === currentNode.id && workspace.workspace_id === session.workspace_id)), 'new computer session created')
     assert.ok(current.workspaces.some(workspace => workspace.workspace_id === oldWorkspaceId && workspace.status === 'offline' && workspace.title === 'Pictures'))
-    assert.ok(current.workspaces.some(workspace => workspace.node_id === 'd' && workspace.title === 'Pictures (d)' && workspace.workspace_id !== oldWorkspaceId))
-    const newWorkspace = current.workspaces.find(workspace => workspace.node_id === 'd')
+    assert.ok(current.workspaces.some(workspace => workspace.node_id === currentNode.id && workspace.title === 'Pictures (d)' && workspace.workspace_id !== oldWorkspaceId))
+    const newWorkspace = current.workspaces.find(workspace => workspace.node_id === currentNode.id)
     dialog = await chooseFolder()
     assert.equal(await dialog.locator('#workspace-name').inputValue(), 'Pictures (d)', 'reopening the same computer’s folder keeps its name')
     await dialog.getByRole('button', { name: '打开并开始会话', exact: true }).click()

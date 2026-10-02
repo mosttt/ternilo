@@ -55,16 +55,18 @@ async function modelFixture() {
 
 async function enroll(page, server, id, directory, environment, upstream, processes) {
   await page.goto(`${server.origin}/settings/computers`)
-  await page.getByLabel('电脑 ID', { exact: true }).fill(id)
+  await page.getByLabel('电脑名称', { exact: true }).fill(id)
   await page.getByRole('button', { name: '生成启动命令', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '启动 Ternilo Node' })
   const command = await dialog.locator('[data-node-launch-command]').textContent()
   const token = /--token "([^"\s]+)"/.exec(command)?.[1]
+  const computerId = /--node-id="([^"\s]+)"/.exec(command)?.[1]
+  assert.ok(computerId)
   assert.ok(token)
   await dialog.getByRole('button', { name: '我已保存，关闭', exact: true }).click()
   const origin = `http://127.0.0.1:${await freePort()}`
   const args = ['serve', '--data-dir', path.join(directory, id), '--listen', new URL(origin).host,
-    '--node-id', id, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+    '--node-id', computerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
   const env = { ...environment, TERNILO_LOCAL_TOKEN: token }
   const node = startProcess(nodeBinary, args, env)
   processes.push(node)
@@ -78,7 +80,7 @@ async function enroll(page, server, id, directory, environment, upstream, proces
     models: [{ id: `${id}-model`, display_name: `${id} model`, settings: { mode: 'inherit' } }],
     timeout_ms: 30_000, max_attempts: 1, retry_base_delay_ms: 25,
   } })
-  return { id, origin, args, env, process: node, token: localToken }
+  return { id: computerId,name: id, origin, args, env, process: node, token: localToken }
 }
 
 async function activate(page, locator) {
@@ -97,7 +99,7 @@ async function openPicker(page) {
 async function chooseDirectory(page, dialog, node, directory) {
   await selectChoice(dialog.getByLabel('运行电脑', { exact: true }), node.id)
   await activate(page, dialog.getByRole('button', { name: '选择文件夹', exact: true }))
-  const browser = page.getByRole('dialog', { name: `选择 ${node.id} 上的工作文件夹`, exact: true })
+  const browser = page.getByRole('dialog', { name: `选择 ${node.name} 上的工作文件夹`, exact: true })
   await activate(page, browser.getByRole('button', { name: '编辑文件夹路径', exact: true }))
   const editor = browser.getByRole('textbox', { name: '编辑文件夹路径', exact: true })
   await editor.fill(directory)
@@ -119,11 +121,11 @@ async function verifyLayout(page, dialog) {
 async function runTask(page, node, directory) {
   await activate(page, page.locator('button[title="配置模型"]'))
   await activate(page, page.getByRole('menuitem', { name: /^模型/ }))
-  await activate(page, page.getByRole('menuitem', { name: new RegExp(`^${node.id} model`) }))
+  await activate(page, page.getByRole('menuitem', { name: new RegExp(`^${node.name} model`) }))
   await page.getByRole('textbox', { name: '输入任务', exact: true }).fill(`Create the proof file on ${node.id}`)
   await activate(page, page.getByRole('button', { name: '发送', exact: true }))
-  await page.locator('article[data-role="assistant"]').filter({ hasText: `${node.id}-model task completed` }).waitFor()
-  assert.equal(await readFile(path.join(directory, 'machine-proof.txt'), 'utf8'), `${node.id}-model`)
+  await page.locator('article[data-role="assistant"]').filter({ hasText: `${node.name}-model task completed` }).waitFor()
+  assert.equal(await readFile(path.join(directory, 'machine-proof.txt'), 'utf8'), `${node.name}-model`)
 }
 
 test('personal Server opens projects on two real machines without a Worker and preserves selection across recovery', { timeout: 240_000 }, async () => {
@@ -226,7 +228,7 @@ test('personal Server opens projects on two real machines without a Worker and p
     await page.getByRole('textbox', { name: '输入任务', exact: true }).waitFor()
     assert.equal(await page.getByRole('textbox', { name: '输入任务', exact: true }).inputValue(), 'Keep this draft on the VPS')
     assert.equal(await page.evaluate(() => localStorage.getItem('ternilo.current-session')), records[1].session.identity.session_id)
-    for (const record of records) assert.equal(await readFile(path.join(record.folder, 'machine-proof.txt'), 'utf8'), `${record.node.id}-model`)
+    for (const record of records) assert.equal(await readFile(path.join(record.folder, 'machine-proof.txt'), 'utf8'), `${record.node.name}-model`)
     assert.ok(upstream.calls.some(call => call.model === 'laptop-model'))
     assert.ok(upstream.calls.some(call => call.model === 'vps-model'))
     await Promise.all(offlineChecks)

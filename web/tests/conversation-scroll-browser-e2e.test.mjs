@@ -440,10 +440,11 @@ test('Server account and platform Responses follow submitted messages before out
     processes.push(server)
     const tenantId = server.owner.session.personal_tenant_id
     const request = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
-    const enrollment = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'scroll', project_id: null, ttl_seconds: 600 } })
+    const enrollment = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'scroll', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrollment.enrollment.executor_id
     const credential = await request('/enrollments/consume', { body: { token: enrollment.enrollment.token } })
     const origin = `http://127.0.0.1:${await freePort()}`
-    const node = startProcess(binary, ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', 'scroll', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], { TERNILO_LOCAL_TOKEN: credential.credential.token })
+    const node = startProcess(binary, ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], { TERNILO_LOCAL_TOKEN: credential.credential.token })
     processes.push(node)
     await waitForHttp(origin, node)
     const local = await localApi(origin)

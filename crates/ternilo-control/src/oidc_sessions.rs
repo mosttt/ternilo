@@ -9,6 +9,8 @@ use crate::{
     crypto::{hex, random_identifier, random_token, token_hash},
 };
 
+mod details;
+
 const SCOPE: &str = "server-oidc-session-v1";
 const REFRESH_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
 
@@ -64,7 +66,8 @@ pub(crate) async fn initialize(database: &Database) -> Result<(), HarnessError> 
             },
             POSTGRES_ACCESS,
         )
-        .await
+        .await?;
+    details::initialize(database).await
 }
 
 impl ControlStore {
@@ -119,7 +122,23 @@ impl ControlStore {
         {
             return Err(HarnessError::invalid("OIDC session expiry is invalid"));
         }
-        let session_id = random_identifier("oidc");
+        let mut transaction = self.database.begin().await?;
+        lock(&mut transaction, "ternilo:instance").await?;
+        require_active_identity_in(&mut transaction, &identity.principal).await?;
+        let previous = if let Some(refresh) = previous_refresh {
+            Some(sqlx::query(ternilo_storage::for_update(&transaction,
+                "SELECT session_id,expires_at_ms FROM control_oidc_sessions WHERE refresh_hash=$1 AND binding=$2 AND issuer=$3 AND subject=$4 AND expires_at_ms>$5",
+                "SELECT session_id,expires_at_ms FROM control_oidc_sessions WHERE refresh_hash=$1 AND binding=$2 AND issuer=$3 AND subject=$4 AND expires_at_ms>$5 FOR UPDATE"))
+                .bind(hex(&token_hash(refresh))).bind(binding).bind(&identity.principal.issuer)
+                .bind(&identity.principal.subject).bind(timestamp(now_ms)?)
+                .fetch_optional(&mut *transaction).await.map_err(database_error)?.ok_or_else(expired)?)
+        } else {
+            None
+        };
+        let session_id = match &previous {
+            Some(row) => row.try_get("session_id").map_err(database_error)?,
+            None => random_identifier("ter_s"),
+        };
         let access_token = random_token("ter_o");
         let refresh_token = identity
             .upstream_refresh_token
@@ -130,9 +149,18 @@ impl ControlStore {
         } else {
             access_expires_at_ms
         };
+        let expires_at_ms = match &previous {
+            Some(row) => expires_at_ms.min(
+                row.try_get::<i64, _>("expires_at_ms")
+                    .map_err(database_error)?
+                    .cast_unsigned(),
+            ),
+            None => expires_at_ms,
+        };
         if expires_at_ms <= now_ms {
             return Err(expired());
         }
+        let access_expires_at_ms = access_expires_at_ms.min(expires_at_ms);
         let bytes = Zeroizing::new(
             serde_json::to_vec(identity)
                 .map_err(|_| HarnessError::execution("encode OIDC session"))?,
@@ -140,38 +168,35 @@ impl ControlStore {
         let encrypted = self
             .cipher
             .encrypt(SCOPE, Some(&session_id), "identity", 1, &bytes)?;
-        let mut transaction = self.database.begin().await?;
-        lock(&mut transaction, "ternilo:instance").await?;
-        let status: Option<String> = sqlx::query_scalar(
-            "SELECT status FROM control_users WHERE issuer = $1 AND subject = $2",
-        )
-        .bind(&identity.principal.issuer)
-        .bind(&identity.principal.subject)
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(database_error)?;
-        if let Some(status) = status {
-            AccountStatus::parse(&status)?.require_active()?;
-        }
-        if let Some(previous) = previous_refresh {
-            let deleted = sqlx::query("DELETE FROM control_oidc_sessions WHERE refresh_hash = $1 AND binding = $2 AND expires_at_ms > $3")
-                .bind(hex(&token_hash(previous))).bind(binding).bind(timestamp(now_ms)?)
-                .execute(&mut *transaction).await.map_err(database_error)?;
-            if deleted.rows_affected() != 1 {
-                return Err(expired());
-            }
-        }
         sqlx::query("DELETE FROM control_oidc_sessions WHERE expires_at_ms <= $1")
             .bind(timestamp(now_ms)?)
             .execute(&mut *transaction)
             .await
             .map_err(database_error)?;
-        sqlx::query("INSERT INTO control_oidc_sessions (session_id, token_hash, refresh_hash, binding, issuer, subject, access_expires_at_ms, expires_at_ms, nonce, ciphertext) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)")
-            .bind(&session_id).bind(hex(&token_hash(&access_token))).bind(refresh_token.as_ref().map(|token| hex(&token_hash(token))))
-            .bind(binding).bind(&identity.principal.issuer).bind(&identity.principal.subject)
-            .bind(timestamp(access_expires_at_ms)?).bind(timestamp(expires_at_ms)?)
-            .bind(encrypted.nonce.to_vec()).bind(encrypted.ciphertext)
-            .execute(&mut *transaction).await.map_err(database_error)?;
+        if previous.is_some() {
+            sqlx::query("UPDATE control_oidc_sessions SET token_hash=$2,refresh_hash=$3,access_expires_at_ms=$4,expires_at_ms=$5,nonce=$6,ciphertext=$7 WHERE session_id=$1")
+                .bind(&session_id).bind(hex(&token_hash(&access_token)))
+                .bind(refresh_token.as_ref().map(|token| hex(&token_hash(token))))
+                .bind(timestamp(access_expires_at_ms)?).bind(timestamp(expires_at_ms)?)
+                .bind(encrypted.nonce.to_vec()).bind(encrypted.ciphertext)
+                .execute(&mut *transaction).await.map_err(database_error)?;
+        } else {
+            sqlx::query("INSERT INTO control_oidc_sessions (session_id,token_hash,refresh_hash,binding,issuer,subject,access_expires_at_ms,expires_at_ms,nonce,ciphertext) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)")
+                .bind(&session_id).bind(hex(&token_hash(&access_token)))
+                .bind(refresh_token.as_ref().map(|token| hex(&token_hash(token))))
+                .bind(binding).bind(&identity.principal.issuer).bind(&identity.principal.subject)
+                .bind(timestamp(access_expires_at_ms)?).bind(timestamp(expires_at_ms)?)
+                .bind(encrypted.nonce.to_vec()).bind(encrypted.ciphertext)
+                .execute(&mut *transaction).await.map_err(database_error)?;
+            sqlx::query(
+                "INSERT INTO control_oidc_session_details(session_id,created_at_ms) VALUES($1,$2)",
+            )
+            .bind(&session_id)
+            .bind(timestamp(now_ms)?)
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error)?;
+        }
         transaction.commit().await.map_err(database_error)?;
         Ok(OidcSessionGrant {
             access_token,
@@ -257,6 +282,30 @@ fn encrypted_from_row(row: &AnyRow) -> Result<EncryptedSecret, HarnessError> {
 
 fn timestamp(value: u64) -> Result<i64, HarnessError> {
     i64::try_from(value).map_err(|_| HarnessError::invalid("OIDC timestamp exceeds database range"))
+}
+
+async fn require_active_identity_in(
+    transaction: &mut Transaction,
+    principal: &OidcPrincipal,
+) -> Result<(), HarnessError> {
+    let account =
+        sqlx::query("SELECT user_id,status FROM control_users WHERE issuer=$1 AND subject=$2")
+            .bind(&principal.issuer)
+            .bind(&principal.subject)
+            .fetch_optional(&mut **transaction)
+            .await
+            .map_err(database_error)?;
+    if let Some(account) = account {
+        let owner: String = account.try_get("user_id").map_err(database_error)?;
+        lock(transaction, &format!("ternilo:account-role:{owner}")).await?;
+        AccountStatus::parse(
+            &account
+                .try_get::<String, _>("status")
+                .map_err(database_error)?,
+        )?
+        .require_active()?;
+    }
+    Ok(())
 }
 
 fn expired() -> HarnessError {

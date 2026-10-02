@@ -75,10 +75,11 @@ test('matched PostgreSQL dump and Server configuration retain restricted-runtime
     assert.equal(usage.used_tokens, 42)
     const restrictedLimits = { ...limits, monthly_tokens: 42 }
     await request(`/model-access/devices/${deviceId}`, { method: 'PATCH', body: restrictedLimits })
-    const enrollment = await request(`/tenants/${login.personal_tenant_id}/my-computer-enrollments`, { body: { executor_id: 'pg-restore-node', project_id: null, ttl_seconds: 600 } })
+    const enrollment = await request(`/tenants/${login.personal_tenant_id}/my-computer-enrollments`, { body: { name: 'pg-restore-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrollment.enrollment.executor_id
     const nodeToken = (await request('/enrollments/consume', { body: { token: enrollment.enrollment.token } })).credential.token
     const nodeData = path.join(directory, 'node')
-    const nodeArgs = data => ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', data, '--node-id', 'pg-restore-node', '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+    const nodeArgs = data => ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', data, '--node-id', enrolledComputerId, '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
     const node = await serve(nodeBinary, nodeArgs(nodeData), { ...environment, TERNILO_LOCAL_TOKEN: nodeToken }, directory, nodeOrigin, processes)
     const local = await localApi(nodeOrigin)
     const folder = path.join(directory, 'workspace'); await mkdir(folder)
@@ -127,7 +128,7 @@ test('matched PostgreSQL dump and Server configuration retain restricted-runtime
     assert.equal((await sql('source', 'SELECT count(*) FROM control_model_requests')).stdout.trim(), '1')
     assert.equal((await sql('restored', 'SELECT count(*) FROM control_model_requests')).stdout.trim(), '2')
     const restoredNode = await serve(nodeBinary, nodeArgs(restoredLocal), { ...environment, TERNILO_LOCAL_TOKEN: nodeToken }, directory, nodeOrigin, processes)
-    await until(() => owner('/execution-targets'), value => value.executors.some(executor => executor.executor_id === 'pg-restore-node' && executor.connected), 'restored PostgreSQL Node credential')
+    await until(() => owner('/execution-targets'), value => value.executors.some(executor => executor.executor_id === enrolledComputerId && executor.connected), 'restored PostgreSQL Node credential')
     const restoredApi = await localApi(nodeOrigin)
     assert.deepEqual(await restoredApi(`/sessions/${localId}/events`), history)
     assert.ok((await owner('/state')).sessions.some(value => value.identity.session_id === publicId))

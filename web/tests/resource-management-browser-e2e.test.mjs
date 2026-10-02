@@ -21,12 +21,13 @@ test('workspace management transfers through the browser while execution ownersh
     const scope = { token, tenantId: tenant.tenant_id }
     await serverRequest(origin, `/tenants/${tenant.tenant_id}/members/${recipient.user.user_id}`, { token, method: 'PUT', body: { role: 'member' } })
     const { projects } = await serverRequest(origin, '/projects', scope)
-    const { enrollment } = await serverRequest(origin, `/tenants/${tenant.tenant_id}/my-computer-enrollments`, { token, body: { executor_id: 'owner-computer', project_id: null, ttl_seconds: 600 } })
+    const { enrollment } = await serverRequest(origin, `/tenants/${tenant.tenant_id}/my-computer-enrollments`, { token, body: { name: 'owner-computer', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrollment.executor_id
     const { credential } = await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })
     const local = `http://127.0.0.1:${await freePort()}`
     node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [
       'serve', '--listen', new URL(local).host, '--data-dir', path.join(directory, 'node'),
-      '--node-id', 'owner-computer', '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`,
+      '--node-id', enrolledComputerId, '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`,
       '--token', credential.token, '--allow-insecure-gateway',
     ])
     await waitForHttp(local, node)
@@ -37,7 +38,7 @@ test('workspace management transfers through the browser while execution ownersh
     }
     const folder = path.join(directory, 'workspace')
     await mkdir(folder)
-    const { workspace } = await serverRequest(origin, '/workspaces', { ...scope, body: { project_id: projects[0].project_id, name: 'Shared workspace', placement: 'local_node', executor_id: 'owner-computer', path: folder } })
+    const { workspace } = await serverRequest(origin, '/workspaces', { ...scope, body: { project_id: projects[0].project_id, name: 'Shared workspace', placement: 'local_node', executor_id: enrolledComputerId, path: folder } })
     const session = await serverRequest(origin, '/sessions', { ...scope, body: { workspace_id: workspace.workspace_id } })
     const endpoint = `/workspaces/${workspace.workspace_id}/sharing`
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
@@ -82,7 +83,7 @@ test('workspace management transfers through the browser while execution ownersh
     const inherited = await serverRequest(origin, `/sessions/${session.identity.session_id}/sharing`, receiverScope)
     assert.equal(inherited.access.owner_user_id, recipient.user.user_id)
     const targets = await serverRequest(origin, '/execution-targets', scope)
-    assert.ok(targets.executors.some(executor => executor.executor_id === 'owner-computer' && executor.connected))
+    assert.ok(targets.executors.some(executor => executor.executor_id === enrolledComputerId && executor.connected))
     const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
     if (artifacts) {
       await mkdir(artifacts, { recursive: true })

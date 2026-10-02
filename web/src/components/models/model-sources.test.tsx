@@ -28,7 +28,7 @@ const profile: ProviderProfile = {
   defaults: { context_window: 10000, max_output_tokens: 1000 },
   models: [{ id: 'same-model', settings: { mode: 'inherit' } }], timeout_ms: 0, max_attempts: 1, retry_base_delay_ms: 100,
 }
-const snapshot: ModelComputer[] = [{ executor_id: 'node-one', connected: true, can_configure: true, workspace_id: null, session_id: null }]
+const snapshot: ModelComputer[] = [{ executor_id: 'node-one',name: '工作电脑', connected: true, can_configure: true, workspace_id: null, session_id: null }]
 let root: Root, host: HTMLDivElement
 beforeEach(() => {
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -67,6 +67,8 @@ it('keeps account configuration in the personal space while chat and team permis
 it('does not reuse old device resources under a new space while its response is pending', async () => {
   history.replaceState({}, '', '/models?source=device&space=team&computer=node-one')
   await render(<ComputerModels />)
+  expect(host.textContent).toContain('工作电脑')
+  expect(host.textContent).not.toContain('node-one')
   expect(api.request).toHaveBeenCalledWith('/providers?executor_id=node-one', { headers: { 'x-ternilo-tenant': 'team' } })
   let resolveState!: (value: ModelComputer[]) => void
   vi.mocked(api.request).mockImplementation(async path => path === '/model-computers' ? new Promise(resolve => { resolveState = resolve }) : path.startsWith('/providers') ? [profile] : { references: [], records: [] })

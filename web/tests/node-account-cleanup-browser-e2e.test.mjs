@@ -28,13 +28,14 @@ test('offline computer cleanup stays pending until its revoked credential report
     await serverRequest(origin,'/admin/registration',{token:owner,method:'PATCH',body:{mode:'open',require_approval:false,revision:registration.revision}})
     await serverRequest(origin,'/auth/register',{body:{username:'cleanup-member',email:'cleanup-member@example.test',password:'cleanup-member-password'}})
     const member=await serverRequest(origin,'/auth/login',{body:{username:'cleanup-member',password:'cleanup-member-password'}})
-    const {enrollment}=await serverRequest(origin,`/tenants/${member.personal_tenant_id}/my-computer-enrollments`,{token:member.access_token,body:{executor_id:'offline-cleanup-computer',project_id:null,ttl_seconds:600}})
+    const {enrollment}=await serverRequest(origin,`/tenants/${member.personal_tenant_id}/my-computer-enrollments`,{token:member.access_token,body:{name:'offline-cleanup-computer',project_id:null,ttl_seconds:600}})
+    const enrolledComputerId = enrollment.executor_id
     const {credential}=await serverRequest(origin,'/enrollments/consume',{body:{token:enrollment.token}})
     const localOrigin=`http://127.0.0.1:${await freePort()}`
     const nodeData=path.join(directory,'node')
     const startNode=()=>startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository,'target/debug/ternilo'),[
       'serve','--listen',new URL(localOrigin).host,'--data-dir',nodeData,
-      '--node-id','offline-cleanup-computer','--gateway-url',origin.replace('http:','ws:')+'/api/v1/executors/connect','--allow-insecure-gateway',
+      '--node-id', enrolledComputerId,'--gateway-url',origin.replace('http:','ws:')+'/api/v1/executors/connect','--allow-insecure-gateway',
     ],{...Object.fromEntries(Object.keys(process.env).filter(key=>key.startsWith('TERNILO_')).map(key=>[key,undefined])),TERNILO_LOCAL_TOKEN:credential.token})
     node=startNode()
     await waitForHttp(localOrigin,node)
@@ -43,7 +44,7 @@ test('offline computer cleanup stays pending until its revoked credential report
     const {project}=await serverRequest(origin,'/projects',{...memberScope,body:{name:'Cleanup proof'}})
     const workspacePath=path.join(directory,'workspace')
     await mkdir(workspacePath)
-    const {workspace}=await serverRequest(origin,'/workspaces',{...memberScope,body:{project_id:project.project_id,name:'Cleanup workspace',placement:'local_node',executor_id:'offline-cleanup-computer',path:workspacePath}})
+    const {workspace}=await serverRequest(origin,'/workspaces',{...memberScope,body:{project_id:project.project_id,name:'Cleanup workspace',placement:'local_node',executor_id:enrolledComputerId,path:workspacePath}})
     const session=await serverRequest(origin,'/sessions',{...memberScope,body:{workspace_id:workspace.workspace_id,permissions:'full_access'}})
     await serverRequest(origin,`/sessions/${session.identity.session_id}/queue`,{...memberScope,body:{content:{kind:'prompt',input:'/schedule-after 3600 account-owned-reminder'},run_id:'cleanup-schedule-owner',attachments:[],references:[],delivery:'queue'}})
     const questions=await until(()=>serverRequest(origin,`/questions?session_id=${session.identity.session_id}`,memberScope),body=>body.length>0,'the scheduled task requires approval')

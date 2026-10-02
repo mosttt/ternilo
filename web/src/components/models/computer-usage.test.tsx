@@ -16,7 +16,7 @@ const observation = (seq: number, model: string, usage: unknown = null) => ({
   step: 1, attempt: seq, route: { provider: 'provider', model, protocol: 'openai-chat-completions' }, input_author: null,
   finished_at_ms: usage ? 2000 : null, usage, error_code: null, upstream_request_id: null,
 })
-const computers = (id: string) => ({ executors: [{ executor_id: id, state: 'active', connected: false }] })
+const computers = (id: string) => ({ executors: [{ executor_id: id, state: 'active', connected: false,management: { name: '工作电脑' } }] })
 const page = (observations: unknown[]) => ({ source: 'device_reported', period: '2026-09', observations, next_cursor: null })
 let host: HTMLDivElement
 let root: Root

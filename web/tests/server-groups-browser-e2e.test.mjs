@@ -140,10 +140,11 @@ test('team groups authorize real Node collaboration and revoke derived fork acce
       await serverRequest(origin, `/tenants/${team.tenant_id}/members/${identity.user.user_id}`, { token, method: 'PUT', body: { role: 'member' } })
     }
     const project = (await serverRequest(origin, '/projects', { token, tenantId: team.tenant_id })).projects[0]
-    const enrollment = (await serverRequest(origin, `/tenants/${team.tenant_id}/my-computer-enrollments`, { token, body: { executor_id: 'groups-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrollment = (await serverRequest(origin, `/tenants/${team.tenant_id}/my-computer-enrollments`, { token, body: { name: 'groups-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrolledComputerId = enrollment.executor_id
     const credential = (await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })).credential
     const nodeOrigin = `http://127.0.0.1:${await freePort()}`
-    node = startProcess(path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'), '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway', '--node-id', 'groups-node'], { TERNILO_LOCAL_TOKEN: credential.token })
+    node = startProcess(path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'), '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway', '--node-id', enrolledComputerId], { TERNILO_LOCAL_TOKEN: credential.token })
     await waitForHttp(nodeOrigin, node)
     for (const [endpoint, baseUrl] of Object.entries({ server: origin, local: nodeOrigin })) {
       assetHashes[endpoint] = {}

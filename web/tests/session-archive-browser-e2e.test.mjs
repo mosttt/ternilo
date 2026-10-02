@@ -136,12 +136,13 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
     await admin(`/tenants/${tenantId}/members/${member.user.user_id}`, { method: 'PUT', body: { role: 'member' } })
     const owner = (resource, options = {}) => serverRequest(serverOrigin, resource, { token: member.access_token, tenantId, ...options })
     const [project] = (await owner('/projects')).projects
-    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'archive-node', project_id: project.project_id, ttl_seconds: 600 } })
+    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'archive-node', project_id: project.project_id, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await owner('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const localOrigin = `http://127.0.0.1:${await freePort()}`
     const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
     const node = startProcess(binary, ['serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'node'),
-      '--node-id', 'archive-node', '--gateway-url', `${serverOrigin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'],
+      '--node-id', enrolledComputerId, '--gateway-url', `${serverOrigin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'],
     { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token })
     processes.push(node)
     await waitForHttp(localOrigin, node)

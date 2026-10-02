@@ -23,10 +23,11 @@ test('Local and Server page a long journal, resume a suffix and retain bounded o
     processes.push(server)
     const tenantId = server.owner.session.personal_tenant_id
     const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
-    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'history-node', project_id: null, ttl_seconds: 600 } })
+    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'history-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await owner('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const origin = `http://127.0.0.1:${await freePort()}`, data = path.join(directory, 'data')
-    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data, '--node-id', 'history-node', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data, '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
     const env = { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token }
     node = startProcess(binary, args, env); processes.push(node); await waitForHttp(origin, node)
     let local = await localApi(origin)

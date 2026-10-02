@@ -16,7 +16,7 @@ On Windows, run `bin\ternilo.exe serve` and keep `ternilo-sandbox-windows.exe` b
 
 The CLI service occupies its terminal; Ctrl-C stops it gracefully. Closing the browser does not stop the service. Open the address printed by the program, normally `http://127.0.0.1:3210`. If the desktop application already started the service, run `ternilo status` and use its existing address.
 
-Run `ternilo serve --open-browser` to open the system's default browser after the local web service is ready; `--open-brower` is also accepted. The URL uses the actual listening port, including a port assigned with `--listen 127.0.0.1:0`. This flag applies only to the current launch and is not saved to `config.json`. The local web UI must be enabled, so it cannot be used with `--no-local-web`. If opening the browser fails, the service keeps running and prints an address you can open manually.
+Run `ternilo serve --open-browser` to open the system's default browser after the local web service is ready. The URL uses the actual listening port, including a port assigned with `--listen 127.0.0.1:0`. This flag applies only to the current launch and is not saved to `config.json`. The local web UI must be enabled, so it cannot be used with `--no-local-web`. If opening the browser fails, the service keeps running and prints an address you can open manually.
 
 Prebuilt executables do not require Rust or Node.js. File search requires `ripgrep`; verify `rg --version` in the service environment. Linux command execution, background jobs and terminals also require `bubblewrap`. See [programs in the package](binaries.md) for the plugin CLI and Windows sandbox helper.
 

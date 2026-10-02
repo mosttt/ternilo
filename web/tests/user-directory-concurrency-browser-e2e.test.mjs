@@ -34,11 +34,12 @@ test('Server account holders and their local CLI share a directory without relea
     tenantId = tenant.tenant_id
     await owner(`/tenants/${tenantId}/members/${account.user.user_id}`, { method: 'PUT', body: { role: 'member' } })
     const member = (resource, options = {}) => serverRequest(server.origin, resource, { token: account.access_token, tenantId, ...options })
-    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'directory-node', project_id: null, ttl_seconds: 600 } })
+    const enrolled = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'directory-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await owner('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const origin = `http://127.0.0.1:${await freePort()}`
     const node = startProcess(nodeBinary, ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'),
-      '--node-id', 'directory-node', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'],
+      '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'],
     { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token })
     processes.push(node)
     await waitForHttp(origin, node)

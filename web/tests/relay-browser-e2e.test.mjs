@@ -242,7 +242,7 @@ async function waitForConnectedNode(origin, relay, node, token, tenantId) {
   const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
     const payload = await serverRequest(origin, '/execution-targets', { token, tenantId })
-    if (payload.executors?.some(executor => executor.executor_id === 'home' && executor.connected)) return
+    if (payload.executors?.some(executor => executor.name === 'home' && executor.connected)) return
     await new Promise(resolve => setTimeout(resolve, 100))
   }
   throw new Error(`node did not enroll through Server: ${JSON.stringify({
@@ -268,7 +268,8 @@ async function chooseWorkspace(page, workspace) {
   await placement.waitFor()
   const local = placement.getByRole('button', { name: /我的电脑或 VPS/ })
   if (await local.count() && await local.getAttribute('aria-pressed') !== 'true') await local.click()
-  await selectChoice(placement.getByLabel('运行电脑'), 'home')
+  const targets = await placement.getByLabel('运行电脑').locator('option').evaluateAll(options => options.map(option => ({ id: option.value,name: option.textContent })))
+  await selectChoice(placement.getByLabel('运行电脑'), targets.find(target => target.name?.startsWith('home'))?.id)
   await placement.getByLabel('工作区名称').fill('Relay Workspace')
   await placement.getByRole('button', { name: '选择文件夹' }).click()
   const dialog = page.getByRole('dialog', { name: '选择 home 上的工作文件夹' })
@@ -645,18 +646,20 @@ test('unified Server browser drives its enrolled Node and local web observes the
     await remotePage.getByRole('button', { name: '用户设置', exact: true }).click()
     const settings = remotePage.locator('[data-user-settings]')
     await settings.getByRole('button', { name: '我的机器', exact: true }).click()
-    await settings.getByLabel('电脑 ID', { exact: true }).fill('home')
+    await settings.getByLabel('电脑名称', { exact: true }).fill('home')
     await settings.getByRole('button', { name: '生成启动命令', exact: true }).click()
     const launch = remotePage.getByRole('dialog', { name: '启动 Ternilo Node' })
     const command = await launch.locator('[data-node-launch-command]').textContent()
     const nodeToken = /--token "([^"\s]+)"/.exec(command)?.[1]
+    const computerId = /--node-id="([^"\s]+)"/.exec(command)?.[1]
+    assert.ok(computerId)
     assert.ok(nodeToken)
     await launch.getByRole('button', { name: '我已保存，关闭', exact: true }).click()
     await settings.getByRole('button', { name: '返回工作台', exact: true }).click()
     await settings.waitFor({ state: 'detached' })
     node = managedProcess(nodeBinary, ['serve',
       '--gateway-url', `${relayOrigin.replace('http://', 'ws://')}/api/v1/executors/connect`,
-      '--allow-insecure-gateway', '--node-id', 'home', '--data-dir', nodeData, '--listen', '127.0.0.1:0',
+      '--allow-insecure-gateway', '--node-id', computerId, '--data-dir', nodeData, '--listen', '127.0.0.1:0',
     ], { TERNILO_LOCAL_TOKEN: nodeToken }, /Ternilo local web: (http:\/\/[^\s]+)/)
     const localOrigin = await node.ready
     await waitForConnectedNode(relayOrigin, relay, node, adminToken, tenantId)

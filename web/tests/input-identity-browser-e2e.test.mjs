@@ -109,10 +109,11 @@ test('shared Node input keeps each submitter visible in chat, pending queue and 
     const team = (await ownerRequest('/tenants', { body: { slug: 'identity-team', display_name: 'Identity team' } })).tenant
     await ownerRequest(`/tenants/${team.tenant_id}/members/${memberIdentity.user.user_id}`, { method: 'PUT', body: { role: 'member' } })
     const project = (await ownerRequest('/projects', { tenantId: team.tenant_id })).projects[0]
-    const enrollment = (await ownerRequest(`/tenants/${team.tenant_id}/my-computer-enrollments`, { body: { executor_id: 'identity-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrollment = (await ownerRequest(`/tenants/${team.tenant_id}/my-computer-enrollments`, { body: { name: 'identity-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrolledComputerId = enrollment.executor_id
     const credential = (await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })).credential
     const nodeOrigin = `http://127.0.0.1:${await freePort()}`
-    node = startProcess(process.env.TERNILO_E2E_LOCAL_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'), '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway', '--node-id', 'identity-node'], { TERNILO_LOCAL_TOKEN: credential.token, XDG_STATE_HOME: path.join(directory, 'state') })
+    node = startProcess(process.env.TERNILO_E2E_LOCAL_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'), '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway', '--node-id', enrolledComputerId], { TERNILO_LOCAL_TOKEN: credential.token, XDG_STATE_HOME: path.join(directory, 'state') })
     await waitForHttp(nodeOrigin, node)
     for (const [endpoint, baseUrl] of Object.entries({ server: origin, local: nodeOrigin })) {
       assetHashes[endpoint] = {}

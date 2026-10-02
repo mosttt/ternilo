@@ -78,16 +78,16 @@ export async function removeMembership(tenantId: string, userId: string) {
   )
 }
 
-export async function listManagedComputers(tenantId: string) {
+export async function listManagedComputers(tenantId: string, includeRemoved = false) {
   const response = await api.request<{ executors: ManagedExecutionTarget[] }>(
-    tenantResource(tenantId, 'executors'),
+    `${tenantResource(tenantId, 'executors')}${includeRemoved ? '?include_removed=true' : ''}`,
   )
   return response.executors
 }
 
-export async function listOwnedComputers(tenantId: string) {
+export async function listOwnedComputers(tenantId: string, includeRemoved = false) {
   const response = await api.request<{ executors: ManagedExecutionTarget[] }>(
-    tenantResource(tenantId, 'my-computers'),
+    `${tenantResource(tenantId, 'my-computers')}${includeRemoved ? '?include_removed=true' : ''}`,
   )
   return response.executors
 }
@@ -114,7 +114,7 @@ export function getComputerDetails(tenantId: string, executorId: string, scope: 
   return api.request<ComputerDetailsResponse>(computerResource(tenantId, executorId, scope), { signal })
 }
 
-export function updateComputer(tenantId: string, executorId: string, scope: 'owned' | 'managed', body: { display_name: string | null; notes: string; expected_revision: number }) {
+export function updateComputer(tenantId: string, executorId: string, scope: 'owned' | 'managed', body: { name: string; notes: string; expected_revision: number }) {
   return api.request<{ management: ComputerManagement }>(computerResource(tenantId, executorId, scope), { method: 'PATCH', body })
 }
 
@@ -163,6 +163,8 @@ export async function listPlatformProjects() {
 export interface NodeLaunchCommand {
   command: string
   executorId: string
+  name: string
+  recovery?: boolean
 }
 
 function commandArgument(value: string) {
@@ -188,14 +190,14 @@ export function nodeLaunchCommand(
  */
 export async function createNodeLaunch(
   tenantId: string,
-  input: { executorId: string; projectId?: string; origin?: string },
+  input: { name: string; projectId?: string; origin?: string },
 ): Promise<NodeLaunchCommand> {
   return createNodeLaunchForResource(tenantId, 'enrollments', input)
 }
 
 export async function createOwnedNodeLaunch(
   tenantId: string,
-  input: { executorId: string; projectId?: string; origin?: string },
+  input: { name: string; projectId?: string; origin?: string },
 ): Promise<NodeLaunchCommand> {
   return createNodeLaunchForResource(tenantId, 'my-computer-enrollments', input)
 }
@@ -203,35 +205,44 @@ export async function createOwnedNodeLaunch(
 async function createNodeLaunchForResource(
   tenantId: string,
   enrollmentResource: 'enrollments' | 'my-computer-enrollments',
-  input: { executorId: string; projectId?: string; origin?: string },
+  input: { name: string; projectId?: string; origin?: string },
 ): Promise<NodeLaunchCommand> {
-  commandArgument(input.executorId)
   const created = await api.request<{ enrollment: EnrollmentGrant }>(
     tenantResource(tenantId, enrollmentResource),
     {
       method: 'POST',
       body: {
-        executor_id: input.executorId,
+        name: input.name,
         project_id: input.projectId || null,
         ttl_seconds: 600,
       },
     },
   )
+  return consumeNodeLaunch(created.enrollment, input.origin)
+}
+
+export async function recoverNodeLaunch(tenantId: string, computer: ManagedExecutionTarget, scope: 'owned' | 'managed', name: string): Promise<NodeLaunchCommand> {
+  const created = await api.request<{ enrollment: EnrollmentGrant }>(`${computerResource(tenantId,computer.executor_id,scope)}/recovery`, { method: 'POST', body: { name,expected_revision: computer.management.revision } })
+  return { ...await consumeNodeLaunch(created.enrollment), recovery: true }
+}
+
+async function consumeNodeLaunch(enrollment: EnrollmentGrant, origin?: string): Promise<NodeLaunchCommand> {
   const consumed = await api.request<{ credential: NodeCredentialGrant }>(
     '/enrollments/consume',
     {
       method: 'POST',
       body: {
-        token: created.enrollment.token,
+        token: enrollment.token,
       },
     },
   )
   return {
     command: nodeLaunchCommand(
-      input.origin ?? window.location.origin,
-      input.executorId,
+      origin ?? window.location.origin,
+      consumed.credential.executor_id,
       consumed.credential.token,
     ),
-    executorId: input.executorId,
+    executorId: consumed.credential.executor_id,
+    name: enrollment.name,
   }
 }

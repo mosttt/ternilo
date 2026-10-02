@@ -37,6 +37,11 @@ impl ControlStore {
         ip: Option<IpAddr>,
         now_ms: u64,
     ) -> Result<(), HarnessError> {
+        if token.starts_with("ter_o_") {
+            return self
+                .record_oidc_session_activity(actor, token, user_agent, ip, now_ms)
+                .await;
+        }
         if !token.starts_with("ter_a_") {
             return Ok(());
         }

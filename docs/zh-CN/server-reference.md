@@ -114,8 +114,9 @@ queued → leased → running | cancel_requested
 
 ### Enrollment、配额与审计
 
-- Enrollment token 最长一小时且只能消费一次；Node credential 只保存哈希，签发后没有时间到期，直到显式吊销电脑才失效。已登记电脑不能刷新或重新签发 credential；需要新 credential 时先吊销，再重新登记。
-- 电脑管理使用独立 `computer_management` 组件。`/tenants/{tenant}/my-computers/{id}` 为本人入口，`/tenants/{tenant}/executors/{id}` 为具有对应职责的空间入口：`GET` 读取详情，`PATCH` 保存 `{display_name, notes, expected_revision}`，`PUT /suspension` 保存 `{suspended, expected_revision}`，`DELETE /registration` 接收 `{expected_revision}` 并移除登记；原 `DELETE` 仍表示吊销。状态操作按版本拒绝冲突，暂停不能经原凭据重新连接，恢复沿用原凭据，移除保留关联工作区和历史。详情和列表采用较新的服务端心跳或认证时间。
+- Enrollment token 最长一小时且只能消费一次；Node credential 只保存哈希，签发后没有时间到期，直到显式吊销电脑才失效。已登记电脑不能刷新或重新签发 credential；已吊销或已移除的电脑通过显式恢复签发新凭据并沿用原 ID；正常重启及暂停恢复不重新登记。
+- 电脑管理使用独立 `computer_management` 组件。`/tenants/{tenant}/my-computers/{id}` 为本人入口，`/tenants/{tenant}/executors/{id}` 为具有对应职责的空间入口：`GET` 读取详情，`PATCH` 保存 `{name, notes, expected_revision}`，`PUT /suspension` 保存 `{suspended, expected_revision}`，`DELETE /registration` 接收 `{expected_revision}` 并移除登记；原 `DELETE` 仍表示吊销。状态操作按版本拒绝冲突，暂停不能经原凭据重新连接，恢复沿用原凭据，移除保留关联工作区和历史。详情和列表采用较新的服务端心跳或认证时间。
+- 登记请求为 `{name, project_id?, ttl_seconds?}`，ID 由系统生成；同一账号和空间内名称唯一。列表默认隐藏已移除项，`?include_removed=true` 才读取全部可见登记。`POST /recovery` 接收 `{name, expected_revision}`，仅恢复已吊销或已移除的原身份，保留归属、项目及持久目录绑定。
 - Control 限制 Node 数、并发 run、月度 model token、secret 和扩展数量；Run 预留与模型 attempt 分配在数据库事务中处理，不重复预占同一空间额度。结算只接受 Server 观察到的用量，不提供客户端自报实际消耗的 commit 接口。
 - 空间管理 → 用量供当前空间 owner/admin 按 UTC 月查看 token ledger 与 reservation，并单列不受月份筛选影响的全时段异常；member/viewer 无入口且 API 拒绝。它不是金额账单：空间预算和相关用量按 Run 首次预留的 UTC 月份归属，平台模型授权按逻辑模型请求接受月份归属；各次重试保持该月份。页面分别显示已知消耗、未知预留和活跃 Run 剩余预留，可相加查看占用；当前配额上限不是历史快照。
 - 审计日志 append-only，并以 SHA-256 hash chain 连接；支付、定价、发票和税务属于外部运营系统，不是 usage ledger 的职责。
@@ -219,9 +220,11 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 ### 浏览器登录会话
 
-`GET /api/v1/auth/sessions` 列出当前账号尚有效的本站原生登录会话；`DELETE /api/v1/auth/sessions/{session_id}` 撤销一项；`POST /api/v1/auth/sessions/revoke-others` 保留当前原生会话并撤销其他项。当前认证来自 OIDC 时，后一操作撤销同账号全部原生会话，不撤销外部 IdP 会话。
+`GET /api/v1/auth/sessions` 统一列出当前账号尚有效的密码登录与本站 OIDC 会话；`DELETE /api/v1/auth/sessions/{session_id}` 撤销一项；`POST /api/v1/auth/sessions/revoke-others` 保留当前本站会话并撤销同账号其他两类会话。仅持有外部 IdP 访问凭据时，当前凭据不属于本站会话，批量操作撤销本账号全部本站会话；不撤销该外部凭据或 IdP 会话。
 
 这些接口只接受已验证的当前账号身份，不接受其他用户 ID 作为管理目标。返回的公开 ID 不是 Bearer 或数据库中的令牌摘要，也不返回可用于认证的秘密；响应禁止缓存。撤销当前会话后客户端需退出，被撤销的已有实时连接同样需要重新认证，未撤销的有效会话继续可用。浏览器登录会话与模型 Key、模型授权设备及 Node 凭据分别管理。
+
+列表包含 `login_kind`、OIDC 的 `issuer`、首次登录时间、会话到期时间、访问凭据到期时间、当前标识、首次浏览器标识、首次／最近来源 IP 及最后活动时间。未记录的时间或浏览器信息保持空值。OIDC 会话在访问凭据到期但仍可刷新时继续列出；刷新保留同一公开 ID、首次登录及活动信息，不延长原会话期限。撤销同时使该本站会话的访问与刷新凭据失效，迟到的刷新不能重建已撤销会话。`current_session_managed` 区分当前本站会话与直接外部凭据；后者不显示为可撤销的当前本站会话。
 
 ### 工作台配置与模型
 
@@ -266,7 +269,7 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 实例所有者通过 `GET/PUT /api/v1/admin/instance/authentication` 管理登录配置。数据库保存版本化加密配置，公开响应只含密钥是否存在，审计不含密钥；更新在新请求上生效。OAuth token proxy 支持公开客户端、HTTP Basic 或请求正文中的 Client Secret。Turnstile 针对密码登录、注册和邀请注册调用固定 Siteverify 地址，核验 action、hostname 与验证结果。部署配置优先级和操作员恢复命令见[登录与人机验证](server-authentication.md)。
 
-身份路由提供 setup、注册、登录、当前会话读取、退出、邀请接受、OIDC 显式绑定，以及[本站浏览器会话自助管理](#浏览器登录会话)。[原生密码重置](account-recovery.md)仅由本机维护 CLI 提供，没有公开重置路由；邮件找回、自助恢复和 MFA 尚未提供。退出当前会话、逐项／批量撤销其他原生会话，以及管理员封禁／注销触发的全账号撤销已实现。模型授权设备及 Node 电脑的撤销是另外两类接口，均不撤销外部 IdP 会话。
+身份路由提供 setup、注册、登录、当前会话读取、退出、邀请接受、OIDC 显式绑定，以及[本站浏览器会话自助管理](#浏览器登录会话)。[原生密码重置](account-recovery.md)仅由本机维护 CLI 提供，没有公开重置路由；邮件找回、自助恢复和 MFA 尚未提供。退出当前会话、逐项／批量撤销其他本站会话，以及管理员封禁／注销触发的全账号撤销已实现。模型授权设备及 Node 电脑的撤销是另外两类接口，均不撤销外部 IdP 会话。
 
 实际部署见 [Docker 与生产部署](deployment.md)，Node 使用见 [远程访问与 Node](remote-access.md)，整体威胁模型见 [安全模型](security.md)。
 

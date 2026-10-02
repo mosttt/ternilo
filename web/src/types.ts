@@ -68,7 +68,7 @@ export interface ProjectRecord {
 
 export interface ExecutionTarget {
   executor_id: string
-  display_name?: string | null
+  name: string
   project_id?: string | null
   state: 'enrolled' | 'active' | 'revoked'
   connected: boolean
@@ -122,7 +122,7 @@ export interface ManagedExecutionTarget extends ExecutionTarget {
 }
 
 export interface ComputerManagement {
-  display_name: string | null
+  name: string
   notes: string
   suspended_at_ms: number | null
   removed_at_ms: number | null
@@ -132,7 +132,7 @@ export interface ComputerManagement {
 export interface ComputerDetailsResponse {
   connected: boolean
   details: {
-    executor: Omit<ManagedExecutionTarget, 'connected'>
+    executor: Omit<ManagedExecutionTarget, 'connected' | 'name'>
     management: ComputerManagement
     owner: { user_id: string; username: string }
     hello: { protocol_version: number; instance_nonce: string; catalog_revision: string; capabilities: string[] } | null
@@ -248,6 +248,7 @@ export interface EnrollmentGrant {
   enrollment_id: string
   tenant_id: string
   executor_id: string
+  name: string
   expires_at_ms: number
   token: string
 }

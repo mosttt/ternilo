@@ -20,10 +20,11 @@ test('Local provider changes refresh in an open Server computer catalog without 
     processes.push(server)
     const tenantId = server.owner.session.personal_tenant_id
     const request = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
-    const enrolled = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'refresh-node', project_id: null, ttl_seconds: 600 } })
+    const enrolled = await request(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'refresh-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const credential = await request('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const origin = `http://127.0.0.1:${await freePort()}`
-    const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', 'refresh-node', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], { TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'local-state') })
+    const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], { TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'local-state') })
     processes.push(node)
     await waitForHttp(origin, node)
     const local = await localApi(origin)

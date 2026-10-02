@@ -18,23 +18,23 @@ Server 默认使用用户名和密码登录，也可选配 OIDC。单用户模�
 
 ## 2. 取得电脑连接凭据
 
-1. 登录 Server，进入“用户设置 → 我的机器”，填写能区分这台机器的稳定 ID，例如 `laptop`、`home` 或 `vps-01`。
+1. 登录 Server，进入“用户设置 → 我的机器”，填写电脑名称，例如 `工作电脑`、`家庭电脑` 或 `VPS`；ID 由系统生成且不可修改。
 2. 生成启动命令。页面使用一次性登记授权取得可撤销的电脑凭据，只显示一次。
 3. 把命令放到要连接的电脑执行；格式如下。
 4. 回 Server 确认电脑在线。已有工作区和会话会被发现并沿用；也可以选择这台电脑上的新工作文件夹。
 
-接入更多机器时重复上述步骤，为每台使用不同 ID 和独立凭据。此处不需要配置数据库、再创建一套模型设置或复制项目文件。
+接入更多机器时重复上述步骤，为每个独立实例填写唯一名称，由系统分配各自的 ID 和凭据。此处不需要配置数据库、再创建一套模型设置或复制项目文件。
 
 ```text
-ternilo serve --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home" --token "ter_n_REPLACE_WITH_YOUR_TOKEN"
+ternilo serve --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "ter_pc_GENERATED_ID" --token "ter_n_REPLACE_WITH_YOUR_TOKEN"
 ```
 
-此单行参数形式适用于 Bash、PowerShell 和 CMD；将 Token 替换为页面实际显示的值。长期服务仍可使用下面的环境配置文件。
+此单行参数形式适用于 Bash、PowerShell 和 CMD；使用页面生成的 ID 和 Token，不要自行编造 ID。长期服务仍可使用下面的环境配置文件。
 
 
-电脑凭据用于长期重连，不要复用其他用户或其他电脑的值。需要更换时，在“我的机器”撤销原电脑并重新登记；原凭据随吊销失效。未安全保存一次显示的凭据时，同样重新登记。
+电脑凭据用于长期重连，不要复用其他用户或其他电脑的值。凭据丢失或已吊销时，选择“恢复原电脑接入”，沿用原 ID、归属及资源关联。正常断线与重启不重新登记；凭据轮换单独后移。
 
-已登记电脑可以在[电脑管理](computers.md)中修改显示名称和备注、查看详情、暂停或恢复接入。暂停保留原凭据；移除登记会撤销接入并隐藏登记，保留已有工作区和历史。
+已登记电脑可以在[电脑管理](computers.md)中修改电脑名称和备注、查看详情、暂停或恢复接入。暂停保留原凭据；移除登记会撤销接入并隐藏登记，保留已有工作区和历史。
 
 ## 3. 在本地与手机验证
 
@@ -50,11 +50,11 @@ ternilo serve --gateway-url "wss://agent.example.com/api/v1/executors/connect" -
 
 ## 同一台电脑运行多个实例
 
-可以同时运行多个实例，并全部连接同一个 Server。每个实例分别设置监听端口、数据目录、Node ID 和该 Node 的凭据。在“我的机器”中分别登记 `home-a` 与 `home-b`，然后在两个终端执行：
+可以同时运行多个实例，并全部连接同一个 Server。每个实例使用独立端口、数据目录、系统分配的 ID 和凭据。在“我的机器”中分别登记 `home-a` 与 `home-b`，然后在两个终端执行：
 
 ```text
-ternilo serve --listen 127.0.0.1:3210 --data-dir "./ternilo-data-a" --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home-a" --token "ter_n_REPLACE_WITH_TOKEN_A"
-ternilo serve --listen 127.0.0.1:3211 --data-dir "./ternilo-data-b" --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "home-b" --token "ter_n_REPLACE_WITH_TOKEN_B"
+ternilo serve --listen 127.0.0.1:3210 --data-dir "./ternilo-data-a" --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "ter_pc_GENERATED_ID_A" --token "ter_n_REPLACE_WITH_TOKEN_A"
+ternilo serve --listen 127.0.0.1:3211 --data-dir "./ternilo-data-b" --gateway-url "wss://agent.example.com/api/v1/executors/connect" --node-id "ter_pc_GENERATED_ID_B" --token "ter_n_REPLACE_WITH_TOKEN_B"
 ```
 
 相对数据目录以启动时的当前目录为基准；长期运行建议改成固定绝对路径。两个本地网页分别访问 `http://127.0.0.1:3210` 和 `http://127.0.0.1:3211`。它们的会话、模型、预设和凭据分别保存，Server 中显示为两个 Node。不要共用数据目录；同一 Node 身份重复连接会替换之前的连接。多个实例可以选择相同项目目录，但同一用户并行修改同一文件仍可能冲突，应按任务划分目录或 Git worktree。
@@ -70,7 +70,7 @@ Linux 可使用用户级 systemd 服务。先将 `ternilo` 安装到 `~/.local/b
 ```dotenv
 TERNILO_LOCAL_GATEWAY_URL=wss://agent.example.com/api/v1/executors/connect
 TERNILO_LOCAL_TOKEN=<computer-token>
-TERNILO_LOCAL_NODE_ID=home
+TERNILO_LOCAL_NODE_ID=ter_pc_GENERATED_ID
 TERNILO_LOCAL_MAX_STEPS=0
 ```
 
@@ -110,13 +110,13 @@ journalctl --user -u ternilo -n 100
 
 ## 连接参数与环境变量
 
-所有长期运行参数都有固定环境变量，显式 CLI 优先：
+连接与长期运行参数支持固定环境变量，显式 CLI 优先：
 
 | CLI | 环境变量 | 默认值/用途 |
 |---|---|---|
 | `--gateway-url` | `TERNILO_LOCAL_GATEWAY_URL` | 不设置时只在本地使用 |
 | `--token` | `TERNILO_LOCAL_TOKEN` | 设置远程地址后必填；长期服务建议用环境配置 |
-| `--node-id` | `TERNILO_LOCAL_NODE_ID` | `home` |
+| `--node-id` | `TERNILO_LOCAL_NODE_ID` | Server 分配的固定 ID；使用生成命令中的值 |
 | `--listen` | `TERNILO_LOCAL_LISTEN` | `127.0.0.1:3210` |
 | `--no-local-web[=BOOL]` | `TERNILO_LOCAL_NO_LOCAL_WEB` | `false`；远程连接但不提供本机网页 |
 | `--allow-insecure-gateway[=BOOL]` | `TERNILO_LOCAL_ALLOW_INSECURE_GATEWAY` | `false`；仅用于明确的明文开发联调 |

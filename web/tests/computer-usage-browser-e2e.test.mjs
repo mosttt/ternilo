@@ -48,10 +48,11 @@ test('device usage survives offline replay, excludes fork copies and preserves s
     const tenantId = team.tenant_id
     const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token, tenantId, ...options })
     const project = (await owner('/projects')).projects[0]
-    const enrollment = (await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { executor_id: 'usage-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrollment = (await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'usage-node', project_id: project.project_id, ttl_seconds: 600 } })).enrollment
+    const enrolledComputerId = enrollment.executor_id
     const credential = (await owner('/enrollments/consume', { body: { token: enrollment.token } })).credential
     const origin = `http://127.0.0.1:${await freePort()}`
-    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'data'), '--node-id', 'usage-node', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+    const args = ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'data'), '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
     const env = { ...environment, TERNILO_LOCAL_TOKEN: credential.token }
     const startNode = async () => {
       node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), args, env)
@@ -78,7 +79,7 @@ test('device usage survives offline replay, excludes fork copies and preserves s
       await request(`/sessions/${id}/queue`, { body: { run_id: runId, content: { kind: 'prompt', input: `private-prompt-${runId}` } } })
       await until(() => request(`/sessions/${id}/events`), events => events.some(event => event.run_id === runId && event.type === 'turn_finished'), `${runId} completed`)
     }
-    const reportPath = '/model-computers/usage-node/usage'
+    const reportPath = `/model-computers/${enrolledComputerId}/usage`
     const report = count => until(() => owner(reportPath), value => value.observations.length === count && value.observations.every(record => record.finished_at_ms !== null), `${count} usage observations`)
     await run(local, sessionId, 'online-task')
     const localEvents = await local(`/sessions/${sessionId}/events`)
@@ -131,7 +132,7 @@ test('device usage survives offline replay, excludes fork copies and preserves s
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`) })
-    const usageUrl = `${server.origin}/models?tab=usage&usage_source=device&space=${tenantId}&computer=usage-node`
+    const usageUrl = `${server.origin}/models?tab=usage&usage_source=device&space=${tenantId}&computer=${enrolledComputerId}`
     await page.goto(usageUrl)
     await page.getByLabel('用户名', { exact: true }).fill(server.owner.username)
     await page.getByLabel('密码', { exact: true }).fill(server.owner.password)

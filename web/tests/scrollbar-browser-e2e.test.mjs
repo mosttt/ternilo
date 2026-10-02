@@ -58,11 +58,12 @@ test('Local and Server share initially hidden, themed scrollbars on desktop and 
     processes.push(server)
     const tenant = server.owner.session.personal_tenant_id
     const request = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId: tenant, ...options })
-    const enrollment = await request(`/tenants/${tenant}/my-computer-enrollments`, { body: { executor_id: 'scroll-node', project_id: null, ttl_seconds: 600 } })
+    const enrollment = await request(`/tenants/${tenant}/my-computer-enrollments`, { body: { name: 'scroll-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrollment.enrollment.executor_id
     const credential = await request('/enrollments/consume', { body: { token: enrollment.enrollment.token } })
     const origin = `http://127.0.0.1:${await freePort()}`
     const environment = Object.fromEntries(Object.keys(process.env).filter(key => key.startsWith('TERNILO_')).map(key => [key, undefined]))
-    const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', 'scroll-node', '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'state') })
+    const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolledComputerId, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway'], { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'state') })
     processes.push(node)
     await waitForHttp(origin, node)
     const local = await localApi(origin)

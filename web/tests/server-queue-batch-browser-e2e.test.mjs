@@ -33,11 +33,12 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     processes.push(server)
     const tenant = server.owner.session.personal_tenant_id
     const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId: tenant, ...options })
-    const enrollment = await owner(`/tenants/${tenant}/my-computer-enrollments`, { body: { executor_id: 'batch-machine', project_id: null, ttl_seconds: 600 } })
+    const enrollment = await owner(`/tenants/${tenant}/my-computer-enrollments`, { body: { name: 'batch-machine', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrollment.enrollment.executor_id
     const credential = await owner('/enrollments/consume', { body: { token: enrollment.enrollment.token } })
     const localOrigin = `http://127.0.0.1:${await freePort()}`
     const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), [
-      'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'local'), '--node-id', 'batch-machine',
+      'serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'local'), '--node-id', enrolledComputerId,
       '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway',
     ], { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token })
     processes.push(node)

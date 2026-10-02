@@ -57,10 +57,11 @@ test('unpacked Local and Server preserve identities, credentials and archives ac
     const owner = (resource, options = {}) => serverRequest(serverOrigin, resource, { token: account.access_token, tenantId: account.personal_tenant_id, ...options })
     await owner('/credentials', { body: { name: 'SAME_PROVIDER_KEY', value: 'synthetic-delivery-secret' } })
     await owner('/providers', { body: provider })
-    const enrolled = await owner(`/tenants/${account.personal_tenant_id}/my-computer-enrollments`, { body: { executor_id: 'delivery-node', project_id: null, ttl_seconds: 600 } })
+    const enrolled = await owner(`/tenants/${account.personal_tenant_id}/my-computer-enrollments`, { body: { name: 'delivery-node', project_id: null, ttl_seconds: 600 } })
+    const enrolledComputerId = enrolled.enrollment.executor_id
     const connection = await owner('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     const nodeEnvironment = { ...environment, TERNILO_LOCAL_TOKEN: connection.credential.token }
-    const nodeArgs = (origin, data, gateway) => ['serve', '--listen', new URL(origin).host, '--data-dir', data, '--node-id', 'delivery-node', '--gateway-url', `${gateway.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+    const nodeArgs = (origin, data, gateway) => ['serve', '--listen', new URL(origin).host, '--data-dir', data, '--node-id', enrolledComputerId, '--gateway-url', `${gateway.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
     const node = await serve(binaries.ternilo, nodeArgs(localOrigin, localData, serverOrigin), nodeEnvironment, installation, localOrigin, processes)
     await verifyAssets(serverOrigin); await verifyAssets(localOrigin)
     const local = await localApi(localOrigin)
@@ -143,7 +144,7 @@ test('unpacked Local and Server preserve identities, credentials and archives ac
       assert.deepEqual((await ownerRestored('/model-access/devices?limit=50')).devices.find(device => device.device_id === deviceId).limits, limits)
       const restoredConnection = JSON.parse(await readFile(path.join(backups, 'node-connection.json'), 'utf8'))
       const restoredNode = await serve(binaries.ternilo, nodeArgs(localOrigin, restoredLocal, serverOrigin), { ...environment, TERNILO_LOCAL_TOKEN: restoredConnection.token }, installation, localOrigin, processes)
-      await until(() => ownerRestored('/execution-targets'), result => result.executors.some(executor => executor.executor_id === 'delivery-node' && executor.connected), 'restored Node authentication')
+      await until(() => ownerRestored('/execution-targets'), result => result.executors.some(executor => executor.executor_id === enrolledComputerId && executor.connected), 'restored Node authentication')
       const restoredApi = await localApi(localOrigin)
       await verifyAssets(serverOrigin); await verifyAssets(localOrigin)
       assert.deepEqual(await restoredApi('/providers'), savedProviders)
