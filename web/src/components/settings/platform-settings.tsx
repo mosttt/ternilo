@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { PlatformServiceAccounts } from './platform-service-accounts'
 import { useSearch } from '@/app/navigation'
 import { PlatformProjectsSettings } from './platform-projects-settings'
 import { useTranslate } from '@/i18n/provider'
@@ -12,10 +13,11 @@ import { InvitationPanel } from '@/components/admin/invitation-panel'
 import type { TenantRole } from '@/types'
 import styles from './settings-layout.module.css'
 
-type PlatformTab = 'members' | 'groups' | 'computers' | 'projects' | 'quota' | 'usage' | 'audit'
+type PlatformTab = 'serviceAccounts' | 'members' | 'groups' | 'computers' | 'projects' | 'quota' | 'usage' | 'audit'
 
 export function PlatformSettings({ tenantId, role, kind }: { tenantId: string; role: Extract<TenantRole, 'admin' | 'owner'>; kind: 'personal' | 'team' }) {
   const t = useTranslate('settings')
+  const serviceT = useTranslate('serviceAccounts')
   const adminT = useTranslate('admin')
   const workspaceT = useTranslate('workspace')
   const search = useSearch()
@@ -23,12 +25,13 @@ export function PlatformSettings({ tenantId, role, kind }: { tenantId: string; r
   React.useEffect(() => { if (new URLSearchParams(search).get('tab') === 'projects') setTab('projects') }, [search])
   const tabs = React.useMemo(() => [
     ...(kind === 'team' ? [{ id: 'members', label: t('platform.members') }, { id: 'groups', label: t('groups.title') }] : []),
+    { id: 'serviceAccounts', label: serviceT('title') },
     { id: 'computers', label: t('platform.computers') },
     { id: 'projects', label: workspaceT('picker.project') },
     { id: 'quota', label: t('platform.quota') },
     { id: 'usage', label: t('platform.usage') },
     { id: 'audit', label: t('platform.audit') },
-  ], [kind, t, workspaceT])
+  ], [kind, t, workspaceT, serviceT])
 
   return (
     <div className={styles.section} data-platform-settings="">
@@ -44,6 +47,9 @@ export function PlatformSettings({ tenantId, role, kind }: { tenantId: string; r
       </SettingsTabPanel>
       <SettingsTabPanel id="groups" active={tab}>
         {tab === 'groups' && kind === 'team' ? <PlatformGroupsSettings key={tenantId} tenantId={tenantId} /> : null}
+      </SettingsTabPanel>
+      <SettingsTabPanel id="serviceAccounts" active={tab}>
+        {tab === 'serviceAccounts' ? <PlatformServiceAccounts key={tenantId} tenantId={tenantId} /> : null}
       </SettingsTabPanel>
       <SettingsTabPanel id="computers" active={tab}>
         {tab === 'computers' ? <PlatformComputersSettings key={tenantId} tenantId={tenantId} /> : null}

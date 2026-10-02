@@ -38,6 +38,7 @@ mod model_gateway;
 mod models;
 mod node_cleanup;
 mod security;
+mod service_accounts;
 mod state;
 mod web;
 mod workbench;
@@ -235,6 +236,7 @@ fn api_router() -> Router {
             ),
         )
         .push(groups::router())
+        .push(service_accounts::router())
         .push(
             Router::with_path("executors").get(list_executors).push(
                 Router::with_path("{executor_id}")

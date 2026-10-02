@@ -7,6 +7,8 @@ use crate::platform::{
     state::{AppState, app_state},
 };
 
+mod service;
+
 #[handler]
 pub(crate) async fn user_auth(
     request: &mut Request,
@@ -14,6 +16,22 @@ pub(crate) async fn user_auth(
     response: &mut Response,
     control: &mut FlowCtrl,
 ) {
+    if let Ok(token) = bearer_token(request)
+        && token.starts_with("ter_t_")
+    {
+        match service::authenticate_request(request, app_state(depot), token).await {
+            Ok(principal) => {
+                depot.insert_typed(principal.user.clone());
+                depot.insert_typed(principal);
+                control.call_next(request, depot, response).await;
+            }
+            Err(error) => {
+                error.render(response);
+                control.skip_rest();
+            }
+        }
+        return;
+    }
     match authenticate_user(request, app_state(depot)).await {
         Ok(session) => {
             depot.insert_typed(session.user.clone());
@@ -32,6 +50,11 @@ pub(crate) async fn authenticate_token(
     state: &AppState,
     token: &str,
 ) -> Result<(ControlUser, Option<u64>), HarnessError> {
+    if token.starts_with("ter_t_") {
+        return Err(HarnessError::policy(
+            "service credentials require tenant-scoped HTTP authentication",
+        ));
+    }
     if token.starts_with("ter_a_") {
         let (user, expiry) = state
             .store

@@ -290,3 +290,7 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 `POST /api/v1/executors/cleanup/sync` 使用 Node 凭据和本机 `storage_instance_id` 同步授权与清理请求。`GET /api/v1/executors/cleanup` 读取自身快照；`POST` 提交匹配请求、撤销版本和数据实例的回执。此通道不恢复撤销凭据的普通访问权。
 
 `GET /api/v1/admin/accounts/{user_id}/node-cleanup` 供具有账号读取权限的实例所有者、平台管理员或审计员查看状态。`pending` 表示尚未确认，`confirmed` 表示 Node 已持久确认受管工作收尾。`detail` 仅接受 `process_state_unknown`、`process_exit_pending`、`session_busy`、`cleanup_failed` 或空值；诊断原文留在 Node 日志，不上传机器目录路径。
+
+## 服务账号
+
+空间管理员可创建独立服务身份，签发当前空间的读取或执行 HTTP 凭据，并进行启停与逐项撤销。接口、有效期和资源边界见[服务账号](service-accounts.md)。本站 OIDC／密码会话与服务凭据分别管理，服务身份不能取得创建者的私有资源。

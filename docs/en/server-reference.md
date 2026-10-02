@@ -35,3 +35,7 @@ Live transport supplies authenticated state/events and uses independent cursors 
 `POST /api/v1/executors/cleanup/sync` synchronizes account authority and cleanup requests using the Node credential and its local `storage_instance_id`. `GET /api/v1/executors/cleanup` reads that credential's snapshot; `POST` submits a receipt matching request, revocation revision and storage identity. This channel does not restore normal access for revoked credentials.
 
 `GET /api/v1/admin/accounts/{user_id}/node-cleanup` exposes cleanup status to authorized account readers. `pending` remains unconfirmed; `confirmed` records the Node's durable receipt for supervised work. `detail` is null or one of `process_state_unknown`, `process_exit_pending`, `session_busy`, `cleanup_failed`. Raw diagnostics stay in Node logs instead of uploading machine directory paths.
+
+## Service accounts
+
+Space administrators can create independent service identities, issue space-scoped read or execute HTTP credentials, disable accounts and revoke individual credentials. See [service accounts](service-accounts.md) for endpoints, expiry and resource boundaries. Browser sessions and service credentials are managed separately; service identities do not inherit the creator’s private resources.

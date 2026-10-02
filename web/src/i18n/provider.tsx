@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { en as serviceAccountsEn, zh as serviceAccountsZh } from './resources/service-accounts'
 import { en as serverSecurityEn, zh as serverSecurityZh } from './resources/server-security'
 import { en as sessionArchiveEn, zh as sessionArchiveZh } from './resources/session-archive'
 import { en as accountSessionsEn, zh as accountSessionsZh } from './resources/account-sessions'
@@ -26,6 +27,7 @@ function createRuntime() {
   runtime.register('serverSecurity', { zh: serverSecurityZh, en: serverSecurityEn })
   runtime.register('sessionArchive', { zh: sessionArchiveZh, en: sessionArchiveEn })
   runtime.register('admin', { zh: adminZh, en: adminEn })
+  runtime.register('serviceAccounts', { zh: serviceAccountsZh, en: serviceAccountsEn })
   runtime.register('accountSessions', { zh: accountSessionsZh, en: accountSessionsEn })
   runtime.register('common', { zh: commonZh, en: commonEn })
   runtime.register('app', { zh: appZh, en: appEn })
