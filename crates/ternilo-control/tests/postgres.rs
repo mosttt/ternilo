@@ -590,9 +590,7 @@ async fn control_contract(
         .await
         .unwrap_err();
     assert!(
-        active_executor_conflict
-            .to_string()
-            .contains("executor id belongs to another user"),
+        active_executor_conflict.code == ternilo_protocol::ErrorCode::PolicyDenied,
         "member self-enrollment must not claim another user's executor: {active_executor_conflict}"
     );
     store
@@ -616,9 +614,7 @@ async fn control_contract(
         .await
         .unwrap_err();
     assert!(
-        revoked_executor_conflict
-            .to_string()
-            .contains("executor id belongs to another user"),
+        revoked_executor_conflict.code == ternilo_protocol::ErrorCode::PolicyDenied,
         "revocation must not let a member claim another user's executor id: {revoked_executor_conflict}"
     );
 
