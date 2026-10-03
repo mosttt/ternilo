@@ -11,7 +11,7 @@ import { profile, upstream } from './account-node-provider-fixture.mjs'
 
 test('managed collaboration keeps model ownership separate from resources, submitters and service accounts', { timeout: 240000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-managed-delegation-'))
-  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
+  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ? path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'managed-model-delegation') : undefined
   if (artifacts) await mkdir(artifacts, { recursive: true })
   const processes = [], models = [], errors = []
   let browser, page, release

@@ -10,7 +10,7 @@ import { localApi, openModels } from './model-device-fixture.mjs'
 
 test('Claude catalog discovery uses official headers and pagination, with safe errors in local and Server settings', { timeout: 120000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-claude-discovery-'))
-  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
+  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ? path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'claude-discovery') : undefined
   if (artifacts) await mkdir(artifacts, { recursive: true })
   const key = 'claude-fixture-secret', privateText = 'private-upstream-detail'
   const processes = [], errors = [], calls = []

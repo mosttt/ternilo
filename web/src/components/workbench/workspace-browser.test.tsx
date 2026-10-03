@@ -126,10 +126,17 @@ function computerWorkspaces() {
 }
 
 async function selectViewOption(label: string) {
-  await act(async () => host.querySelector('[aria-label="视图选项"]')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+  const trigger = host.querySelector('[aria-label="视图选项"]')!
+  if (trigger.getAttribute('aria-expanded') !== 'true') {
+    await act(async () => trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+  }
   const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === label)!
   expect(item).toBeTruthy()
-  await act(async () => item.click())
+  await act(async () => {
+    item.click()
+    // Let close autofocus finish before the next trigger interaction.
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
 }
 
 it('defaults to computer groups and retains offline workspaces and independent collapsed state', async () => {
@@ -186,7 +193,10 @@ it('uses a persisted online-only switch and restores full loading outside comput
   const toggle = document.querySelector<HTMLElement>('[role="menuitemcheckbox"]')!
   expect(toggle.textContent).toBe('只显示在线电脑')
   expect(toggle.getAttribute('aria-checked')).toBe('false')
-  await act(async () => toggle.click())
+  await act(async () => {
+    toggle.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
   expect(mocks.workbench.setOnlineComputersOnly).toHaveBeenLastCalledWith(true)
   expect(JSON.parse(localStorage.getItem('ternilo.sidebar-view-v1')!).onlineComputersOnly).toBe(true)
   await selectViewOption('按工作区')

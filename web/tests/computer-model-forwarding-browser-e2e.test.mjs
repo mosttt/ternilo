@@ -10,7 +10,7 @@ import { profile, task, upstream } from './account-node-provider-fixture.mjs'
 
 test('Server forwards models through the source computer while tools stay on the execution computer', { timeout: 240000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-computer-models-'))
-  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
+  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ? path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'computer-model-forwarding') : undefined
   if (artifacts) await mkdir(artifacts, { recursive: true })
   const processes = [], models = [], errors = [], requests = []
   let browser, page, release

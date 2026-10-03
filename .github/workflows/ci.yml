@@ -59,9 +59,9 @@ jobs:
         run: |
           cargo fmt --all --check
           cargo clippy --locked --workspace --all-targets -- -D warnings
-          cargo test --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-local -p ternilo-builtins -p ternilo-authorization -p ternilo-automation -p ternilo-acp -p ternilo-control -p ternilo-cloud -p ternilo-protocol -p ternilo-kernel -p ternilo-transport -p ternilo-transport-store -p ternilo-storage
+          cargo test --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-local -p ternilo-builtins -p ternilo-authorization -p ternilo-automation -p ternilo-acp -p ternilo-control -p ternilo-cloud -p ternilo-worker -p ternilo-protocol -p ternilo-kernel -p ternilo-transport -p ternilo-transport-store -p ternilo-storage
       - name: Matched client, Server and native desktop
-        run: cargo build --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-desktop --features tauri/custom-protocol
+        run: cargo build --locked -p ternilo -p ternilo-server -p ternilo-worker -p ternilo-plugin-cli -p ternilo-desktop --features tauri/custom-protocol
       - name: SDKs against the built client and Server
         env:
           TERNILO_BIN: ${{ github.workspace }}/ternilo/target/debug/ternilo
@@ -82,14 +82,18 @@ jobs:
         env:
           TERNILO_E2E_NODE_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo
           TERNILO_E2E_SERVER_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo-server
+          TERNILO_CLOUD_E2E_WORKER_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo-worker
           TERNILO_E2E_PLUGIN_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo-plugin
           TERNILO_E2E_DESKTOP_BINARY: ${{ github.workspace }}/ternilo/target/debug/ternilo-desktop
           TERNILO_E2E_ARTIFACT_DIR: ${{ runner.temp }}/ternilo-browser-evidence
+          TERNILO_E2E_PYTHON: ${{ runner.temp }}/ternilo-sdk-python/bin/python
         run: |
           node --test --test-concurrency=1 web/tests/browser-e2e.test.mjs web/tests/server-accounts-nodes-browser-e2e.test.mjs web/tests/server-oidc-contract-browser-e2e.test.mjs web/tests/server-oidc-link-browser-e2e.test.mjs web/tests/server-security-browser-e2e.test.mjs web/tests/scrollbar-browser-e2e.test.mjs web/tests/mobile-viewport-focus-browser-e2e.test.mjs web/tests/pwa-responsive-browser-e2e.test.mjs
           node --test --test-concurrency=1 web/tests/server-groups-browser-e2e.test.mjs web/tests/project-sharing-browser-e2e.test.mjs web/tests/server-model-service-browser-e2e.test.mjs web/tests/computer-usage-browser-e2e.test.mjs web/tests/model-device-native-browser-e2e.test.mjs web/tests/server-password-recovery-browser-e2e.test.mjs web/tests/history-loading-browser-e2e.test.mjs web/tests/session-log-repair-browser-e2e.test.mjs web/tests/history-relay-browser-e2e.test.mjs web/tests/session-archive-browser-e2e.test.mjs web/tests/i18n-browser-e2e.test.mjs
           node --test --test-concurrency=1 web/tests/account-sessions-browser-e2e.test.mjs web/tests/workspace-panel-browser-e2e.test.mjs web/tests/trajectory-scroll-browser-e2e.test.mjs web/tests/workspace-registration-browser-e2e.test.mjs
           node --test --test-concurrency=1 web/tests/account-task-cleanup-browser-e2e.test.mjs web/tests/node-account-cleanup-browser-e2e.test.mjs web/tests/server-oidc-origin-browser-e2e.test.mjs
+          node --test --test-concurrency=1 web/tests/computer-management-browser-e2e.test.mjs web/tests/registration-mode-browser-e2e.test.mjs web/tests/sidebar-folding-browser-e2e.test.mjs web/tests/service-accounts-browser-e2e.test.mjs web/tests/service-workspace-access-browser-e2e.test.mjs
+          node --test --test-concurrency=1 web/tests/computer-model-forwarding-browser-e2e.test.mjs web/tests/claude-discovery-browser-e2e.test.mjs web/tests/managed-model-delegation-browser-e2e.test.mjs web/tests/cloud-model-bindings-browser-e2e.test.mjs
           node --test web/tests/resource-notifications-browser-e2e.test.mjs
           dbus-run-session -- xvfb-run -a node --test web/tests/desktop-smoke.test.mjs
           node --test --test-concurrency=1 web/tests/delivery-restore-acceptance.test.mjs web/tests/postgres-restore-acceptance.test.mjs

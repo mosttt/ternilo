@@ -13,7 +13,7 @@ for attempt in $(seq 1 60); do
   sleep 1
 done
 export TERNILO_TEST_DATABASE_URL="postgres://postgres:temporary-auth-check@127.0.0.1:$port/ternilo_control_test"
-cargo test --locked -p ternilo-control --test authentication_settings --test identity_sessions --test oidc_sessions --test edge_workbench_postgres --test native_recovery -- --ignored --test-threads=1
+cargo test --locked -p ternilo-control --test authentication_settings --test identity_sessions --test oidc_sessions --test edge_workbench_postgres --test native_recovery --test computer_management --test service_accounts -- --ignored --test-threads=1
 
 cargo test --locked -p ternilo-control --lib model_store:: -- --ignored --test-threads=1
 
@@ -25,6 +25,8 @@ cargo test --locked -p ternilo-server --bin ternilo-server postgres_project_file
 
 cargo test --locked -p ternilo-server --bin ternilo-server postgres_account_delivery -- --ignored --test-threads=1
 
+cargo test --locked -p ternilo-server --bin ternilo-server cluster_postgres -- --ignored --test-threads=1
+
 docker exec "$container" createdb -U postgres ternilo_cloud_test
 export TERNILO_CLOUD_TEST_DATABASE_URL="postgres://postgres:temporary-auth-check@127.0.0.1:$port/ternilo_cloud_test"
-cargo test --locked -p ternilo-cloud --test account_cleanup --test batch_authors --test resource_notifications -- --ignored --test-threads=1
+cargo test --locked -p ternilo-cloud --test account_cleanup --test batch_authors --test resource_notifications --test sharing_postgres --test command_journal_postgres -- --ignored --test-threads=1
