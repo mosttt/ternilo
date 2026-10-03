@@ -143,7 +143,7 @@ Workflow 适合明确需要多阶段或并行协作的任务。例如先让多�
 
 信任发布者、安装或卸载包、授予包能力由用户或管理员操作，模型不能自行完成。卸载后可重新安装完全相同的签名包和授权；同一版本不能替换代码、签名或授权，有变化需要新版本。完整安装步骤、配置例子与权限说明见[扩展系统](extensions.md)。
 
-MCP、LSP、HTTP fetch、SearXNG、Hooks、Code Mode 和外部 ACP 子代理也通过插件配置。需要从其他程序使用 Ternilo 时，可以使用 CLI、JSON-RPC、ACP 或 Python/TypeScript SDK，见[自动化与 ACP](automation.md)。
+MCP、LSP、HTTP fetch、SearXNG／Brave／Tavily 搜索、Hooks、Code Mode 和外部 ACP 子代理也通过插件配置。需要从其他程序使用 Ternilo 时，可以使用 CLI、JSON-RPC、ACP 或 Python/TypeScript SDK，见[自动化与 ACP](automation.md)。
 
 `web_fetch` 不需要单独的网页 API Key。透明代理的 Fake-IP DNS 导致网页读取失败时，可以配置可信的 HTTPS DNS JSON 服务，见[网页访问与代理 DNS](web-access.md)。
 

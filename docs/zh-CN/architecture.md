@@ -88,7 +88,7 @@ MCP/LSP 通过 `DeferredToolSource` 登记延迟启动的工具来源。状态�
 | AuthorizationFlow | API-key flow 与 scoped writer | OAuth、device code、managed identity |
 | Agents | ReAct loop | Planner、research 或领域 loop |
 | Processes | Files/shell/job/terminal + trusted sandbox seam | Container/microVM capability |
-| Integrations | MCP、LSP、HTTP、SearXNG、Hooks | Managed sidecar/provider |
+| Integrations | MCP、LSP、HTTP、SearXNG／Brave／Tavily、Hooks | Managed sidecar/provider |
 | Extensions | 统一签名 Extension Registry；每包单选 Rhai 或 WASM Component；已支持 Tool、静态 Prompt/Skill、Hook、Command 与 Provider template | 新 capability host API / WIT world |
 | Collaboration | Skills、Plan、Workflow、subagent、Agent Team、schedule | Distributed provider |
 

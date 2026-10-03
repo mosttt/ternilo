@@ -1,8 +1,41 @@
 # 网页访问与代理 DNS
 
-`web_fetch` 用于读取公开网页，不需要单独的模型 Provider 或网页 API Key。在能够正常解析公网地址的网络中，启用 `web-fetch` 插件即可使用。搜索网页的 `web_search` 使用 SearXNG，是另一项需要配置搜索服务的能力。
+`web_fetch` 用于读取公开网页，不需要单独的模型 Provider 或网页 API Key。在能够正常解析公网地址的网络中，启用 `web-fetch` 插件即可使用。搜索网页的 `web_search` 支持 SearXNG、Brave Search 和 Tavily，需要单独配置搜索服务。
 
 这两项工具由执行任务的 Ternilo 运行。模型服务商在云端执行的原生联网搜索目前尚未适配；配置一个兼容的模型接口，并不意味着自动启用服务商的联网工具。
+
+## 选择搜索服务
+
+在自定义 Agent 预设中添加一个搜索插件。三个插件都注册 `web_search`，同一预设只启用其中一个；不会因某个服务失败而自动切换供应商。
+
+| 插件 kind | 默认 base_url | 凭据引用 | max_results 上限 |
+|---|---|---|---|
+| `ternilo.web.search.searxng` | 必填，自建 SearXNG 地址 | 可选，Bearer 鉴权 | 50 |
+| `ternilo.web.search.brave` | `https://api.search.brave.com/res/v1` | 必填，Brave API Key | 20 |
+| `ternilo.web.search.tavily` | `https://api.tavily.com` | 必填，Tavily API Key | 20 |
+
+先在执行电脑的“凭据与登录”保存凭据，例如名称 `SEARCH_KEY`，再把名称填入 `api_key_env`。这个字段引用凭据或宿主环境变量，不填写 Key 原文。Server 远程会话由执行电脑调用搜索服务；跨电脑模型转发不会改变搜索工具的执行位置，也不提供搜索凭据。托管 Worker 必须另有可用的凭据和网络策略；本配置不会突破 Worker 隔离。
+
+Brave 插件行示例：
+
+```json
+{
+  "id": "web-search",
+  "kind": "ternilo.web.search.brave",
+  "enabled": true,
+  "config": {
+    "api_key_env": "SEARCH_KEY",
+    "max_results": 10,
+    "timeout_ms": 30000
+  }
+}
+```
+
+Tavily 把 kind 改为 `ternilo.web.search.tavily`。SearXNG 使用自己的 kind 并填写 `base_url`。模型传入 `query`、可选的 `limit` 和 `language`；语言代码采用所选服务的规则。结果统一为标题、URL、摘要与来源。默认每次最多 10 项，模型不能超过配置的上限。
+
+Tavily 固定使用 `basic` 搜索，关闭自动参数、生成答案、原始网页正文和图片。搜索仍由供应商按账号计费。协议依据 [Brave Web Search](https://api-dashboard.search.brave.com/api-reference/web/search/get) 和 [Tavily Search](https://docs.tavily.com/documentation/api-reference/endpoint/search)。
+
+搜索请求可取消，默认超时 30 秒，响应最多 2 MiB。不会跟随搜索接口的 HTTP 重定向；错误只显示服务名和状态类别，不回显上游正文、查询 URL 或 Key。结果来自外部网页，是供模型参考的内容。
 
 ## 使用透明代理时无法读取网页
 

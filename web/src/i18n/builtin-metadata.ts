@@ -34,6 +34,8 @@ const pluginDescriptionKeys = {
   'ternilo.lsp.stdio': 'plugin.lsp',
   'ternilo.tool.web_fetch': 'plugin.webFetch',
   'ternilo.web.search.searxng': 'plugin.webSearch',
+  'ternilo.web.search.brave': 'plugin.braveSearch',
+  'ternilo.web.search.tavily': 'plugin.tavilySearch',
   'ternilo.workflow.rhai': 'plugin.workflowRuntime',
   'ternilo.tools.workflow': 'plugin.workflowTools',
   'ternilo.model.rule': 'plugin.ruleModel',

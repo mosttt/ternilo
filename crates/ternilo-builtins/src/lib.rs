@@ -87,6 +87,7 @@ pub use telemetry::{
 pub use terminal::KIND as TERMINAL_TOOLS_KIND;
 pub use web::KIND as WEB_FETCH_KIND;
 pub use web_search::KIND as WEB_SEARCH_SEARXNG_KIND;
+pub use web_search::{BRAVE_KIND as WEB_SEARCH_BRAVE_KIND, TAVILY_KIND as WEB_SEARCH_TAVILY_KIND};
 pub use workflow::{ENGINE_KIND as WORKFLOW_ENGINE_KIND, TOOL_KIND as WORKFLOW_TOOL_KIND};
 pub use workspace_tools::{ASK_USER_TOOL_KIND, FILE_TOOLS_KIND, PLAN_TOOL_KIND, SHELL_TOOL_KIND};
 
@@ -159,6 +160,8 @@ pub fn register(catalog: &mut Catalog) -> Result<(), HarnessError> {
         lsp::factory(),
         web::factory(),
         web_search::factory(),
+        web_search::brave_factory(),
+        web_search::tavily_factory(),
         workflow::engine_factory(),
         workflow::factory(),
         model_rule::factory(),
@@ -259,6 +262,8 @@ fn plugin_description(kind: &str) -> &'static str {
         "ternilo.lsp.stdio" => "启动语言服务器，并提供受审批的 JSON-RPC 工具。",
         "ternilo.tool.web_fetch" => "抓取有界的公开 HTTP(S) 页面内容。",
         "ternilo.web.search.searxng" => "通过配置的 SearXNG endpoint 搜索网页。",
+        "ternilo.web.search.brave" => "使用执行电脑的凭据通过 Brave Search 搜索网页。",
+        "ternilo.web.search.tavily" => "使用执行电脑的凭据通过 Tavily Search 搜索网页。",
         "ternilo.workflow.rhai" => "用受限 Rhai runtime 编排并行和流水线子代理。",
         "ternilo.tools.workflow" => "向模型公开需审批的 Workflow 工具。",
         "ternilo.model.rule" => "无需联网的确定性规则模型，用于验证 Harness 链路。",
