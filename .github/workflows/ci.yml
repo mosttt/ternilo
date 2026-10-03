@@ -94,6 +94,7 @@ jobs:
           node --test --test-concurrency=1 web/tests/account-task-cleanup-browser-e2e.test.mjs web/tests/node-account-cleanup-browser-e2e.test.mjs web/tests/server-oidc-origin-browser-e2e.test.mjs
           node --test --test-concurrency=1 web/tests/computer-management-browser-e2e.test.mjs web/tests/registration-mode-browser-e2e.test.mjs web/tests/sidebar-folding-browser-e2e.test.mjs web/tests/service-accounts-browser-e2e.test.mjs web/tests/service-workspace-access-browser-e2e.test.mjs
           node --test --test-concurrency=1 web/tests/computer-model-forwarding-browser-e2e.test.mjs web/tests/claude-discovery-browser-e2e.test.mjs web/tests/managed-model-delegation-browser-e2e.test.mjs web/tests/cloud-model-bindings-browser-e2e.test.mjs
+          node --test --test-concurrency=1 web/tests/search-services-browser-e2e.test.mjs web/tests/acp-adapters-browser-e2e.test.mjs
           node --test web/tests/resource-notifications-browser-e2e.test.mjs
           dbus-run-session -- xvfb-run -a node --test web/tests/desktop-smoke.test.mjs
           node --test --test-concurrency=1 web/tests/delivery-restore-acceptance.test.mjs web/tests/postgres-restore-acceptance.test.mjs
