@@ -211,7 +211,7 @@ PreTool deny 不执行工具；ask 进入现有用户问题队列。Stop deny �
 
 ### Gemini CLI 与 Claude Agent ACP
 
-在执行电脑安装并配置外部程序。Gemini CLI 使用 `gemini --acp`，Claude Agent SDK 的 ACP 适配器使用 `claude-agent-acp`。相关插件配置见 [`gemini-acp-profile.json`](../../examples/gemini-acp-profile.json) 和 [`claude-acp-profile.json`](../../examples/claude-acp-profile.json)。二者仍使用通用的 `ternilo.subagents.acp` kind，不自动下载安装程序。
+在执行电脑安装并配置外部程序。Gemini CLI 使用 `gemini --acp`，Claude Agent SDK 的 ACP 适配器使用 `claude-agent-acp`。相关插件配置见 [`gemini-acp-profile.json`](../../examples/gemini-acp-profile.json) 和 [`claude-acp-profile.json`](../../examples/claude-acp-profile.json)。二者仍使用通用的 `ternilo.subagents.acp` kind，不自动下载安装程序。Windows 也可以把 `command` 设置为 `node`，在 `args` 中用绝对路径指定已安装包的 `bundle/gemini.js` 或 `dist/index.js` 入口；Gemini 入口后增加 `--acp`，路径单独作为一个参数。
 
 Gemini 示例把 `GEMINI_AGENT_KEY` 凭据传给子进程的 `GEMINI_API_KEY`；Claude 示例把 `CLAUDE_AGENT_KEY` 传给 `ANTHROPIC_API_KEY`。如已在该电脑用供应商程序完成登录，可删除对应 `env_refs`。这类代理自行选择和调用模型，不使用当前会话的 Server 模型委托，也不继承跨电脑模型转发授权。
 

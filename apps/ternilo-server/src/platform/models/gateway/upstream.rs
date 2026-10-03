@@ -349,6 +349,7 @@ fn native_stop_reason(value: &Value) -> bool {
                 | "stop_sequence"
                 | "refusal"
                 | "tool_use"
+                | "pause_turn"
                 | "max_tokens"
                 | "model_context_window_exceeded"
         )

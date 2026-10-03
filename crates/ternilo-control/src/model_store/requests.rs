@@ -14,6 +14,29 @@ use crate::{ControlUser, PageQuery, crypto::random_identifier};
 
 mod client_admission;
 
+pub(super) fn with_provider_budget(
+    input: &ModelRequestInput,
+    route: &ResolvedModelRoute,
+) -> Result<ModelRequestInput, HarnessError> {
+    let mut input = input.clone();
+    if let Some(hosted) = &route.provider.hosted_tools {
+        // Provider-side searches can introduce input and model iterations absent
+        // from the client payload. Reserve their configured upper envelope.
+        let calls = u64::from(hosted.max_uses)
+            * (u64::from(hosted.web_search) + u64::from(hosted.web_fetch))
+            + 1;
+        let ceiling = route
+            .model
+            .defaults
+            .context_window
+            .checked_add(route.model.defaults.max_output_tokens)
+            .and_then(|tokens| tokens.checked_mul(calls))
+            .ok_or_else(|| HarnessError::invalid("hosted tool token reservation overflow"))?;
+        input.reserved_tokens = input.reserved_tokens.max(ceiling);
+    }
+    Ok(input)
+}
+
 impl ControlStore {
     pub async fn mark_model_request_attempted(
         &self,

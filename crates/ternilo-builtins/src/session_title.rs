@@ -104,7 +104,7 @@ impl SessionTitlesProvider for LlmSessionTitles {
                             tool_calls: Vec::new(),
                         }],
                         tools: Vec::new(),
-                        step: 1,
+                        step: 0,
                     },
                     Arc::new(DiscardModelOutput),
                     RunCancellation::new(),

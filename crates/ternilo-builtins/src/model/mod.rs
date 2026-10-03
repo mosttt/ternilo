@@ -84,6 +84,8 @@ struct ProviderModelConfig {
     base_url: String,
     #[serde(default)]
     protocol: ProtocolConfig,
+    #[serde(default)]
+    hosted_tools: Option<ternilo_protocol::HostedWebTools>,
     model: String,
     #[serde(default)]
     api_key_env: Option<String>,
@@ -121,6 +123,7 @@ pub struct ProviderModelRoute {
     pub provider: String,
     pub base_url: String,
     pub protocol: ProviderProtocol,
+    pub hosted_tools: Option<ternilo_protocol::HostedWebTools>,
     pub model: String,
     pub context_window: Option<u64>,
     pub timeout_ms: u64,
@@ -133,6 +136,9 @@ pub struct ProviderModelRoute {
 
 impl ProviderModelRoute {
     fn validate(&self) -> Result<(), HarnessError> {
+        if let Some(tools) = &self.hosted_tools {
+            tools.validate(self.protocol)?;
+        }
         if self.provider.trim().is_empty()
             || !(self.base_url.starts_with("https://") || self.base_url.starts_with("http://"))
             || self.model.trim().is_empty()
@@ -215,6 +221,7 @@ impl HarnessPlugin for ProviderModelPlugin {
             )
             .expect("validated provider URL"),
             protocol: self.config.protocol.into(),
+            hosted_tools: self.config.hosted_tools.clone(),
             model: self.config.model.clone(),
             context_window: self.config.context_window,
             api_key_env: self.config.api_key_env.clone(),
@@ -254,6 +261,7 @@ struct ProviderModel {
     provider: String,
     endpoint: String,
     protocol: ProviderProtocol,
+    hosted_tools: Option<ternilo_protocol::HostedWebTools>,
     model: String,
     context_window: Option<u64>,
     api_key_env: Option<String>,
@@ -319,6 +327,7 @@ impl From<&ProviderModelConfig> for ProviderModelRoute {
             provider: config.provider.clone(),
             base_url: config.base_url.clone(),
             protocol: config.protocol.into(),
+            hosted_tools: config.hosted_tools.clone(),
             model: config.model.clone(),
             context_window: config.context_window,
             timeout_ms: config.timeout_ms,
@@ -356,6 +365,7 @@ pub async fn complete_provider_model(
             true,
         )?,
         protocol: route.protocol,
+        hosted_tools: route.hosted_tools,
         model: route.model,
         context_window: route.context_window,
         api_key_env: None,

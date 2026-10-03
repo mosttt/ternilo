@@ -121,6 +121,7 @@ function ConversationItemView({ item, events, sessionId, selection, onSelect, on
     event={item.event}
     content={item.content}
     reasoning={item.reasoning}
+    sources={item.sources}
     streaming={item.streaming}
     interrupted={item.interrupted}
     omitReasoning={omitReasoning}

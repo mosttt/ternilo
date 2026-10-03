@@ -257,6 +257,7 @@ pub struct ExtensionProviderContribution {
 impl ExtensionProviderContribution {
     fn validate(&self) -> Result<(), HarnessError> {
         ProviderProfile {
+            hosted_tools: None,
             id: self.id.clone(),
             display_name: self.display_name.clone(),
             base_url: self.base_url.clone(),
@@ -282,6 +283,7 @@ impl ExtensionProviderContribution {
             )));
         }
         let provider = ProviderProfile {
+            hosted_tools: None,
             id: request.provider_id.clone(),
             display_name: self.display_name.clone(),
             base_url: self.base_url.clone(),

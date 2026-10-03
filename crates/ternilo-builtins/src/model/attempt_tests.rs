@@ -174,6 +174,7 @@ fn request() -> ModelRequest {
 
 fn route(base_url: String, protocol: ProviderProtocol) -> ProviderModelRoute {
     ProviderModelRoute {
+        hosted_tools: None,
         provider: "provider".to_owned(),
         base_url,
         protocol,

@@ -462,6 +462,15 @@ export interface ProviderModelDiscoveryRequest {
   api_key?: string | null
 }
 
+export interface HostedWebTools {
+  web_search: boolean
+  web_fetch: boolean
+  max_uses: number
+  max_content_tokens: number
+  allowed_domains: string[]
+  blocked_domains: string[]
+}
+
 export interface ProviderProfile {
   id: string
   source?: 'operator' | 'user'
@@ -469,6 +478,7 @@ export interface ProviderProfile {
   base_url: string
   protocol: ProviderProtocol
   api_key_ref?: string | null
+  hosted_tools?: HostedWebTools | null
   defaults: ProviderModelDefaults
   models: ProviderModel[]
   timeout_ms: number
@@ -642,7 +652,7 @@ export interface ModelResponse {
     cache_write_tokens?: number
     reasoning_tokens?: number
   } | null
-  finish_reason: 'stop' | 'tool_calls' | 'max_tokens'
+  finish_reason: 'stop' | 'tool_calls' | 'max_tokens' | 'pause'
   provider_request_id?: string | null
   attempts?: number
   request_digest?: string | null

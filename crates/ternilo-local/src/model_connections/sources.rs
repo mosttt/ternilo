@@ -55,6 +55,7 @@ impl ModelConnection {
                         source_id,
                     ]);
                     Some(ProviderProfile {
+                        hosted_tools: None,
                         id: if account {
                             format!("server_a_{}", &digest[..54])
                         } else {

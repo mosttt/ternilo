@@ -114,6 +114,7 @@ async fn local_requests_use_resolved_provider_defaults_and_model_overrides() {
     let application = open_test_application(data_dir.clone()).await;
     application
         .upsert_provider_profile(ProviderProfile {
+            hosted_tools: None,
             id: "resolution-fixture".to_owned(),
             display_name: "Resolution Fixture".to_owned(),
             base_url: format!("http://{address}/v1"),
@@ -305,6 +306,7 @@ async fn named_provider_library_is_persistent_discoverable_and_reference_safe() 
 
     let application = open_test_application(data_dir.clone()).await;
     let provider = ProviderProfile {
+        hosted_tools: None,
         id: "fixture".to_owned(),
         display_name: "Fixture".to_owned(),
         base_url: format!("http://{address}/v1"),

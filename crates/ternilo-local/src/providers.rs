@@ -157,6 +157,7 @@ mod tests {
 
     fn provider() -> ProviderProfile {
         ProviderProfile {
+            hosted_tools: None,
             id: "local-openai".to_owned(),
             display_name: "Local OpenAI".to_owned(),
             base_url: "http://127.0.0.1:8080/v1".to_owned(),

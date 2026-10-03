@@ -41,3 +41,5 @@ Discovery follows `has_more`, `last_id` and `after_id`, preserving `display_name
 Discovery failures show the upstream HTTP status with guidance about keys, permissions, the versioned API root or rate limits. Connection failures, timeouts and non-JSON catalogs have separate messages. Raw upstream error bodies and keys are not returned to the browser.
 
 Managed execution, storage and task reservations stay with the original resource owner. The model provider and actual submitter may be different accounts; explicitly authorized service accounts can also submit. Model calls, retries and active execution recheck the model owner's configuration permission. Platform grants must allow resource sharing for other submitters. Removing the model owner's configuration permission stops model calls even if the submitter retains workspace access. Worker receives no upstream key.
+
+Claude Providers can explicitly enable provider-hosted web search/fetch. See [web tools](web-access.md#claude-hosted-web-tools).

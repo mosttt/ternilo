@@ -64,6 +64,7 @@ pub(super) fn resolve(
             provider: public_provider(&snapshot.binding).to_owned(),
             base_url: resolved.provider.base_url,
             protocol: resolved.provider.protocol,
+            hosted_tools: resolved.provider.hosted_tools,
             model: resolved.upstream_model,
             context_window: Some(
                 snapshot
@@ -170,6 +171,7 @@ mod tests {
         let resolved = resolve(
             ResolvedModelRoute {
                 provider: ProviderProfile {
+                    hosted_tools: None,
                     id: "upstream".to_owned(),
                     display_name: "Provider".to_owned(),
                     base_url: "https://models.example/v1".to_owned(),

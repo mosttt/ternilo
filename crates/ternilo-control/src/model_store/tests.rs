@@ -14,6 +14,7 @@ const NOW: u64 = 1_800_000_000_000;
 fn provider() -> ModelProviderInput {
     ModelProviderInput {
         profile: ProviderProfile {
+            hosted_tools: None,
             id: "upstream".to_owned(),
             display_name: "Internal upstream".to_owned(),
             base_url: "https://model.example/v1".to_owned(),
@@ -1434,4 +1435,124 @@ async fn model_keys_intersect_current_grants_and_preserve_partial_usage() {
     assert_eq!(stored.len(), 64);
     assert_ne!(stored, key.token);
     tx.commit().await.unwrap();
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Exercise admission, actual settlement and disabling hosted tools in one budget lifecycle."
+)]
+async fn hosted_tools_reserve_provider_work_before_admission_and_settle_actual_usage() {
+    let store = ControlStore::connect("sqlite::memory:", None, SecretCipher::from_key([82; 32]), 1)
+        .await
+        .unwrap();
+    let owner = store
+        .initialize_owner(
+            &NativeRegistration {
+                username: "hosted-owner".to_owned(),
+                email: "hosted@example.test".to_owned(),
+                password: "hosted-fixture-password".to_owned(),
+            },
+            NOW,
+        )
+        .await
+        .unwrap()
+        .session
+        .user;
+    let mut upstream = provider();
+    upstream.profile.protocol = ProviderProtocol::AnthropicMessages;
+    upstream.profile.hosted_tools = Some(ternilo_protocol::HostedWebTools {
+        web_search: true,
+        web_fetch: false,
+        max_uses: 1,
+        max_content_tokens: 1000,
+        allowed_domains: Vec::new(),
+        blocked_domains: Vec::new(),
+    });
+    store
+        .save_model_provider(&owner, &upstream, NOW)
+        .await
+        .unwrap();
+    store
+        .save_model_publication(
+            &owner,
+            &ModelPublicationInput {
+                model_id: "public-model".to_owned(),
+                display_name: "Hosted model".to_owned(),
+                provider_id: "upstream".to_owned(),
+                upstream_model: "private-model".to_owned(),
+                enabled: true,
+            },
+            NOW,
+        )
+        .await
+        .unwrap();
+    let mut grant = ModelGrantInput {
+        allow_resource_sharing: false,
+        name: "Hosted budget".to_owned(),
+        subject: ModelGrantSubject::User {
+            id: owner.user_id.to_string(),
+        },
+        model_ids: vec!["public-model".to_owned()],
+        monthly_tokens: 1000,
+        max_concurrent_requests: 1,
+        expires_at_ms: None,
+    };
+    let granted = store
+        .save_model_grant(&owner, None, &grant, NOW)
+        .await
+        .unwrap();
+    let key = store
+        .create_model_key(
+            &owner,
+            &ModelKeyInput {
+                name: "Hosted client".to_owned(),
+                grant_id: granted.grant_id.clone(),
+                model_ids: vec!["public-model".to_owned()],
+                monthly_tokens: None,
+                max_concurrent_requests: None,
+                expires_at_ms: None,
+            },
+            NOW,
+        )
+        .await
+        .unwrap();
+    let mut input = request("hosted-low", 50);
+    input.protocol = ProviderProtocol::AnthropicMessages;
+    let rejected = store
+        .reserve_model_request(&key.token, &input, NOW)
+        .await
+        .err()
+        .expect("hosted work must not fit a tiny client reservation");
+    assert_eq!(rejected.kind, ModelAccessErrorKind::QuotaExceeded);
+    grant.monthly_tokens = 1_000_000;
+    store
+        .save_model_grant(&owner, Some(&granted.grant_id), &grant, NOW + 1)
+        .await
+        .unwrap();
+    let permit = store
+        .reserve_model_request(&key.token, &input, NOW + 2)
+        .await
+        .unwrap();
+    assert_eq!(permit.request.reserved_tokens, 2 * (32768 + 4096));
+    store
+        .mark_model_request_attempted(&permit.request.request_id, NOW + 3)
+        .await
+        .unwrap();
+    let settled = store
+        .settle_model_request(&permit.request.request_id, &known(100, 20), NOW + 4)
+        .await
+        .unwrap();
+    assert_eq!(settled.accounted_tokens, Some(120));
+    upstream.profile.hosted_tools = None;
+    store
+        .save_model_provider(&owner, &upstream, NOW + 5)
+        .await
+        .unwrap();
+    input.request_key = "ordinary-after-hosted".to_owned();
+    let ordinary = store
+        .reserve_model_request(&key.token, &input, NOW + 6)
+        .await
+        .unwrap();
+    assert_eq!(ordinary.request.reserved_tokens, 50);
 }

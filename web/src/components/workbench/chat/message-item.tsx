@@ -3,6 +3,7 @@ import type { PendingSubmissionEcho, SessionEvent } from '@/types'
 import { Button } from '@/components/ui/button'
 import { useTranslate } from '@/i18n/provider'
 import type { AssistantReasoning } from '@/domain/events'
+import type { ProviderSource } from '@/domain/provider-sources'
 import type { Translate } from '@/i18n/runtime'
 import { AssistantMarkdown } from './assistant-markdown'
 import { MessageAttachments } from '../message-attachments'
@@ -86,6 +87,7 @@ export function PendingSubmissionBubble({ sessionId, submission }: {
 export function AssistantMessageItem({
   content,
   reasoning,
+  sources,
   streaming,
   interrupted,
   omitReasoning,
@@ -95,6 +97,7 @@ export function AssistantMessageItem({
   content: string
   event: SessionEvent
   reasoning?: AssistantReasoning
+  sources?: ProviderSource[]
   streaming: boolean
   interrupted?: boolean
   omitReasoning?: boolean
@@ -104,5 +107,9 @@ export function AssistantMessageItem({
   return <article className={css.assistantRow} data-role="assistant" data-streaming={streaming || undefined}>
     {!omitReasoning && reasoning && <ReasoningRow reasoning={reasoning} disclosure={reasoningDisclosure} />}
     <AssistantMarkdown source={content} streaming={streaming} interrupted={interrupted} t={t} />
+    {!!sources?.length && <nav data-provider-sources="" aria-label={t('message.webSources')} className="mt-3 flex flex-wrap gap-2 text-xs">
+      <span className="text-muted-foreground">{t('message.webSources')}</span>
+      {sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="max-w-full break-all text-primary underline underline-offset-2">{source.title}</a>)}
+    </nav>}
   </article>
 }

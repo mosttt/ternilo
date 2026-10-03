@@ -187,6 +187,7 @@ impl Fixture {
             reasoning: None,
         };
         let profile = ProviderProfile {
+            hosted_tools: None,
             id: "workload".to_owned(),
             display_name: "Workload provider".to_owned(),
             base_url: format!("{}/v1", upstream.base),
@@ -259,6 +260,7 @@ impl Fixture {
                     &model_owner,
                     &model_space,
                     ProviderProfile {
+                        hosted_tools: None,
                         id: "personal".to_owned(),
                         api_key_ref: Some("PERSONAL_MODEL_KEY".to_owned()),
                         ..profile

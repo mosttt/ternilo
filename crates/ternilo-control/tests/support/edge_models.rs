@@ -170,6 +170,7 @@ async fn prepare_source(
         .await
         .unwrap();
     let profile = ProviderProfile {
+        hosted_tools: None,
         id: "account-provider".to_owned(),
         display_name: "Bob's Provider".to_owned(),
         base_url: "https://example.test/v1".to_owned(),

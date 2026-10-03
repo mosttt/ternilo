@@ -3,6 +3,7 @@ import type {
   UserQuestion, UserQuestionAnswer,
 } from '@/types'
 import { asRecord } from '@/lib/utils'
+import { ProviderSourceIndex, type ProviderSource } from './provider-sources'
 import {
   commandLifecycle, retryLifecycle, turnReachedMaxTokens,
   type ChatCommandLifecycle, type ChatRetryLifecycle,
@@ -64,6 +65,7 @@ export type ConversationItem =
     event: SessionEvent
     content: string
     reasoning?: AssistantReasoning
+    sources?: ProviderSource[]
     streaming: boolean
     interrupted?: boolean
   }
@@ -283,6 +285,7 @@ export function buildConversationItems(events: SessionEvent[]): ConversationItem
 
   const items: ConversationItem[] = []
   const emittedTools = new Set<string>()
+  const providerSources = new ProviderSourceIndex()
   let previousSystemPrompt: string | undefined
   for (const event of events) {
     if (event.type === 'user_message') {
@@ -321,6 +324,7 @@ export function buildConversationItems(events: SessionEvent[]): ConversationItem
     }
     if (event.type === 'assistant_message') {
       const response = asRecord(event.response)
+      const sources = providerSources.read(response)
       const key = `${event.run_id}:${event.step ?? 0}`
       const stream = streaming.get(key)
       const content = String(response.content ?? '') || stream?.content || ''
@@ -335,8 +339,8 @@ export function buildConversationItems(events: SessionEvent[]): ConversationItem
         completedAt,
         durationMs: completedAt == null ? undefined : Math.max(0, completedAt - startedAt),
       } : undefined
-      if (content || reasoning) {
-        items.push({ kind: 'assistant', key: `event-${event.seq}`, event, content, reasoning, streaming: false })
+      if (content || reasoning || sources.length) {
+        items.push({ kind: 'assistant', key: `event-${event.seq}`, event, content, reasoning, sources, streaming: false })
       }
       continue
     }

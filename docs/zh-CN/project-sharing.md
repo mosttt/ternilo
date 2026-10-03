@@ -20,6 +20,6 @@
 
 失去全部查看权限后，列表、实时内容、文件及归档访问会被撤销。已经接受的任务沿用原来的队列和停止规则，不会单纯因为共享撤销而自动取消；由仍有停止权限的人处理。
 
-Control schema 为 `14`，独立的 `project_sharing` schema 为 `1`，保存项目用户／组授权和工作区加入状态。身份、存储绑定和直接共享分别保存。PostgreSQL 由 schema 所有者初始化组件，运行账号使用租户 RLS，访问视图采用调用者权限。执行器协议为 `47`。
+Control schema 为 `14`，独立的 `project_sharing` schema 为 `1`，保存项目用户／组授权和工作区加入状态。身份、存储绑定和直接共享分别保存。PostgreSQL 由 schema 所有者初始化组件，运行账号使用租户 RLS，访问视图采用调用者权限。执行器协议为 `48`。
 
 API 见 [Server 参考](server-reference.md)，共享目录及文件权限见[协作指南](collaboration.md#与其他人共享工作)。

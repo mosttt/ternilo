@@ -328,6 +328,7 @@ async fn assert_future_models_follow_device_scope(
 
 pub(super) fn profile() -> ProviderProfile {
     ProviderProfile {
+        hosted_tools: None,
         id: "device-upstream".to_owned(),
         display_name: "Private".to_owned(),
         base_url: "https://private.example/v1".to_owned(),

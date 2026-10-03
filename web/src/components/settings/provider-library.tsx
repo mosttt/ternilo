@@ -167,6 +167,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
         display_name: displayName,
         base_url: draft.baseUrl.trim().replace(/\/$/, ''),
         protocol: draft.protocol,
+        hosted_tools: draft.hostedTools ?? null,
         api_key_ref: credentialReference,
         defaults,
         models,

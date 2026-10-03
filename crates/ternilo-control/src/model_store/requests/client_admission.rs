@@ -51,6 +51,8 @@ impl ControlStore {
         )
         .await?;
         let route = config::resolve_route(&mut tx, &self.cipher, &input.model_id).await?;
+        let reserved = super::with_provider_budget(input, &route)?;
+        let input = &reserved;
         if route.model.protocol != input.protocol {
             return Err(HarnessError::invalid(
                 "public model does not support the requested API protocol",

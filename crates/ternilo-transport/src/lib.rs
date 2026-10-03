@@ -16,7 +16,7 @@ use ternilo_protocol::{
     TenantId, UserAnswer, UserId, WorkspaceId, WorkspaceRequest, validate_agent_preset_id,
 };
 
-pub const EXECUTOR_PROTOCOL_VERSION: u32 = 47;
+pub const EXECUTOR_PROTOCOL_VERSION: u32 = 48;
 
 mod cleanup;
 pub use cleanup::{
@@ -1456,7 +1456,7 @@ mod tests {
 
     #[test]
     fn executor_live_capabilities_have_an_explicit_versioned_wire() {
-        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 47);
+        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 48);
         let mut peer = ExecutorHello {
             protocol_version: 40,
             executor_id: ExecutorId::new("native-model-peer"),

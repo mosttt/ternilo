@@ -440,6 +440,7 @@ pub(super) fn session_profile(
             "max_attempts": max_attempts,
             "retry_base_delay_ms": retry_base_delay_ms,
             "protocol": protocol,
+            "hosted_tools": named_provider.and_then(|provider| provider.hosted_tools.clone()),
             "context_window": context_window,
             "max_tokens": max_tokens,
             "reasoning_effort": reasoning_effort,

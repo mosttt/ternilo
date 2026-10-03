@@ -32,6 +32,7 @@ async fn setup(store: &ControlStore) -> (ControlUser, String) {
             &actor,
             &ModelProviderInput {
                 profile: ProviderProfile {
+                    hosted_tools: None,
                     id: "device-upstream".to_owned(),
                     display_name: "Device upstream".to_owned(),
                     base_url: "https://model.example/v1".to_owned(),

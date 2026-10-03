@@ -14,6 +14,8 @@ mod model_binding;
 pub use model_binding::{RunModelBinding, RunModelSnapshot};
 mod model_settings;
 pub use model_settings::{ProviderModelValues, ProviderReasoningSetting};
+mod hosted_tools;
+pub use hosted_tools::HostedWebTools;
 mod input_provenance;
 pub use input_provenance::{AutomatedInputSource, InputAuthor, InputProvenance};
 mod history;
@@ -866,6 +868,8 @@ pub struct ProviderProfile {
     #[serde(default)]
     pub protocol: ProviderProtocol,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hosted_tools: Option<HostedWebTools>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key_ref: Option<String>,
     pub defaults: ProviderModelDefaults,
     pub models: Vec<ProviderModel>,
@@ -918,6 +922,9 @@ impl ExtensionProviderMaterializeRequest {
 
 impl ProviderProfile {
     pub fn validate(&self) -> Result<(), HarnessError> {
+        if let Some(tools) = &self.hosted_tools {
+            tools.validate(self.protocol)?;
+        }
         if !valid_provider_id(&self.id) {
             return Err(HarnessError::invalid(
                 "provider id must start with a lowercase letter and use lowercase letters, digits, dash, or underscore",
@@ -2217,6 +2224,7 @@ pub struct ModelRequest {
     pub system_prompt: String,
     pub messages: Vec<ModelMessage>,
     pub tools: Vec<ToolSpec>,
+    /// Agent steps start at one; zero denotes text-only auxiliary work such as titles or compaction.
     pub step: u32,
 }
 
@@ -2263,6 +2271,7 @@ pub enum ModelFinishReason {
     Stop,
     ToolCalls,
     MaxTokens,
+    Pause,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -3396,6 +3405,7 @@ mod tests {
             ]),
         };
         let provider = ProviderProfile {
+            hosted_tools: None,
             id: "provider-a".to_owned(),
             display_name: "Provider A".to_owned(),
             base_url: "https://models.example.test/v1".to_owned(),

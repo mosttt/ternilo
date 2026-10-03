@@ -40,6 +40,7 @@ impl Fixture {
         };
         application
             .upsert_provider_profile(ProviderProfile {
+                hosted_tools: None,
                 id: "source-provider".to_owned(),
                 display_name: "Source".to_owned(),
                 base_url: format!("http://{address}/v1"),

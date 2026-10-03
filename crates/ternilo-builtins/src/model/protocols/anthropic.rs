@@ -49,6 +49,11 @@ pub(super) fn request_body(
     if !request.tools.is_empty() {
         body["tools"] = json!(request.tools.iter().map(|tool| json!({"name": tool.name, "description": tool.description, "input_schema": tool.input_schema})).collect::<Vec<_>>());
     }
+    if request.step == 0 {
+        body["tool_choice"] = json!({"type":"none"});
+    } else if let Some(hosted) = &model.hosted_tools {
+        crate::apply_hosted_web_tools(&mut body, hosted);
+    }
     if let Some(temperature) = model.temperature {
         body["temperature"] = json!(temperature);
     }
@@ -90,6 +95,7 @@ fn finish_reason(value: &Value, completion: &mut StreamCompletion) -> Result<(),
             "end_turn" | "stop_sequence" | "refusal" => ModelFinishReason::Stop,
             "tool_use" => ModelFinishReason::ToolCalls,
             "max_tokens" | "model_context_window_exceeded" => ModelFinishReason::MaxTokens,
+            "pause_turn" => ModelFinishReason::Pause,
             other => {
                 return Err(HarnessError::execution(format!(
                     "Claude generation stopped: {other}"
@@ -132,6 +138,15 @@ fn start_block(index: usize, block: &Value, completion: &mut StreamCompletion) -
 }
 
 fn stop_block(index: usize, completion: &mut StreamCompletion) -> Result<(), HarnessError> {
+    if let Some(input) = completion.native_tool_inputs.remove(&index) {
+        completion
+            .native_blocks
+            .get_mut(&index)
+            .expect("started server tool block")["input"] =
+            serde_json::from_str(&input).map_err(|_| {
+                HarnessError::execution("Claude returned invalid server tool input JSON")
+            })?;
+    }
     if let Some(pending) = completion.tool_calls.get_mut(&index) {
         if pending.arguments.is_empty() {
             pending.arguments = completion.native_blocks[&index]
@@ -203,12 +218,32 @@ fn append_delta(
         Some("thinking_delta") => ("thinking", false, true),
         Some("signature_delta") => ("signature", false, false),
         Some("input_json_delta") => {
+            if block["type"] == "server_tool_use" {
+                completion
+                    .native_tool_inputs
+                    .entry(index)
+                    .or_default()
+                    .push_str(delta["partial_json"].as_str().unwrap_or_default());
+                return Ok(StreamEvent::Metadata);
+            }
             let pending = completion.tool_calls.get_mut(&index).ok_or_else(|| {
                 HarnessError::execution("Claude tool arguments arrived without a tool call")
             })?;
             pending
                 .arguments
                 .push_str(delta["partial_json"].as_str().unwrap_or_default());
+            return Ok(StreamEvent::Metadata);
+        }
+        Some("citations_delta") => {
+            let citations = block
+                .as_object_mut()
+                .ok_or_else(|| HarnessError::execution("Claude content block must be an object"))?
+                .entry("citations")
+                .or_insert_with(|| json!([]));
+            citations
+                .as_array_mut()
+                .ok_or_else(|| HarnessError::execution("Claude citations must be an array"))?
+                .push(delta["citation"].clone());
             return Ok(StreamEvent::Metadata);
         }
         _ => return Ok(StreamEvent::Metadata),

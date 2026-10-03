@@ -23,10 +23,16 @@ pub(super) struct StreamCompletion {
     pub(super) finish_reason: Option<ModelFinishReason>,
     pub(super) native_protocol: Option<ProviderProtocol>,
     pub(super) native_blocks: BTreeMap<usize, serde_json::Value>,
+    pub(super) native_tool_inputs: BTreeMap<usize, String>,
 }
 
 impl StreamCompletion {
     pub(super) fn finish(self, provider: &str, model: &str) -> Result<ModelResponse, HarnessError> {
+        if !self.native_tool_inputs.is_empty() {
+            return Err(HarnessError::execution(
+                "model stream ended with incomplete server tool input",
+            ));
+        }
         let tool_calls = self
             .tool_calls
             .into_values()

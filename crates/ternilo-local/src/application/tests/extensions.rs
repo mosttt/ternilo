@@ -200,6 +200,7 @@ async fn plugin_authorization_is_surface_scoped_single_flight_and_provider_keys_
     let application = open_test_application(data_dir.clone()).await;
     application
         .upsert_provider_profile(ProviderProfile {
+            hosted_tools: None,
             id: "authorization-fixture".to_owned(),
             display_name: "Authorization Fixture".to_owned(),
             base_url: "https://provider.invalid/v1".to_owned(),

@@ -15,6 +15,8 @@ mod extensions;
 #[cfg(test)]
 mod goal_execution_tests;
 mod hooks;
+mod hosted_tools;
+pub use hosted_tools::apply_hosted_web_tools;
 mod instructions;
 mod jobs;
 mod lsp;

@@ -124,6 +124,8 @@ impl ControlStore {
         }
         scope(&mut tx).await?;
         let caller_scope = format!("device_account:{}:{provider}", device.device_id);
+        let reserved = requests::with_provider_budget(input, &route)?;
+        let input = &reserved;
         if let Some(request) = requests::duplicate_in(&mut tx, &caller_scope, input).await? {
             tx.commit().await.map_err(database_error)?;
             return Ok(ModelRequestPermit {

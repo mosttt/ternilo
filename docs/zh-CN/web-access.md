@@ -2,7 +2,7 @@
 
 `web_fetch` 用于读取公开网页，不需要单独的模型 Provider 或网页 API Key。在能够正常解析公网地址的网络中，启用 `web-fetch` 插件即可使用。搜索网页的 `web_search` 支持 SearXNG、Brave Search 和 Tavily，需要单独配置搜索服务。
 
-这两项工具由执行任务的 Ternilo 运行。模型服务商在云端执行的原生联网搜索目前尚未适配；配置一个兼容的模型接口，并不意味着自动启用服务商的联网工具。
+这两项本机工具由执行任务的 Ternilo 运行。Claude 还可以使用下面单独配置的供应商托管网页工具。
 
 ## 选择搜索服务
 
@@ -36,6 +36,31 @@ Tavily 把 kind 改为 `ternilo.web.search.tavily`。SearXNG 使用自己的 kin
 Tavily 固定使用 `basic` 搜索，关闭自动参数、生成答案、原始网页正文和图片。搜索仍由供应商按账号计费。协议依据 [Brave Web Search](https://api-dashboard.search.brave.com/api-reference/web/search/get) 和 [Tavily Search](https://docs.tavily.com/documentation/api-reference/endpoint/search)。
 
 搜索请求可取消，默认超时 30 秒，响应最多 2 MiB。不会跟随搜索接口的 HTTP 重定向；错误只显示服务名和状态类别，不回显上游正文、查询 URL 或 Key。结果来自外部网页，是供模型参考的内容。
+
+## Claude 托管网页工具
+
+在 Claude Provider 的“自定义设置 → Claude 托管网页工具”中，可以显式开启网页搜索和网页读取，设置每次请求每种工具的调用上限、读取正文的 Token 上限及域名筛选。默认关闭。域名列表使用裸域名和可选路径，例如 `example.com/docs`；允许列表与阻止列表二选一。
+
+```json
+{
+  "hosted_tools": {
+    "web_search": true,
+    "web_fetch": true,
+    "max_uses": 2,
+    "max_content_tokens": 20000,
+    "allowed_domains": ["example.com"],
+    "blocked_domains": []
+  }
+}
+```
+
+这是 Provider 对象中的字段，仅适用于 `anthropic-messages`。采用官方基本工具 `web_search_20250305` 和 `web_fetch_20250910`；执行地点是模型服务商，同名的本机网页工具不会同时提交到模型。其他本机文件和命令工具继续在执行电脑运行，模型请求通过 Server 或另一台电脑转发时也保留这个分工。标题生成和上下文压缩不启用托管网页工具。
+
+搜索和读取由供应商计费，平台 Token 预算不代表搜索费用额度。Server 的账号／平台模型按配置的最大工具次数、模型上下文和输出上限保守预留 Token，完成后按实际报告结算；额度不足会在调用前拒绝。修改 Provider 的工具设置影响后续请求，预算、授权和停止仍遵守原模型来源。
+
+长请求返回 `pause_turn` 时，Ternilo 保留原始助手内容并继续同一轮任务，每次续传计入 Agent 步数与模型请求。搜索密文、读取结果和引用完整保存；答案下的“网页来源”可打开原始页面，刷新后仍保留。取消仍由执行任务的用户控制。
+
+协议依据：[Claude 网页搜索](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)、[Claude 网页读取](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-fetch-tool)。供应商需要为对应账号和模型开放该能力；不支持的模型会返回上游错误。
 
 ## 使用透明代理时无法读取网页
 

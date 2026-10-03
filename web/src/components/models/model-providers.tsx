@@ -54,6 +54,7 @@ export function ProviderEditor({ initial, onClose, onSaved }: { initial: ModelPr
         model: { invalidCapacity: value => settings('provider.errorInvalidCapacity', { value }), positiveCapacity: value => settings('provider.errorPositiveCapacity', { value }), missingId: index => settings('provider.errorMissingModelId', { index }), missingEffort: id => settings('provider.errorMissingEffort', { id }), defaultNotEnabled: id => settings('provider.errorDefaultEffort', { id }) },
       })
       const profile: ProviderProfile = { id: validated.id, display_name: validated.displayName, base_url: draft.baseUrl.trim().replace(/\/$/, ''), protocol: draft.protocol,
+        hosted_tools: draft.hostedTools ?? null,
         api_key_ref: null, defaults: validated.defaults, models: validated.models, timeout_ms: draft.timeoutMs, max_attempts: draft.maxAttempts, retry_base_delay_ms: draft.retryBaseDelayMs }
       const provider = await api.request<ModelProvider>(initial ? modelResource(`${modelAdminPath}/providers`, initial.profile.id) : `${modelAdminPath}/providers`, {
         method: initial ? 'PUT' : 'POST', body: { profile, enabled, ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}), clear_api_key: clearKey && !apiKey.trim() },

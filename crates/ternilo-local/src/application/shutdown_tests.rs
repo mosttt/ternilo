@@ -189,7 +189,7 @@ async fn shutdown_cancels_slow_run_joins_fifo_drivers_and_preserves_pending_occu
     // Join the last post-turn bookkeeping before checking the durable log.
     restored.shutdown().await.unwrap();
     let events = super::JsonlEventStore::new(
-        &root.path().join("data/sessions"),
+        &root.path().join("data/data/sessions"),
         &ternilo_protocol::SessionId::new(&session_id),
     )
     .load_events()

@@ -6734,6 +6734,7 @@ dependencies = [
 name = "ternilo-protocol"
 version = "0.2.0"
 dependencies = [
+ "schemars 1.2.2",
  "serde",
  "serde_json",
 ]

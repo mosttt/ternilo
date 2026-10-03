@@ -93,6 +93,7 @@ impl LocalApplication {
             provider: provider.id,
             base_url: provider.base_url,
             protocol: provider.protocol,
+            hosted_tools: provider.hosted_tools,
             model: request.model,
             context_window: Some(request.defaults.context_window.min(current.context_window)),
             timeout_ms: provider.timeout_ms,
@@ -153,6 +154,7 @@ impl SourcePolicy {
         available.display_name = None;
         if current.base_url != self.provider.base_url
             || current.protocol != self.provider.protocol
+            || current.hosted_tools != self.provider.hosted_tools
             || current.api_key_ref != self.provider.api_key_ref
             || current.timeout_ms != self.provider.timeout_ms
             || current.max_attempts != self.provider.max_attempts

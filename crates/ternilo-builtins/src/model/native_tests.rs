@@ -7,6 +7,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn model(protocol: ProviderProtocol, effort: Option<&str>) -> ProviderModel {
     ProviderModel {
+        hosted_tools: None,
         provider: "native".to_owned(),
         endpoint: "http://unused.test".to_owned(),
         protocol,
@@ -351,6 +352,7 @@ async fn native_http_streams_use_real_auth_endpoints_and_wait_for_complete_usage
         }
         let (base_url, server) = upstream(vec![("text/event-stream".to_owned(), stream)]).await;
         let route = ProviderModelRoute {
+            hosted_tools: None,
             provider: "native".to_owned(),
             base_url,
             protocol,
@@ -464,4 +466,90 @@ async fn native_discovery_paginates_and_does_not_infer_missing_thinking_levels()
             assert_eq!(configuration.efforts.len(), 2);
         }
     }
+}
+
+#[test]
+fn hosted_web_requests_replace_same_named_local_tools_and_keep_other_functions() {
+    let mut model = model(ProviderProtocol::AnthropicMessages, None);
+    model.hosted_tools = Some(ternilo_protocol::HostedWebTools {
+        web_search: true,
+        web_fetch: true,
+        max_uses: 2,
+        max_content_tokens: 1000,
+        allowed_domains: vec!["example.com/docs".to_owned()],
+        blocked_domains: Vec::new(),
+    });
+    let mut request = request();
+    request.tools.push(serde_json::from_value(json!({"name":"web_fetch","description":"Local fetch","input_schema":{"type":"object"}})).unwrap());
+    let body = protocols::request_body(&model, &request).unwrap();
+    let tools = body["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 3);
+    assert_eq!(tools[0]["name"], "read_file");
+    assert_eq!(tools[1]["type"], "web_search_20250305");
+    assert_eq!(tools[1]["max_uses"], 2);
+    assert_eq!(tools[1]["allowed_domains"], json!(["example.com/docs"]));
+    assert_eq!(tools[2]["type"], "web_fetch_20250910");
+    assert_eq!(tools[2]["citations"], json!({"enabled":true}));
+    assert_eq!(tools[2]["max_content_tokens"], 1000);
+    request.step = 0;
+    let auxiliary = protocols::request_body(&model, &request).unwrap();
+    assert_eq!(auxiliary["tool_choice"], json!({"type":"none"}));
+    assert!(
+        !auxiliary["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool.get("type").is_some())
+    );
+}
+
+#[test]
+fn hosted_web_stream_preserves_inputs_encrypted_results_citations_and_pause_after_storage() {
+    let result = json!({"type":"web_search_tool_result","tool_use_id":"srv-1","content":[{"type":"web_search_result","url":"https://example.com","title":"Source","encrypted_content":"keep-exactly"}]});
+    let citation = json!({"type":"web_search_result_location","url":"https://example.com","title":"Source","encrypted_index":"index-exactly","cited_text":"source excerpt"});
+    let mut completion = StreamCompletion::default();
+    for value in [
+        json!({"type":"message_start","message":{"usage":{"input_tokens":10,"output_tokens":0}}}),
+        json!({"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv-1","name":"web_search","input":{}}}),
+        json!({"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"example\"}"}}),
+        json!({"type":"content_block_stop","index":0}),
+        json!({"type":"content_block_start","index":1,"content_block":result}),
+        json!({"type":"content_block_stop","index":1}),
+        json!({"type":"content_block_start","index":2,"content_block":{"type":"text","text":"Answer","citations":[]}}),
+        json!({"type":"content_block_delta","index":2,"delta":{"type":"citations_delta","citation":citation}}),
+        json!({"type":"content_block_stop","index":2}),
+        json!({"type":"message_delta","delta":{"stop_reason":"pause_turn"},"usage":{"output_tokens":5}}),
+        json!({"type":"message_stop"}),
+    ] {
+        protocols::decode_stream_data(value, ProviderProtocol::AnthropicMessages, &mut completion)
+            .unwrap();
+    }
+    let response = completion.finish("native", "native-model").unwrap();
+    assert_eq!(response.finish_reason, ModelFinishReason::Pause);
+    assert!(
+        response.tool_calls.is_empty(),
+        "server tools never dispatch on the execution host"
+    );
+    let state = response.provider_state.as_ref().unwrap();
+    assert_eq!(state.blocks[0]["input"], json!({"query":"example"}));
+    assert_eq!(state.blocks[1], result);
+    assert_eq!(state.blocks[2]["citations"], json!([citation]));
+    let persisted: ModelResponse =
+        serde_json::from_slice(&serde_json::to_vec(&response).unwrap()).unwrap();
+    let mut continued = request();
+    continued.messages.push(ModelMessage {
+        role: MessageRole::Assistant,
+        content: persisted.content,
+        reasoning_content: persisted.reasoning_content,
+        provider_state: persisted.provider_state,
+        attachments: Vec::new(),
+        tool_call_id: None,
+        tool_calls: Vec::new(),
+    });
+    let body = protocols::request_body(
+        &model(ProviderProtocol::AnthropicMessages, None),
+        &continued,
+    )
+    .unwrap();
+    assert_eq!(body["messages"][1]["content"], json!(state.blocks));
 }

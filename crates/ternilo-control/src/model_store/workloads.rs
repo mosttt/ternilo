@@ -57,6 +57,8 @@ impl ControlStore {
             .into());
         }
         let caller_scope = workload_scope(principal)?;
+        let reserved = requests::with_provider_budget(input, &route)?;
+        let input = &reserved;
         if let Some(request) = requests::duplicate_in(tx, &caller_scope, input).await? {
             require_same_principal(&request, principal)?;
             return Ok(ModelRequestPermit {

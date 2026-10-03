@@ -4,7 +4,7 @@
 
 `web_fetch` reads public pages and needs no separate model Provider or Web API key. Enable the web-fetch plugin on a network with working public DNS. `web_search` supports SearXNG, Brave Search and Tavily with a separately configured search service.
 
-Both tools run on the computer or Worker executing the task. Vendor-hosted native search tools are not currently adapted; configuring a compatible model endpoint does not enable the vendor's cloud browsing features.
+These local tools run on the execution computer or Worker. Claude also supports separately configured provider-hosted web tools below.
 
 ## Choose a search service
 
@@ -38,6 +38,31 @@ For Tavily use `ternilo.web.search.tavily`. For SearXNG use its kind and supply 
 Tavily uses `basic` search with automatic parameters, generated answers, raw page content and images disabled. Provider billing still applies. See the official [Brave Web Search](https://api-dashboard.search.brave.com/api-reference/web/search/get) and [Tavily Search](https://docs.tavily.com/documentation/api-reference/endpoint/search) contracts.
 
 Requests support cancellation, default to a 30-second timeout and cap responses at 2 MiB. Search endpoint redirects are not followed. Errors disclose service and status categories without echoing upstream bodies, query URLs or keys. Search results are external reference content.
+
+## Claude hosted web tools
+
+In the Claude Provider editor, open Custom settings → Claude hosted web tools. Explicitly enable search and/or fetch and configure maximum calls per tool per request, fetched content tokens and domain filtering. Tools are disabled by default. Domains use bare names and optional paths, such as `example.com/docs`; choose an allow list or a block list.
+
+```json
+{
+  "hosted_tools": {
+    "web_search": true,
+    "web_fetch": true,
+    "max_uses": 2,
+    "max_content_tokens": 20000,
+    "allowed_domains": ["example.com"],
+    "blocked_domains": []
+  }
+}
+```
+
+This Provider field is supported only for `anthropic-messages`, using the official basic `web_search_20250305` and `web_fetch_20250910` tools. The model provider executes them; same-named local web tools are excluded from the model request. File and command tools still run on the execution computer, including when model requests travel through Server or another computer. Title generation and context compaction do not enable hosted web tools.
+
+Provider charges apply, and platform token budgets do not cover additional search fees. Server account/platform models conservatively reserve tokens using configured tool call limits, model context and output bounds, then settles actual reported usage. Insufficient budgets fail before an upstream call. Provider tool changes apply to later requests; existing source authorization, budget and stop controls remain in effect.
+
+For `pause_turn`, Ternilo retains the original assistant blocks and continues the same task, counting each continuation as another Agent step and model request. Encrypted search results, fetched content and citations survive persistence. Web sources below the answer link to original pages and remain after refresh. Users retain cancellation control.
+
+Official contracts: [Claude web search](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool), [Claude web fetch](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-fetch-tool). The upstream account and model must support these capabilities; unsupported models return an upstream error.
 
 ## Fake-IP proxy networks
 

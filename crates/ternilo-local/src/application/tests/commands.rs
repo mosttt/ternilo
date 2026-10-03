@@ -120,6 +120,7 @@ async fn direct_commands_bypass_a_real_provider_and_keep_canonical_outcomes() {
     let application = open_test_application(data_dir.clone()).await;
     application
         .upsert_provider_profile(ProviderProfile {
+            hosted_tools: None,
             id: "direct-fixture".to_owned(),
             display_name: "Direct Fixture".to_owned(),
             base_url: format!("http://{address}/v1"),

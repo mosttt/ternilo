@@ -82,6 +82,7 @@ impl ModelOutput for RecordingOutput {
 
 fn retrying_model(delay_ms: u64) -> ProviderModel {
     ProviderModel {
+        hosted_tools: None,
         provider: "test-provider".to_owned(),
         endpoint: "http://127.0.0.1/unused".to_owned(),
         protocol: ProviderProtocol::OpenAiChatCompletions,
@@ -356,6 +357,7 @@ fn chat_completion_and_history_preserve_reasoning_content() {
 #[test]
 fn responses_request_uses_native_messages_tools_and_reasoning_shape() {
     let model = ProviderModel {
+        hosted_tools: None,
         provider: "test-provider".to_owned(),
         endpoint: "https://api.example/v1/responses".to_owned(),
         protocol: ProviderProtocol::OpenAiResponses,

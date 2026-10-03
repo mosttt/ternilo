@@ -62,6 +62,7 @@ pub async fn configure(
             user,
             tenant,
             ProviderProfile {
+                hosted_tools: None,
                 id: "contract-provider".to_owned(),
                 display_name: snapshot.source_name.clone(),
                 base_url: "https://unused-upstream.example/v1".to_owned(),

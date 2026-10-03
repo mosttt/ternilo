@@ -1212,6 +1212,11 @@ impl ReactAgent {
             )
             .await?;
 
+            if response.finish_reason == ModelFinishReason::Pause {
+                step = next_step(step);
+                continue;
+            }
+
             if response.tool_calls.is_empty() {
                 if response.content.is_empty() {
                     let error =

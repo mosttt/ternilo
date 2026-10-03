@@ -375,6 +375,9 @@ async fn execute_guarded(
     completion: &mut upstream::Completion,
 ) -> Result<(), GatewayError> {
     let route = &permit.route;
+    if let Some(hosted) = &route.provider.hosted_tools {
+        ternilo_builtins::apply_hosted_web_tools(&mut prepared.body, hosted);
+    }
     let budget = prepared.prepare_upstream(
         route.provider.protocol,
         &route.upstream_model,
