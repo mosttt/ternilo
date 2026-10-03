@@ -25,3 +25,22 @@ node web/tests/server-read-load.mjs \
 PostgreSQL 使用独立的空数据库，名称必须以 `ternilo_load_` 开头。通过受保护的环境配置提供 `TERNILO_LOAD_DATABASE_URL`（受限运行身份）和 `TERNILO_LOAD_MIGRATION_DATABASE_URL`（建表身份），其余命令相同；原始数据库不自动删除。不要指向运行实例或备份数据库。默认不设置这两个变量，使用临时 SQLite。
 
 比较时使用相同程序构建模式、数据规模、并发设置和主机资源；不要同时编译或运行其他压测。开发构建的延迟、一次短时运行、同机回环流量都不能推导生产容量承诺。此负载没有覆盖模型流式并发、写入饱和、真实上游限流、多 Server 故障转移或长时间稳定性；这些需要独立场景。开发验收与本阶段优化记录见[读取压测记录](../development/read-load-performance.md)。
+
+## 模型请求、流式取消与持续压力
+
+`web/tests/server-model-load.mjs` 启动独立 Server 和回环合成上游，通过真实模型 API 产生准入、请求／尝试账本和结算写入。四组独立 Provider／授权／密钥共用同一提交账号。测试普通 JSON、SSE、并发超限、客户端在收到首段数据后取消，以及持续负载；不调用真实收费模型。
+
+构建匹配程序后执行：
+
+```bash
+TERNILO_E2E_SERVER_BINARY="$PWD/target/release/ternilo-server" \
+node web/tests/server-model-load.mjs \
+  --build-label release --concurrency 1,8,32 --seconds 10 \
+  --soak-seconds 300 --latency-ms 25 --output ./model-load-result.json
+```
+
+`--instances 2` 使用两个独立 Server 进程共享同一个受限 PostgreSQL 数据库；仍须通过前述 `TERNILO_LOAD_DATABASE_URL`／`TERNILO_LOAD_MIGRATION_DATABASE_URL` 提供独立空库，库名以 `ternilo_load_` 开头。SQLite 只支持本脚本的单实例场景。所有密钥、模型目录和临时配置由脚本生成，结束清理进程与目录；原始 PostgreSQL 库和指定 JSON 结果保留。
+
+每个响应检查完整内容，预期的 429 必须包含 `rate_limited` 与 `Retry-After`。报告分别计算已接受吞吐量、预期限流响应率、JSON／流式／取消耗时，不能把 429 当成模型成功吞吐量。取消不推断为没有费用：最终按每月分页读取完整账本，核对已接受 ID 恰好出现一次、上游实际调用数一致、活动租约清零、已知 Token 精确结算和未知尝试保留预留。跨 UTC 月份分别核对，不把新月份汇总当成整场数据。遇到意外错误停止增加请求，保留失败阶段；不会靠重试掩盖错误。
+
+默认持续阶段 60 秒，可设置 0–3600 秒。持续时长、客户端并发、上游延迟和构建标签均记录；这仍是闭环同机合成负载，不代表真实 Provider 延迟、开放式到达率容量或生产 SLA。跨 Server 的 Node 指令转发与存储故障恢复不在这个模型 API 场景内，须独立验收。
