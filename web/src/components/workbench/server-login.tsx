@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { navigate } from '@/app/navigation'
 import { api } from '@/api/client'
 import { OidcFlowError } from '@/auth/oidc'
 import type { TenantSummary } from '@/types'
@@ -18,6 +19,7 @@ const emptyLink = { setupToken: '', invitationToken: '', teamInvitationToken: ''
 export function ServerLogin() {
   const { authRequired, serverAuthConfig: config, error: connectionError, authenticate, login, retryAuthentication, accessPaused, oidcRegistrationRequired, registerOidcUsername, logout, selectTenant, notify } = useWorkbench()
   const t = useTranslate('app')
+  const settingsT = useTranslate('settings')
   const adminT = useTranslate('admin')
   const securityT = useTranslate('serverSecurity')
   const [turnstileToken, setTurnstileToken] = React.useState('')
@@ -209,6 +211,7 @@ export function ServerLogin() {
           setChoice(creating ? 'login' : publicSignup ? 'register' : 'accept')
           setError('')
         }}>{creating ? t('server.backToLogin') : publicSignup ? t('server.createAccount') : t('server.useInvitation')}</Button>}
+        {!creating && config.email_enabled && <Button type="button" variant="ghost" disabled={busy} onClick={() => navigate('/auth/recover')}>{settingsT('account.forgotPassword')}</Button>}
       </form> : connectionError ? <Button variant="outline" onClick={retryAuthentication}>{t('error.retry')}</Button>
         : <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><LoaderCircle className="size-4 animate-spin" />{t('server.loading')}</p>}
       {!accessPaused && (error || displayedConnectionError) && <p className="break-words text-sm text-destructive" role="alert">{error || displayedConnectionError}</p>}

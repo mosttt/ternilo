@@ -12,6 +12,8 @@ Public credential formats and browser session IDs use `ter_` followed by a purpo
 | `ter_a_` | Native account access credential |
 | `ter_o_` | Ternilo-issued OIDC access credential |
 | `ter_r_` | OIDC refresh credential |
+| `ter_ev_` | One-time email verification credential |
+| `ter_pr_` | One-time email password recovery credential |
 | `ter_b_` | Initial Server setup credential |
 | `ter_n_` | Node connection credential |
 | `ter_e_` | One-time Node enrollment credential |

@@ -10,6 +10,7 @@ base64.workspace = true
 clap.workspace = true
 futures-util.workspace = true
 hmac.workspace = true
+lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 rand.workspace = true
 salvo_core.workspace = true
 salvo_extra.workspace = true

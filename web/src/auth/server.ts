@@ -20,6 +20,7 @@ export interface ServerAuthConfig {
   mode: InstanceMode
   native_enabled: boolean
   oidc_enabled: boolean
+  email_enabled?: boolean
   registration: RegistrationSettings
   turnstile?: { site_key: string }
   oidc?: {
@@ -80,7 +81,7 @@ export function isOidcUsernameRequired(error: { code: string; message: string })
     && error.message === 'choose a platform username to finish registration'
 }
 
-async function publicRequest<T>(path: string, body?: unknown, bearer?: string): Promise<T> {
+export async function publicRequest<T>(path: string, body?: unknown, bearer?: string): Promise<T> {
   const response = await fetch(path, body === undefined ? undefined : {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) },

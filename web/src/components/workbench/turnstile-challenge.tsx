@@ -46,7 +46,7 @@ function loadTurnstile(): Promise<TurnstileApi> {
 
 export function TurnstileChallenge({ siteKey, action, attempt, onToken }: {
   siteKey: string
-  action: 'login' | 'register' | 'invitation'
+  action: 'login' | 'register' | 'invitation' | 'password_recovery'
   attempt: number
   onToken(token: string): void
 }) {

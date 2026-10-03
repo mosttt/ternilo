@@ -14,6 +14,12 @@ pub(crate) struct ApiError {
 }
 
 impl ApiError {
+    pub(crate) fn rate_limited(message: &str) -> Self {
+        Self {
+            error: HarnessError::policy(message),
+            status: Some(StatusCode::TOO_MANY_REQUESTS),
+        }
+    }
     pub(crate) fn unauthorized(error: HarnessError) -> Self {
         Self {
             error,

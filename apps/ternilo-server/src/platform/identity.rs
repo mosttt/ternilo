@@ -19,6 +19,7 @@ use super::{
 
 const MAX_IDENTITY_BODY_BYTES: u64 = 16 * 1024;
 
+mod email;
 pub(super) mod session_details;
 mod sessions;
 
@@ -30,6 +31,8 @@ pub(crate) fn router() -> Router {
             Router::with_path("auth")
                 .push(Router::with_path("setup").post(setup))
                 .push(Router::with_path("login").post(login))
+                .push(Router::with_path("password-recovery").post(email::request_recovery))
+                .push(Router::with_path("password-reset").post(email::reset_password))
                 .push(Router::with_path("register").post(register))
                 .push(Router::with_path("oidc/register").post(register_oidc))
                 .push(Router::with_path("logout").post(logout))
@@ -48,6 +51,9 @@ pub(crate) fn router() -> Router {
                 .push(Router::with_path("auth/session").get(get_session))
                 .push(Router::with_path("auth/password").post(change_password))
                 .push(sessions::router())
+                .push(Router::with_path("auth/email").get(email::status))
+                .push(Router::with_path("auth/email/send").post(email::send_verification))
+                .push(Router::with_path("auth/email/verify").post(email::verify))
                 .push(Router::with_path("invitations/accept").post(join_invitation)),
         )
 }
@@ -93,11 +99,16 @@ pub(super) async fn no_store(
 }
 
 #[derive(Serialize)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Public login capabilities are independent flags, not mutually exclusive states."
+)]
 pub(crate) struct AuthConfig {
     initialized: bool,
     mode: InstanceMode,
     native_enabled: bool,
     oidc_enabled: bool,
+    email_enabled: bool,
     registration: RegistrationSettings,
     #[serde(skip_serializing_if = "Option::is_none")]
     oidc: Option<serde_json::Value>,
@@ -127,6 +138,7 @@ pub(crate) async fn auth_config(
         mode: instance.map_or(InstanceMode::SingleUser, |value| value.mode),
         native_enabled: true,
         oidc_enabled: oidc.is_some(),
+        email_enabled: runtime.mailer.is_some(),
         registration: state.store.registration_settings().await?,
         oidc,
         turnstile: runtime

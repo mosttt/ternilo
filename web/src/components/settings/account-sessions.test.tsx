@@ -31,7 +31,9 @@ beforeEach(() => {
   root = createRoot(host)
   workbench.serverIdentity.user.user_id = 'member'
   workbench.logout.mockReset()
-  vi.spyOn(api, 'request').mockResolvedValue({ current_login: 'native', current_session_managed: true, sessions: [current, other] })
+  vi.spyOn(api, 'request').mockImplementation(async resource => resource === '/auth/oidc-link'
+    ? { native: true, oidc: null } as never
+    : { current_login: 'native', current_session_managed: true, sessions: [current, other] } as never)
 })
 
 afterEach(() => {
@@ -102,7 +104,7 @@ describe('Account browser sessions', () => {
     await render()
     await act(async () => button('撤销当前会话').click())
     expect(dialog().textContent).toContain('立即退出当前登录')
-    expect(api.request).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(api.request).mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
     await act(async () => button('取消', dialog()).click())
     expect(workbench.logout).not.toHaveBeenCalled()
     await act(async () => button('撤销当前会话').click())

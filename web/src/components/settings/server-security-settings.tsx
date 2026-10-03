@@ -5,6 +5,7 @@ import { Field, Input, Label, Select } from '@/components/ui/field'
 import { Switch } from '@/components/ui/switch'
 import { useTranslate } from '@/i18n/provider'
 import { useWorkbench } from '@/state/workbench'
+import { ServerMailSettings, emptySmtp, type SmtpSettings } from './server-mail-settings'
 import { GroupHeader } from './settings-ui'
 
 interface OidcSettings {
@@ -22,6 +23,7 @@ export interface ServerSecuritySettings {
   oidc_unavailable: boolean
   oidc: OidcSettings | null
   turnstile: { site_key: string; has_secret_key: boolean } | null
+  smtp: SmtpSettings | null
 }
 
 const emptyOidc: OidcSettings = { issuer: '', audience: '', client_id: '', scopes: 'openid profile email', token_auth_method: 'none', has_client_secret: false }
@@ -39,7 +41,7 @@ function validPublicOrigin(value: string) {
 
 export function ServerSecuritySettingsPanel() {
   const t = useTranslate('serverSecurity')
-  const { notify } = useWorkbench()
+  const { notify, retryAuthentication } = useWorkbench()
   const [saved, setSaved] = React.useState<ServerSecuritySettings | null>(null)
   const [origin, setOrigin] = React.useState('')
   const [oidcEnabled, setOidcEnabled] = React.useState(false)
@@ -48,11 +50,14 @@ export function ServerSecuritySettingsPanel() {
   const [turnstileEnabled, setTurnstileEnabled] = React.useState(false)
   const [siteKey, setSiteKey] = React.useState('')
   const [secretKey, setSecretKey] = React.useState('')
+  const [smtpEnabled, setSmtpEnabled] = React.useState(false)
+  const [smtp, setSmtp] = React.useState(emptySmtp)
+  const [smtpPassword, setSmtpPassword] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState('')
   const [reload, setReload] = React.useState(0)
   const [conflict, setConflict] = React.useState(false)
-  const invalidOrigin = (oidcEnabled || turnstileEnabled) && !validPublicOrigin(origin)
+  const invalidOrigin = (oidcEnabled || turnstileEnabled || smtpEnabled) && !validPublicOrigin(origin)
 
   const accept = React.useCallback((settings: ServerSecuritySettings) => {
     setSaved(settings)
@@ -63,6 +68,9 @@ export function ServerSecuritySettingsPanel() {
     setSiteKey(settings.turnstile?.site_key ?? '')
     setClientSecret('')
     setSecretKey('')
+    setSmtpEnabled(Boolean(settings.smtp))
+    setSmtp(settings.smtp ?? emptySmtp)
+    setSmtpPassword('')
     setConflict(false)
   }, [])
 
@@ -82,14 +90,17 @@ export function ServerSecuritySettingsPanel() {
     setError('')
     try {
       const { has_client_secret: _, ...oidcInput } = oidc
+      const { has_password: _password, ...smtpInput } = smtp
       const settings = await api.request<ServerSecuritySettings>(endpoint, { method: 'PUT', body: {
         revision: saved.revision,
         public_url: origin.trim(),
         oidc: oidcEnabled ? { ...oidcInput, issuer: oidc.issuer.trim(), audience: oidc.audience.trim(), client_id: oidc.client_id.trim(), client_secret: clientSecret || null } : null,
         turnstile: turnstileEnabled ? { site_key: siteKey.trim(), secret_key: secretKey || null } : null,
+        smtp: smtpEnabled ? { ...smtpInput, host: smtp.host.trim(), from: smtp.from.trim(), password: smtpPassword || null } : null,
       } })
       accept(settings)
       notify(t('saved'))
+      retryAuthentication()
     } catch (cause) {
       const conflicted = cause instanceof ApiError && cause.status === 409
       setConflict(conflicted)
@@ -103,7 +114,7 @@ export function ServerSecuritySettingsPanel() {
       <fieldset disabled={busy || conflict} className="grid min-w-0 gap-5">
         <Field>
           <Label htmlFor="auth-public-url">{t('origin')}</Label>
-          <Input id="auth-public-url" type="url" value={origin} onChange={event => setOrigin(event.target.value)} aria-invalid={invalidOrigin} aria-describedby={invalidOrigin ? 'auth-public-url-hint auth-public-url-error' : 'auth-public-url-hint'} required={oidcEnabled || turnstileEnabled} placeholder="https://ternilo.example.com" />
+          <Input id="auth-public-url" type="url" value={origin} onChange={event => setOrigin(event.target.value)} aria-invalid={invalidOrigin} aria-describedby={invalidOrigin ? 'auth-public-url-hint auth-public-url-error' : 'auth-public-url-hint'} required={oidcEnabled || turnstileEnabled || smtpEnabled} placeholder="https://ternilo.example.com" />
           <p id="auth-public-url-hint" className="text-xs text-muted-foreground">{t('originHint')}</p>
           {invalidOrigin && <p id="auth-public-url-error" className="text-xs text-destructive">{t('invalidOrigin')}</p>}
         </Field>
@@ -145,6 +156,10 @@ export function ServerSecuritySettingsPanel() {
             <Field><Label htmlFor="auth-secret-key">{t('secretKey')}</Label><Input id="auth-secret-key" type="password" autoComplete="new-password" value={secretKey} onChange={event => setSecretKey(event.target.value)} placeholder={t(saved.turnstile?.has_secret_key ? 'secretKept' : 'secretRequired')} /></Field>
             <p className="text-xs leading-relaxed text-muted-foreground">{t('hostnameHint')}</p>
           </>}
+        </div>
+        <div className="grid min-w-0 gap-4 border-t pt-5">
+          <div className="flex items-start justify-between gap-4"><div className="grid gap-1"><Label htmlFor="auth-smtp-enabled">{t('smtp')}</Label><p className="text-xs text-muted-foreground">{t('smtpHint')}</p></div><Switch id="auth-smtp-enabled" checked={smtpEnabled} onCheckedChange={setSmtpEnabled} /></div>
+          {smtpEnabled && <ServerMailSettings value={smtp} password={smtpPassword} onChange={setSmtp} onPassword={setSmtpPassword} />}
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">{t('secretsHint')}</p>
         <Button type="submit" className="w-fit">{t('save')}</Button>

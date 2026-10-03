@@ -141,11 +141,16 @@ impl ControlStore {
     }
 }
 
-async fn revoke_password_sessions(
+pub(crate) async fn revoke_password_sessions(
     transaction: &mut ternilo_storage::Transaction,
     user_id: &UserId,
     now: i64,
 ) -> Result<(u64, u64), HarnessError> {
+    sqlx::query("DELETE FROM control_email_challenges WHERE user_id=$1")
+        .bind(user_id.as_str())
+        .execute(&mut **transaction)
+        .await
+        .map_err(database_error)?;
     let native_sessions_revoked = sqlx::query(
             "UPDATE control_browser_sessions SET revoked_at_ms=$2 WHERE user_id=$1 AND revoked_at_ms IS NULL",
         )

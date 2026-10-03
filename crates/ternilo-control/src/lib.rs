@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod account_email;
+pub use account_email::{AccountEmailDelivery, AccountEmailStatus};
 mod account_status_store;
 mod account_store;
 pub use account_status_store::AccountStatusAction;

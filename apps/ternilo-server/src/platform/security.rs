@@ -9,6 +9,9 @@ use zeroize::Zeroizing;
 
 use super::{ApiError, actor, app_state, invalid_request, now_ms, web::CloudWebAuth};
 
+mod mail;
+pub(super) use mail::AccountMailer;
+use mail::MailSettings;
 mod turnstile;
 pub(super) use turnstile::TurnstileSettings;
 
@@ -18,6 +21,7 @@ pub(super) struct LoginSettings {
     pub public_url: String,
     pub oidc: Option<OidcSettings>,
     pub turnstile: Option<TurnstileSettings>,
+    pub smtp: Option<MailSettings>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -48,6 +52,7 @@ pub(super) struct LoginRuntime {
     pub settings: LoginSettings,
     pub auth: Option<Arc<OidcAuthenticator>>,
     pub web_auth: Option<Arc<CloudWebAuth>>,
+    pub mailer: Option<Arc<AccountMailer>>,
     oidc_unavailable: bool,
     loaded_at: std::time::Instant,
 }
@@ -61,11 +66,17 @@ impl LoginRuntime {
         if let Some(turnstile) = &settings.turnstile {
             turnstile.validate()?;
         }
+        let mailer = settings
+            .smtp
+            .as_ref()
+            .map(|smtp| AccountMailer::new(smtp, &settings.public_url).map(Arc::new))
+            .transpose()?;
         let mut runtime = Self {
             revision,
             settings,
             auth: None,
             web_auth: None,
+            mailer,
             oidc_unavailable: false,
             loaded_at: std::time::Instant::now(),
         };
@@ -160,6 +171,7 @@ impl SecurityState {
                     client_secret: None,
                 }),
                 turnstile: None,
+                smtp: None,
             },
             allow_insecure: config.oidc.as_ref().is_some_and(|oidc| oidc.allow_insecure),
             cache: Mutex::new(None),
@@ -201,6 +213,7 @@ struct UpdateLoginSettings {
     public_url: String,
     oidc: Option<OidcSettings>,
     turnstile: Option<TurnstileSettings>,
+    smtp: Option<MailSettings>,
 }
 
 fn public_settings(runtime: &LoginRuntime) -> serde_json::Value {
@@ -219,6 +232,12 @@ fn public_settings(runtime: &LoginRuntime) -> serde_json::Value {
             .remove("secret_key")
             .is_some_and(|value| value.as_str().is_some_and(|value| !value.is_empty()));
         turnstile.insert("has_secret_key".into(), has_secret.into());
+    }
+    if let Some(smtp) = settings["smtp"].as_object_mut() {
+        let has_password = smtp
+            .remove("password")
+            .is_some_and(|value| value.as_str().is_some_and(|value| !value.is_empty()));
+        smtp.insert("has_password".into(), has_password.into());
     }
     settings
 }
@@ -277,10 +296,28 @@ pub(super) async fn update_settings(
             .filter(|old| old.site_key == turnstile.site_key)
             .and_then(|old| old.secret_key.clone());
     }
+    if let Some(smtp) = body.smtp.as_mut() {
+        if smtp.username.as_ref().is_none_or(String::is_empty) {
+            smtp.password = None;
+        } else if smtp.password.as_ref().is_none_or(String::is_empty) {
+            smtp.password = previous
+                .settings
+                .smtp
+                .as_ref()
+                .filter(|old| {
+                    old.host == smtp.host
+                        && old.port == smtp.port
+                        && old.security == smtp.security
+                        && old.username == smtp.username
+                })
+                .and_then(|old| old.password.clone());
+        }
+    }
     let settings = LoginSettings {
         public_url: body.public_url.trim_end_matches('/').to_owned(),
         oidc: body.oidc,
         turnstile: body.turnstile,
+        smtp: body.smtp,
     };
     if settings.oidc.is_some() || settings.turnstile.is_some() {
         super::web::validate_public_url(&settings.public_url, state.security.allow_insecure)?;

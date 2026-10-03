@@ -32,6 +32,7 @@ import {
   type DetailsSelection,
 } from "@/components/workbench/details-panel";
 import { DirectoryPicker } from "@/components/workbench/directory-picker";
+import { AccountEmailPage } from "@/components/workbench/account-email-page";
 import { ServerLogin } from "@/components/workbench/server-login";
 import { Sidebar } from "@/components/workbench/sidebar";
 import { SettingsDialog, UserSettingsPage } from "@/components/settings/settings-dialog";
@@ -508,13 +509,14 @@ function ApplicationRouter() {
   const userSettings = platform && !legacyModels && (path === '/settings' || path.startsWith('/settings/'));
   const files = path === '/files';
   const deviceApproval = platform && path === '/model-connect';
-  const standalone = deviceApproval || files || userSettings || legacyModels || path === '/admin' || path.startsWith('/admin/') || path === '/spaces/current' || path === '/models';
+  const emailMode = platform ? path === '/auth/verify-email' ? 'verify' : path === '/auth/reset-password' ? 'reset' : path === '/auth/recover' ? 'recover' : null : null;
+  const standalone = Boolean(emailMode) || deviceApproval || files || userSettings || legacyModels || path === '/admin' || path.startsWith('/admin/') || path === '/spaces/current' || path === '/models';
   const [workbenchVisited, setWorkbenchVisited] = React.useState(!standalone);
   React.useEffect(() => { if (!standalone) setWorkbenchVisited(true); }, [standalone]);
   return <>
     {(workbenchVisited || !standalone) && <PersistentWorkbench hidden={standalone} />}
-    {standalone && (deviceApproval ? <ModelDeviceApproval /> : files ? <FilesPage /> : userSettings ? <UserSettingsPage section={(path.split('/')[2] || 'general') as SettingsSection} /> : path === '/models' || legacyModels ? <ModelAccessShell /> : <AdminShell path={path} />)}
-    {platform ? <ServerLogin /> : <RemoteLogin />}
+    {standalone && (emailMode ? <AccountEmailPage key={emailMode} mode={emailMode} /> : deviceApproval ? <ModelDeviceApproval /> : files ? <FilesPage /> : userSettings ? <UserSettingsPage section={(path.split('/')[2] || 'general') as SettingsSection} /> : path === '/models' || legacyModels ? <ModelAccessShell /> : <AdminShell path={path} />)}
+    {platform ? (!emailMode || emailMode === 'verify') && <ServerLogin /> : <RemoteLogin />}
     <ToastRegion />
   </>;
 }

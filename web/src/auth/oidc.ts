@@ -67,7 +67,7 @@ function storeTokens(tokens: BrowserTokens, fallbackRefresh = '') {
   sessionStorage.setItem(keys.expires, String(Date.now() + tokens.expires_in * 1_000))
 }
 
-const returnPaths = new Set(['/', '/admin', '/admin/accounts', '/admin/workers', '/admin/instance', '/admin/models', '/models', '/spaces/current', '/files'])
+const returnPaths = new Set(['/auth/verify-email', '/', '/admin', '/admin/accounts', '/admin/workers', '/admin/instance', '/admin/models', '/models', '/spaces/current', '/files'])
 
 function applicationReturnPath(value: string | null) {
   if (value?.startsWith('/files?')) {

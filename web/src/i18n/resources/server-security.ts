@@ -1,8 +1,19 @@
 export const zh = {
+  smtp: "账号邮件服务",
+  smtpHint: "发送邮箱验证和密码找回链接。用户须先验证邮箱，才能通过邮件找回密码。",
+  smtpHost: "SMTP 主机",
+  smtpPort: "SMTP 端口",
+  smtpSecurity: "邮件传输加密",
+  smtpLocal: "本机邮件代理（仅回环地址）",
+  smtpFrom: "发件邮箱",
+  smtpUser: "SMTP 用户名（可选）",
+  smtpPassword: "SMTP 密码",
+  smtpCredentialsHint: "凭据加密保存，不回显。更改主机、端口、加密方式或用户名后需重新输入密码。",
+
   title: '登录与人机验证',
   description: '仅实例所有者可修改。保存后对新请求生效；用户名和密码登录始终保留。',
   origin: 'Server 公网地址',
-  originHint: '填写浏览器实际访问的 HTTPS 根地址，例如 https://ternilo.example.com，不带路径。用于登录回调和 Turnstile 域名校验。',
+  originHint: '填写浏览器实际访问的 HTTPS 根地址，例如 https://ternilo.example.com，不带路径。用于登录回调、邮件链接和 Turnstile 域名校验。',
   invalidOrigin: '请填写有效的 HTTPS 访问地址，不包含路径、账号、查询参数或片段。0.0.0.0 和 :: 是监听地址，不能用作公网地址；回环 HTTP 仅用于显式开启的本机开发。',
   oauth: 'OAuth 2.0 / OIDC 登录',
   oauthHint: '使用标准 OpenID Connect 登录，可接入 LINUX DO。授权码 + PKCE，身份由 Server 校验，不要求上游 access token 是 JWT。',
@@ -42,6 +53,17 @@ export const zh = {
 } satisfies Record<string, string>
 
 export const en: Record<keyof typeof zh, string> = {
+  smtp: "Account email",
+  smtpHint: "Send verification and password recovery links. Users must verify their email before email recovery is available.",
+  smtpHost: "SMTP host",
+  smtpPort: "SMTP port",
+  smtpSecurity: "Mail encryption",
+  smtpLocal: "Local mail relay (loopback only)",
+  smtpFrom: "Sender email",
+  smtpUser: "SMTP username (optional)",
+  smtpPassword: "SMTP password",
+  smtpCredentialsHint: "Credentials are encrypted and never returned. Enter the password again when changing the host, port, encryption or username.",
+
   title: 'Sign-in and verification',
   description: 'Only the instance owner can edit these settings. Changes apply to new requests immediately; password sign-in remains available.',
   origin: 'Public Server URL',

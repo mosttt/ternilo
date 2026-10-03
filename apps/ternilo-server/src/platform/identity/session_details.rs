@@ -14,15 +14,7 @@ pub(crate) async fn record(
     actor: &ControlUser,
     token: &str,
 ) -> Result<(), ApiError> {
-    let forwarded = request
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|value| value.to_str().ok());
-    let ip = client_ip(
-        request.remote_addr().ip(),
-        forwarded,
-        &state.security.trusted_proxy_ips,
-    );
+    let ip = request_ip(state, request);
     let agent = request
         .headers()
         .get("user-agent")
@@ -32,6 +24,17 @@ pub(crate) async fn record(
         .record_browser_session_activity(actor, token, agent, ip, now_ms()?)
         .await?;
     Ok(())
+}
+
+pub(super) fn request_ip(state: &AppState, request: &Request) -> Option<IpAddr> {
+    client_ip(
+        request.remote_addr().ip(),
+        request
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|value| value.to_str().ok()),
+        &state.security.trusted_proxy_ips,
+    )
 }
 
 fn client_ip(peer: Option<IpAddr>, forwarded: Option<&str>, trusted: &[IpAddr]) -> Option<IpAddr> {
