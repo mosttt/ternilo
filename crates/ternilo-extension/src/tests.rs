@@ -1834,8 +1834,9 @@ async fn tool_registration_failure_rolls_back_extension_skill_and_prompts() {
     )
     .await
     .err()
-    .expect("duplicate tool must fail extension activation");
-    assert!(error.message.contains("register extension"));
+    .expect("duplicate tool must fail graph activation");
+    // Either consumer can register first; graph rollback must clean up both orders.
+    assert!(error.message.contains("already registered"), "{error}");
     assert!(error.message.contains("extension_set_enabled"));
     let prefix = format!("extension:{package_id}@{version}:");
     assert_eq!(
