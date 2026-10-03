@@ -148,6 +148,8 @@ try {
   assert.deepEqual(failures, [])
 } catch (error) { report.errors.push(error.message); process.exitCode = 1; console.error(error.message) }
 finally {
+  report.server_diagnostics = processes.map(process => ({ pid: process.child.pid, exit_code: process.child.exitCode, signal_code: process.child.signalCode, output: process.diagnostics() }))
+  for (const credential of credentials) for (const diagnostic of report.server_diagnostics) diagnostic.output = diagnostic.output.replaceAll(credential.token, '[redacted]')
   for (const process of processes.reverse()) await stopProcess(process)
   if (upstream) await new Promise(resolve => { upstream.closeAllConnections(); upstream.close(resolve) })
   await rm(directory, { recursive: true, force: true }); await save()
