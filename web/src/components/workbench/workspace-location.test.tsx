@@ -118,3 +118,23 @@ describe('private workspace locations', () => {
     expect(document.querySelector('[data-workspace-location]')?.textContent).toContain('创建于')
   })
 })
+
+
+it('does not reopen a delayed hover after overlapping pointer and focus triggers have left', async () => {
+  render()
+  const row = host.querySelector('[data-sidebar-workspace-row]')!
+  const button = row.querySelector('button')!
+  const outside = document.createElement('textarea'); document.body.append(outside)
+  try {
+    await act(async () => {
+      row.dispatchEvent(new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body }))
+      button.focus()
+      await vi.advanceTimersByTimeAsync(100)
+      row.dispatchEvent(new MouseEvent('pointerout', { bubbles: true, relatedTarget: outside }))
+      outside.focus()
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(document.querySelector('[data-radix-popper-content-wrapper]')).toBeNull()
+    expect(api.request).not.toHaveBeenCalled()
+  } finally { outside.remove() }
+})

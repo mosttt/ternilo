@@ -1,3 +1,4 @@
+import { useSidebarHover } from './use-sidebar-hover'
 import * as React from 'react'
 import {
   Archive, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Cloud, Ellipsis,
@@ -96,7 +97,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
 }) {
   const t = useTranslate('workspace')
   const [menuOpen, setMenuOpen] = React.useState(false)
-  const [hoverOpen, setHoverOpen] = React.useState(false)
+  const { open: hoverOpen, change: setHoverOpen, trigger: hoverTrigger } = useSidebarHover()
   const [locationOpen, setLocationOpen] = React.useState(false)
   const permissions = resourcePermissions(workspace.access, !readOnly)
   const isOwner = ownsResource(workspace.access, !readOnly)
@@ -115,6 +116,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
         drag.marker === 'before' && css.dropBefore,
         drag.marker === 'after' && css.dropAfter,
       )}
+      {...hoverTrigger}
       data-sidebar-workspace-row=""
       draggable={readOnly ? false : drag.draggable}
       onDragStart={readOnly ? undefined : drag.onDragStart}
@@ -274,7 +276,7 @@ export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', ki
   const activityT = useTranslate('observability')
   const { locale } = useLocale()
   const [menuOpen, setMenuOpen] = React.useState(false)
-  const [hoverOpen, setHoverOpen] = React.useState(false)
+  const { open: hoverOpen, change: setHoverOpen, trigger: hoverTrigger } = useSidebarHover()
   const id = session.identity.session_id
   const timestamp = searchHit?.occurred_at_ms ?? session.updated_at_ms
   const primary = statuses[0] ?? { state: 'idle', kind: 'idle' } as const
@@ -296,6 +298,7 @@ export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', ki
         childCount > 0 && css.sessionParent,
       )}
       style={rowStyle}
+      {...hoverTrigger}
       data-sidebar-session-row=""
       data-session-id={id}
       data-session-depth={depth}

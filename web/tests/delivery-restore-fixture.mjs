@@ -120,8 +120,15 @@ export async function captureLayouts(page, artifacts, name) {
       // Closing the drawer restores focus on the next frame; settle it before dismissing hover cards.
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     })
+    if (width === 1366) {
+      const row = page.locator('[data-sidebar-session-active="true"]').first()
+      await row.hover()
+      await row.focus()
+    }
     await page.locator('[data-input-bar] textarea').click({ position: { x: 8, y: 8 } })
     await page.keyboard.press('Escape')
+    // Pending pointer/focus callbacks must not reopen a dismissed card later.
+    await page.waitForTimeout(600)
     await page.waitForFunction(() => !document.querySelector('[data-radix-popper-content-wrapper]'))
     await page.locator('[data-input-bar]').waitFor()
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
