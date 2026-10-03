@@ -144,7 +144,7 @@ test('team groups authorize real Node collaboration and revoke derived fork acce
     const enrolledComputerId = enrollment.executor_id
     const credential = (await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })).credential
     const nodeOrigin = `http://127.0.0.1:${await freePort()}`
-    node = startProcess(path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'), '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway', '--node-id', enrolledComputerId], { TERNILO_LOCAL_TOKEN: credential.token })
+    node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(nodeOrigin).host, '--data-dir', path.join(directory, 'node'), '--gateway-url', `${origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway', '--node-id', enrolledComputerId], { TERNILO_LOCAL_TOKEN: credential.token })
     await waitForHttp(nodeOrigin, node)
     for (const [endpoint, baseUrl] of Object.entries({ server: origin, local: nodeOrigin })) {
       assetHashes[endpoint] = {}

@@ -6,10 +6,11 @@ import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 import test from 'node:test'
 import { chromium } from 'playwright'
+import { until } from './model-device-fixture.mjs'
 
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const repository = path.resolve(webRoot, '..')
-const binary = path.join(repository, 'target', 'debug', 'ternilo')
+const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target', 'debug', 'ternilo')
 
 function startTernilo(dataDirectory) {
   const child = spawn(binary, ['serve', '--listen', '127.0.0.1:0', '--data-dir', dataDirectory], {
@@ -104,8 +105,8 @@ test('one provisional blank does not consume the five established sidebar rows',
     page.on('pageerror', error => pageErrors.push(error.message))
     await page.goto(origin, { waitUntil: 'networkidle' })
 
+    // Opening a workspace already creates its first provisional session.
     await registerWorkspace(page, workspace)
-    await page.locator('[data-sidebar-new-session]').click()
     await page.locator('[data-sidebar-session-row]').filter({ hasText: '新会话' }).first().waitFor()
     await page.waitForFunction(() => localStorage.getItem('ternilo.current-session') !== null)
     const sourceSessionId = await page.evaluate(() => localStorage.getItem('ternilo.current-session'))
@@ -117,6 +118,8 @@ test('one provisional blank does not consume the five established sidebar rows',
       'POST',
       { input: '/code "established root"' },
     )
+    // Turn submission acknowledges before execution finishes; forks must copy a completed turn.
+    await until(() => apiRequest(page, `/sessions/${encodeURIComponent(sourceSessionId)}/events`), events => events.some(event => event.type === 'turn_finished'), 'source turn completed before forking')
     for (let index = 0; index < 5; index += 1) {
       await apiRequest(page, `/sessions/${encodeURIComponent(sourceSessionId)}/fork`, 'POST', {})
     }
