@@ -428,7 +428,7 @@ async fn computer_operations_enforce_ownership_and_current_tenant_role() {
 mod postgres_runtime;
 
 #[tokio::test]
-#[ignore = "requires a disposable ternilo_control_test_computers PostgreSQL database"]
+#[ignore = "requires a disposable ternilo_control_test PostgreSQL database"]
 #[expect(
     clippy::too_many_lines,
     reason = "Verify the restricted runtime, RLS and retained bindings together."
@@ -441,7 +441,7 @@ async fn postgres_computer_management_enforces_runtime_scope_and_retains_binding
         .parse::<sqlx::any::AnyConnectOptions>()
         .unwrap()
         .database_url;
-    assert_eq!(runtime_url.path(), "/ternilo_control_test_computers");
+    assert_eq!(runtime_url.path(), "/ternilo_control_test");
     let admin = sqlx::PgPool::connect(&admin_url).await.unwrap();
     admin
         .execute("DROP SCHEMA IF EXISTS public CASCADE")

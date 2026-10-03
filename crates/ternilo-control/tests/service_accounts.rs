@@ -434,14 +434,14 @@ async fn service_credentials_cannot_cross_spaces_and_creation_requires_managemen
 mod postgres_runtime;
 
 #[tokio::test]
-#[ignore = "requires a disposable ternilo_control_test_services PostgreSQL database"]
+#[ignore = "requires a disposable ternilo_control_test PostgreSQL database"]
 async fn postgres_service_identity_and_credentials_use_tenant_runtime_grants() {
     let admin_url = std::env::var("TERNILO_TEST_DATABASE_URL").unwrap();
     let mut runtime = admin_url
         .parse::<sqlx::any::AnyConnectOptions>()
         .unwrap()
         .database_url;
-    assert_eq!(runtime.path(), "/ternilo_control_test_services");
+    assert_eq!(runtime.path(), "/ternilo_control_test");
     let admin = sqlx::PgPool::connect(&admin_url).await.unwrap();
     sqlx::raw_sql("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
         .execute(&admin)
