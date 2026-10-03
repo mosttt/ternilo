@@ -14,6 +14,7 @@ vi.mock('@/state/workbench', () => ({ useWorkbench: () => workbench }))
 
 const current = { login_kind: 'native', access_expires_at_ms: 1_700_604_800_000, session_id: 'ter_s_current', created_at_ms: 1_700_000_000_000, expires_at_ms: 1_700_604_800_000, is_current: true }
 const other = { login_kind: 'native', access_expires_at_ms: 1_700_604_801_000, session_id: 'ter_s_other', created_at_ms: 1_700_000_001_000, expires_at_ms: 1_700_604_801_000, is_current: false }
+const sessionRequest = vi.fn<typeof api.request>()
 let root: Root
 let host: HTMLDivElement
 
@@ -31,9 +32,12 @@ beforeEach(() => {
   root = createRoot(host)
   workbench.serverIdentity.user.user_id = 'member'
   workbench.logout.mockReset()
-  vi.spyOn(api, 'request').mockImplementation(async resource => resource === '/auth/oidc-link'
-    ? { native: true, oidc: null } as never
-    : { current_login: 'native', current_session_managed: true, sessions: [current, other] } as never)
+  sessionRequest.mockReset().mockResolvedValue({ current_login: 'native', current_session_managed: true, sessions: [current, other] })
+  vi.spyOn(api, 'request').mockImplementation((resource, options) => {
+    if (resource === '/auth/oidc-link') return Promise.resolve({ native: true, oidc: null }) as never
+    if (resource === '/auth/mfa') return Promise.resolve({ enabled: false, enabled_at_ms: null, recovery_codes_remaining: 0 }) as never
+    return sessionRequest(resource, options)
+  })
 })
 
 afterEach(() => {
@@ -59,7 +63,7 @@ describe('Account browser sessions', () => {
 
   it('manages a current local OIDC session alongside password sign-ins and signs out only when it is revoked', async () => {
     const oidc = { ...current, login_kind: 'oidc', issuer: 'https://login.example.test', access_expires_at_ms: current.created_at_ms + 3600000, user_agent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/123.0', first_ip: '192.0.2.4', last_ip: '2001:db8::4', last_active_at_ms: current.created_at_ms + 60000 }
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: true, sessions: [oidc, other] })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: true, sessions: [oidc, other] })
     await render()
     expect(host.querySelector('[data-account-sessions-oidc]')).toBeNull()
     expect(host.textContent).toContain('OIDC 登录')
@@ -69,19 +73,19 @@ describe('Account browser sessions', () => {
     expect(host.textContent).toContain('首次来源 IP：192.0.2.4')
     await act(async () => button('撤销其他会话').click())
     expect(dialog().textContent).toContain('其他密码登录和本站 OIDC 会话')
-    vi.mocked(api.request).mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: true, sessions: [oidc] })
+    sessionRequest.mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: true, sessions: [oidc] })
     await act(async () => button('撤销其他会话', dialog()).click())
     expect(host.querySelectorAll('[data-account-session]')).toHaveLength(1)
     expect(workbench.logout).not.toHaveBeenCalled()
     await act(async () => button('撤销当前会话').click())
-    vi.mocked(api.request).mockResolvedValueOnce({ revoked_count: 1, current_revoked: true })
+    sessionRequest.mockResolvedValueOnce({ revoked_count: 1, current_revoked: true })
     await act(async () => button('撤销当前会话', dialog()).click())
     expect(workbench.logout).toHaveBeenCalledOnce()
   })
 
   it('shows missing OIDC login metadata honestly and always makes its public ID inspectable', async () => {
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'native', current_session_managed: true, sessions: [current, { ...other, login_kind: 'oidc', created_at_ms: null }] })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'native', current_session_managed: true, sessions: [current, { ...other, login_kind: 'oidc', created_at_ms: null }] })
     await render()
     const row = host.querySelector('[data-account-session="ter_s_other"]')!
     expect(row.textContent).toContain('登录时间：尚未记录')
@@ -108,7 +112,7 @@ describe('Account browser sessions', () => {
     await act(async () => button('取消', dialog()).click())
     expect(workbench.logout).not.toHaveBeenCalled()
     await act(async () => button('撤销当前会话').click())
-    vi.mocked(api.request).mockResolvedValueOnce({ revoked_count: 1, current_revoked: true })
+    sessionRequest.mockResolvedValueOnce({ revoked_count: 1, current_revoked: true })
     await act(async () => button('撤销当前会话', dialog()).click())
     expect(api.request).toHaveBeenLastCalledWith('/auth/sessions/ter_s_current', { method: 'DELETE' })
     expect(workbench.logout).toHaveBeenCalledOnce()
@@ -117,19 +121,19 @@ describe('Account browser sessions', () => {
   it('keeps the current login when revoking another session or all others', async () => {
     await render()
     await act(async () => button('撤销会话').click())
-    vi.mocked(api.request).mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'native', current_session_managed: true, sessions: [current] })
+    sessionRequest.mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'native', current_session_managed: true, sessions: [current] })
     await act(async () => button('撤销会话', dialog()).click())
     expect(api.request).toHaveBeenCalledWith('/auth/sessions/ter_s_other', { method: 'DELETE' })
     expect(host.querySelectorAll('[data-account-session]')).toHaveLength(1)
     expect(host.textContent).toContain('已撤销 1 个登录会话')
     expect(button('撤销其他会话').disabled).toBe(true)
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'native', current_session_managed: true, sessions: [current, other] })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'native', current_session_managed: true, sessions: [current, other] })
     await act(async () => button('刷新').click())
     await act(async () => button('撤销其他会话').click())
     expect(dialog().textContent).toContain('保留当前登录')
-    vi.mocked(api.request).mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'native', current_session_managed: true, sessions: [current] })
+    sessionRequest.mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'native', current_session_managed: true, sessions: [current] })
     await act(async () => button('撤销其他会话', dialog()).click())
     expect(api.request).toHaveBeenCalledWith('/auth/sessions/revoke-others', { method: 'POST' })
     expect(workbench.logout).not.toHaveBeenCalled()
@@ -138,7 +142,7 @@ describe('Account browser sessions', () => {
   it('keeps failed revocation visible and does not log out prematurely', async () => {
     await render()
     await act(async () => button('撤销当前会话').click())
-    vi.mocked(api.request).mockRejectedValueOnce(new Error('offline'))
+    sessionRequest.mockRejectedValueOnce(new Error('offline'))
     await act(async () => button('撤销当前会话', dialog()).click())
     expect(dialog().querySelector('[role="alert"]')?.textContent).toBe('撤销失败：offline')
     expect(workbench.logout).not.toHaveBeenCalled()
@@ -147,13 +151,13 @@ describe('Account browser sessions', () => {
 
   it('shows loading, a retryable failure, and an empty OIDC list', async () => {
     let reject!: (cause: Error) => void
-    vi.mocked(api.request).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }) as never)
+    sessionRequest.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }) as never)
     await render()
     expect(host.textContent).toContain('正在加载登录会话')
     expect(button('刷新').disabled).toBe(true)
     await act(async () => reject(new Error('offline')))
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('offline')
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: false, sessions: [] })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: false, sessions: [] })
     await act(async () => button('刷新').click())
     expect(host.textContent).toContain('没有有效的本站登录会话')
     expect(host.querySelector('[data-account-sessions-oidc]')?.textContent).toContain('不会撤销当前外部凭据')
@@ -162,15 +166,15 @@ describe('Account browser sessions', () => {
 
   it('explains OIDC limits in English and revokes native sessions without signing out', async () => {
     localStorage.setItem('ternilo.locale', 'en')
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: false, sessions: [other] })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: false, sessions: [other] })
     await render()
     expect(host.textContent).toContain('Browser sign-in sessions')
     expect(host.querySelector('[data-account-sessions-oidc]')?.textContent).toContain('does not revoke that external credential')
     expect(host.querySelector('[data-current-session]')).toBeNull()
     await act(async () => button('Revoke all local sessions').click())
     expect(dialog().textContent).toContain('identity-provider sessions are unaffected')
-    vi.mocked(api.request).mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
-    vi.mocked(api.request).mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: false, sessions: [] })
+    sessionRequest.mockResolvedValueOnce({ revoked_count: 1, current_revoked: false })
+    sessionRequest.mockResolvedValueOnce({ current_login: 'oidc', current_session_managed: false, sessions: [] })
     await act(async () => button('Revoke all local sessions', dialog()).click())
     expect(host.textContent).toContain('No active local sign-in sessions')
     expect(workbench.logout).not.toHaveBeenCalled()
@@ -180,7 +184,7 @@ describe('Account browser sessions', () => {
     await render()
     await act(async () => button('撤销当前会话').click())
     let resolveList!: (value: unknown) => void
-    vi.mocked(api.request).mockImplementationOnce(() => new Promise(resolve => { resolveList = resolve }) as never)
+    sessionRequest.mockImplementationOnce(() => new Promise(resolve => { resolveList = resolve }) as never)
     workbench.serverIdentity.user.user_id = 'second'
     await render()
     expect(host.querySelectorAll('[data-account-session]')).toHaveLength(0)
@@ -194,7 +198,7 @@ describe('Account browser sessions', () => {
 
   it('discards a previous account list and a late revocation cannot log out the new account', async () => {
     let resolveList!: (value: unknown) => void
-    vi.mocked(api.request).mockImplementationOnce(() => new Promise(resolve => { resolveList = resolve }) as never)
+    sessionRequest.mockImplementationOnce(() => new Promise(resolve => { resolveList = resolve }) as never)
     await render()
     workbench.serverIdentity.user.user_id = 'second'
     await render()
@@ -202,7 +206,7 @@ describe('Account browser sessions', () => {
     expect(host.querySelector('[data-account-session="ter_s_stale"]')).toBeNull()
     await act(async () => button('撤销当前会话').click())
     let resolveRevoke!: (value: unknown) => void
-    vi.mocked(api.request).mockImplementationOnce(() => new Promise(resolve => { resolveRevoke = resolve }) as never)
+    sessionRequest.mockImplementationOnce(() => new Promise(resolve => { resolveRevoke = resolve }) as never)
     await act(async () => button('撤销当前会话', dialog()).click())
     expect(button('正在撤销…', dialog()).disabled).toBe(true)
     workbench.serverIdentity.user.user_id = 'third'

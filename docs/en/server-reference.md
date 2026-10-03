@@ -10,7 +10,7 @@ Cloud jobs use admission, leases and fencing to prevent stale executors from pub
 
 ## Storage and deployment
 
-SQLite and PostgreSQL share the product contract. Component schema initialization is versioned, and an incompatible schema is rejected. PostgreSQL uses schema-owner initialization plus explicit `ternilo_runtime` grants and tenant-aware access. [Cross-Server Node routing](server-cluster.md) requires explicit instance origins and a shared master key; its network/browser and restricted PostgreSQL acceptance remains pending, so released production deployments continue using one Server.
+SQLite and PostgreSQL share the product contract. Component schema initialization is versioned, and an incompatible schema is rejected. PostgreSQL uses schema-owner initialization plus explicit `ternilo_runtime` grants and tenant-aware access. [Cross-Server Node routing](server-cluster.md) requires explicit instance origins and a shared master key; its network, browser and restricted PostgreSQL checks cover routed Node tasks and model forwarding. This does not provide storage takeover or complete failover.
 
 Backups must retain the database and matching master key/configuration. Online SQLite snapshots and stopped full archives have different consistency boundaries. See [deployment](deployment.md) and [release acceptance](release-packaging.md).
 
@@ -23,6 +23,8 @@ Workspace/session `/sharing/ownership` supports `GET` for the current manager an
 `ResourceAccess.owner_user_id` and `is_owner` describe management, while `storage_user_id` and `is_execution_owner` describe original storage/execution identity. `ownership_revision` versions management changes. Global configuration requires the original execution identity and configuration permission. The `resource_ownership` and `resource_ownership_live` components use schema `1`; executor protocol remains `48`. Workspace details display the current manager and original storage account without changing Node bindings.
 
 Unified browser session management uses `GET /api/v1/auth/sessions`, `DELETE /api/v1/auth/sessions/{session_id}` and `POST /api/v1/auth/sessions/revoke-others`. Public IDs cannot be used as bearer credentials. The list includes password sign-ins and locally issued OIDC sessions, with login kind, OIDC issuer, first sign-in time, session and access expiry, browser identifier, first/latest observed IP and last authenticated HTTP activity. Refresh retains the OIDC session ID, first sign-in and activity metadata without extending its original lifetime. Revocation invalidates both local access and refresh credentials; a late refresh cannot recreate the revoked session. Refreshable sessions remain visible after access expiry. `current_session_managed` distinguishes locally issued sessions from direct external IdP credentials. Revoke-others keeps the current local session across both kinds; a direct external credential can revoke all owned local sessions without revoking that credential or ending an external IdP session.
+
+[Account security](account-recovery.md) supports native password changes, verified email recovery and TOTP/recovery codes for password and linked OIDC sign-ins. Private operator commands recover passwords or MFA.
 
 Authentication settings use owner-only `GET/PUT /api/v1/admin/instance/authentication`. `/auth/config` returns public login metadata. Administrative account, team, enrollment and model APIs enforce their own roles. Model device authorization and model grants are separate from browser login sessions and Node credentials.
 

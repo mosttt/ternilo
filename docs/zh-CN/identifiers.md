@@ -14,6 +14,9 @@
 | `ter_r_` | OIDC 刷新凭据 |
 | `ter_ev_` | 一次性邮箱验证凭据 |
 | `ter_pr_` | 一次性邮件密码找回凭据 |
+| `ter_mf_` | MFA 配置代次的公开 ID，不是访问凭据 |
+| `ter_mc_` | OIDC 第二因素待验证凭据，不能访问资源 |
+| `ter_mr_` | 一次性 MFA 恢复码 |
 | `ter_b_` | Server 首次设置凭据 |
 | `ter_n_` | Node 连接凭据 |
 | `ter_e_` | Node 一次性登记凭据 |

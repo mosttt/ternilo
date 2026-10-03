@@ -12,6 +12,7 @@ const failureKeys = {
   expired: 'error.oidcExpired',
   secure_context_required: 'error.oidcSecureContext',
   origin_mismatch: 'error.oidcOriginMismatch',
+  mfa_required: 'error.oidcMfaRequired',
 } as const
 
 export type OidcFailure = keyof typeof failureKeys
@@ -37,6 +38,7 @@ const keys = {
   nonce: 'ternilo.oidc.nonce',
   linkNative: 'ternilo.oidc.link-native',
   returnPath: 'ternilo.oidc.return-path',
+  mfa: 'ternilo.oidc.mfa',
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -99,7 +101,7 @@ function isCallback() {
   return location.pathname === '/auth/callback' || parameters.has('code') || parameters.has('error')
 }
 
-async function finishCallback(accept: (tokens: BrowserTokens) => void | Promise<void>) {
+async function finishCallback(accept: (tokens: BrowserTokens) => void | Promise<void>, allowMfa = true) {
   if (!isCallback()) return false
   const parameters = new URLSearchParams(location.search)
   const expectedState = sessionStorage.getItem(keys.state)
@@ -113,13 +115,16 @@ async function finishCallback(accept: (tokens: BrowserTokens) => void | Promise<
     if (!code || !verifier || !nonce || !expectedState || parameters.get('state') !== expectedState) {
       throw new OidcFlowError('state_mismatch')
     }
-    const tokens = await fetchJson<BrowserTokens>('/auth/token', {
+    const tokens = await fetchJson<BrowserTokens | PendingOidcMfa>('/auth/token', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ code, code_verifier: verifier, nonce }),
     })
     if (revision !== sessionRevision) throw new OidcFlowError('expired')
-    await accept(tokens)
+    if ('mfa_challenge' in tokens) {
+      if (!allowMfa) throw new OidcFlowError('mfa_required')
+      sessionStorage.setItem(keys.mfa, JSON.stringify(tokens))
+    } else await accept(tokens)
     return true
   } finally {
     clearAttempt()
@@ -142,7 +147,7 @@ export async function completeOidcLink() {
         body: JSON.stringify({ access_token: tokens.access_token }),
       })
       if (nativeToken !== readNativeToken()) throw new OidcFlowError('expired')
-    })
+    }, false)
   } finally {
     sessionStorage.removeItem(keys.linkNative)
     clearAttempt()
@@ -150,8 +155,27 @@ export async function completeOidcLink() {
   }
 }
 
+export interface PendingOidcMfa { mfa_challenge: string; expires_at_ms: number }
+export function readPendingOidcMfa(): PendingOidcMfa | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(keys.mfa) ?? 'null')
+    if (typeof value?.mfa_challenge === 'string' && value.mfa_challenge.startsWith('ter_mc_') && value.expires_at_ms > Date.now()) return value
+  } catch { /* Discard malformed pending authentication. */ }
+  sessionStorage.removeItem(keys.mfa)
+  return null
+}
+export async function completeOidcMfa(code: string) {
+  const pending = readPendingOidcMfa(), revision = sessionRevision
+  if (!pending) throw new OidcFlowError('expired')
+  const tokens = await fetchJson<BrowserTokens>('/auth/mfa', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ challenge: pending.mfa_challenge, code }) })
+  if (revision !== sessionRevision || readPendingOidcMfa()?.mfa_challenge !== pending.mfa_challenge) throw new OidcFlowError('expired')
+  sessionStorage.removeItem(keys.mfa)
+  storeTokens(tokens)
+}
+
 export async function initializeOidcSession() {
   await finishCallback(tokens => storeTokens(tokens))
+  if (readPendingOidcMfa()) return ''
   const access = sessionStorage.getItem(keys.access) ?? ''
   const expires = Number(sessionStorage.getItem(keys.expires) ?? 0)
   if (access && expires > Date.now() + 30_000) return access

@@ -55,7 +55,7 @@ export interface NativeSession extends ServerIdentity {
 }
 
 export type NativeLoginInput = (
-  | { action: 'login'; username: string; password: string }
+  | { action: 'login'; username: string; password: string; mfa_code?: string }
   | { action: 'register'; username: string; email: string; password: string }
   | { action: 'setup'; setup_token: string; username: string; email: string; password: string }
   | { action: 'accept'; token: string; username: string; email: string; password: string }

@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod native_mfa;
 mod native_password;
 
 use clap::{Parser, Subcommand};
@@ -18,6 +19,8 @@ pub(crate) struct Args {
 enum Command {
     /// Recover an existing native account without changing its identity or resources.
     ResetPassword(native_password::Options),
+    /// Clear a native account's MFA and revoke browser access using the private configuration.
+    ResetMfa(native_mfa::Options),
     ResetAuthentication {
         #[arg(long, env = "TERNILO_SERVER_CONFIG_DIR")]
         config_dir: Option<std::path::PathBuf>,
@@ -48,6 +51,7 @@ enum Command {
 pub(crate) async fn execute(args: Args) -> Result<(), HarnessError> {
     match args.command {
         Command::ResetPassword(options) => native_password::execute(options).await?,
+        Command::ResetMfa(options) => native_mfa::execute(options).await?,
         Command::ResetAuthentication { config_dir } => {
             let path = crate::config::configuration_path(config_dir.as_deref())?;
             let config = crate::config::ServerConfig::read(&path)?;

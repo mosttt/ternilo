@@ -8,6 +8,7 @@ import { useTranslate } from '@/i18n/provider'
 import { useWorkbench } from '@/state/workbench'
 import { GroupHeader, SettingRow } from './settings-ui'
 import { AccountSessions } from './account-sessions'
+import { AccountMfa } from './account-mfa'
 import { AccountEmail } from './account-email'
 import { AccountPassword } from './account-password'
 
@@ -92,7 +93,7 @@ export function AccountSettings() {
     </SettingRow>}
     {error && <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-sm text-destructive" role="alert">{error}</p>{!config?.oidc_enabled && <Button type="button" variant="outline" onClick={() => setRevision(value => value + 1)}>{t('account.retry')}</Button>}</div>}
     {config?.email_enabled && <AccountEmail key={`email:${identity.user.user_id}`} />}
-    {link?.native && <AccountPassword key={identity.user.user_id} />}
+    {link?.native && <><AccountPassword key={identity.user.user_id} /><AccountMfa key={`mfa:${identity.user.user_id}`} /></>}
     <AccountSessions key={identity.user.user_id} />
   </section>
 }

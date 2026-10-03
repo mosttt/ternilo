@@ -14,6 +14,9 @@ Public credential formats and browser session IDs use `ter_` followed by a purpo
 | `ter_r_` | OIDC refresh credential |
 | `ter_ev_` | One-time email verification credential |
 | `ter_pr_` | One-time email password recovery credential |
+| `ter_mf_` | Public MFA enrollment generation, not an access credential |
+| `ter_mc_` | Pending OIDC second-factor challenge, cannot access resources |
+| `ter_mr_` | One-time MFA recovery code |
 | `ter_b_` | Initial Server setup credential |
 | `ter_n_` | Node connection credential |
 | `ter_e_` | One-time Node enrollment credential |

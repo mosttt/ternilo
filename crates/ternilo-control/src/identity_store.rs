@@ -88,6 +88,7 @@ pub struct NativeSessionGrant {
 pub struct VerifiedNativeCredentials {
     pub(crate) user: ControlUser,
     pub(crate) password_hash: String,
+    pub(crate) mfa_generation: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -150,7 +151,7 @@ impl ControlStore {
         sqlx::query("INSERT INTO control_instance_settings (singleton, mode, owner_user_id, revision, created_at_ms, updated_at_ms) VALUES (1, 'single_user', $1, 1, $2, $2)")
             .bind(user.user_id.as_str()).bind(timestamp(now_ms)?)
             .execute(&mut *transaction).await.map_err(database_error)?;
-        let grant = issue_session(&mut transaction, user, instance, now_ms).await?;
+        let grant = issue_session(&mut transaction, user, instance, None, now_ms).await?;
         transaction.commit().await.map_err(database_error)?;
         Ok(grant)
     }
@@ -197,6 +198,7 @@ impl ControlStore {
         Ok(VerifiedNativeCredentials {
             user: user_from_row(&row)?,
             password_hash: encoded,
+            mfa_generation: None,
         })
     }
 
@@ -225,7 +227,14 @@ impl ControlStore {
         }
         let instance = required_instance(&mut transaction).await?;
         require_remote_access(&instance, &credentials.user)?;
-        let grant = issue_session(&mut transaction, credentials.user, instance, now_ms).await?;
+        let grant = issue_session(
+            &mut transaction,
+            credentials.user,
+            instance,
+            credentials.mfa_generation.as_deref(),
+            now_ms,
+        )
+        .await?;
         transaction.commit().await.map_err(database_error)?;
         Ok(grant)
     }
@@ -240,7 +249,7 @@ impl ControlStore {
         let mut transaction = self.database.begin().await?;
         let instance = required_instance(&mut transaction).await?;
         require_remote_access(&instance, &user)?;
-        let grant = issue_session(&mut transaction, user, instance, now_ms).await?;
+        let grant = issue_session(&mut transaction, user, instance, None, now_ms).await?;
         transaction.commit().await.map_err(database_error)?;
         Ok(grant)
     }
@@ -534,7 +543,7 @@ impl ControlStore {
         )
         .await?;
         finish_invitation(&mut transaction, &user, &invitation, now_ms).await?;
-        let grant = issue_session(&mut transaction, user, instance, now_ms).await?;
+        let grant = issue_session(&mut transaction, user, instance, None, now_ms).await?;
         transaction.commit().await.map_err(database_error)?;
         Ok(grant)
     }
@@ -868,6 +877,7 @@ pub(crate) async fn issue_session(
     transaction: &mut Transaction,
     user: ControlUser,
     instance: InstanceSettings,
+    mfa_generation: Option<&str>,
     now_ms: u64,
 ) -> Result<NativeSessionGrant, HarnessError> {
     lock(
@@ -876,6 +886,7 @@ pub(crate) async fn issue_session(
     )
     .await?;
     crate::account_store::require_active_account_in(transaction, &user.user_id).await?;
+    crate::mfa::require_generation(transaction, &user.user_id, mfa_generation).await?;
     let access_token = random_token("ter_a");
     let expires_at_ms = now_ms
         .checked_add(SESSION_TTL_MS)

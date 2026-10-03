@@ -19,6 +19,7 @@ serde_json.workspace = true
 sha2.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
+totp-rs = { version = "6.0.0", default-features = false, features = ["std", "otpauth", "qr", "zeroize"] }
 zeroize.workspace = true
 ternilo-protocol.workspace = true
 ternilo-storage.workspace = true

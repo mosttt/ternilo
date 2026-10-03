@@ -67,6 +67,9 @@ pub(crate) async fn authenticate_token(
         .store
         .authenticate_oidc_user(&principal, now_ms()?)
         .await?;
+    if !token.starts_with("ter_o_") {
+        state.store.require_external_oidc_allowed(&user).await?;
+    }
     Ok((user, expiry))
 }
 

@@ -8,6 +8,8 @@ Local browser access is loopback-only with authenticated service discovery. Remo
 
 A browser session list exposes public IDs and descriptive device/IP metadata, not credentials or token hashes. User-Agent is unverified, and a normal browser cannot read the host's real name. Forwarded source IPs are accepted only from explicitly configured trusted proxies. See [authentication](server-authentication.md) and [account recovery](account-recovery.md).
 
+Native accounts support [password changes, verified email recovery, authenticators and recovery codes](account-recovery.md), with private operator recovery. Password updates revoke site sessions atomically. Session issuance rechecks the password and MFA generation. Email recovery retains MFA; linked OIDC sign-ins also require the site second factor and cannot bypass it with a raw upstream token. OIDC-only accounts use the IdP policy. Passkeys are not available.
+
 ## Files and previews
 
 Workspace browsing requires workspace view permission; sharing only a conversation does not expose the directory. Requests identify an authorized session/workspace, then validate relative paths. Local preview access rejects traversal, links escaping the intended boundary and special files. Server rechecks workspace access after a delayed remote read before returning bytes.

@@ -127,6 +127,7 @@ pub(super) fn router() -> Router {
         .push(Router::with_path("auth/recover").get(crate::assets::index))
         .push(Router::with_path("auth/config").get(super::identity::auth_config))
         .push(Router::with_path("auth/token").post(login::exchange_code))
+        .push(Router::with_path("auth/mfa").post(login::complete_mfa))
         .push(Router::with_path("auth/refresh").post(login::refresh_token))
         .push(Router::with_path("assets/boot.js").get(boot_script))
 }

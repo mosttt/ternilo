@@ -12,7 +12,7 @@ SQLite 与受限 PostgreSQL 合同覆盖错误密码、伪造目标身份、禁�
 
 已完成并通过验收：部署者配置 SMTP 和固定公网地址；仅向已验证的当前账号邮箱签发找回凭据。凭据采用随机、短时、一次性设计，数据库不保存明文。公开请求不泄露账号是否存在；找回后撤销本站浏览器会话。邮件链路使用 TLS，本地邮件投递代理可显式使用回环地址。开发验证只向临时 SMTP 接收器投递，不使用生产邮箱。
 
-MFA 尚未实现，后续必须同时覆盖原生登录与已绑定的 OIDC 登录，并提供恢复码；不能以密码找回绕过第二因素。
+验证器与一次性恢复码已完成，覆盖原生登录与已绑定的 OIDC 登录；密码找回保留第二因素。双库、真实浏览器及运维恢复记录见[多因素认证](native-mfa.md)。
 
 
 实现采用 lettre 0.11.23 的原生 SMTP／Rustls 传输，核对其官方 [TLS／STARTTLS 文档](https://docs.rs/lettre/0.11.23/lettre/transport/smtp/struct.AsyncSmtpTransport.html) 及 [OWASP 密码找回原则](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)。公开找回响应在账号查询和投递前返回相同结果，避免同步 SMTP 时长泄露账号是否存在；队列容量不足返回统一服务不可用提示。验证、恢复及按来源／全站邮件请求限流使用双库持久状态，不依赖某一 Server 内存。

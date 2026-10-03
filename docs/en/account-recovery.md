@@ -1,4 +1,4 @@
-# Change or recover a native account password
+# Account passwords, email and multi-factor authentication
 
 English · [简体中文](../zh-CN/account-recovery.md)
 
@@ -33,7 +33,7 @@ The password update and revocation of existing native/OIDC site browser sessions
 
 Computer credentials, model keys and OIDC bindings are retained. External IdP credentials and organization sessions remain under IdP control. Banned and pending accounts retain their status; removed accounts cannot be recovered. Use [account administration](../zh-CN/platform-management.md) for access-state changes.
 
-Signed-in accounts can change their own password. Forgotten passwords can be recovered through a verified email or by the operator procedure above. MFA is not yet available. If incorrect OIDC/Turnstile settings prevent login, use the separate [authentication-settings recovery](../zh-CN/server-authentication.md) procedure.
+Signed-in accounts can change their own password. Forgotten passwords can be recovered through a verified email or by the operator procedure above. Enabled MFA remains required after password changes or recovery. If incorrect OIDC/Turnstile settings prevent login, use the separate [authentication-settings recovery](server-authentication.md) procedure.
 
 ## Email verification and recovery
 
@@ -50,3 +50,26 @@ Links expire after 15 minutes and can succeed once. Resending invalidates the pr
 Same-account deliveries of the same kind have a one-minute cooldown. Shared limits permit five email-related requests per source IP per minute and 100 per instance group per minute. Configure trusted proxy addresses correctly. Native password changes use no email quota. Each Server permits eight concurrent deliveries and a 20-second delivery timeout. On delivery failure, check SMTP settings and retry later. These are account-email protections, not general model/account quota controls.
 
 Endpoints are `GET /api/v1/auth/email`, `POST /api/v1/auth/email/send`, `POST /api/v1/auth/email/verify`, `POST /api/v1/auth/password-recovery` and `POST /api/v1/auth/password-reset`. Verification requires site authentication. Recovery accepts `email` and optional `turnstile_token`; reset accepts `token` and `password`; confirmation accepts `token`. None return email credentials.
+
+
+## Authenticator and recovery codes
+
+Native accounts can open **User settings → General → Account → Multi-factor authentication**, enter their current password and scan the QR code with an authenticator (or enter the secret manually). Save the eight recovery codes shown once, confirm that they are saved, then enter the current six-digit authenticator code to enable MFA. Enrollment expires after ten minutes; starting again replaces a pending secret. Recovery codes cannot activate enrollment.
+
+Password sign-ins and linked OIDC sign-ins then require an authenticator code or an unused recovery code. Enabling and disabling MFA revoke existing site browser sessions. After upstream OIDC authentication, the browser must complete the second-factor page before receiving site access credentials. Accounts with site MFA cannot use raw external OIDC access tokens to call site APIs. OIDC-only accounts use their identity provider's MFA policy; site enrollment requires a native password.
+
+TOTP uses SHA-1, six digits and 30-second steps, allowing one adjacent step. A matched step can succeed once, including the code used to enable MFA. Keep device time accurate and wait for the next code after using one. Five incorrect attempts suspend authenticator verification for five minutes; unused recovery codes can still restore access. Each recovery code succeeds once. Settings show the remaining count without revealing the original codes. To replace an authenticator or replenish recovery codes, disable MFA with the current password and a code, then enroll again.
+
+Password changes, operator password resets and email recovery retain MFA. Computer credentials, model keys and service credentials keep their independent authorization and revocation rules. Passkeys are not available.
+
+The Server database encrypts authenticator secrets and stores only recovery-code digests; responses are not cached. If both the authenticator and all recovery codes are lost, an operator with access to the Server's private configuration and master key can run:
+
+```bash
+./bin/ternilo-server admin reset-mfa \
+  --config-dir /path/to \
+  --username owner
+```
+
+This removes MFA and revokes site browser sessions, preserving the password, identity, resources and OIDC link. It does not unban accounts or restore removed accounts. Enroll again after signing in. Recovery is audited; no public endpoint bypasses MFA.
+
+Endpoints are `GET /api/v1/auth/mfa`, `POST /api/v1/auth/mfa/setup`, `POST /api/v1/auth/mfa/enable` and `POST /api/v1/auth/mfa/disable`. Setup accepts `current_password`; enable additionally requires `generation` and `code`; disable additionally requires `code`. Native login accepts `mfa_code`. OIDC callbacks can return a short-lived `mfa_challenge`; `POST /auth/mfa` accepts `challenge` and `code` to finish authentication. Pending challenges cannot access resources.

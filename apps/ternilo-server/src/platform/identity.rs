@@ -20,6 +20,7 @@ use super::{
 const MAX_IDENTITY_BODY_BYTES: u64 = 16 * 1024;
 
 mod email;
+mod mfa;
 pub(super) mod session_details;
 mod sessions;
 
@@ -51,6 +52,7 @@ pub(crate) fn router() -> Router {
                 .push(Router::with_path("auth/session").get(get_session))
                 .push(Router::with_path("auth/password").post(change_password))
                 .push(sessions::router())
+                .push(mfa::router())
                 .push(Router::with_path("auth/email").get(email::status))
                 .push(Router::with_path("auth/email/send").post(email::send_verification))
                 .push(Router::with_path("auth/email/verify").post(email::verify))
@@ -163,6 +165,7 @@ struct SetupRequest {
 struct LoginRequest {
     username: String,
     password: String,
+    mfa_code: Option<String>,
     turnstile_token: Option<String>,
 }
 
@@ -313,6 +316,10 @@ async fn login(
         .verify_native_credentials(&body.username, &body.password)
         .await
         .map_err(authentication_error)?;
+    let credentials = state
+        .store
+        .verify_native_mfa(credentials, body.mfa_code.as_deref(), now_ms()?)
+        .await?;
     let grant = state
         .store
         .create_native_browser_session(credentials, now_ms()?)

@@ -222,6 +222,7 @@ impl ControlStore {
         crate::resource_ownership::initialize(database).await?;
         crate::identity_session_details::initialize(database).await?;
         crate::oidc_sessions::initialize(database).await?;
+        crate::mfa::initialize(database).await?;
         crate::computer_management::initialize(database).await?;
         crate::service_accounts::initialize(database).await?;
         crate::computer_models::initialize(database).await?;
@@ -3165,7 +3166,8 @@ async fn rotate_secret_master_key_in_database(
         sqlx::query(
             "LOCK TABLE control_secrets, control_user_credentials,
                     control_user_credential_records, control_model_providers,
-                    control_authentication_settings, control_oidc_sessions IN ACCESS EXCLUSIVE MODE",
+                    control_authentication_settings, control_oidc_sessions,
+                    control_mfa_factors, control_mfa_oidc_challenges IN ACCESS EXCLUSIVE MODE",
         )
         .execute(&mut *transaction)
         .await
@@ -3194,6 +3196,11 @@ async fn rotate_secret_master_key_in_database(
     let rotated = rotated
         .checked_add(
             crate::oidc_sessions::rotate(&mut transaction, current_cipher, next_cipher).await?,
+        )
+        .ok_or_else(|| HarnessError::execution("rotated secret count overflow"))?;
+    let rotated = rotated
+        .checked_add(
+            crate::mfa::rotation::rotate(&mut transaction, current_cipher, next_cipher).await?,
         )
         .ok_or_else(|| HarnessError::execution("rotated secret count overflow"))?;
     transaction.commit().await.map_err(database_error)?;

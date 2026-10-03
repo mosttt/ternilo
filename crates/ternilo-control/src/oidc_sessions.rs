@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, any::AnyRow};
-use ternilo_protocol::HarnessError;
+use ternilo_protocol::{HarnessError, UserId};
 use ternilo_storage::{Backend, Database, Transaction, database_error, lock};
 use zeroize::Zeroizing;
 
 use crate::{
-    AccountStatus, ControlStore, EncryptedSecret, OidcPrincipal, SecretCipher,
+    ControlStore, EncryptedSecret, OidcPrincipal, SecretCipher,
     crypto::{hex, random_identifier, random_token, token_hash},
 };
 
@@ -70,6 +70,40 @@ pub(crate) async fn initialize(database: &Database) -> Result<(), HarnessError> 
     details::initialize(database).await
 }
 
+enum SessionAuthentication<'a> {
+    FirstFactor,
+    Refresh(&'a str),
+    Mfa(&'a str),
+}
+
+impl SessionAuthentication<'_> {
+    async fn authorize(
+        &self,
+        transaction: &mut Transaction,
+        principal: &OidcPrincipal,
+        session_id: &str,
+    ) -> Result<Option<UserId>, HarnessError> {
+        match self {
+            Self::Refresh(_) => {
+                crate::mfa::oidc::authorize_oidc_session(transaction, principal, session_id)
+                    .await?;
+            }
+            Self::FirstFactor => {
+                crate::mfa::oidc::authorize_new_oidc(transaction, principal, None).await?;
+            }
+            Self::Mfa(generation) => {
+                return crate::mfa::oidc::authorize_new_oidc(
+                    transaction,
+                    principal,
+                    Some(generation),
+                )
+                .await;
+            }
+        }
+        Ok(None)
+    }
+}
+
 impl ControlStore {
     pub async fn create_oidc_session(
         &self,
@@ -83,7 +117,7 @@ impl ControlStore {
             binding,
             expires_at_ms,
             now_ms.saturating_add(REFRESH_TTL_MS),
-            None,
+            SessionAuthentication::FirstFactor,
             now_ms,
         )
         .await
@@ -102,7 +136,26 @@ impl ControlStore {
             binding,
             expires_at_ms,
             refresh.1,
-            Some(refresh.0),
+            SessionAuthentication::Refresh(refresh.0),
+            now_ms,
+        )
+        .await
+    }
+
+    pub(crate) async fn create_mfa_oidc_session(
+        &self,
+        identity: &OidcSessionIdentity,
+        binding: &str,
+        expires_at_ms: u64,
+        generation: &str,
+        now_ms: u64,
+    ) -> Result<OidcSessionGrant, HarnessError> {
+        self.save_oidc_session(
+            identity,
+            binding,
+            expires_at_ms,
+            now_ms.saturating_add(REFRESH_TTL_MS),
+            SessionAuthentication::Mfa(generation),
             now_ms,
         )
         .await
@@ -114,7 +167,7 @@ impl ControlStore {
         binding: &str,
         access_expires_at_ms: u64,
         refresh_expires_at_ms: u64,
-        previous_refresh: Option<&str>,
+        authentication: SessionAuthentication<'_>,
         now_ms: u64,
     ) -> Result<OidcSessionGrant, HarnessError> {
         identity.principal.validate()?;
@@ -125,7 +178,7 @@ impl ControlStore {
         let mut transaction = self.database.begin().await?;
         lock(&mut transaction, "ternilo:instance").await?;
         require_active_identity_in(&mut transaction, &identity.principal).await?;
-        let previous = if let Some(refresh) = previous_refresh {
+        let previous = if let SessionAuthentication::Refresh(refresh) = authentication {
             Some(sqlx::query(ternilo_storage::for_update(&transaction,
                 "SELECT session_id,expires_at_ms FROM control_oidc_sessions WHERE refresh_hash=$1 AND binding=$2 AND issuer=$3 AND subject=$4 AND expires_at_ms>$5",
                 "SELECT session_id,expires_at_ms FROM control_oidc_sessions WHERE refresh_hash=$1 AND binding=$2 AND issuer=$3 AND subject=$4 AND expires_at_ms>$5 FOR UPDATE"))
@@ -139,6 +192,9 @@ impl ControlStore {
             Some(row) => row.try_get("session_id").map_err(database_error)?,
             None => random_identifier("ter_s"),
         };
+        let mfa_user = authentication
+            .authorize(&mut transaction, &identity.principal, &session_id)
+            .await?;
         let access_token = random_token("ter_o");
         let refresh_token = identity
             .upstream_refresh_token
@@ -197,6 +253,10 @@ impl ControlStore {
             .await
             .map_err(database_error)?;
         }
+        if let (SessionAuthentication::Mfa(generation), Some(user)) = (authentication, mfa_user) {
+            sqlx::query("INSERT INTO control_oidc_mfa_assurances(session_id,user_id,generation) VALUES($1,$2,$3)")
+                .bind(&session_id).bind(user.as_str()).bind(generation).execute(&mut *transaction).await.map_err(database_error)?;
+        }
         transaction.commit().await.map_err(database_error)?;
         Ok(OidcSessionGrant {
             access_token,
@@ -218,6 +278,15 @@ impl ControlStore {
             .bind(hex(&token_hash(token))).bind(binding).bind(timestamp(now_ms)?)
             .fetch_optional(&self.pool).await.map_err(database_error)?.ok_or_else(expired)?;
         let identity = self.oidc_identity_from_row(&row)?;
+        let mut tx = self.database.begin().await?;
+        crate::mfa::oidc::authorize_oidc_session(
+            &mut tx,
+            &identity.principal,
+            &row.try_get::<String, _>("session_id")
+                .map_err(database_error)?,
+        )
+        .await?;
+        tx.commit().await.map_err(database_error)?;
         let expiry = row
             .try_get::<i64, _>("access_expires_at_ms")
             .map_err(database_error)?
@@ -237,8 +306,18 @@ impl ControlStore {
         let row = sqlx::query("SELECT session_id, nonce, ciphertext, expires_at_ms FROM control_oidc_sessions WHERE refresh_hash = $1 AND binding = $2 AND expires_at_ms > $3")
             .bind(hex(&token_hash(token))).bind(binding).bind(timestamp(now_ms)?)
             .fetch_optional(&self.pool).await.map_err(database_error)?.ok_or_else(expired)?;
+        let identity = self.oidc_identity_from_row(&row)?;
+        let mut tx = self.database.begin().await?;
+        crate::mfa::oidc::authorize_oidc_session(
+            &mut tx,
+            &identity.principal,
+            &row.try_get::<String, _>("session_id")
+                .map_err(database_error)?,
+        )
+        .await?;
+        tx.commit().await.map_err(database_error)?;
         Ok(OidcRefreshSession {
-            identity: self.oidc_identity_from_row(&row)?,
+            identity,
             expires_at_ms: row
                 .try_get::<i64, _>("expires_at_ms")
                 .map_err(database_error)?
@@ -288,22 +367,9 @@ async fn require_active_identity_in(
     transaction: &mut Transaction,
     principal: &OidcPrincipal,
 ) -> Result<(), HarnessError> {
-    let account =
-        sqlx::query("SELECT user_id,status FROM control_users WHERE issuer=$1 AND subject=$2")
-            .bind(&principal.issuer)
-            .bind(&principal.subject)
-            .fetch_optional(&mut **transaction)
-            .await
-            .map_err(database_error)?;
-    if let Some(account) = account {
-        let owner: String = account.try_get("user_id").map_err(database_error)?;
-        lock(transaction, &format!("ternilo:account-role:{owner}")).await?;
-        AccountStatus::parse(
-            &account
-                .try_get::<String, _>("status")
-                .map_err(database_error)?,
-        )?
-        .require_active()?;
+    if let Some(user) = crate::mfa::oidc::principal_user(transaction, principal).await? {
+        lock(transaction, &format!("ternilo:account-role:{user}")).await?;
+        crate::account_store::require_active_account_in(transaction, &user).await?;
     }
     Ok(())
 }

@@ -210,7 +210,7 @@ impl ControlStore {
             .await?;
         let user_id = user.user_id.clone();
         let session = if status == AccountStatus::Active {
-            Some(issue_session(&mut transaction, user, instance, now_ms).await?)
+            Some(issue_session(&mut transaction, user, instance, None, now_ms).await?)
         } else {
             None
         };

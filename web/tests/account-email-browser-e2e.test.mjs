@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createServer } from 'node:net'
+import { smtpFixture, emailLink } from './account-email-fixture.mjs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -8,42 +8,6 @@ import { chromium } from 'playwright'
 import { freePort, initializeServer, serverRequest, startOidcServer, stopProcess } from './platform-e2e-fixture.mjs'
 import { until } from './model-device-fixture.mjs'
 
-async function smtpFixture() {
-  const messages = [], sockets = new Set(), failures = []
-  const server = createServer(socket => {
-    sockets.add(socket); socket.on('close', () => sockets.delete(socket)); socket.on('error', () => {})
-    socket.write('220 fixture ESMTP\r\n')
-    let buffer = '', data = false, lines = []
-    socket.on('data', chunk => {
-      buffer += chunk.toString()
-      let index
-      while ((index = buffer.indexOf('\r\n')) >= 0) {
-        const line = buffer.slice(0, index); buffer = buffer.slice(index + 2)
-        if (data) {
-          if (line === '.') { messages.push(lines.join('\r\n')); lines = []; data = false; socket.write('250 accepted\r\n') }
-          else lines.push(line.replace(/^\.\./, '.'))
-        } else if (line.startsWith('EHLO')) socket.write('250-fixture\r\n250 AUTH PLAIN\r\n')
-        else if (line.startsWith('AUTH PLAIN ')) {
-          if (Buffer.from(line.slice(11), 'base64').toString() !== '\0fixture-user\0fixture-smtp-password') failures.push('wrong SMTP authentication')
-          socket.write('235 authenticated\r\n')
-        } else if (line.startsWith('MAIL FROM:') || line.startsWith('RCPT TO:') || line === 'RSET' || line === 'NOOP') socket.write('250 ok\r\n')
-        else if (line === 'DATA') { data = true; socket.write('354 send message\r\n') }
-        else if (line === 'QUIT') { socket.end('221 bye\r\n') }
-        else { failures.push(`unexpected SMTP command ${line.split(' ')[0]}`); socket.write('500 unsupported\r\n') }
-      }
-    })
-  })
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-  return { port: server.address().port, messages, failures, close: async () => { for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)) } }
-}
-function link(message, action) {
-  const [headers, ...parts] = message.split('\r\n\r\n')
-  const body = parts.join('\r\n\r\n')
-  const decoded = /Content-Transfer-Encoding: base64/i.test(headers) ? Buffer.from(body.replace(/\s/g, ''), 'base64').toString() : body.replace(/=\r\n/g, '').replace(/=([A-F\d]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-  const url = decoded.match(new RegExp(`http://127\\.0\\.0\\.1:\\d+/auth/${action}#[A-Za-z0-9_-]+`))?.[0]
-  assert.ok(url, 'message contains the requested one-time link')
-  return url
-}
 async function login(page, credentials) {
   await page.getByLabel('用户名', { exact: true }).fill(credentials.username)
   await page.getByLabel('密码', { exact: true }).fill(credentials.password)
@@ -92,7 +56,7 @@ test('SMTP settings, verified email and self-service password recovery work in a
     const verification = page.locator('[data-account-email-verification]')
     await verification.getByRole('button', { name: '发送验证邮件', exact: true }).click()
     await until(() => Promise.resolve(smtp.messages), messages => messages.length === 1, 'verification email arrives')
-    const verificationUrl = link(smtp.messages[0], 'verify-email')
+    const verificationUrl = emailLink(smtp.messages[0], 'verify-email')
     const verifyPage = await browser.newPage({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' }); observe(verifyPage)
     await verifyPage.goto(verificationUrl)
     await verifyPage.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
@@ -115,7 +79,7 @@ test('SMTP settings, verified email and self-service password recovery work in a
     await recoverPage.getByRole('button', { name: '发送找回邮件', exact: true }).click()
     const requested = await request; assert.equal(requested.status(), 200); assert.deepEqual(await requested.json(), unknownBody)
     await until(() => Promise.resolve(smtp.messages), messages => messages.length === 2, 'recovery email arrives')
-    const resetUrl = link(smtp.messages[1], 'reset-password'), replacement = 'recovered-email-password'
+    const resetUrl = emailLink(smtp.messages[1], 'reset-password'), replacement = 'recovered-email-password'
     await recoverPage.goto(resetUrl.split('#')[0] + '#invalid-link')
     await recoverPage.locator('[data-account-email-page=reset]').waitFor()
     await recoverPage.evaluate(fragment => { location.hash = fragment }, new URL(resetUrl).hash)

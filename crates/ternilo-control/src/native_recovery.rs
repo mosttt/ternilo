@@ -151,6 +151,11 @@ pub(crate) async fn revoke_password_sessions(
         .execute(&mut **transaction)
         .await
         .map_err(database_error)?;
+    sqlx::query("DELETE FROM control_mfa_oidc_challenges WHERE user_id=$1")
+        .bind(user_id.as_str())
+        .execute(&mut **transaction)
+        .await
+        .map_err(database_error)?;
     let native_sessions_revoked = sqlx::query(
             "UPDATE control_browser_sessions SET revoked_at_ms=$2 WHERE user_id=$1 AND revoked_at_ms IS NULL",
         )

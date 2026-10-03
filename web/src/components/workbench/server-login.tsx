@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { navigate } from '@/app/navigation'
 import { api } from '@/api/client'
-import { OidcFlowError } from '@/auth/oidc'
+import { OidcFlowError, readPendingOidcMfa, completeOidcMfa, clearOidcSession } from '@/auth/oidc'
 import type { TenantSummary } from '@/types'
 import { LoaderCircle } from 'lucide-react'
 import { clearAccountLink, readAccountLink, type NativeLoginInput } from '@/auth/server'
@@ -37,6 +37,10 @@ export function ServerLogin() {
   const [error, setError] = React.useState('')
   const [pending, setPending] = React.useState(false)
   const [pendingOidc, setPendingOidc] = React.useState(false)
+  const [mfaRequired, setMfaRequired] = React.useState(false)
+  const [mfaCode, setMfaCode] = React.useState('')
+  const oidcMfa = authRequired ? readPendingOidcMfa() : null
+  React.useEffect(() => { if (!authRequired) { setMfaRequired(false); setMfaCode('') } }, [authRequired])
   const multiUser = config?.mode === 'multi_user'
   const publicSignup = multiUser && config?.registration.mode === 'open'
   const inviteSignup = multiUser && config?.registration.mode === 'invite'
@@ -50,6 +54,9 @@ export function ServerLogin() {
   const challenge = turnstile && <TurnstileChallenge siteKey={turnstile.site_key} action={turnstileAction} attempt={turnstileAttempt} onToken={setTurnstileToken} />
   const accountError = (message: string) => {
     switch (message) {
+      case 'multi-factor verification is required': return settingsT('mfa.required')
+      case 'verification code is invalid, already used or temporarily limited': return settingsT('mfa.invalidCode')
+      case 'multi-factor sign-in expired or changed; sign in again': return settingsT('mfa.expiredLogin')
       case 'complete the Turnstile verification':
       case 'Turnstile verification failed; please try again': return securityT('challengeError')
       case 'Turnstile verification is temporarily unavailable': return securityT('challengeUnavailable')
@@ -102,7 +109,7 @@ export function ServerLogin() {
       } else if (oidc) await login('')
       else {
         const account = { username: username.trim(), password }
-        const input: NativeLoginInput = action === 'login' ? { action, ...account }
+        const input: NativeLoginInput = action === 'login' ? { action, ...account, ...(mfaRequired ? { mfa_code: mfaCode } : {}) }
           : action === 'register' ? { action, ...account, email: email.trim() }
             : action === 'setup' ? { action, ...account, email: email.trim(), setup_token: token.trim() }
               : { action, ...account, email: email.trim(), token: token.trim() }
@@ -117,10 +124,20 @@ export function ServerLogin() {
         }
       }
     } catch (cause) {
+      if (cause instanceof Error && cause.message === 'multi-factor verification is required') setMfaRequired(true)
+      setMfaCode('')
       setError(cause instanceof OidcFlowError
         ? t(cause.translationKey)
         : accountError(cause instanceof Error ? cause.message : String(cause)))
     } finally { setBusy(false); setTurnstileToken(''); setTurnstileAttempt(value => value + 1) }
+  }
+
+  const finishMfa = async () => {
+    if (busy || !mfaCode.trim()) return
+    setBusy(true); setError('')
+    try { await completeOidcMfa(mfaCode); setMfaCode(''); retryAuthentication() }
+    catch (cause) { setError(cause instanceof OidcFlowError ? t(cause.translationKey) : accountError(cause instanceof Error ? cause.message : String(cause))) }
+    finally { setBusy(false); setMfaCode('') }
   }
 
   const join = async () => {
@@ -154,7 +171,12 @@ export function ServerLogin() {
         <DialogTitle>{t(accessPaused ? 'server.pausedTitle' : pending ? 'server.pendingTitle' : oidcRegistrationRequired ? 'server.oidcUsernameTitle' : action === 'setup' ? 'server.setupTitle' : action === 'accept' ? 'server.inviteTitle' : action === 'register' ? 'server.registerTitle' : 'auth.loginTitle')}</DialogTitle>
         <DialogDescription>{t(accessPaused ? 'server.pausedDescription' : pending ? pendingOidc ? 'server.oidcPendingDescription' : 'server.pendingDescription' : oidcRegistrationRequired ? 'server.oidcUsernameDescription' : action === 'setup' ? 'server.setupDescription' : action === 'accept' ? 'server.inviteDescription' : action === 'register' ? config?.registration.require_approval ? 'server.registerReviewDescription' : 'server.registerDescription' : 'server.loginDescription')}</DialogDescription>
       </DialogHeader>
-      {accessPaused ? <div className="grid gap-3">
+      {oidcMfa ? <form className="grid gap-4" data-oidc-mfa="" onSubmit={event => { event.preventDefault(); void finishMfa() }}>
+        <p className="text-sm">{settingsT('mfa.required')}</p>
+        <Field><Label htmlFor="oidc-mfa-code">{settingsT('mfa.code')}</Label><Input id="oidc-mfa-code" type="password" autoComplete="one-time-code" autoFocus required maxLength={128} disabled={busy} value={mfaCode} onChange={event => setMfaCode(event.target.value)} /></Field>
+        <Button disabled={busy || !mfaCode.trim()}>{settingsT('mfa.verifyLogin')}</Button>
+        <Button type="button" variant="ghost" disabled={busy} onClick={() => { clearOidcSession(); setMfaCode(''); setError(''); retryAuthentication() }}>{t('server.backToLogin')}</Button>
+      </form> : accessPaused ? <div className="grid gap-3">
         <Button onClick={retryAuthentication}>{t('server.retryAccess')}</Button>
         <Button variant="outline" onClick={logout}>{t('server.switchAccount')}</Button>
       </div> : pending ? <div className="grid gap-3" data-registration-pending="">
@@ -165,7 +187,7 @@ export function ServerLogin() {
         onSubmit={event => { event.preventDefault(); void submit() }}>
         <Field>
           <Label htmlFor="server-username">{t('server.username')}</Label>
-          <Input id="server-username" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={64} disabled={busy} value={username} onChange={event => setUsername(event.target.value)} />
+          <Input id="server-username" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={64} disabled={busy} value={username} onChange={event => { setUsername(event.target.value); setMfaRequired(false); setMfaCode('') }} />
           <p className="text-xs leading-relaxed text-muted-foreground">{t('server.usernameHint')}</p>
         </Field>
         <Field>
@@ -189,7 +211,7 @@ export function ServerLogin() {
           </Field>}
           <Field>
             <Label htmlFor="server-username">{t('server.username')}</Label>
-            <Input id="server-username" autoComplete="username" autoCapitalize="none" spellCheck={false} required disabled={busy} value={username} onChange={event => setUsername(event.target.value)} />
+            <Input id="server-username" autoComplete="username" autoCapitalize="none" spellCheck={false} required disabled={busy} value={username} onChange={event => { setUsername(event.target.value); setMfaRequired(false); setMfaCode('') }} />
           </Field>
           {creating && <Field>
             <Label htmlFor="server-email">{t('server.email')}</Label>
@@ -200,8 +222,9 @@ export function ServerLogin() {
             <Label htmlFor="server-password">{t('server.password')}</Label>
             <Input id="server-password" type="password" autoComplete={creating ? 'new-password' : 'current-password'} required disabled={busy} value={password} onChange={event => setPassword(event.target.value)} />
           </Field>
+          {mfaRequired && !creating && <Field><Label htmlFor="native-mfa-code">{settingsT('mfa.code')}</Label><Input id="native-mfa-code" type="password" autoComplete="one-time-code" required maxLength={128} disabled={busy} value={mfaCode} onChange={event => setMfaCode(event.target.value)} /></Field>}
           {challenge}
-          <Button disabled={busy || !username.trim() || !password || (creating && !email.trim()) || (requiresToken && !token.trim()) || Boolean(turnstile && !turnstileToken)}>
+          <Button disabled={busy || (mfaRequired && !creating && !mfaCode.trim()) || !username.trim() || !password || (creating && !email.trim()) || (requiresToken && !token.trim()) || Boolean(turnstile && !turnstileToken)}>
             {busy && <LoaderCircle className="animate-spin" />}
             {t(action === 'setup' ? 'server.setup' : action === 'accept' ? 'server.accept' : action === 'register' ? config.registration.require_approval ? 'server.submitRegistration' : 'server.register' : 'server.login')}
           </Button>
@@ -209,6 +232,7 @@ export function ServerLogin() {
         {config.initialized && config.oidc_enabled && action === 'login' && <Button type="button" variant="outline" disabled={busy} onClick={() => void submit(true)}>{t('auth.login')}</Button>}
         {config.initialized && config.native_enabled && (creating || publicSignup || (inviteSignup && !link.teamInvitationToken)) && <Button type="button" variant="ghost" disabled={busy} onClick={() => {
           setChoice(creating ? 'login' : publicSignup ? 'register' : 'accept')
+          setMfaRequired(false); setMfaCode('')
           setError('')
         }}>{creating ? t('server.backToLogin') : publicSignup ? t('server.createAccount') : t('server.useInvitation')}</Button>}
         {!creating && config.email_enabled && <Button type="button" variant="ghost" disabled={busy} onClick={() => navigate('/auth/recover')}>{settingsT('account.forgotPassword')}</Button>}

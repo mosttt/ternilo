@@ -2,6 +2,7 @@ use salvo_core::{
     http::{HeaderValue, header},
     prelude::{Depot, Json, Request, Response, handler},
 };
+use serde::{Deserialize, Serialize};
 use ternilo_control::{OidcSessionGrant, OidcSessionIdentity};
 use ternilo_protocol::HarnessError;
 
@@ -38,12 +39,52 @@ fn expiry(
     Ok(expiry)
 }
 
+#[derive(Serialize)]
+#[serde(untagged)]
+pub(super) enum BrowserSignIn {
+    Tokens(BrowserTokenResponse),
+    Mfa(ternilo_control::MfaOidcChallenge),
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MfaRequest {
+    challenge: String,
+    code: String,
+}
+
+#[handler]
+pub(super) async fn complete_mfa(
+    request: &mut Request,
+    depot: &mut Depot,
+    response: &mut Response,
+) -> Result<Json<BrowserTokenResponse>, ApiError> {
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    let body = request
+        .parse_json::<MfaRequest>()
+        .await
+        .map_err(crate::platform::invalid_request)?;
+    let state = app_state(depot);
+    let runtime = state.security.current(&state.store).await?;
+    let web = runtime
+        .web_auth
+        .as_ref()
+        .ok_or_else(|| HarnessError::policy("OIDC is not enabled on this server"))?;
+    let now = now_ms()?;
+    let grant = state
+        .store
+        .complete_oidc_mfa(&body.challenge, &body.code, &web.binding, now)
+        .await?;
+    Ok(Json(browser_tokens(grant, None, now)))
+}
+
 #[handler]
 pub(super) async fn exchange_code(
     request: &mut Request,
     depot: &mut Depot,
     response: &mut Response,
-) -> Result<Json<BrowserTokenResponse>, ApiError> {
+) -> Result<Json<BrowserSignIn>, ApiError> {
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -103,21 +144,28 @@ pub(super) async fn exchange_code(
         .await
         .map_err(authentication_error)?;
     let expires_at_ms = expiry(&token, Some(identity.expires_at), now)?;
+    let identity = OidcSessionIdentity {
+        principal,
+        nonce: body.nonce,
+        upstream_refresh_token: token.refresh_token,
+    };
+    if let Some(challenge) = state
+        .store
+        .begin_oidc_mfa(&identity, &web.binding, expires_at_ms, now)
+        .await?
+    {
+        return Ok(Json(BrowserSignIn::Mfa(challenge)));
+    }
     let grant = state
         .store
-        .create_oidc_session(
-            &OidcSessionIdentity {
-                principal,
-                nonce: body.nonce,
-                upstream_refresh_token: token.refresh_token,
-            },
-            &web.binding,
-            expires_at_ms,
-            now,
-        )
+        .create_oidc_session(&identity, &web.binding, expires_at_ms, now)
         .await
         .map_err(authentication_error)?;
-    Ok(Json(browser_tokens(grant, token.scope, now)))
+    Ok(Json(BrowserSignIn::Tokens(browser_tokens(
+        grant,
+        token.scope,
+        now,
+    ))))
 }
 
 #[handler]

@@ -24,7 +24,7 @@ export function AccountPassword() {
       await api.request('/auth/password', { method: 'POST', body: { current_password: current, new_password: password } })
       if (mounted.current) { setCurrent(''); setPassword(''); setConfirmation(''); logout() }
     } catch (cause) {
-      if (mounted.current) setError(cause instanceof Error ? cause.message : String(cause))
+      if (mounted.current) setError(cause instanceof Error && cause.message === 'invalid username or password' ? t('account.invalidPassword') : cause instanceof Error ? cause.message : String(cause))
     } finally { if (mounted.current) setBusy(false) }
   }
   return <details className="mt-6 border-t pt-5" data-account-password="">
