@@ -202,3 +202,59 @@ async fn value(database: &Database) -> i64 {
         .await
         .unwrap()
 }
+
+#[tokio::test]
+async fn sqlite_read_snapshot_does_not_block_a_writer_and_keeps_its_snapshot() {
+    let directory = tempfile::tempdir().unwrap();
+    let database = Database::connect(
+        &format!(
+            "sqlite://{}",
+            directory.path().join("read.sqlite3").display()
+        ),
+        4,
+    )
+    .await
+    .unwrap();
+    database
+        .initialize(
+            "read-contract",
+            1,
+            "CREATE TABLE read_value(value BIGINT NOT NULL); INSERT INTO read_value VALUES(1);",
+            "",
+        )
+        .await
+        .unwrap();
+    let mut reader = database.begin_read().await.unwrap();
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT value FROM read_value")
+            .fetch_one(&mut *reader)
+            .await
+            .unwrap(),
+        1
+    );
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let mut writer = database.begin().await.unwrap();
+        sqlx::query("UPDATE read_value SET value=2")
+            .execute(&mut *writer)
+            .await
+            .unwrap();
+        writer.commit().await.unwrap();
+    })
+    .await
+    .expect("an open read snapshot must not reserve SQLite's writer");
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT value FROM read_value")
+            .fetch_one(&mut *reader)
+            .await
+            .unwrap(),
+        1
+    );
+    reader.commit().await.unwrap();
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT value FROM read_value")
+            .fetch_one(database.pool())
+            .await
+            .unwrap(),
+        2
+    );
+}

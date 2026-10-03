@@ -3,7 +3,7 @@ use crate::{ControlUser, PageQuery};
 use serde::Serialize;
 use sqlx::Row;
 use ternilo_protocol::{HarnessError, TenantId};
-use ternilo_storage::{Database, database_error};
+use ternilo_storage::database_error;
 use ternilo_transport::ExecutorId;
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -41,20 +41,6 @@ pub struct ComputerUsageSummary {
     pub groups: Vec<ComputerUsageGroup>,
 }
 
-pub(crate) async fn initialize(database: &Database) -> Result<(), HarnessError> {
-    database
-        .initialize(
-            "computer_usage_indexes",
-            1,
-            match database.backend() {
-                ternilo_storage::Backend::Sqlite => include_str!("sqlite.sql"),
-                ternilo_storage::Backend::Postgres => include_str!("postgres.sql"),
-            },
-            "",
-        )
-        .await
-}
-
 impl ControlStore {
     pub async fn computer_provider_usage_summary(
         &self,
@@ -71,20 +57,20 @@ impl ControlStore {
             ..PageQuery::default()
         }
         .parameters()?;
-        let mut tx = self.database.tenant_transaction(tenant).await?;
+        let mut tx = self.database.tenant_read_transaction(tenant).await?;
         super::require_owner(&mut tx, actor, tenant, executor).await?;
         let backend = ternilo_storage::backend(&tx);
         let field = |alias, name| event_field(backend, alias, name);
-        let time = field("e", "occurred_at_ms");
-        let provider = field("e", "route.provider");
-        let model = field("e", "route.model");
-        let protocol = field("e", "route.protocol");
-        let start_kind = field("e", "type");
-        let source = field("e", "source_session_id");
-        let finish_kind = field("f", "type");
-        let finish_seq = field("f", "started_seq");
-        let run = field("e", "run_id");
-        let finish_run = field("f", "run_id");
+        let time = "e.occurred_at_ms";
+        let provider = "e.provider";
+        let model = "e.model";
+        let protocol = "e.protocol";
+        let start_kind = "e.kind";
+        let source = "e.source_session_id";
+        let finish_kind = "f.kind";
+        let finish_seq = "f.started_seq";
+        let run = "e.run_id";
+        let finish_run = "f.run_id";
         let failure = field("f", "error_code");
         let counts = ["input_tokens", "output_tokens", "cached_input_tokens", "cache_write_tokens", "reasoning_tokens"].iter().map(|name| {
             let value = event_field(backend, "f", match *name {
@@ -96,15 +82,15 @@ impl ControlStore {
         // Only fixed JSON paths and identifiers are interpolated; every request value is bound.
         let statement = format!("SELECT {provider} AS provider,{model} AS model,{protocol} AS protocol,
             COUNT(*) AS attempts,COUNT(f.seq) AS completed,COUNT({failure}) AS failed,{counts}
-            FROM control_edge_events e JOIN control_edge_sessions s
+            FROM control_edge_usage_events e JOIN control_edge_sessions s
               ON s.tenant_id=e.tenant_id AND s.executor_id=e.executor_id AND s.node_session_id=e.session_id
-            LEFT JOIN control_edge_events f ON f.tenant_id=e.tenant_id AND f.executor_id=e.executor_id AND f.session_id=e.session_id
-              AND f.seq=(SELECT MIN(f.seq) FROM control_edge_events f
+            LEFT JOIN control_edge_usage_events f ON f.tenant_id=e.tenant_id AND f.executor_id=e.executor_id AND f.session_id=e.session_id
+              AND f.seq=(SELECT MIN(f.seq) FROM control_edge_usage_events f
                 WHERE f.tenant_id=e.tenant_id AND f.executor_id=e.executor_id AND f.session_id=e.session_id AND f.seq>e.seq
-                AND {finish_kind}='provider_usage_finished' AND CAST({finish_seq} AS BIGINT)=e.seq AND {finish_run}={run})
+                AND {finish_kind}='provider_usage_finished' AND {finish_seq}=e.seq AND {finish_run}={run})
             WHERE e.tenant_id=$1 AND e.executor_id=$2 AND s.owner_user_id=$3
               AND {start_kind}='provider_usage_started' AND {source}=s.node_session_id
-              AND CAST({time} AS BIGINT)>=$4 AND CAST({time} AS BIGINT)<$5
+              AND {time}>=$4 AND {time}<$5
               AND (CAST($6 AS TEXT) IS NULL OR LOWER({provider}) LIKE $6 ESCAPE '!' OR LOWER({model}) LIKE $6 ESCAPE '!')
             GROUP BY {provider},{model},{protocol} ORDER BY {provider},{model},{protocol} LIMIT 10001");
         let rows = sqlx::query(sqlx::AssertSqlSafe(statement))

@@ -4,7 +4,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use crate::gateway_journal::{GatewayJournal, GatewayLease, RouteKey};
@@ -40,6 +40,8 @@ mod commands;
 mod connection;
 mod forwarding;
 mod model_forwarding;
+#[cfg(test)]
+mod resource_lock_tests;
 pub(crate) use model_forwarding::{ComputerModelEvent, ComputerModelStream};
 mod replication;
 pub(crate) use forwarding::{router as peer_router, validate_cluster_origin};
@@ -92,7 +94,7 @@ pub(crate) struct EdgeGateway {
     journal: GatewayJournal,
     instance_id: String,
     executors: RwLock<BTreeMap<RouteKey, ConnectedExecutor>>,
-    resource_locks: Mutex<BTreeMap<RouteKey, Arc<Mutex<()>>>>,
+    resource_locks: Mutex<BTreeMap<RouteKey, Arc<Mutex<Option<Instant>>>>>,
     pending: Mutex<BTreeMap<(TenantId, CommandId), PendingCall>>,
     model_calls: Arc<
         std::sync::Mutex<
@@ -156,19 +158,51 @@ impl EdgeGateway {
             });
     }
 
+    async fn resource_lock(
+        &self,
+        tenant_id: &TenantId,
+        executor_id: &ExecutorId,
+    ) -> Arc<Mutex<Option<Instant>>> {
+        self.resource_locks
+            .lock()
+            .await
+            .entry(RouteKey::new(tenant_id.clone(), executor_id.clone()))
+            .or_insert_with(|| Arc::new(Mutex::new(None)))
+            .clone()
+    }
+
     pub(crate) async fn lock_resources(
         &self,
         tenant_id: &TenantId,
         executor_id: &ExecutorId,
-    ) -> tokio::sync::OwnedMutexGuard<()> {
-        let lock = self
-            .resource_locks
-            .lock()
+    ) -> tokio::sync::OwnedMutexGuard<Option<Instant>> {
+        let mut guard = self
+            .resource_lock(tenant_id, executor_id)
             .await
-            .entry(RouteKey::new(tenant_id.clone(), executor_id.clone()))
-            .or_insert_with(|| Arc::new(Mutex::new(())))
-            .clone();
-        lock.lock_owned().await
+            .lock_owned()
+            .await;
+        // Mutations invalidate an overlapping discovery's result.
+        *guard = None;
+        guard
+    }
+
+    /// Concurrent readers can share a completed discovery; a later read refreshes again.
+    pub(crate) async fn lock_discovery(
+        &self,
+        tenant_id: &TenantId,
+        executor_id: &ExecutorId,
+    ) -> Option<tokio::sync::OwnedMutexGuard<Option<Instant>>> {
+        let requested = Instant::now();
+        let guard = self
+            .resource_lock(tenant_id, executor_id)
+            .await
+            .lock_owned()
+            .await;
+        if guard.is_some_and(|completed| completed > requested) {
+            None
+        } else {
+            Some(guard)
+        }
     }
 
     pub(crate) async fn cached_events(

@@ -24,6 +24,7 @@ use crate::{
 };
 
 mod computer_usage;
+pub(crate) use computer_usage::project_events as project_usage_events;
 pub use computer_usage::{
     ComputerProviderUsage, ComputerProviderUsagePage, ComputerUsageCount, ComputerUsageGroup,
     ComputerUsageSummary, ComputerUsageTotals,

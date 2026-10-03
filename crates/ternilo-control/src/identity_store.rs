@@ -288,7 +288,7 @@ impl ControlStore {
         &self,
         user: ControlUser,
     ) -> Result<IdentitySession, HarnessError> {
-        let mut transaction = self.database.begin().await?;
+        let mut transaction = self.database.begin_read().await?;
         let instance = required_instance(&mut transaction).await?;
         let session = identity_session_in(&mut transaction, user, instance, None).await?;
         transaction.commit().await.map_err(database_error)?;
@@ -299,7 +299,7 @@ impl ControlStore {
         &self,
         actor: &ControlUser,
     ) -> Result<AccountLoginMethods, HarnessError> {
-        let mut transaction = self.database.begin().await?;
+        let mut transaction = self.database.begin_read().await?;
         let methods = login_methods_in(&mut transaction, &actor.user_id).await?;
         transaction.commit().await.map_err(database_error)?;
         Ok(methods)

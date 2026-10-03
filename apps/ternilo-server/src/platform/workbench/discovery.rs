@@ -76,7 +76,9 @@ async fn discover_computer(
     tenant_id: &TenantId,
     executor_id: &ExecutorId,
 ) -> Result<(), HarnessError> {
-    let resources = state.edge.lock_resources(tenant_id, executor_id).await;
+    let Some(mut resources) = state.edge.lock_discovery(tenant_id, executor_id).await else {
+        return Ok(());
+    };
     let value = state
         .edge
         .call_with_timeout(
@@ -134,6 +136,7 @@ async fn discover_computer(
             now_ms()?,
         )
         .await?;
+    *resources = Some(std::time::Instant::now());
     drop(resources);
     if !imported.is_empty() {
         let mappings = state

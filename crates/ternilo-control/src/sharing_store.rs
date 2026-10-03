@@ -331,7 +331,7 @@ impl ControlStore {
         kind: ResourceKind,
         resource_id: &str,
     ) -> Result<ResourceAccess, HarnessError> {
-        let mut transaction = self.database.tenant_transaction(tenant_id).await?;
+        let mut transaction = self.database.tenant_read_transaction(tenant_id).await?;
         let access = resource_access_in(
             &mut transaction,
             &actor.user_id,

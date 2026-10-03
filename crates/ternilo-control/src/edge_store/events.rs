@@ -130,7 +130,7 @@ impl EdgeStore {
         query.validate()?;
         validate_route(tenant_id, executor_id)?;
         session_id.validate()?;
-        let mut transaction = self.transaction(tenant_id).await?;
+        let mut transaction = self.database.tenant_read_transaction(tenant_id).await?;
         let rows = sqlx::query(
             "SELECT event_json FROM control_edge_events
              WHERE tenant_id = $1 AND executor_id = $2 AND session_id = $3
@@ -178,7 +178,7 @@ impl EdgeStore {
     ) -> Result<Vec<SessionEvent>, HarnessError> {
         validate_route(tenant_id, executor_id)?;
         session_id.validate()?;
-        let mut transaction = self.transaction(tenant_id).await?;
+        let mut transaction = self.database.tenant_read_transaction(tenant_id).await?;
         let rows = sqlx::query(
             "SELECT event_json FROM control_edge_events
              WHERE tenant_id = $1 AND executor_id = $2 AND session_id = $3
@@ -303,6 +303,16 @@ async fn append_events(
         appended.push((seq, document));
         expected = expected.saturating_add(1);
     }
+    write_events(transaction, tenant_id, executor_id, session_id, &appended).await
+}
+
+async fn write_events(
+    transaction: &mut Transaction,
+    tenant_id: &TenantId,
+    executor_id: &ExecutorId,
+    session_id: &SessionId,
+    appended: &[(i64, Json<Value>)],
+) -> Result<(), HarnessError> {
     for chunk in appended.chunks(100) {
         let values = (0..chunk.len())
             .map(|index| format!("($1,$2,$3,${},${})", 4 + index * 2, 5 + index * 2))
@@ -323,6 +333,22 @@ async fn append_events(
             .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
+        if chunk.iter().any(|(_, value)| {
+            matches!(
+                value.0.get("type").and_then(Value::as_str),
+                Some("provider_usage_started" | "provider_usage_finished")
+            )
+        }) {
+            crate::store::project_usage_events(
+                transaction,
+                tenant_id,
+                executor_id,
+                session_id,
+                chunk[0].0,
+                chunk[chunk.len() - 1].0,
+            )
+            .await?;
+        }
     }
     Ok(())
 }

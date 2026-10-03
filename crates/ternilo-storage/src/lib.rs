@@ -90,6 +90,26 @@ impl Database {
         .map_err(database_error)
     }
 
+    /// Read snapshots avoid reserving SQLite's sole writer. Do not use for mutations.
+    pub async fn begin_read(&self) -> Result<Transaction, HarnessError> {
+        self.pool
+            .begin_with(match self.backend {
+                Backend::Sqlite => "BEGIN DEFERRED",
+                Backend::Postgres => "BEGIN READ ONLY",
+            })
+            .await
+            .map_err(database_error)
+    }
+
+    pub async fn tenant_read_transaction(
+        &self,
+        tenant_id: &TenantId,
+    ) -> Result<Transaction, HarnessError> {
+        let mut transaction = self.begin_read().await?;
+        set_tenant_scope(&mut transaction, tenant_id).await?;
+        Ok(transaction)
+    }
+
     pub async fn tenant_transaction(
         &self,
         tenant_id: &TenantId,

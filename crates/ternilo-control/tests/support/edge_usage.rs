@@ -353,6 +353,34 @@ pub(super) async fn verify(store: &ControlStore, fixture: &EdgeFixture) {
             .observations
             .is_empty()
     );
+    assert_eq!(
+        store
+            .computer_provider_usage_summary(
+                &fixture.alice,
+                &fixture.tenant_a,
+                &fixture.executor_a,
+                None,
+                None,
+                fixture.now
+            )
+            .await
+            .unwrap()
+            .totals
+            .attempts,
+        0,
+        "deleted mappings are excluded from summaries"
+    );
+    let mut tx = store
+        .database()
+        .tenant_read_transaction(&fixture.tenant_a)
+        .await
+        .unwrap();
+    let orphaned: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM control_edge_usage_events u LEFT JOIN control_edge_events e ON e.tenant_id=u.tenant_id AND e.executor_id=u.executor_id AND e.session_id=u.session_id AND e.seq=u.seq WHERE e.seq IS NULL").fetch_one(&mut *tx).await.unwrap();
+    assert_eq!(
+        orphaned, 0,
+        "deleting canonical events must cascade to their usage projection"
+    );
+    tx.commit().await.unwrap();
 }
 
 async fn mapping(

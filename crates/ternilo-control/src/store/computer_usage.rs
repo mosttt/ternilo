@@ -1,5 +1,6 @@
+mod projection;
 mod summary;
-pub(crate) use summary::initialize;
+pub(crate) use projection::{initialize, project_events};
 pub use summary::{
     ComputerUsageCount, ComputerUsageGroup, ComputerUsageSummary, ComputerUsageTotals,
 };
@@ -60,7 +61,7 @@ impl ControlStore {
         now: u64,
     ) -> Result<ComputerProviderUsagePage, HarnessError> {
         let period = period_bounds(period, now)?;
-        let mut tx = self.database.begin().await?;
+        let mut tx = self.database.begin_read().await?;
         set_tenant(&mut tx, tenant).await?;
         require_owner(&mut tx, actor, tenant, executor).await?;
         let rows = start_rows(&mut tx, actor, tenant, executor, &period, query).await?;
@@ -142,18 +143,14 @@ async fn start_rows(
     if let Some(cursor) = &cursor {
         cursor.session.validate()?;
     }
-    let backend = ternilo_storage::backend(tx);
-    let time = format!(
-        "CAST({} AS BIGINT)",
-        event_field(backend, "e", "occurred_at_ms")
-    );
-    let kind = event_field(backend, "e", "type");
-    let source = event_field(backend, "e", "source_session_id");
-    let provider = event_field(backend, "e", "route.provider");
-    let model = event_field(backend, "e", "route.model");
+    let time = "e.occurred_at_ms";
+    let kind = "e.kind";
+    let source = "e.source_session_id";
+    let provider = "e.provider";
+    let model = "e.model";
     // All SQL fragments are fixed identifiers and backend JSON expressions. Values are bound.
     let sql = format!("SELECT s.session_id AS public_session, e.session_id AS node_session, s.metadata_json, e.event_json
-            FROM control_edge_events e JOIN control_edge_sessions s
+            FROM control_edge_usage_events e JOIN control_edge_sessions s
               ON s.tenant_id=e.tenant_id AND s.executor_id=e.executor_id AND s.node_session_id=e.session_id
             WHERE e.tenant_id=$1 AND e.executor_id=$2 AND s.owner_user_id=$3
               AND {kind}='provider_usage_started' AND {source}=s.node_session_id
@@ -206,14 +203,13 @@ async fn observation(
             "device usage query returned a different event kind",
         ));
     };
-    let backend = ternilo_storage::backend(tx);
-    let kind = event_field(backend, "f", "type");
-    let started = event_field(backend, "f", "started_seq");
-    let run = event_field(backend, "f", "run_id");
+    let kind = "f.kind";
+    let started = "f.started_seq";
+    let run = "f.run_id";
     let sql = format!(
-        "SELECT f.event_json FROM control_edge_events f
+        "SELECT f.event_json FROM control_edge_usage_events f
         WHERE tenant_id=$1 AND executor_id=$2 AND session_id=$3 AND seq>$4
-          AND {kind}='provider_usage_finished' AND CAST({started} AS BIGINT)=$4 AND {run}=$5
+          AND {kind}='provider_usage_finished' AND {started}=$4 AND {run}=$5
         ORDER BY seq LIMIT 1"
     );
     let finish: Option<Json<SessionEvent>> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
