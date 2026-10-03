@@ -25,6 +25,8 @@ fn sigterm_runs_node_graceful_shutdown() {
         .args([
             "--gateway-url",
             &gateway_url,
+            "--node-id",
+            "ter_pc_signal_fixture",
             "--allow-insecure-gateway",
             "--no-local-web",
             "--listen",
