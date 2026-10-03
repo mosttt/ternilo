@@ -93,15 +93,6 @@ async fn ensure_workspace_create_targets(
     tenant_id: &TenantId,
     spec: &WorkspaceCreateSpec<'_>,
 ) -> Result<(), HarnessError> {
-    crate::resource_ownership::require_workspace_name_in(
-        transaction,
-        tenant_id,
-        &actor.user_id,
-        spec.project_id,
-        spec.name,
-        None,
-    )
-    .await?;
     let project_exists = sqlx::query_scalar::<_, i64>(
         "SELECT CAST(EXISTS(
             SELECT 1 FROM control_projects WHERE tenant_id = $1 AND project_id = $2
@@ -718,6 +709,15 @@ impl ControlStore {
                 let id: String = existing
                     .try_get("workspace_id")
                     .map_err(workspace_write_error)?;
+                crate::resource_ownership::require_workspace_name_in(
+                    &mut transaction,
+                    tenant_id,
+                    &actor.user_id,
+                    spec.project_id,
+                    spec.name,
+                    Some(&id),
+                )
+                .await?;
                 let row = sqlx::query(
                     "UPDATE control_workspaces SET name = $3, updated_at_ms = $4, unregistered_at_ms = NULL
                      WHERE tenant_id = $1 AND workspace_id = $2
@@ -743,6 +743,15 @@ impl ControlStore {
             }
         }
 
+        crate::resource_ownership::require_workspace_name_in(
+            &mut transaction,
+            tenant_id,
+            &actor.user_id,
+            spec.project_id,
+            spec.name,
+            None,
+        )
+        .await?;
         sqlx::query(
             "INSERT INTO control_workspaces
                 (tenant_id, workspace_id, project_id, owner_user_id, name,

@@ -123,7 +123,10 @@ test('language preference switches the core workbench, persists across reload, a
     const historyFailure = page.locator('[data-history-state="error"]')
     await historyFailure.getByText(/history fixture unavailable/).waitFor()
     await historyFailure.getByRole('button', { name: '重新加载历史' }).click()
-    await page.locator('[data-history-state="loading"]').waitFor()
+    const retryDeadline = Date.now() + 10_000
+    while (historyRetryAttempt < 2 && Date.now() < retryDeadline) await new Promise(resolve => setTimeout(resolve, 10))
+    assert.equal(historyRetryAttempt, 2, 'retry starts another history subscription without discarding the cached view')
+    await historyFailure.waitFor({ state: 'hidden' })
     releaseHistoryRetry()
     await page.locator('[data-new-session-hero]').waitFor()
     assert.equal(historyRetryAttempt, 2)

@@ -497,6 +497,22 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reopened.workspace_id, second.workspace_id);
+        let repeated = store
+            .create_local_workspace(
+                &owner,
+                &tenant,
+                &second.project_id,
+                &reopened.name,
+                (&nodes[1], &workspaces[0].workspace_id),
+                112,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            repeated.workspace_id, reopened.workspace_id,
+            "reopening a registered folder excludes its own name from collision checks"
+        );
+        assert_eq!(repeated.name, reopened.name);
         assert_eq!(reopened.executor_id.as_ref(), Some(&nodes[1]));
         assert_eq!(
             store.list_workspaces(&owner, &tenant).await.unwrap().len(),
