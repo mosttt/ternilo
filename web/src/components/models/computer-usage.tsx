@@ -74,14 +74,14 @@ export function ComputerUsage() {
     {error && <p role="alert">{error}</p>}
     {loading && !computers.length && <p role="status">{t('loading')}</p>}
     {!loading && !computers.length && <p className={css.state}>{t('computerUsageNoComputers')}</p>}
-    {computers.length > 0 && <div className={css.fields}>
-      <SourcePicker label={t('computerUsageComputer')} value={selected?.executor_id ?? ''} options={computers.map(value => ({ id: value.executor_id, name: `${value.management.name} · ${t(value.connected ? 'computerOnline' : 'computerOffline')}` }))} onChange={computer => navigate(modelCenterPath({ computer }, search))} />
+    {tenant && <div className={css.fields}>
+      {computers.length > 0 && <SourcePicker label={t('computerUsageComputer')} value={selected?.executor_id ?? ''} options={computers.map(value => ({ id: value.executor_id, name: `${value.management.name} · ${t(value.connected ? 'computerOnline' : 'computerOffline')}` }))} onChange={computer => navigate(modelCenterPath({ computer }, search))} />}
       <Field><Label htmlFor={id}>{t('computerUsageMonth')}</Label><Input id={id} type="month" min="1970-01" max="9999-12" value={month} onChange={event => setMonth(event.target.value)} /></Field>
     </div>}
     {selected && month && <ComputerUsageRecords key={`${scope}:${selected.executor_id}:${month}:${revision}`} tenantId={tenantId} computer={selected} month={month} />}
     {tenant && <details open={forwardedOpen} onToggle={event => setForwardedOpen(event.currentTarget.open)}>
       <summary>{t('forwardedUsageTitle')}</summary>
-      {forwardedOpen && <ComputerModelUsage key={`${scope}:${revision}`} tenantId={tenantId} />}
+      {forwardedOpen && month && <ComputerModelUsage key={`${scope}:${month}:${revision}`} tenantId={tenantId} month={month} />}
     </details>}
   </section>
 }

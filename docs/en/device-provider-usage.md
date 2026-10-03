@@ -16,7 +16,7 @@ See the [Server reference](server-reference.md) for API pagination and permissio
 
 ## Cross-computer calls
 
-Expand Cross-computer model calls to load the current space's separate request ledger with search and pagination. The computer/month controls above apply to direct-device reports, not this ledger. Records include each attempt, status, execution/source computer names, actual submitter, model owner and original resource owner. Submitters and model owners can read their related records; an administrator role alone does not expand visibility.
+Expand Cross-computer model calls to load the current space's separate request ledger with search and pagination. This ledger uses the selected UTC month and the whole current space; the direct-device computer selector does not filter it. Records include each attempt, status, execution/source computer names, actual submitter, model owner and original resource owner. Submitters and model owners can read their related records; an administrator role alone does not expand visibility.
 
 These are source-computer reports, not directly observed upstream bills or platform-budget charges. Final usage may arrive after cancellation. Interrupted connections or Server shutdown can leave unknown counters; requests are never automatically replayed. Prompts, upstream addresses and keys are not stored in this ledger. Forwarding does not create an agent session on the source computer, so these calls do not enter its direct-session report.
 
@@ -28,3 +28,11 @@ Monthly summaries distinguish Provider, model and protocol, reporting attempts, 
 **Export summary CSV** downloads the same snapshot for the selected month and search, with computer ID/name, UTC time, source and model groups. `row_kind=total` is the total; `row_kind=model` rows are its components and must not be added to it again. Missing tokens produce empty cells, explicit zero produces `0`, and `*_reported_attempts` describes coverage. The UTF-8 export escapes text quotes, newlines and spreadsheet formula prefixes.
 
 `GET /api/v1/model-computers/{executor_id}/usage/summary` accepts `month` and optional `query`, returning `source`, `period`, `observed_at_ms`, `totals` and `groups`. Pagination cursors/limits are rejected. More than 10000 Provider/model/protocol groups produces an explicit error requiring a narrower search, without silent truncation. Reads recheck computer ownership and space access; account/space changes cancel stale UI requests. Deleting original records or session mappings removes them from summaries as well as details. This export does not include the separate cross-computer request ledger below.
+
+## Cross-computer monthly summaries and CSV
+
+Expanded cross-computer requests use the UTC month selected above and the whole current space, independently of the direct-device computer selector. Both details and summaries share the search filter. Summaries cover every matching page and count logical requests separately from actual upstream attempts. Missing token counters stay unknown, with per-field reporting coverage. Months follow request acceptance time; late reports update the original month on refresh.
+
+The forwarding CSV retains execution/source computer IDs and names, actual submitter, model owner, original resource owner, Provider, model and protocol. `row_kind=total` is the total; `model_route` rows are its components and must not be added again. Empty counters are unknown and reported zero remains zero. Text cells escape quotes, line breaks and spreadsheet formula prefixes. The export contains no prompts, upstream addresses or keys, and is separate from direct-device reports and platform billing.
+
+The summary loads only when expanded. Month/search changes and explicit refresh update it; pagination alone does not reload it. Account/space changes cancel the old request and discard late responses. Collaborators without their own computers can still choose a month and inspect their authorized forwarding records. The submitter or model owner must retain current space access; administrative or resource-ownership status alone grants no extra visibility.

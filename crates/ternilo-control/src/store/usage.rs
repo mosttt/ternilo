@@ -11,10 +11,10 @@ use super::{ControlStore, database_error, from_i64, require_action, set_tenant, 
 
 const MAX_REPORT_ROWS: u32 = 1_000;
 
-pub(super) struct UsagePeriod {
-    pub(super) label: String,
-    pub(super) start_ms: u64,
-    pub(super) end_ms: u64,
+pub(crate) struct UsagePeriod {
+    pub(crate) label: String,
+    pub(crate) start_ms: u64,
+    pub(crate) end_ms: u64,
 }
 
 impl ControlStore {
@@ -79,7 +79,7 @@ fn validate_limit(limit: u32) -> Result<(), HarnessError> {
     }
 }
 
-pub(super) fn period_bounds(
+pub(crate) fn period_bounds(
     period: Option<&str>,
     now_ms: u64,
 ) -> Result<UsagePeriod, HarnessError> {

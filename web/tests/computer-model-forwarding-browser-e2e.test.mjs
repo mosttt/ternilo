@@ -178,8 +178,36 @@ test('Server forwards models through the source computer while tools stay on the
     assert.equal((await owner(`/model-options?session_id=${id}`)).current.selection.executor_id, source.id)
     result.checks.push('offline source is unavailable and reconnection preserves the selected identity')
 
+    const month = new Date().toISOString().slice(0, 7)
+    const ledger = (await owner(`/computer-model-requests?month=${month}&limit=100`)).requests
+    const aggregate = await owner(`/computer-model-requests/summary?month=${month}`)
+    assert.equal(aggregate.source, 'computer_forwarded')
+    assert.equal(aggregate.totals.requests, ledger.length)
+    assert.equal(aggregate.totals.usage.attempts, ledger.reduce((total, row) => total + row.attempts.length, 0))
+    const observed = ledger.flatMap(row => row.attempts).filter(attempt => attempt.report?.usage?.input_tokens != null)
+    assert.equal(aggregate.totals.usage.input.reported_attempts, observed.length)
+    assert.equal(aggregate.totals.usage.input.tokens, observed.reduce((total, attempt) => total + attempt.report.usage.input_tokens, 0))
+    assert.ok(aggregate.groups.some(group => group.actor_user_id === serviceAccount.service_account_id && group.model_owner_user_id === identity.user.user_id))
+    assert.ok(aggregate.groups.every(group => group.execution_executor_id === execution.id && group.source_executor_id === source.id))
+    const smallPage = await owner(`/computer-model-requests?month=${month}&limit=1`)
+    assert.equal(smallPage.requests.length, 1)
+    assert.ok(aggregate.totals.requests > smallPage.requests.length)
     await page.goto(`${origin}/models?tab=usage&usage_source=device`)
+    assert.equal(requests.filter(row => row.url.pathname === '/api/v1/computer-model-requests/summary').length, 0, 'forwarded summaries wait until expanded')
     await page.getByText('跨电脑模型调用', { exact: true }).click()
+    const summaryPanel = page.locator('[data-forwarded-usage-summary]')
+    await summaryPanel.getByRole('button', { name: '导出跨电脑整月 CSV', exact: true }).waitFor()
+    const downloadReady = page.waitForEvent('download')
+    await summaryPanel.getByRole('button', { name: '导出跨电脑整月 CSV', exact: true }).click()
+    const download = await downloadReady
+    const csv = await readFile(await download.path(), 'utf8')
+    assert.ok(csv.startsWith('\uFEFF'))
+    assert.ok(csv.includes('"computer_forwarded"'))
+    assert.ok(csv.includes(serviceAccount.service_account_id))
+    assert.ok(csv.includes('"执行电脑","' + source.id + '","模型电脑"'))
+    assert.ok(!csv.includes(sourceKey))
+    assert.match(download.suggestedFilename(), /^ternilo-forwarded-usage-/)
+    result.checks.push('full-month forwarding aggregates match all canonical attempts, preserve distinct identities and export real CSV without upstream secrets')
     const firstRequest = page.locator('[data-forwarded-model-request]').first()
     await firstRequest.waitFor()
     await firstRequest.locator('summary').click()
@@ -194,7 +222,7 @@ test('Server forwards models through the source computer while tools stay on the
   } catch (error) {
     result.status = 'failed'
     result.error = String(error?.stack ?? error)
-    result.diagnostics = processes.map(process => process.diagnostics())
+    result.diagnostics = processes.map(process => ({ pid: process.child.pid, exitCode: process.child.exitCode, signalCode: process.child.signalCode, output: process.diagnostics() }))
     if (artifacts && page) await page.screenshot({ path: path.join(artifacts, 'failure.png') }).catch(() => {})
     throw error
   } finally {

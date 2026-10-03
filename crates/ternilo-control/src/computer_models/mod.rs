@@ -1,3 +1,6 @@
+mod summary;
+pub use summary::{ComputerModelUsageGroup, ComputerModelUsageSummary, ComputerModelUsageTotals};
+
 use crate::{
     ControlStore, ControlUser, NodeModelPrincipal, PageQuery,
     crypto::random_identifier,
@@ -99,8 +102,10 @@ impl ControlStore {
         actor: &ControlUser,
         tenant: &TenantId,
         query: &PageQuery,
+        period: Option<&str>,
         now: u64,
     ) -> Result<ComputerModelRequestPage, HarnessError> {
+        let period = crate::store::period_bounds(period, now)?;
         let (pattern, cursor) = query.parameters()?;
         let cursor = cursor
             .as_deref()
@@ -114,7 +119,7 @@ impl ControlStore {
                 Ok::<_, HarnessError>((time, id))
             })
             .transpose()?;
-        let mut tx = self.database.tenant_transaction(tenant).await?;
+        let mut tx = self.database.tenant_read_transaction(tenant).await?;
         crate::store::require_action(
             &mut tx,
             tenant,
@@ -122,11 +127,9 @@ impl ControlStore {
             crate::ControlAction::TenantRead,
         )
         .await?;
-        // A lost Server/Node connection is never replayed; retain unknown usage.
-        sqlx::query("UPDATE control_computer_model_requests SET state='failed',error_code='connection_lost' WHERE tenant_id=$1 AND state='pending' AND updated_at_ms<$2")
-            .bind(tenant.as_str()).bind(to_i64(now.saturating_sub(60_000), "model request expiry")?).execute(&mut *tx).await.map_err(database_error)?;
-        let rows = sqlx::query("SELECT r.*,COALESCE(e.display_name,r.execution_executor_id) AS execution_computer_name,COALESCE(s.display_name,r.source_executor_id) AS source_computer_name FROM control_computer_model_requests r LEFT JOIN control_computer_management e ON e.tenant_id=r.tenant_id AND e.executor_id=r.execution_executor_id LEFT JOIN control_computer_management s ON s.tenant_id=r.tenant_id AND s.executor_id=r.source_executor_id WHERE r.tenant_id=$1 AND (r.actor_user_id=$2 OR r.model_owner_user_id=$2) AND (CAST($3 AS TEXT) IS NULL OR LOWER(r.request_id) LIKE $3 ESCAPE '!' OR LOWER(r.snapshot_json) LIKE $3 ESCAPE '!') AND (CAST($4 AS BIGINT) IS NULL OR r.created_at_ms<$4 OR (r.created_at_ms=$4 AND r.request_id<$5)) ORDER BY r.created_at_ms DESC,r.request_id DESC LIMIT $6")
+        let rows = sqlx::query("SELECT r.*,COALESCE(e.display_name,r.execution_executor_id) AS execution_computer_name,COALESCE(s.display_name,r.source_executor_id) AS source_computer_name FROM control_computer_model_requests r LEFT JOIN control_computer_management e ON e.tenant_id=r.tenant_id AND e.executor_id=r.execution_executor_id LEFT JOIN control_computer_management s ON s.tenant_id=r.tenant_id AND s.executor_id=r.source_executor_id WHERE r.tenant_id=$1 AND (r.actor_user_id=$2 OR r.model_owner_user_id=$2) AND r.created_at_ms >= $7 AND r.created_at_ms < $8 AND (CAST($3 AS TEXT) IS NULL OR LOWER(r.request_id) LIKE $3 ESCAPE '!' OR LOWER(r.snapshot_json) LIKE $3 ESCAPE '!') AND (CAST($4 AS BIGINT) IS NULL OR r.created_at_ms<$4 OR (r.created_at_ms=$4 AND r.request_id<$5)) ORDER BY r.created_at_ms DESC,r.request_id DESC LIMIT $6")
             .bind(tenant.as_str()).bind(actor.user_id.as_str()).bind(pattern).bind(cursor.map(|(time, _)| time)).bind(cursor.map(|(_, id)| id)).bind(i64::from(query.limit) + 1)
+            .bind(to_i64(period.start_ms, "usage period")?).bind(to_i64(period.end_ms, "usage period")?)
             .fetch_all(&mut *tx).await.map_err(database_error)?;
         let mut requests = Vec::new();
         for row in rows {
@@ -141,6 +144,12 @@ impl ControlStore {
                         report: row.try_get::<Option<String>, _>("report_json").map_err(database_error)?.map(|value| serde_json::from_str(&value).map_err(|_| HarnessError::execution("invalid stored model report"))).transpose()?,
                     })
                 }).collect::<Result<Vec<_>, HarnessError>>()?;
+            let state: String = row.try_get("state").map_err(database_error)?;
+            let expired = state == "pending"
+                && from_i64(
+                    row.try_get("updated_at_ms").map_err(database_error)?,
+                    "model request heartbeat",
+                )? < now.saturating_sub(60_000);
             requests.push(ComputerModelRequestRecord {
                 request_id: id,
                 session_id: row.try_get("session_id").map_err(database_error)?,
@@ -172,8 +181,12 @@ impl ControlStore {
                         .map_err(database_error)?,
                 )
                 .map_err(|_| HarnessError::execution("invalid stored model snapshot"))?,
-                state: row.try_get("state").map_err(database_error)?,
-                error_code: row.try_get("error_code").map_err(database_error)?,
+                state: if expired { "failed".into() } else { state },
+                error_code: if expired {
+                    Some("connection_lost".into())
+                } else {
+                    row.try_get("error_code").map_err(database_error)?
+                },
                 created_at_ms: from_i64(
                     row.try_get("created_at_ms").map_err(database_error)?,
                     "request timestamp",
@@ -359,3 +372,6 @@ impl ControlStore {
         tx.commit().await.map_err(database_error)
     }
 }
+
+#[cfg(test)]
+mod summary_tests;

@@ -140,6 +140,7 @@ pub(super) async fn contract(
                 actor,
                 tenant,
                 &ternilo_control::PageQuery::default(),
+                None,
                 now + 5,
             )
             .await
@@ -160,6 +161,7 @@ pub(super) async fn contract(
                 &fixture.bob,
                 &fixture.tenant_b,
                 &ternilo_control::PageQuery::default(),
+                None,
                 now + 5
             )
             .await

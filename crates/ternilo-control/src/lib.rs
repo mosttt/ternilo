@@ -11,6 +11,7 @@ mod computer_models;
 pub use computer_management::{ComputerDetails, ComputerManagement, ComputerUpdate};
 pub use computer_models::{
     ComputerModelAttemptRecord, ComputerModelRequestPage, ComputerModelRequestRecord,
+    ComputerModelUsageGroup, ComputerModelUsageSummary, ComputerModelUsageTotals,
 };
 mod authentication_settings;
 mod crypto;

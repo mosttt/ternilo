@@ -31,6 +31,7 @@ pub use computer_usage::{
 };
 mod projects;
 mod usage;
+pub(crate) use usage::period_bounds;
 
 const MAX_EXTENSION_PUBLISHERS_PER_TENANT: i64 = 256;
 const MAX_EXTENSION_PACKAGES_PER_TENANT: i64 = 256;

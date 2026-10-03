@@ -42,7 +42,10 @@ Live transport supplies authenticated state/events and uses independent cursors 
 
 Space administrators can create independent service identities, issue space-scoped read or execute HTTP credentials, disable accounts and revoke individual credentials. See [service accounts](service-accounts.md) for endpoints, expiry and resource boundaries. Browser sessions and service credentials are managed separately; service identities do not inherit the creator’s private resources.
 
-`GET /api/v1/computer-model-requests` lists cross-computer model requests related to the current account in the selected space. It accepts `query`, `cursor` and `limit`, returning `requests` and `next_cursor`. Records contain execution/source computers, the actual submitter, model owner, original resource owner and per-attempt device reports, without prompts or keys. Only the submitter or model owner can read a record, subject to current account and space access.
+`GET /api/v1/computer-model-requests` lists cross-computer model requests related to the current account in the selected space. It accepts `month=YYYY-MM` (current UTC month by default), `query`, `cursor` and `limit`, returning `requests` and `next_cursor`. Records contain execution/source computers, the actual submitter, model owner, original resource owner and per-attempt device reports, without prompts or keys. Only the submitter or model owner can read a record, subject to current account and space access.
+
+`GET /api/v1/computer-model-requests/summary` accepts the same `month`/`query` and returns full-month `source=computer_forwarded`, `period`, `observed_at_ms`, `totals` and `groups`. It rejects `cursor`/`limit` and more than 10000 identity/computer/model groups without silently truncating totals. Visibility matches the details.
+
 
 For managed sessions, `/api/v1/model-options` returns the saved delegated source and the current account's available grants. `current.owner_user_id` identifies the model provider; account selections use `account_provider` with `owner_user_id`. Configuration permission permits selecting one's own models or retaining the existing source, not choosing unrelated private models belonging to another account. Model-owner configuration authority is checked during request admission, retries and active execution. Execution and resource ownership remain unchanged.
 

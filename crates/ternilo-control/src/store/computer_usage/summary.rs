@@ -126,6 +126,20 @@ fn summary_rows(
     let mut groups = Vec::with_capacity(rows.len());
     let mut totals = ComputerUsageTotals::default();
     for row in rows {
+        let group = ComputerUsageTotals::from_row(&row)?;
+        totals.add(&group)?;
+        groups.push(ComputerUsageGroup {
+            provider: row.try_get("provider").map_err(database_error)?,
+            model: row.try_get("model").map_err(database_error)?,
+            protocol: row.try_get("protocol").map_err(database_error)?,
+            totals: group,
+        });
+    }
+    Ok((groups, totals))
+}
+
+impl ComputerUsageTotals {
+    pub(crate) fn from_row(row: &sqlx::any::AnyRow) -> Result<Self, HarnessError> {
         let number = |name: &str| -> Result<u64, HarnessError> {
             u64::try_from(row.try_get::<i64, _>(name).map_err(database_error)?)
                 .map_err(|_| HarnessError::execution("invalid device usage count"))
@@ -141,7 +155,7 @@ fn summary_rows(
                 reported_attempts: number(format!("{field}_reported").as_str())?,
             })
         };
-        let group = ComputerUsageTotals {
+        Ok(Self {
             attempts: number("attempts")?,
             completed: number("completed")?,
             failed: number("failed")?,
@@ -150,20 +164,10 @@ fn summary_rows(
             cached_input: count("cached_input_tokens")?,
             cache_write: count("cache_write_tokens")?,
             reasoning: count("reasoning_tokens")?,
-        };
-        totals.add(&group)?;
-        groups.push(ComputerUsageGroup {
-            provider: row.try_get("provider").map_err(database_error)?,
-            model: row.try_get("model").map_err(database_error)?,
-            protocol: row.try_get("protocol").map_err(database_error)?,
-            totals: group,
-        });
+        })
     }
-    Ok((groups, totals))
-}
 
-impl ComputerUsageTotals {
-    fn add(&mut self, other: &Self) -> Result<(), HarnessError> {
+    pub(crate) fn add(&mut self, other: &Self) -> Result<(), HarnessError> {
         fn sum(a: u64, b: u64) -> Result<u64, HarnessError> {
             a.checked_add(b)
                 .ok_or_else(|| HarnessError::execution("device usage total overflow"))

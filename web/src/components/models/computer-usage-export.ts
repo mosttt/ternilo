@@ -22,12 +22,18 @@ export function usageCsv(report: UsageSummary, computer: { executor_id: string; 
     kind, provider, model, protocol, totals.attempts, totals.completed, totals.failed, totals.attempts - totals.completed,
     ...counters.flatMap(field => [totals[field].tokens, totals[field].reported_attempts]),
   ]
-  return '\uFEFF' + [header, row('total', '', '', '', report.totals), ...report.groups.map(group => row('model', group.provider, group.model, group.protocol, group.totals))].map(values => values.map(cell).join(',')).join('\r\n') + '\r\n'
+  return encodeUsageCsv([header, row('total', '', '', '', report.totals), ...report.groups.map(group => row('model', group.provider, group.model, group.protocol, group.totals))])
 }
 export function downloadUsageCsv(report: UsageSummary, computer: { executor_id: string; management: { name: string } }) {
-  const url = URL.createObjectURL(new Blob([usageCsv(report, computer)], { type: 'text/csv;charset=utf-8' }))
+  downloadUsageReport(usageCsv(report, computer), `ternilo-usage-${computer.executor_id}-${report.period}.csv`)
+}
+export function encodeUsageCsv(rows: Array<Array<string | number | null>>) {
+  return '\uFEFF' + rows.map(values => values.map(cell).join(',')).join('\r\n') + '\r\n'
+}
+export function downloadUsageReport(csv: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   const anchor = document.createElement('a'); anchor.href = url
-  anchor.download = `ternilo-usage-${computer.executor_id}-${report.period}.csv`
+  anchor.download = filename
   document.body.append(anchor); anchor.click(); anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }

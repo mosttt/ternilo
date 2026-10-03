@@ -1,3 +1,4 @@
+import { ForwardedUsageSummary } from './forwarded-usage-summary'
 import { useTranslate } from '@/i18n/provider'
 import type { ModelUsage } from './model-service-api'
 import { ModelDirectory, useModelDate, useModelPage } from './model-service-ui'
@@ -18,12 +19,13 @@ interface ForwardedRequest {
   attempts: Array<{ attempt: number; report: { usage: ModelUsage | null; error_code: string | null; http_status: number | null } | null }>
 }
 
-export function ComputerModelUsage({ tenantId }: { tenantId: string }) {
+export function ComputerModelUsage({ tenantId, month }: { tenantId: string; month: string }) {
   const t = useTranslate('modelService')
   const date = useModelDate()
-  const page = useModelPage<ForwardedRequest>('/computer-model-requests', 'requests', tenantId)
+  const page = useModelPage<ForwardedRequest>(`/computer-model-requests?month=${encodeURIComponent(month)}`, 'requests', tenantId)
   return <div data-forwarded-model-usage="">
     <p className={css.hint}>{t('forwardedUsageDescription')}</p>
+    <ForwardedUsageSummary key={page.query} tenantId={tenantId} month={month} query={page.query} revision={page.revision} />
     <ModelDirectory state={page} label={t('requests')}>
       <div className={css.list}>{page.items.map(request => <article className={css.row} key={request.request_id} data-forwarded-model-request={request.request_id}>
         <div className={css.identity}>

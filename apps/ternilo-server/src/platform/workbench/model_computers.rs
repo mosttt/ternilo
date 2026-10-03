@@ -158,15 +158,21 @@ pub(super) async fn forwarded_usage(
 ) -> Result<Json<ternilo_control::ComputerModelRequestPage>, ApiError> {
     let tenant = tenant_parameter(request)?;
     let query = request
-        .parse_queries::<ternilo_control::PageQuery>()
+        .parse_queries::<UsageQuery>()
         .map_err(crate::platform::http::invalid_request)?;
+    let page = ternilo_control::PageQuery {
+        query: query.query,
+        cursor: query.cursor,
+        limit: query.limit.unwrap_or(25),
+    };
     Ok(Json(
         app_state(depot)
             .store
             .list_computer_model_requests(
                 actor(depot),
                 &tenant,
-                &query,
+                &page,
+                query.month.as_deref(),
                 crate::platform::http::now_ms()?,
             )
             .await?,
@@ -199,6 +205,35 @@ pub(super) async fn usage_summary(
                 actor(depot),
                 &tenant,
                 &executor,
+                query.month.as_deref(),
+                query.query.as_deref(),
+                crate::platform::http::now_ms()?,
+            )
+            .await?,
+    ))
+}
+
+#[handler]
+pub(super) async fn forwarded_summary(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ternilo_control::ComputerModelUsageSummary>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let query = request
+        .parse_queries::<UsageQuery>()
+        .map_err(crate::platform::http::invalid_request)?;
+    if query.cursor.is_some() || query.limit.is_some() {
+        return Err(ternilo_protocol::HarnessError::invalid(
+            "usage summaries do not accept pagination",
+        )
+        .into());
+    }
+    Ok(Json(
+        app_state(depot)
+            .store
+            .computer_model_usage_summary(
+                actor(depot),
+                &tenant,
                 query.month.as_deref(),
                 query.query.as_deref(),
                 crate::platform::http::now_ms()?,

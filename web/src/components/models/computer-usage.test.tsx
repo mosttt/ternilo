@@ -74,3 +74,32 @@ it('aborts an old report and discards its late private rows after changing accou
   expect(host.textContent).toContain('new-account-model')
   expect(host.textContent).not.toContain('old-private-model')
 })
+
+it('loads monthly forwarded totals on expansion even without owned computers and drops the previous account snapshot', async () => {
+  let resolveOld!: (value: unknown) => void
+  let oldSignal: AbortSignal | undefined
+  const forwarded = (tokens: number) => ({ source: 'computer_forwarded', period: new Date().toISOString().slice(0, 7), observed_at_ms: 1000, groups: [], totals: { requests: 1, active_requests: 0, usage: { ...summary().totals, input: { tokens, reported_attempts: 1 } } } })
+  vi.mocked(api.request).mockImplementation(async (path, options) => {
+    if (path.includes('/my-computers')) return { executors: [] } as never
+    if (path.includes('/computer-model-requests/summary')) {
+      if ((options?.headers as Record<string, string>)['x-ternilo-tenant'] === 'space-a') {
+        oldSignal = options?.signal ?? undefined
+        return new Promise(resolve => { resolveOld = resolve }) as never
+      }
+      return forwarded(321) as never
+    }
+    return { requests: [], next_cursor: null } as never
+  })
+  await render()
+  expect(host.querySelector('input[type="month"]')).not.toBeNull()
+  expect(api.request).toHaveBeenCalledTimes(1)
+  const details = host.querySelector('details')!
+  await act(async () => { details.open = true; details.dispatchEvent(new Event('toggle')) })
+  expect(api.request).toHaveBeenCalledWith(expect.stringContaining(`/computer-model-requests/summary?month=${new Date().toISOString().slice(0, 7)}`), expect.objectContaining({ headers: { 'x-ternilo-tenant': 'space-a' } }))
+  workbench.serverIdentity = { personal_tenant_id: 'space-b', user: { user_id: 'bob', username: 'Bob' } }
+  await render()
+  expect(oldSignal?.aborted).toBe(true)
+  await act(async () => resolveOld(forwarded(987654)))
+  expect(host.querySelector('[data-forwarded-usage-summary]')?.textContent).toContain('321')
+  expect(host.textContent).not.toContain('987,654')
+})

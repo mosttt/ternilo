@@ -234,12 +234,26 @@ impl ClusterForwarder {
             .timeout(timeout.saturating_add(Duration::from_secs(5)))
             .send()
             .await
-            .map_err(|_| uncertain_forward())?;
+            .map_err(|error| {
+                eprintln!(
+                    "Server peer transport failure: timeout={}, connect={}",
+                    error.is_timeout(),
+                    error.is_connect()
+                );
+                uncertain_forward()
+            })?;
         if !response.status().is_success() {
+            eprintln!("Server peer returned HTTP {}", response.status().as_u16());
             return Err(uncertain_forward());
         }
         let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(|_| uncertain_forward())? {
+        while let Some(chunk) = response.chunk().await.map_err(|error| {
+            eprintln!(
+                "Server peer response body failure: timeout={}",
+                error.is_timeout()
+            );
+            uncertain_forward()
+        })? {
             if bytes.len().saturating_add(chunk.len()) > MAX_REPLY_BYTES {
                 return Err(HarnessError::unavailable(
                     "Server peer reply exceeds the Node message limit",
@@ -247,9 +261,15 @@ impl ClusterForwarder {
             }
             bytes.extend_from_slice(&chunk);
         }
-        let reply: ForwardReply =
-            serde_json::from_slice(&bytes).map_err(|_| uncertain_forward())?;
+        let reply: ForwardReply = serde_json::from_slice(&bytes).map_err(|error| {
+            eprintln!(
+                "Server peer response decoding failed: {:?}",
+                error.classify()
+            );
+            uncertain_forward()
+        })?;
         if reply.request_id != input.request_id {
+            eprintln!("Server peer response identity mismatch");
             return Err(uncertain_forward());
         }
         reply.result
