@@ -20,6 +20,6 @@
 
 真实 Chromium SQLite 流程验证全站和账号 429、Retry-After、账号覆盖与恢复继承、旧版本保存冲突、按需读取及 1440／390／320 布局。单 Server SQLite、双 Server 受限 PostgreSQL 的电脑转发均验证服务账号限额独立于模型所有者；拒绝不产生新账本行，也不会调用来源电脑上游。
 
-PostgreSQL 网页复验发现刷新后的旧表单存在被响应覆盖的输入时序，已将刷新按钮改为立即移除旧编辑表单；新增回归，最终匹配程序在 SQLite 及双 Server／受限 PostgreSQL 上复验通过。发行候选 `df4920d` 不包含此功能，避免将其与上一阶段已冻结版本混淆。
+PostgreSQL 网页复验发现刷新后的旧表单存在被响应覆盖的输入时序，已将刷新按钮改为立即移除旧编辑表单；新增回归，最终匹配程序在 SQLite 及双 Server／受限 PostgreSQL 上复验通过。双库与实际浏览器验证通过后，此功能加入下一次 v0.2.0 候选；原 `df4920d` 尚未发行，不创建或改写已公开标签。
 
 最终浏览器证据：`/tmp/ternilo-traffic-browser-final/model-traffic`、`/tmp/ternilo-traffic-browser-pg-final/model-traffic`；电脑转发证据：`/tmp/ternilo-traffic-browser/computer-model-forwarding`、`/tmp/ternilo-traffic-forward-pg/computer-model-forwarding`。这些路径只记录本机验收，不作为通用测试环境或部署要求。

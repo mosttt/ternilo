@@ -64,6 +64,7 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     assert.deepEqual(detailRequests, [], 'details must not load with the list')
     await card.getByRole('button', { name: '详情与编辑', exact: true }).click()
     const dialog = page.locator('[data-computer-details]')
+    await dialog.getByText(executorId, { exact: true }).waitFor({ state: 'visible' })
     assert.equal(await dialog.getByText(executorId,{ exact:true }).count(),1)
     assert.ok(!(await dialog.locator('input').evaluateAll(inputs=>inputs.map(input=>input.value))).includes(executorId),'ID must not be editable')
     await dialog.getByLabel('电脑名称', { exact: true }).fill('开发电脑')
