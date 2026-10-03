@@ -39,10 +39,16 @@ jobs:
     uses: ./.github/workflows/packages.yml
   server-image-build:
     needs: version
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 120
-    outputs:
-      image_id: ${{ steps.saved.outputs.image_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -66,9 +72,9 @@ jobs:
           file: ternilo/deploy/docker/Dockerfile
           target: server
           build-contexts: linorun=./linorun
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.arch }}
           load: true
-          tags: ternilo-server:ci
+          tags: ternilo-server:ci-${{ matrix.arch }}
           build-args: |
             CARGO_BUILD_JOBS=2
           labels: |
@@ -76,21 +82,23 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
             org.opencontainers.image.licenses=Apache-2.0
-          cache-from: type=gha,scope=ternilo-server-amd64
-          cache-to: type=gha,mode=max,scope=ternilo-server-amd64
+          cache-from: type=gha,scope=ternilo-server-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=ternilo-server-${{ matrix.arch }}
       - name: Validate the actual image
-        run: python3 ternilo/scripts/ci/server-image-smoke.py --image ternilo-server:ci
+        run: python3 ternilo/scripts/ci/server-image-smoke.py --image ternilo-server:ci-${{ matrix.arch }}
       - name: Save the tested candidate
-        id: saved
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           set -o pipefail
           mkdir -p image-candidate
-          docker save ternilo-server:ci | gzip -1 > image-candidate/server-image.tar.gz
-          echo "image_id=$(docker image inspect ternilo-server:ci --format '{{.Id}}')" >> "$GITHUB_OUTPUT"
+          test "$(docker image inspect "ternilo-server:ci-$ARCH" --format '{{.Architecture}}')" = "$ARCH"
+          docker save "ternilo-server:ci-$ARCH" | gzip -1 > "image-candidate/server-image-$ARCH.tar.gz"
+          docker image inspect "ternilo-server:ci-$ARCH" --format '{{.Id}}' > "image-candidate/server-image-$ARCH.id"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: server-image-candidate
-          path: image-candidate/server-image.tar.gz
+          name: server-image-candidate-${{ matrix.arch }}
+          path: image-candidate/*
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
@@ -104,14 +112,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: server-image-candidate
+          pattern: server-image-candidate-*
           path: image-candidate
+          merge-multiple: true
       - name: Load the exact tested image
-        env:
-          EXPECTED_IMAGE_ID: ${{ needs.server-image-build.outputs.image_id }}
         run: |
-          docker load --input image-candidate/server-image.tar.gz
-          test "$(docker image inspect ternilo-server:ci --format '{{.Id}}')" = "$EXPECTED_IMAGE_ID"
+          for arch in amd64 arm64; do
+            docker load --input "image-candidate/server-image-$arch.tar.gz"
+            test "$(docker image inspect "ternilo-server:ci-$arch" --format '{{.Id}}')" = "$(cat "image-candidate/server-image-$arch.id")"
+            test "$(docker image inspect "ternilo-server:ci-$arch" --format '{{.Architecture}}')" = "$arch"
+          done
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         if: startsWith(github.ref, 'refs/tags/')
         with:
@@ -124,21 +135,38 @@ jobs:
           IMAGE: ${{ needs.version.outputs.image }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          docker tag ternilo-server:ci "$IMAGE:$VERSION"
-          docker tag ternilo-server:ci "$IMAGE:sha-$GITHUB_SHA"
-          docker push "$IMAGE:$VERSION"
-          docker push "$IMAGE:sha-$GITHUB_SHA"
           mkdir -p image-metadata
-          docker inspect "$IMAGE:$VERSION" --format '{{index .RepoDigests 0}}' > image-metadata/server-image.txt
+          sources=()
+          for arch in amd64 arm64; do
+            destination="$IMAGE:sha-$GITHUB_SHA-$arch"
+            docker tag "ternilo-server:ci-$arch" "$destination"
+            docker push "$destination"
+            digest=$(docker image inspect "$destination" --format '{{index .RepoDigests 0}}')
+            sources+=("$digest")
+            printf 'linux/%s %s\n' "$arch" "$digest" >> image-metadata/server-image.txt
+          done
+          docker buildx imagetools create --tag "$IMAGE:$VERSION" --tag "$IMAGE:sha-$GITHUB_SHA" "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:$VERSION" --raw > image-metadata/server-image-index.json
+          python3 - <<'PYVERIFY'
+          import json
+          from pathlib import Path
+          index = json.loads(Path('image-metadata/server-image-index.json').read_text())
+          actual = {(m['platform']['os'], m['platform']['architecture']): m['digest'] for m in index['manifests']}
+          expected = {tuple(platform.split('/')): reference.split('@')[1] for platform, reference in (line.split() for line in Path('image-metadata/server-image.txt').read_text().splitlines())}
+          assert actual == expected, (actual, expected)
+          PYVERIFY
+          docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' >> image-metadata/server-image.txt
       - name: Retain candidate metadata
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: |
           mkdir -p image-metadata
-          docker inspect ternilo-server:ci --format '{{.Id}}' > image-metadata/server-image.txt
+          for arch in amd64 arm64; do
+            printf 'linux/%s %s\n' "$arch" "$(cat "image-candidate/server-image-$arch.id")" >> image-metadata/server-image.txt
+          done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: server-image-metadata
-          path: image-metadata/server-image.txt
+          path: image-metadata/*
           if-no-files-found: error
   publish-release:
     if: startsWith(github.ref, 'refs/tags/')
@@ -184,7 +212,7 @@ jobs:
           else
             printf '%s\n\n' 'Client and Server binaries, desktop installers, and the tested Server image digest are attached.' 'Desktop installers are unsigned; automatic updates remain disabled.' 'Download compose.server.yml and docker-compose.md to deploy the published image without a local build.' > release-notes.md
           fi
-          printf 'Server image: `%s:%s` (linux/amd64).\n' "$IMAGE" "$VERSION" >> release-notes.md
+          printf 'Server image: `%s:%s` (linux/amd64, linux/arm64).\n' "$IMAGE" "$VERSION" >> release-notes.md
           flags=()
           if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" artifacts/* --verify-tag --draft --title "Ternilo $GITHUB_REF_NAME" --notes-file release-notes.md "${flags[@]}"

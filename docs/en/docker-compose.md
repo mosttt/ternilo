@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/docker-compose.md)
 
-Install Docker Engine and the Compose plugin. Compose pulls `ghcr.io/mosttt/ternilo-server:0.2.0` directly; no Rust, Node.js, Python, source checkout or local build is required. The current image targets `linux/amd64`.
+Install Docker Engine and the Compose plugin. Compose pulls `ghcr.io/mosttt/ternilo-server:0.2.0` directly; no Rust, Node.js, Python, source checkout or local build is required. The image supports `linux/amd64` and `linux/arm64`; Docker selects the host architecture.
 
 ```sh
 mkdir ternilo-server

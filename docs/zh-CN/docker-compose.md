@@ -2,7 +2,7 @@
 
 [English](../en/docker-compose.md)
 
-需要 Docker Engine 和 Compose 插件。默认直接拉取 `ghcr.io/mosttt/ternilo-server:0.2.0`，无需 Rust、Node.js、Python、源码检出或本地构建。当前镜像平台为 `linux/amd64`。
+需要 Docker Engine 和 Compose 插件。默认直接拉取 `ghcr.io/mosttt/ternilo-server:0.2.0`，无需 Rust、Node.js、Python、源码检出或本地构建。镜像同时提供 `linux/amd64` 和 `linux/arm64`，Docker 自动选择宿主架构。
 
 创建一个部署目录，下载已发布的 Compose 文件：
 

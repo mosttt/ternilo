@@ -2,7 +2,7 @@
 
 Ternilo 可以从本地源码生成二进制交付包和 Docker 镜像。本指南不依赖公共下载站或预先发布的镜像。构建机需要 Ternilo、相邻的 Linorun、仓库固定的 Rust 工具链和 Node.js；具体布局见[本地快速开始](getting-started.md)。
 
-通过[GitHub CI 与发行流程](ci-release.md)可以生成四平台客户端／Server 二进制与桌面安装器，验收并上传 Server 镜像到 GHCR。本指南提供本地组件打包和 Server／Worker 镜像构建命令。版本、包可见性、代码签名与平台验收由发行方管理；桌面自动更新保持关闭。
+通过[GitHub CI 与发行流程](ci-release.md)可以生成五平台客户端／Server 二进制与桌面安装器，验收并上传 Server 镜像到 GHCR。本指南提供本地组件打包和 Server／Worker 镜像构建命令。版本、包可见性、代码签名与平台验收由发行方管理；桌面自动更新保持关闭。
 
 组件包包含中英文首页、正式指南、项目许可和第三方许可。桌面安装包在应用资源目录保留许可文件，容器镜像将其放在 `/usr/share/ternilo/`。重新分发时须保留 `LICENSE`、`THIRD_PARTY_NOTICES.md` 和 `licenses/`。
 
