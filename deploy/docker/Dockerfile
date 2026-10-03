@@ -57,8 +57,6 @@ FROM debian:bookworm-slim AS runtime-base
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends bubblewrap ca-certificates curl git ripgrep tini \
-    && mkdir -p /usr/sbin \
-    && ln -sf "$(command -v bwrap)" /usr/sbin/bwrap \
     && groupadd --gid 10001 ternilo \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin ternilo \
     && rm -rf /var/lib/apt/lists/*

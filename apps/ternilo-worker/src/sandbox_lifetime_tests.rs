@@ -3,7 +3,7 @@ use crate::process_lifetime::ManagedChild;
 use std::{path::Path, process::Stdio};
 
 fn sandbox_command(workspace: &Path) -> Command {
-    let mut command = Command::new("/usr/sbin/bwrap");
+    let mut command = Command::new("/usr/bin/bwrap");
     SandboxLifetime::add_options(&mut command);
     command.args(["--unshare-all", "--die-with-parent", "--new-session", "--ro-bind", "/usr", "/usr",
         "--symlink", "usr/bin", "/bin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64",

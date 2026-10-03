@@ -167,7 +167,7 @@ fn bubblewrap_child(
     workspace_path: &Path,
     container_mode: bool,
 ) -> Command {
-    let mut command = Command::new("/usr/sbin/bwrap");
+    let mut command = Command::new("/usr/bin/bwrap");
     command.arg("--die-with-parent").arg("--new-session");
     #[cfg(target_os = "linux")]
     sandbox_lifetime::SandboxLifetime::add_options(&mut command);

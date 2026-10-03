@@ -239,7 +239,7 @@ async fn orphan_sandbox(
     guard: &OccupancyGuard,
 ) -> crate::process_lifetime::ManagedChild {
     use crate::{process_lifetime::ManagedChild, sandbox_lifetime::SandboxLifetime};
-    let mut command = tokio::process::Command::new("/usr/sbin/bwrap");
+    let mut command = tokio::process::Command::new("/usr/bin/bwrap");
     SandboxLifetime::add_options(&mut command);
     // Deliberately omit die-with-parent to exercise explicit cleanup of a surviving init.
     command.args(["--unshare-all", "--new-session", "--ro-bind", "/usr", "/usr",
