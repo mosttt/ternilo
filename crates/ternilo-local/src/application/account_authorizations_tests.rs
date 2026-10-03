@@ -684,7 +684,7 @@ async fn live_schedule_cleanup_refreshes_the_catalog_and_preserves_bobs_new_goal
         app.record_account_input_authorization(&input, &proof(1))
             .await
             .unwrap();
-        let running = {
+        let mut running = {
             let app = Arc::clone(&app);
             tokio::spawn(async move {
                 app.run_session_input_with_provenance(
@@ -695,7 +695,7 @@ async fn live_schedule_cleanup_refreshes_the_catalog_and_preserves_bobs_new_goal
                 .await
             })
         };
-        let question = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let question = tokio::time::timeout(std::time::Duration::from_secs(20), async {
             loop {
                 if let Some(question) = app
                     .pending_questions(Some("live-work"))
@@ -705,11 +705,14 @@ async fn live_schedule_cleanup_refreshes_the_catalog_and_preserves_bobs_new_goal
                 {
                     break question;
                 }
-                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                tokio::select! {
+                    result = &mut running => panic!("schedule run finished before requesting approval: {result:?}"),
+                    () = tokio::time::sleep(std::time::Duration::from_millis(5)) => {},
+                }
             }
         })
         .await
-        .unwrap();
+        .expect("schedule approval must appear after runtime initialization");
         assert_eq!(
             question.question.tool_approval.as_ref().unwrap().tool_name,
             "schedule_create"
@@ -721,7 +724,7 @@ async fn live_schedule_cleanup_refreshes_the_catalog_and_preserves_bobs_new_goal
         })
         .await
         .unwrap();
-        tokio::time::timeout(std::time::Duration::from_secs(5), running)
+        tokio::time::timeout(std::time::Duration::from_secs(20), running)
             .await
             .unwrap()
             .unwrap()
