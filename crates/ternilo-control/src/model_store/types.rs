@@ -318,6 +318,7 @@ pub enum ModelAccessErrorKind {
     InvalidInput,
     Conflict,
     QuotaExceeded,
+    RateLimited { retry_after_seconds: u64 },
     Internal,
 }
 

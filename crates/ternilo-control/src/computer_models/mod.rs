@@ -84,8 +84,8 @@ impl ControlStore {
         now: u64,
     ) -> Result<(), HarnessError> {
         set_tenant_scope(tx, tenant).await?;
-        let changed = sqlx::query("UPDATE control_computer_model_requests SET updated_at_ms=$3 WHERE tenant_id=$1 AND request_id=$2 AND state='pending'")
-            .bind(tenant.as_str()).bind(id).bind(to_i64(now, "model request heartbeat")?).execute(&mut **tx).await.map_err(database_error)?.rows_affected();
+        let changed = sqlx::query("UPDATE control_computer_model_requests SET updated_at_ms=$3 WHERE tenant_id=$1 AND request_id=$2 AND state='pending' AND updated_at_ms >= $4")
+            .bind(tenant.as_str()).bind(id).bind(to_i64(now, "model request heartbeat")?).bind(to_i64(now.saturating_sub(60_000), "model request expiry")?).execute(&mut **tx).await.map_err(database_error)?.rows_affected();
         if changed != 1 {
             return Err(HarnessError::policy(
                 "computer model request is no longer active",
@@ -226,7 +226,7 @@ impl ControlStore {
         payload_hash: &str,
         max_attempts: u32,
         now: u64,
-    ) -> Result<String, HarnessError> {
+    ) -> Result<String, crate::ModelAccessError> {
         self.require_computer_model_source_in(tx, &principal.snapshot.binding)
             .await?;
         let RunModelBinding::ComputerProvider {
@@ -244,9 +244,7 @@ impl ControlStore {
             || request_key.len() > 128
             || payload_hash.len() != 64
         {
-            return Err(HarnessError::invalid(
-                "invalid computer model request authority",
-            ));
+            return Err(HarnessError::invalid("invalid computer model request authority").into());
         }
         let existing: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM control_computer_model_requests WHERE tenant_id=$1 AND credential_id=$2 AND session_id=$3 AND run_id=$4 AND request_key=$5")
             .bind(tenant_id.as_str()).bind(&principal.credential_id).bind(principal.session_id.as_str()).bind(principal.run_id.as_str()).bind(request_key)
@@ -254,7 +252,8 @@ impl ControlStore {
         if existing != 0 {
             return Err(HarnessError::conflict(
                 "computer model request was already accepted; it cannot be replayed",
-            ));
+            )
+            .into());
         }
         let execution: String = sqlx::query_scalar(
             "SELECT executor_id FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2",
@@ -264,6 +263,7 @@ impl ControlStore {
         .fetch_one(&mut **tx)
         .await
         .map_err(database_error)?;
+        crate::model_traffic::check_admission(tx, &principal.actor_user_id, now).await?;
         let id = random_identifier("cmr");
         sqlx::query("INSERT INTO control_computer_model_requests(tenant_id,request_id,credential_id,session_id,run_id,request_key,payload_hash,execution_executor_id,source_executor_id,actor_user_id,model_owner_user_id,resource_owner_user_id,snapshot_json,max_attempts,state,created_at_ms,updated_at_ms) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending',$15,$15)")
             .bind(tenant_id.as_str()).bind(&id).bind(&principal.credential_id).bind(principal.session_id.as_str()).bind(principal.run_id.as_str()).bind(request_key).bind(payload_hash).bind(execution).bind(executor_id)

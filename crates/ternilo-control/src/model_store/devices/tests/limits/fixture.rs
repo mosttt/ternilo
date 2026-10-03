@@ -143,7 +143,7 @@ async fn user(store: &ControlStore, name: &str) -> ControlUser {
         .unwrap()
 }
 
-async fn grant(
+pub(super) async fn grant(
     store: &ControlStore,
     admin: &ControlUser,
     owner: &ControlUser,

@@ -1,5 +1,9 @@
 use super::*;
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Verify the complete attribution and lifecycle contract across authorization and settlement."
+)]
 pub(super) async fn contract(
     store: &ControlStore,
     owner: &ControlUser,
@@ -10,6 +14,23 @@ pub(super) async fn contract(
     let RunModelBinding::Platform { grant_id, .. } = &principal.snapshot.binding else {
         unreachable!()
     };
+    let baseline = store
+        .account_model_traffic(actor, &actor.user_id, NOW)
+        .await
+        .unwrap();
+    store
+        .update_account_model_traffic(
+            owner,
+            &actor.user_id,
+            baseline.revision,
+            Some(&crate::ModelTrafficLimits {
+                requests_per_minute: Some(u32::try_from(baseline.recent_requests + 1).unwrap()),
+                max_concurrent_requests: None,
+            }),
+            NOW,
+        )
+        .await
+        .unwrap();
     let permit = reserve_node(store, &principal, "first").await.unwrap();
     assert_eq!(permit.request.source, ModelRequestSource::PlatformGrant);
     assert_eq!(permit.request.grant_id.as_ref(), Some(grant_id));
@@ -60,6 +81,20 @@ pub(super) async fn contract(
             .used_tokens,
         80
     );
+    let counted = store
+        .account_model_traffic(actor, &actor.user_id, NOW)
+        .await
+        .unwrap();
+    assert_eq!(
+        counted.recent_requests,
+        baseline.recent_requests + 1,
+        "two internal attempts consume one logical request"
+    );
+    assert_eq!(counted.active_requests, baseline.active_requests);
+    store
+        .update_account_model_traffic(owner, &actor.user_id, counted.revision, None, NOW)
+        .await
+        .unwrap();
     grant.allow_resource_sharing = false;
     store
         .save_model_grant(owner, Some(grant_id), &grant, NOW)

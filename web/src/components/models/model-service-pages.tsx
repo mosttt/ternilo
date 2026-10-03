@@ -1,3 +1,4 @@
+import { ModelTrafficAdmin, OwnModelTraffic } from './model-traffic'
 import { ComputerUsage } from './computer-usage'
 import { ModelDevices } from './model-devices'
 import * as React from 'react'
@@ -30,10 +31,11 @@ export function ModelAdminPage() {
       {[{ tab: 'providers', label: 'setupProvider' }, { tab: 'publications', label: 'setupPublication' }, { tab: 'grants', label: 'setupGrant' }].map((step, index) => <li key={step.tab}><button type="button" onClick={() => setTab(step.tab)}><span aria-hidden="true">{index + 1}</span>{t(step.label as 'setupProvider' | 'setupPublication' | 'setupGrant')}</button></li>)}
     </ol>
     <div>
-      <SettingsTabs label={t('adminTitle')} tabs={[{ id: 'publications', label: t('modelsTab') }, { id: 'providers', label: t('providersTab') }, { id: 'grants', label: t('grantsTab') }, { id: 'model-usage', label: t('usageTab') }]} active={tab} onChange={setTab} />
+      <SettingsTabs label={t('adminTitle')} tabs={[{ id: 'publications', label: t('modelsTab') }, { id: 'providers', label: t('providersTab') }, { id: 'grants', label: t('grantsTab') }, { id: 'model-usage', label: t('usageTab') }, { id: 'traffic', label: t('traffic.tab') }]} active={tab} onChange={setTab} />
       <SettingsTabPanel id="publications" active={tab}>{tab === 'publications' && <ModelPublications editable={manageModels} />}</SettingsTabPanel>
       <SettingsTabPanel id="providers" active={tab}>{tab === 'providers' && <ModelProviders editable={manageModels} />}</SettingsTabPanel>
       <SettingsTabPanel id="grants" active={tab}>{tab === 'grants' && <ModelGrants editable={manageGrants} />}</SettingsTabPanel>
+      <SettingsTabPanel id="traffic" active={tab}>{tab === 'traffic' && <ModelTrafficAdmin editable={manageModels} readAccounts={role === 'owner' || role === 'admin' || role === 'auditor'} manageAccounts={manageGrants} />}</SettingsTabPanel>
       <SettingsTabPanel id="model-usage" active={tab}>{tab === 'model-usage' && <ModelUsage admin editable={manageGrants} />}</SettingsTabPanel>
     </div>
   </section>
@@ -53,6 +55,7 @@ function ModelAccessPage({ tab }: { tab: string }) {
         {source === 'account' ? <AccountModels /> : source === 'device' ? <ComputerModels /> : <div className={css.page}><p className={css.hint}>{t('platformSourceDescription')}</p><AvailableModels /></div>}
       </div>}
       {tab === 'access' && <div className={css.page}>
+        <OwnModelTraffic />
         <p className={css.hint}>{t('accessScopeDescription')}</p>
         <div>
           <SettingsTabs label={t('connectionsTab')} tabs={[{ id: 'keys', label: t('keysTab') }, { id: 'devices', label: t('deviceTab') }]} active={access} onChange={access => navigate(modelCenterPath({ access }, search))} />

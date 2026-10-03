@@ -11,6 +11,7 @@ pub(super) struct GatewayError {
     pub(super) status: StatusCode,
     pub(super) code: &'static str,
     pub(super) message: String,
+    retry_after_seconds: Option<u64>,
 }
 
 impl GatewayError {
@@ -19,6 +20,7 @@ impl GatewayError {
             status,
             code,
             message: message.into(),
+            retry_after_seconds: None,
         }
     }
 
@@ -61,6 +63,9 @@ impl From<ModelAccessError> for GatewayError {
             ModelAccessErrorKind::Forbidden => (StatusCode::FORBIDDEN, "model_access_denied"),
             ModelAccessErrorKind::InvalidInput => (StatusCode::BAD_REQUEST, "invalid_request"),
             ModelAccessErrorKind::Conflict => (StatusCode::CONFLICT, "request_conflict"),
+            ModelAccessErrorKind::RateLimited { .. } => {
+                (StatusCode::TOO_MANY_REQUESTS, "rate_limited")
+            }
             ModelAccessErrorKind::QuotaExceeded => {
                 (StatusCode::TOO_MANY_REQUESTS, "quota_exceeded")
             }
@@ -74,7 +79,14 @@ impl From<ModelAccessError> for GatewayError {
         } else {
             error.error.message
         };
-        Self::new(status, code, message)
+        let mut result = Self::new(status, code, message);
+        if let ModelAccessErrorKind::RateLimited {
+            retry_after_seconds,
+        } = error.kind
+        {
+            result.retry_after_seconds = Some(retry_after_seconds);
+        }
+        result
     }
 }
 
@@ -95,6 +107,12 @@ impl From<HarnessError> for GatewayError {
 
 impl Scribe for GatewayError {
     fn render(self, response: &mut Response) {
+        if let Some(seconds) = self.retry_after_seconds {
+            response.headers_mut().insert(
+                header::RETRY_AFTER,
+                seconds.to_string().parse().expect("integer Retry-After"),
+            );
+        }
         response.status_code(self.status);
         response.headers_mut().insert(
             header::CACHE_CONTROL,

@@ -168,7 +168,7 @@ impl AcceptedCall {
         state: AppState,
         token: &str,
         mut body: NodeModelRequest,
-    ) -> Result<(Self, ComputerModelRequest), HarnessError> {
+    ) -> Result<(Self, ComputerModelRequest), ternilo_control::ModelAccessError> {
         let node = state.store.authenticate_node(token, now_ms()?).await?;
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
         while !state
@@ -179,7 +179,8 @@ impl AcceptedCall {
             if tokio::time::Instant::now() >= deadline {
                 return Err(HarnessError::unavailable(
                     "the remote session has not synchronized with Server",
-                ));
+                )
+                .into());
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
@@ -191,7 +192,7 @@ impl AcceptedCall {
         tx.commit().await.map_err(database_error)?;
         let provider = profile(&state, &initial.snapshot.binding).await?;
         if provider.protocol != initial.snapshot.protocol {
-            return Err(HarnessError::policy("the selected model protocol changed"));
+            return Err(HarnessError::policy("the selected model protocol changed").into());
         }
         provider.resolved_model(initial.snapshot.binding.model_id())?;
         let mut canonical = serde_json::to_value(&body.request)
@@ -211,7 +212,8 @@ impl AcceptedCall {
         if principal != initial {
             return Err(HarnessError::policy(
                 "model authorization changed during source discovery",
-            ));
+            )
+            .into());
         }
         let id = state
             .store

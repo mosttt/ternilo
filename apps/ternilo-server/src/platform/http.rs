@@ -11,17 +11,20 @@ use ternilo_protocol::{ErrorCode, HarnessError, TenantId};
 pub(crate) struct ApiError {
     error: HarnessError,
     status: Option<StatusCode>,
+    retry_after_seconds: Option<u64>,
 }
 
 impl ApiError {
     pub(crate) fn rate_limited(message: &str) -> Self {
         Self {
+            retry_after_seconds: None,
             error: HarnessError::policy(message),
             status: Some(StatusCode::TOO_MANY_REQUESTS),
         }
     }
     pub(crate) fn unauthorized(error: HarnessError) -> Self {
         Self {
+            retry_after_seconds: None,
             error,
             status: Some(StatusCode::UNAUTHORIZED),
         }
@@ -29,6 +32,7 @@ impl ApiError {
 
     pub(crate) fn unavailable(error: HarnessError) -> Self {
         Self {
+            retry_after_seconds: None,
             error,
             status: Some(StatusCode::SERVICE_UNAVAILABLE),
         }
@@ -38,9 +42,31 @@ impl ApiError {
 impl From<HarnessError> for ApiError {
     fn from(error: HarnessError) -> Self {
         Self {
+            retry_after_seconds: None,
             error,
             status: None,
         }
+    }
+}
+
+impl From<ternilo_control::ModelAccessError> for ApiError {
+    fn from(value: ternilo_control::ModelAccessError) -> Self {
+        use ternilo_control::ModelAccessErrorKind;
+        let mut result = Self::from(value.error);
+        match value.kind {
+            ModelAccessErrorKind::RateLimited {
+                retry_after_seconds,
+            } => {
+                result.status = Some(StatusCode::TOO_MANY_REQUESTS);
+                result.retry_after_seconds = Some(retry_after_seconds);
+            }
+            ModelAccessErrorKind::QuotaExceeded => {
+                result.status = Some(StatusCode::TOO_MANY_REQUESTS);
+            }
+            ModelAccessErrorKind::Unauthorized => result.status = Some(StatusCode::UNAUTHORIZED),
+            _ => {}
+        }
+        result
     }
 }
 
@@ -58,6 +84,12 @@ impl Scribe for ApiError {
             response.headers_mut().insert(
                 header::WWW_AUTHENTICATE,
                 "Bearer".parse().expect("valid authentication challenge"),
+            );
+        }
+        if let Some(seconds) = self.retry_after_seconds {
+            response.headers_mut().insert(
+                header::RETRY_AFTER,
+                seconds.to_string().parse().expect("integer Retry-After"),
             );
         }
         response.status_code(status);

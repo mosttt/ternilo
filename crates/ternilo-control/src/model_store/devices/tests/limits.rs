@@ -9,6 +9,7 @@ mod fixture;
 mod management;
 mod postgres;
 mod rate;
+mod traffic;
 use fixture::{Fixture, Source, input};
 
 async fn sqlite() -> (tempfile::TempDir, Fixture) {

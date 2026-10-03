@@ -9,6 +9,7 @@ mod groups;
 mod maintenance;
 mod reconciliation;
 mod rotation;
+mod traffic;
 pub(crate) mod usage;
 
 #[cfg(test)]
@@ -40,6 +41,7 @@ pub(crate) fn administration_router() -> Router {
                 ),
         )
         .push(Router::with_path("usage").get(access::admin_usage))
+        .push(traffic::router())
 }
 
 pub(crate) fn access_router() -> Router {
@@ -58,6 +60,7 @@ pub(crate) fn access_router() -> Router {
         )
         .push(Router::with_path("requests").get(access::requests))
         .push(Router::with_path("usage").get(access::user_usage))
+        .push(Router::with_path("traffic").get(traffic::own))
 }
 
 pub(crate) use gateway::router as gateway_router;

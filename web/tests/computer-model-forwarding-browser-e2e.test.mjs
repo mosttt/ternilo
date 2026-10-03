@@ -119,12 +119,30 @@ test('Server forwards models through the source computer while tools stay on the
     const access = { view: true, submit: true, stop: true, configure: false }
     await owner(`${serviceRoot}/${serviceAccount.service_account_id}/workspaces/${workspace.workspace_id}`, { method: 'PUT', body: { permissions: access, expected_permissions: null } })
     const service = (resource, options = {}) => serverRequest(origin, resource, { token: serviceGrant.access_token, tenantId: identity.personal_tenant_id, ...options })
+    const noLimits = { requests_per_minute: null, max_concurrent_requests: null }
+    const ownerTrafficPath = `/admin/models/traffic/accounts/${identity.user.user_id}`
+    const ownerTraffic = await owner(ownerTrafficPath)
+    await owner(ownerTrafficPath, { method: 'PUT', body: { revision: ownerTraffic.revision, limits: { ...noLimits, requests_per_minute: 1 } } })
     const serviceBefore = (await owner(`/sessions/${id}/events`)).length
     await service(`/sessions/${id}/queue`, { body: { content: { kind: 'prompt', input: 'Complete a task through the shared computer model.' }, attachments: [] } })
     const serviceEvents = await until(() => owner(`/sessions/${id}/events`), events => events.slice(serviceBefore).some(event => ['turn_finished', 'turn_failed'].includes(event.type)), 'service account computer-model task completes')
     assert.equal(serviceEvents.slice(serviceBefore).some(event => event.type === 'turn_failed'), false, JSON.stringify(serviceEvents.slice(serviceBefore)))
     const serviceUsage = await owner('/computer-model-requests?limit=50')
     assert.ok(serviceUsage.requests.some(request => request.actor_user_id === serviceAccount.service_account_id && request.model_owner_user_id === identity.user.user_id && request.resource_owner_user_id === identity.user.user_id))
+    const serviceTrafficPath = `/admin/models/traffic/accounts/${serviceAccount.service_account_id}`
+    const serviceTraffic = await owner(serviceTrafficPath)
+    assert.ok(serviceTraffic.recent_requests >= 1)
+    await owner(serviceTrafficPath, { method: 'PUT', body: { revision: serviceTraffic.revision, limits: { ...noLimits, requests_per_minute: 1 } } })
+    const beforeLimited = (await owner(`/sessions/${id}/events`)).length
+    const callsBeforeLimited = source.model.calls.length
+    await service(`/sessions/${id}/queue`, { body: { content: { kind: 'prompt', input: 'This request exceeds the service account traffic limit.' }, attachments: [] } })
+    const limited = await until(() => owner(`/sessions/${id}/events`), events => events.slice(beforeLimited).some(event => event.type === 'turn_failed'), 'computer forwarding enforces service account traffic')
+    assert.match(JSON.stringify(limited.slice(beforeLimited)), /account model request rate limit/)
+    assert.equal(source.model.calls.length, callsBeforeLimited, 'traffic rejection never reaches the source computer model')
+    assert.equal((await owner(serviceTrafficPath)).recent_requests, serviceTraffic.recent_requests)
+    await owner(ownerTrafficPath, { method: 'PUT', body: { revision: ownerTraffic.revision + 1, limits: null } })
+    await owner(serviceTrafficPath, { method: 'PUT', body: { revision: serviceTraffic.revision + 1, limits: null } })
+    result.checks.push('computer forwarding limits the submitting service account, never the model owner; denied calls leave no ledger row or upstream call')
     await owner(`${serviceRoot}/${serviceAccount.service_account_id}/workspaces/${workspace.workspace_id}`, { method: 'PUT', body: { permissions: null, expected_permissions: access } })
     const beforeDenied = source.model.calls.length
     await assert.rejects(() => service(`/sessions/${id}/queue`, { body: { content: { kind: 'prompt', input: 'Not authorized anymore.' }, attachments: [] } }))

@@ -23,7 +23,12 @@ mod identity_sessions;
 mod identity_store;
 mod mfa;
 mod model_store;
+mod model_traffic;
 pub use mfa::{MfaEnrollment, MfaOidcChallenge, MfaStatus};
+pub use model_traffic::{
+    AccountModelTraffic, ModelTrafficLimits, ModelTrafficPolicy, ModelTrafficPolicyRecord,
+    ModelTrafficTarget, ModelTrafficTargetPage,
+};
 mod native_recovery;
 mod node_account_cleanup;
 mod node_resources;

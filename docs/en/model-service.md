@@ -14,6 +14,20 @@ A standalone client can connect to Server's model service through explicit brows
 
 A remotely controlled Node session selects an account/platform model through Server's session authorization. It does not need a separate platform API key placed on the Node. Shared resources use the owner's chosen binding; collaboration rights do not enumerate unrelated private providers or substitute the submitter's private key.
 
+## Platform and account traffic limits
+
+Open **Platform administration → Model service → Traffic limits** to set platform limits and per-account defaults. Requests per minute accept 1–1000000; concurrency accepts 1–10000. Blank fields add no limit. Owners, admins and operators can edit platform policy; auditors can read it. Owners and admins can also search user or service accounts and set overrides; auditors can inspect them.
+
+An account override replaces its defaults. “Use account defaults” inherits the policy; unchecking it and leaving both fields blank adds no account limit. Platform, account, model-device and existing grant budgets still apply together. Changing devices, Providers or Server instances cannot bypass platform/account limits. Revision checks prevent stale edits from overwriting another administrator; refresh before saving after a conflict.
+
+Platform models, account Providers, managed requests and computer model forwarding through Server share the same counters. The account is the actual person or service account submitting the task, rather than the model lender or workspace owner. Local calls that reach an upstream without going through Server are outside this policy.
+
+Rate limits count accepted logical requests in the last rolling 60 seconds. Internal upstream retries count once. Failure, cancellation and returning to defaults do not erase accepted requests; idempotent resubmissions and denied requests do not add a count. Concurrency follows valid request leases and is released on completion, cancellation or expiry. Expired computer request leases cannot be resurrected. Tightening policy affects new admissions and does not interrupt accepted calls.
+
+A denial returns HTTP 429 with `Retry-After` seconds; the public model API uses `rate_limited`. This is a retry hint, not a reservation. **My models → Access and connections → Server model traffic limits** loads effective limits and the account's recent/active counts only when expanded. Refresh updates the values; there is no background polling.
+
+Management API: `GET/PUT /api/v1/admin/models/traffic` reads/saves `{revision, policy: {platform, account_default}}`. Each limit has nullable `requests_per_minute` and `max_concurrent_requests`. `GET /api/v1/admin/models/traffic/accounts` searches/pages accounts. `GET/PUT /api/v1/admin/models/traffic/accounts/{user_id}` reads/saves overrides; PUT accepts `{revision, limits}`, with `limits: null` meaning inheritance. `GET /api/v1/model-access/traffic` reports only the current account. These endpoints neither grant model access nor change Token settlement ownership.
+
 ## Metering and revocation
 
 Server reserves and settles platform usage against the selected grant and records attempts. Retries recheck authorization and limits; unavailable or revoked sources do not silently fall back. A cancelled or uncertain upstream response must not be represented as a known zero-cost result. See [unknown usage reconciliation](model-usage-reconciliation.md).

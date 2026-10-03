@@ -304,7 +304,7 @@ pub(super) struct Admission<'a> {
 pub(super) async fn insert_request_in(
     tx: &mut Transaction,
     admission: Admission<'_>,
-) -> Result<ModelServiceRequest, HarnessError> {
+) -> Result<ModelServiceRequest, ModelAccessError> {
     let (origin, key_id, actor, owner, beneficiary, workload) = match admission.caller {
         AdmissionCaller::DeviceAccount(device) => (
             "client_device",
@@ -347,6 +347,7 @@ pub(super) async fn insert_request_in(
         AdmissionCaller::Node(principal) => Some(principal),
         _ => None,
     };
+    crate::model_traffic::check_admission(tx, actor, admission.now).await?;
     let id = random_identifier("mrq");
     let month = month_at(admission.now)?;
     let expires = request_deadline(&admission)?;
