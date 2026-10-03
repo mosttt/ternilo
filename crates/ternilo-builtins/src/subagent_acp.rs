@@ -48,20 +48,29 @@ enum PermissionPolicy {
 #[derive(Clone, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct AcpSubagentConfig {
-    #[serde(default = "default_provider_name", alias = "providerName")]
+    #[serde(default = "default_provider_name")]
     provider_name: String,
     command: String,
     #[serde(default)]
     args: Vec<String>,
     #[serde(default)]
     env: BTreeMap<String, String>,
+    /// Map child environment variable names to credentials on the execution host.
+    #[serde(default)]
+    env_refs: BTreeMap<String, String>,
+    /// Explicit authentication method advertised by the external agent. Empty uses its existing login.
+    #[serde(default)]
+    auth_method: Option<String>,
+    /// Explicit mode advertised by the new session. Empty keeps the agent default.
+    #[serde(default)]
+    session_mode: Option<String>,
     #[serde(default)]
     cwd: Option<PathBuf>,
     #[serde(default = "default_permission")]
     permission: PermissionPolicy,
-    #[serde(default = "default_timeout_ms", alias = "timeoutMs")]
+    #[serde(default = "default_timeout_ms")]
     timeout_ms: u64,
-    #[serde(default = "default_shutdown_grace_ms", alias = "shutdownGraceMs")]
+    #[serde(default = "default_shutdown_grace_ms")]
     shutdown_grace_ms: u64,
 }
 
@@ -112,6 +121,13 @@ pub fn factory() -> PluginFactory {
                 })?);
             }
             validate_environment(&config.env)?;
+            validate_environment(&config.env_refs)?;
+            if config.env_refs.iter().any(|(name, reference)| reference.trim().is_empty() || config.env.contains_key(name)) {
+                return Err(HarnessError::composition("ACP env_refs requires nonempty credential references and must not overlap env"));
+            }
+            if config.auth_method.iter().chain(config.session_mode.iter()).any(|value| value.trim().is_empty()) {
+                return Err(HarnessError::composition("ACP auth_method and session_mode must be nonempty when set"));
+            }
             Ok(Arc::new(AcpSubagentPlugin { config }))
         },
     )
@@ -227,6 +243,20 @@ impl SubagentDriver for AcpDriver {
             self.environment
                 .check_run_authorization(parent_run_id.clone())
                 .await?;
+            let mut config = self.config.clone();
+            for (name, reference) in &self.config.env_refs {
+                let value = tokio::select! {
+                    biased;
+                    () = cancellation.cancelled() => return Err(HarnessError::cancelled("ACP credential resolution cancelled")),
+                    value = self.environment.resolve_secret(reference.clone()) => value?,
+                }.filter(|value| !value.trim().is_empty()).ok_or_else(|| HarnessError::execution(format!("ACP credential {reference:?} is not configured")))?;
+                if value.contains('\0') {
+                    return Err(HarnessError::invalid(
+                        "ACP credential cannot contain a null byte",
+                    ));
+                }
+                config.env.insert(name.clone(), value);
+            }
             let lease = self
                 .environment
                 .acquire_workspace(cancellation.clone())
@@ -252,7 +282,6 @@ impl SubagentDriver for AcpDriver {
                     }),
                 )
                 .await?;
-            let config = self.config.clone();
             let cwd = self.cwd.clone();
             let task = tokio::spawn(async move {
                 let (outcome, cleanup) = run_acp(config, cwd, message, cancellation).await;
@@ -338,6 +367,8 @@ async fn run_acp(
     let output = Arc::new(Mutex::new(String::new()));
     let notification_output = Arc::clone(&output);
     let permission = config.permission;
+    let auth_method = config.auth_method.clone();
+    let session_mode = config.session_mode.clone();
     let cancel_target = Arc::new(CancelTarget::new(None));
     let connection_target = Arc::clone(&cancel_target);
     let protocol = AcpClient
@@ -383,17 +414,12 @@ async fn run_acp(
             let target = Arc::clone(&connection_target);
             let cwd = cwd.clone();
             let message = message.clone();
+            let auth_method = auth_method.clone();
+            let session_mode = session_mode.clone();
             async move {
-                connection
-                    .send_request(acp::InitializeRequest::new(ProtocolVersion::V1))
-                    .block_task()
-                    .await?;
-                let session = connection
-                    .send_request(acp::NewSessionRequest::new(cwd))
-                    .block_task()
-                    .await?
-                    .session_id;
-                *target.lock().await = Some((connection.clone(), session.clone()));
+                initialize_agent(&connection, auth_method.as_deref()).await?;
+                let session =
+                    open_agent_session(&connection, cwd, session_mode.as_deref(), &target).await?;
                 let response = connection
                     .send_request(acp::PromptRequest::new(
                         session,
@@ -414,6 +440,67 @@ async fn run_acp(
         .reap(Duration::from_millis(config.shutdown_grace_ms))
         .await;
     (settlement_result(settlement, config.timeout_ms), cleanup)
+}
+
+async fn initialize_agent(
+    connection: &ConnectionTo<AcpAgentRole>,
+    auth_method: Option<&str>,
+) -> Result<(), agent_client_protocol::Error> {
+    let initialized = connection
+        .send_request(acp::InitializeRequest::new(ProtocolVersion::V1))
+        .block_task()
+        .await?;
+    if initialized.protocol_version != ProtocolVersion::V1 {
+        return Err(agent_client_protocol::Error::invalid_request()
+            .data("external agent did not negotiate ACP v1"));
+    }
+    if let Some(method) = auth_method {
+        if !initialized
+            .auth_methods
+            .iter()
+            .any(|available| available.id().0.as_ref() == method)
+        {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("configured ACP authentication method is not advertised by the agent"));
+        }
+        connection
+            .send_request(acp::AuthenticateRequest::new(method.to_owned()))
+            .block_task()
+            .await?;
+    }
+    Ok(())
+}
+
+async fn open_agent_session(
+    connection: &ConnectionTo<AcpAgentRole>,
+    cwd: PathBuf,
+    session_mode: Option<&str>,
+    target: &CancelTarget,
+) -> Result<acp::SessionId, agent_client_protocol::Error> {
+    let session = connection
+        .send_request(acp::NewSessionRequest::new(cwd))
+        .block_task()
+        .await?;
+    *target.lock().await = Some((connection.clone(), session.session_id.clone()));
+    if let Some(mode) = session_mode {
+        if !session.modes.as_ref().is_some_and(|state| {
+            state
+                .available_modes
+                .iter()
+                .any(|available| available.id.0.as_ref() == mode)
+        }) {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("configured ACP session mode is not advertised by the agent"));
+        }
+        connection
+            .send_request(acp::SetSessionModeRequest::new(
+                session.session_id.clone(),
+                mode.to_owned(),
+            ))
+            .block_task()
+            .await?;
+    }
+    Ok(session.session_id)
 }
 
 async fn await_settlement(

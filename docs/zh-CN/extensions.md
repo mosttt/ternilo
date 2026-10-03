@@ -203,9 +203,19 @@ PreTool deny 不执行工具；ask 进入现有用户问题队列。Stop deny �
 }
 ```
 
-`provider_name` 在 profile 中必须唯一。省略 `cwd` 时继承规范化工作区；显式 `cwd` 在插件构建时解析为规范化绝对路径，相对路径以宿主进程的当前目录为基准，启动子代理时再检查其是否为可访问目录。进程使用清空后的环境，只保留基础系统变量和 `env` 明确给出的值，不继承模型 key 或 Ternilo credential。
+`provider_name` 在 profile 中必须唯一。省略 `cwd` 时继承规范化工作区；显式 `cwd` 在插件构建时解析为规范化绝对路径，相对路径以宿主进程的当前目录为基准，启动子代理时再检查其是否为可访问目录。进程使用清空后的环境，只保留基础系统变量、`env` 明确给出的值，以及 `env_refs` 指定的凭据。`env_refs` 把子进程环境变量名映射到执行电脑的凭据名称，每次启动重新解析，不把 Key 原文写入预设。两张映射不能使用同一个变量名，引用缺失会在启动进程前报错。
 
 `permission` 默认 `reject`，即自动拒绝外部 agent 的 ACP 权限请求。只有该进程已经由自身 sandbox 或可信策略约束时才应设为 `allow`。ACP provider 每个任务创建独立 session，不支持对同一外部 session `/agent-send`；取消会先发送 ACP `session/cancel`，宽限期后终止整个进程组。
+
+`auth_method` 可选，必须是代理在 `initialize` 中公布的认证方式 ID；Ternilo 在创建会话前发送 `authenticate`。不填则使用代理已有的登录或环境凭据，不自动弹出登录流程。`session_mode` 可选，必须是 `session/new` 公布的模式 ID；在发送任务前设置，不自动切换到更宽松权限。协议版本、认证方式或模式不支持时明确失败。
+
+### Gemini CLI 与 Claude Agent ACP
+
+在执行电脑安装并配置外部程序。Gemini CLI 使用 `gemini --acp`，Claude Agent SDK 的 ACP 适配器使用 `claude-agent-acp`。相关插件配置见 [`gemini-acp-profile.json`](../../examples/gemini-acp-profile.json) 和 [`claude-acp-profile.json`](../../examples/claude-acp-profile.json)。二者仍使用通用的 `ternilo.subagents.acp` kind，不自动下载安装程序。
+
+Gemini 示例把 `GEMINI_AGENT_KEY` 凭据传给子进程的 `GEMINI_API_KEY`；Claude 示例把 `CLAUDE_AGENT_KEY` 传给 `ANTHROPIC_API_KEY`。如已在该电脑用供应商程序完成登录，可删除对应 `env_refs`。这类代理自行选择和调用模型，不使用当前会话的 Server 模型委托，也不继承跨电脑模型转发授权。
+
+接入依据是 [Gemini CLI ACP 模式](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/acp-mode.md)、[Claude Agent ACP](https://github.com/agentclientprotocol/claude-agent-acp) 和 [ACP 认证协议](https://agentclientprotocol.com/protocol/authentication)。支持范围为 ACP v1 文本任务、文本结果、认证／模式协商、权限允许／拒绝和取消；不宣称完整终端、图片、会话恢复或供应商私有扩展支持。
 
 用户侧命令见 [用户指南](agents.md#子代理后台任务与终端)。
 

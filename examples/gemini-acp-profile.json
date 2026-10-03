@@ -1,0 +1,22 @@
+{
+  "plugins": [
+    {
+      "id": "gemini-acp",
+      "kind": "ternilo.subagents.acp",
+      "enabled": true,
+      "config": {
+        "provider_name": "gemini",
+        "command": "gemini",
+        "args": [
+          "--acp"
+        ],
+        "env_refs": {
+          "GEMINI_API_KEY": "GEMINI_AGENT_KEY"
+        },
+        "permission": "reject",
+        "timeout_ms": 600000,
+        "shutdown_grace_ms": 3000
+      }
+    }
+  ]
+}

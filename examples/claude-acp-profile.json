@@ -1,0 +1,20 @@
+{
+  "plugins": [
+    {
+      "id": "claude-acp",
+      "kind": "ternilo.subagents.acp",
+      "enabled": true,
+      "config": {
+        "provider_name": "claude",
+        "command": "claude-agent-acp",
+        "args": [],
+        "env_refs": {
+          "ANTHROPIC_API_KEY": "CLAUDE_AGENT_KEY"
+        },
+        "permission": "reject",
+        "timeout_ms": 600000,
+        "shutdown_grace_ms": 3000
+      }
+    }
+  ]
+}

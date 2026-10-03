@@ -132,8 +132,8 @@ for line in sys.stdin:
       profile_plugins: [{
         id: 'slow-browser-acp', kind: 'ternilo.subagents.acp', enabled: true,
         config: {
-          providerName: 'slow-browser', command: 'python3', args: [slowAcpFixture],
-          shutdownGraceMs: 100,
+          provider_name: 'slow-browser', command: 'python3', args: [slowAcpFixture],
+          shutdown_grace_ms: 100,
         },
       }],
     } })

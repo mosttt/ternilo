@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    {
+      "id": "web-search",
+      "kind": "ternilo.web.search.tavily",
+      "enabled": true,
+      "config": {
+        "api_key_env": "SEARCH_KEY",
+        "timeout_ms": 30000,
+        "max_results": 10
+      }
+    }
+  ]
+}

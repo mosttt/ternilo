@@ -38,3 +38,15 @@ LSP stdio similarly configures a language-server executable and workspace-specif
 Code Mode composes capabilities through Rhai. Hooks can inspect the supported lifecycle points and return their declared outcomes; their configuration does not grant arbitrary new host capabilities. External ACP agents can be configured as subagent integrations with explicit executable/arguments and host-controlled access.
 
 External Rhai and WASM Component packages share one registry, trust model and lifecycle. Package installation and profile mounting are separate steps. Signatures, manifests, requested capabilities and runtime limits are checked before activation. For exact package contracts and runnable examples, see [extension packages](extension-packages.md). For everyday orchestration see [Agent tools](agents.md).
+
+## External ACP agents
+
+`ternilo.subagents.acp` starts an installed ACP v1 executable with explicit `provider_name`, `command` and `args`. Each task creates its own external session. Omitting `cwd` uses the parent workspace. Child environments contain only basic system variables, explicit `env` and host credentials named by `env_refs`. For example, `"env_refs": {"ANTHROPIC_API_KEY": "CLAUDE_AGENT_KEY"}` injects that saved credential into the child without storing a key in the preset. Names must not overlap `env`; missing references fail before process launch.
+
+Optional `auth_method` selects an ID advertised by `initialize` and authenticates before session creation. Omit it to use the agent's existing login or environment credentials. Optional `session_mode` selects an advertised mode before submitting the prompt. Unsupported protocols, authentication methods or modes fail explicitly. Ternilo does not automatically start an interactive login or choose a more permissive mode.
+
+`permission` defaults to `reject`. Use `allow` only with an independently trusted external sandbox or policy. Cancellation sends `session/cancel` and then terminates the owned process group after the configured grace period. External sessions do not support follow-up messages or restoration.
+
+Gemini CLI runs as `gemini --acp`; the Claude Agent SDK adapter runs as `claude-agent-acp`. See the [Gemini plugin profile](../../examples/gemini-acp-profile.json) and [Claude plugin profile](../../examples/claude-acp-profile.json). Install and configure these programs on the execution computer; Ternilo does not download them automatically. Their model calls use their own authentication, not the parent session's Server model delegation or computer model forwarding.
+
+References: [Gemini ACP mode](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/acp-mode.md), [Claude Agent ACP](https://github.com/agentclientprotocol/claude-agent-acp), [ACP authentication](https://agentclientprotocol.com/protocol/authentication). Supported scope is ACP v1 text tasks/results, authentication and mode negotiation, permission decisions and cancellation. Full terminal, image, history restoration and vendor-specific extensions are not provided.
