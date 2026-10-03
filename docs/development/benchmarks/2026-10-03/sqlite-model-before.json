@@ -1,0 +1,206 @@
+{
+  "workload": "closed_loop_model_admission_streams_and_cancellation",
+  "build_label": "dev-no-debug-before-writer-queue",
+  "generated_at": "2026-10-03T12:55:55.329Z",
+  "backend": "sqlite",
+  "source_commit": "03ed121f47b155185be9ff1a349b2424d79dcb99",
+  "working_tree_dirty": false,
+  "binary": {
+    "sha256": "4f5428e2104b655edbef084eb9e957575eaca2a5f75a15bc4cde8aee2f6711e0",
+    "version": "ternilo-server 0.2.0"
+  },
+  "host": {
+    "os": "linux",
+    "release": "7.2.3-arch1-3",
+    "architecture": "x64",
+    "cpu": "Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz",
+    "available_cpus": 8,
+    "memory_bytes": 16638603264,
+    "node": "v26.8.1"
+  },
+  "settings": {
+    "concurrency": [
+      32
+    ],
+    "seconds": 5,
+    "soak_seconds": 300,
+    "instances": 1,
+    "upstream_latency_ms": 25
+  },
+  "phases": [
+    {
+      "mode": "baseline",
+      "concurrency": 32,
+      "elapsed_seconds": 5.631971274,
+      "validated_requests": 284,
+      "validated_responses_per_second": 50.42639356331348,
+      "admitted_requests_per_second": 50.42639356331348,
+      "limited_responses_per_second": 0,
+      "results": {
+        "streamed": {
+          "count": 142,
+          "p50_ms": 400.4644929999995,
+          "p95_ms": 1584.098003,
+          "p99_ms": 3639.9834309999997,
+          "max_ms": 4212.916197999999
+        },
+        "json": {
+          "count": 142,
+          "p50_ms": 373.519319,
+          "p95_ms": 1636.069982,
+          "p99_ms": 2095.689702,
+          "max_ms": 2573.022979
+        },
+        "cancelled": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        },
+        "limited": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        }
+      },
+      "errors": {}
+    },
+    {
+      "mode": "limited",
+      "concurrency": 32,
+      "elapsed_seconds": 5.680646046000001,
+      "validated_requests": 372,
+      "validated_responses_per_second": 65.48550939235899,
+      "admitted_requests_per_second": 15.843268401377175,
+      "limited_responses_per_second": 49.64224099098182,
+      "results": {
+        "streamed": {
+          "count": 43,
+          "p50_ms": 580.479045,
+          "p95_ms": 3170.1128849999996,
+          "p99_ms": 4572.9196010000005,
+          "max_ms": 4572.9196010000005
+        },
+        "json": {
+          "count": 47,
+          "p50_ms": 566.8466170000011,
+          "p95_ms": 1886.0333250000003,
+          "p99_ms": 2720.125671,
+          "max_ms": 2720.125671
+        },
+        "cancelled": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        },
+        "limited": {
+          "count": 282,
+          "p50_ms": 167.72378300000128,
+          "p95_ms": 1378.6107749999992,
+          "p99_ms": 2723.2034840000006,
+          "max_ms": 4119.058736999999
+        }
+      },
+      "errors": {}
+    },
+    {
+      "mode": "cancellation",
+      "concurrency": 32,
+      "elapsed_seconds": 5.821179882,
+      "validated_requests": 179,
+      "validated_responses_per_second": 30.749779877700746,
+      "admitted_requests_per_second": 30.749779877700746,
+      "limited_responses_per_second": 0,
+      "results": {
+        "streamed": {
+          "count": 135,
+          "p50_ms": 652.4343689999987,
+          "p95_ms": 2970.002225000002,
+          "p99_ms": 4557.778668000001,
+          "max_ms": 4982.196739999999
+        },
+        "json": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        },
+        "cancelled": {
+          "count": 44,
+          "p50_ms": 554.6661000000004,
+          "p95_ms": 2982.2126849999986,
+          "p99_ms": 3567.082295,
+          "max_ms": 3567.082295
+        },
+        "limited": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        }
+      },
+      "errors": {}
+    },
+    {
+      "mode": "soak",
+      "concurrency": 32,
+      "elapsed_seconds": 176.72559257,
+      "validated_requests": 3668,
+      "validated_responses_per_second": 20.75534135525462,
+      "admitted_requests_per_second": 20.75534135525462,
+      "limited_responses_per_second": 0,
+      "results": {
+        "streamed": {
+          "count": 1835,
+          "p50_ms": 941.1117070000037,
+          "p95_ms": 5102.918015000003,
+          "p99_ms": 9063.309069999988,
+          "max_ms": 19160.619703999997
+        },
+        "json": {
+          "count": 1833,
+          "p50_ms": 950.9969359999959,
+          "p95_ms": 4623.891797000004,
+          "p99_ms": 8591.610012999998,
+          "max_ms": 15690.415185000005
+        },
+        "cancelled": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        },
+        "limited": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        }
+      },
+      "errors": {
+        "AssertionError: unexpected HTTP 500\n\n500 !== 200\n": 1
+      }
+    }
+  ],
+  "errors": [
+    "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ {\n+   'AssertionError: unexpected HTTP 500\\n\\n500 !== 200\\n': 1\n+ }\n- {}\n"
+  ],
+  "final": null,
+  "server_diagnostics": [
+    {
+      "pid": 1047999,
+      "exit_code": null,
+      "signal_code": null,
+      "output": "Ternilo server (server) listening on http://127.0.0.1:41833\nUse an external HTTPS gateway for public access and preserve WebSocket upgrades.\nmodel service: execution: server database error: error returned from database: (code: 5) database is locked\n"
+    }
+  ]
+}

@@ -258,3 +258,101 @@ async fn sqlite_read_snapshot_does_not_block_a_writer_and_keeps_its_snapshot() {
         2
     );
 }
+
+#[tokio::test]
+async fn sqlite_queued_writers_leave_readers_available_and_cancel_without_partial_changes() {
+    let directory = tempfile::tempdir().unwrap();
+    let database = Database::connect(
+        &format!(
+            "sqlite://{}",
+            directory.path().join("queue.sqlite3").display()
+        ),
+        4,
+    )
+    .await
+    .unwrap();
+    database
+        .initialize(
+            "writer-queue",
+            1,
+            "CREATE TABLE queued_counter(value BIGINT); INSERT INTO queued_counter VALUES(0);",
+            "",
+        )
+        .await
+        .unwrap();
+    let mut held = database.begin().await.unwrap();
+    sqlx::query("UPDATE queued_counter SET value=99")
+        .execute(&mut *held)
+        .await
+        .unwrap();
+    let mut tasks = Vec::new();
+    for _ in 0..16 {
+        let database = database.clone();
+        let (ready, waiting) = tokio::sync::oneshot::channel();
+        tasks.push(tokio::spawn(async move {
+            ready.send(()).unwrap();
+            let mut tx = database.begin().await.unwrap();
+            sqlx::query("UPDATE queued_counter SET value=value+1")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            tx.commit().await.unwrap();
+        }));
+        waiting.await.unwrap();
+    }
+    let mut read = tokio::time::timeout(Duration::from_secs(2), database.begin_read())
+        .await
+        .expect("queued writers cannot occupy every read connection")
+        .unwrap();
+    let value: i64 = sqlx::query_scalar("SELECT value FROM queued_counter")
+        .fetch_one(&mut *read)
+        .await
+        .unwrap();
+    assert_eq!(
+        value, 0,
+        "WAL readers retain committed state while a writer is active"
+    );
+    read.commit().await.unwrap();
+    let cancelled = tasks.pop().unwrap();
+    cancelled.abort();
+    assert!(cancelled.await.unwrap_err().is_cancelled());
+    held.rollback().await.unwrap();
+    for task in tasks {
+        task.await.unwrap();
+    }
+    let value: i64 = sqlx::query_scalar("SELECT value FROM queued_counter")
+        .fetch_one(database.pool())
+        .await
+        .unwrap();
+    assert_eq!(value, 15);
+
+    let clone = database.clone();
+    let (ready, started) = tokio::sync::oneshot::channel();
+    let interrupted = tokio::spawn(async move {
+        let mut tx = clone.begin().await.unwrap();
+        sqlx::query("UPDATE queued_counter SET value=999")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        ready.send(()).unwrap();
+        std::future::pending::<()>().await;
+        tx.commit().await.unwrap();
+    });
+    started.await.unwrap();
+    interrupted.abort();
+    assert!(interrupted.await.unwrap_err().is_cancelled());
+    let mut resumed = tokio::time::timeout(Duration::from_secs(2), database.begin())
+        .await
+        .unwrap()
+        .unwrap();
+    let value: i64 = sqlx::query_scalar("SELECT value FROM queued_counter")
+        .fetch_one(&mut *resumed)
+        .await
+        .unwrap();
+    assert_eq!(
+        value, 15,
+        "dropping an active writer rolls back before the next admission"
+    );
+    resumed.commit().await.unwrap();
+    database.close().await;
+}

@@ -128,23 +128,21 @@ try {
     for (const row of page.requests) {
       assert.ok(acceptedIds.delete(row.request_id), 'ledger contains each accepted request exactly once')
       assert.notEqual(row.state, 'pending')
-      const month = months.get(row.month) ?? { requests: 0, known: 0, unknown: 0 }
+      const month = months.get(row.month) ?? { requests: 0, known: 0, unknown: 0, reserved: 0 }
       month.requests++
       if (row.accounted_tokens != null) { assert.equal(row.accounted_tokens, 42); month.known++ }
-      else { assert.ok(row.reserved_tokens > 0, 'cancelled unknown usage retains reservations'); month.unknown++ }
+      else { assert.ok(row.reserved_tokens > 0, 'cancelled unknown usage retains reservations'); month.unknown++; month.reserved += row.reserved_tokens }
       months.set(row.month, month)
     }
     cursor = page.next_cursor
   } while (cursor)
   assert.equal(acceptedIds.size, 0); assert.equal(upstreamIds.size, accepted)
-  const periods = []
-  for (const [month, counts] of months) {
-    const usage = await owner(`/model-access/usage?month=${encodeURIComponent(month)}`)
-    assert.equal(usage.request_count, counts.requests); assert.equal(usage.active_requests, 0)
-    assert.equal(usage.used_tokens, counts.known * 42)
-    periods.push({ month, accepted_requests: counts.requests, known_requests: counts.known, unknown_requests: counts.unknown, known_tokens: usage.used_tokens, reserved_tokens: usage.reserved_tokens, active_requests: 0 })
-  }
-  report.final = { accepted_requests: accepted, actual_upstream_calls: upstreamIds.size, periods }
+  const usage = await owner('/model-access/usage')
+  const current = months.get(usage.month) ?? { requests: 0, known: 0, reserved: 0 }
+  assert.equal(usage.request_count, current.requests); assert.equal(usage.active_requests, 0)
+  assert.equal(usage.used_tokens, current.known * 42); assert.equal(usage.reserved_tokens, current.reserved)
+  const periods = [...months].map(([month, counts]) => ({ month, accepted_requests: counts.requests, known_requests: counts.known, unknown_requests: counts.unknown, known_tokens: counts.known * 42, reserved_tokens: counts.reserved, active_requests: 0 }))
+  report.final = { accepted_requests: accepted, actual_upstream_calls: upstreamIds.size, periods, aggregate_verified_month: usage.month }
   assert.deepEqual(failures, [])
 } catch (error) { report.errors.push(error.message); process.exitCode = 1; console.error(error.message) }
 finally {

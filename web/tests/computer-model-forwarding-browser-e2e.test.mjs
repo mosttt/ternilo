@@ -100,7 +100,7 @@ test('Server forwards models through the source computer while tools stay on the
     assert.equal(execution.model.calls.length, 0, 'same-name execution Provider is not used')
     assert.equal((await source.local('/state')).sessions.length, 0, 'source does not create an agent or execute tools')
     await assert.rejects(readFile(path.join(source.data, 'provider-source.txt')), /ENOENT/)
-    const usage = await owner('/computer-model-requests?limit=50')
+    const usage = await until(() => owner('/computer-model-requests?limit=50'), value => value.requests.length >= 2 && value.requests.every(request => request.state !== 'pending'), 'source model requests and auxiliary calls settle')
     assert.ok(usage.requests.length >= 2)
     for (const request of usage.requests) {
       assert.equal(request.execution_executor_id, execution.id)

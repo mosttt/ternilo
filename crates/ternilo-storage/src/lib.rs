@@ -24,6 +24,7 @@ pub enum Backend {
 pub struct Database {
     pool: AnyPool,
     backend: Backend,
+    writer_pool: Option<AnyPool>,
 }
 
 impl Database {
@@ -57,18 +58,25 @@ impl Database {
                 .query_pairs_mut()
                 .append_pair("mode", "rwc");
         }
-        let pool = AnyPoolOptions::new()
-            .max_connections(if memory { 1 } else { max_connections })
-            .acquire_timeout(Duration::from_secs(15))
-            .after_connect(move |connection, _| Box::pin(async move {
-                if backend == Backend::Sqlite {
-                    sqlx::raw_sql("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 15000; PRAGMA journal_mode = WAL;")
-                        .execute(connection).await?;
-                }
-                Ok(())
-            }))
-            .connect_with(options).await.map_err(database_error)?;
-        Ok(Self { pool, backend })
+        let split_writer = backend == Backend::Sqlite && !memory && max_connections > 1;
+        let writer_pool = if split_writer {
+            Some(connect_pool(options.clone(), 1, backend).await?)
+        } else {
+            None
+        };
+        let readers = if memory {
+            1
+        } else if split_writer {
+            max_connections - 1
+        } else {
+            max_connections
+        };
+        let pool = connect_pool(options, readers, backend).await?;
+        Ok(Self {
+            pool,
+            backend,
+            writer_pool,
+        })
     }
 
     #[must_use]
@@ -84,7 +92,13 @@ impl Database {
     /// SQLite obtains its write lock before any reads, avoiding snapshot upgrades.
     pub async fn begin(&self) -> Result<Transaction, HarnessError> {
         match self.backend {
-            Backend::Sqlite => self.pool.begin_with("BEGIN IMMEDIATE").await,
+            Backend::Sqlite => {
+                self.writer_pool
+                    .as_ref()
+                    .unwrap_or(&self.pool)
+                    .begin_with("BEGIN IMMEDIATE")
+                    .await
+            }
             Backend::Postgres => self.pool.begin().await,
         }
         .map_err(database_error)
@@ -202,6 +216,9 @@ impl Database {
     }
 
     pub async fn close(&self) {
+        if let Some(writer) = &self.writer_pool {
+            writer.close().await;
+        }
         self.pool.close().await;
     }
 }
@@ -280,4 +297,24 @@ pub fn for_update<'a>(connection: &AnyConnection, sqlite: &'a str, postgres: &'a
 #[must_use]
 pub fn database_error(error: sqlx::Error) -> HarnessError {
     HarnessError::execution(format!("server database error: {error}"))
+}
+
+// A single pooled SQLite writer queues callers asynchronously before acquiring a connection.
+// WAL readers keep their own slots; PostgreSQL retains its shared connection pool.
+async fn connect_pool(
+    options: AnyConnectOptions,
+    max_connections: u32,
+    backend: Backend,
+) -> Result<AnyPool, HarnessError> {
+    AnyPoolOptions::new()
+            .max_connections(max_connections)
+            .acquire_timeout(Duration::from_secs(15))
+            .after_connect(move |connection, _| Box::pin(async move {
+                if backend == Backend::Sqlite {
+                    sqlx::raw_sql("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 15000; PRAGMA journal_mode = WAL;")
+                        .execute(connection).await?;
+                }
+                Ok(())
+            }))
+            .connect_with(options).await.map_err(database_error)
 }
