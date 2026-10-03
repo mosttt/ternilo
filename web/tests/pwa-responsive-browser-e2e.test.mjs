@@ -108,14 +108,17 @@ test('PWA installs, upgrades, opens an explicit credential-free offline shell, a
   const workspacePath = path.join(dataDirectory, 'visible-online-workspace')
   await mkdir(workspacePath)
   const server = startTernilo(dataDirectory)
-  let context
+  let context, page
+  const navigations = []
   try {
     const origin = await server.origin
     context = await chromium.launchPersistentContext(path.join(dataDirectory, 'browser-profile'), {
       headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
       viewport: { width: 1440, height: 900 }, serviceWorkers: 'allow',
     })
-    const page = await context.newPage()
+    page = await context.newPage()
+    page.on('response', response => { if (response.request().isNavigationRequest()) navigations.push({ url: response.url(), status: response.status(), worker: response.fromServiceWorker() }) })
+    page.on('requestfailed', request => { if (request.isNavigationRequest()) navigations.push({ url: request.url(), failed: request.failure()?.errorText }) })
     const pageErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))
     await page.goto(origin, { waitUntil: 'domcontentloaded' })
@@ -242,12 +245,22 @@ test('PWA installs, upgrades, opens an explicit credential-free offline shell, a
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true)
 
     await context.setOffline(false)
+    // Observe an uncached network response before testing the offline-shell retry.
+    await page.waitForFunction(async () => {
+      try { const response = await fetch('/assets/boot.js', { cache: 'no-store' }); return response.ok }
+      catch { return false }
+    })
     // Verify recovery below without coupling the click to service-worker navigation bookkeeping.
     await offlineAlert.getByRole('button', { name: '重试连接' }).click({ noWaitAfter: true })
     await page.waitForFunction(() => window.__TERNILO_BOOT__?.offline !== true)
     await page.getByText('visible-online-workspace', { exact: true }).first().waitFor()
     assert.equal(await page.locator('[data-offline-shell]').count(), 0)
     assert.deepEqual(pageErrors, [])
+  } catch (error) {
+    const artifact = process.env.TERNILO_E2E_ARTIFACT_DIR
+    if (artifact && page) { await mkdir(artifact, { recursive: true }); await page.screenshot({ path: path.join(artifact, 'pwa-failure.png') }).catch(() => {}) }
+    error.message += `\nNavigation evidence: ${JSON.stringify(navigations)}; current URL: ${page?.url()}`
+    throw error
   } finally {
     if (context) await context.close()
     await stopProcess(server.child)

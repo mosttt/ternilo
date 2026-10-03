@@ -437,7 +437,7 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   const verificationFailures = []
   const scopedRead = url => url.origin === origin && (
     ['queue', 'commands', 'history', 'stats', 'projection', 'plugins', 'workspace'].some(resource => url.pathname === `/api/v1${sessionPath}/${resource}`)
-    || ['/api/v1/catalog', '/api/v1/model-options'].includes(url.pathname) && url.searchParams.get('session_id') === sessionId)
+    || ['/api/v1/catalog', '/api/v1/model-options', '/api/v1/agent-presets'].includes(url.pathname) && url.searchParams.get('session_id') === sessionId)
   await member.route(scopedRead, async route => {
     if (route.request().method() !== 'GET') { await route.continue(); return }
     // Read the real upstream response before delivery; aborted UI fetches may lose their CDP body.
