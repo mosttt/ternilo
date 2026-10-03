@@ -127,7 +127,7 @@ async function verifySharingManagement(page, origin, entry, kind, memberId, arti
   const endpoint = `/${kind === 'session' ? 'sessions' : 'workspaces'}/${encodeURIComponent(id)}/sharing`
   const row = kind === 'session'
     ? page.locator(`[data-sidebar-session-row][data-session-id="${entry.session.identity.session_id}"]`)
-    : page.locator('[data-sidebar-workspace-row]').filter({ hasText: entry.workspace.title })
+    : page.locator('[data-sidebar-workspace-group]').filter({ has: page.locator(`[data-sidebar-session-row][data-session-id="${entry.session.identity.session_id}"]`) }).locator('[data-sidebar-workspace-row]')
   await row.hover()
   if (kind === 'workspace') await page.locator('button[aria-label^="复制工作区完整路径："]').waitFor()
   await row.getByRole('button', { name: /的操作$/ }).click()
