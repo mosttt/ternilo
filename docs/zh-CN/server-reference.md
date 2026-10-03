@@ -230,7 +230,7 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 设置类接口接受可选的 `session_id`、`workspace_id` 或 `executor_id`。Session 与 Workspace 同时提供时以 Session 为准，只有 Workspace 时可在创建首个会话前配置该执行宿主；单独指定 `executor_id` 可在电脑尚无工作区时配置，但必须通过机器归属、空间权限和撤销状态检查，不能与 Session／Workspace 混用。三者均省略时使用当前空间的 Cloud 用户设置。模型中心账号页明确选择账号个人空间，不跟随聊天执行目标；托管会话的账号模型目录与凭据可用状态从 `/model-options` 按明确绑定读取。非执行所有者的安全读取只返回获准的模型目录、凭据配置状态及不可编辑的预设；全局写入要求原执行账号的配置权限，资源管理者身份不代替它。其他凭据及 Agent preset 的设置目标不随账号模型迁移。
 
-`GET /api/v1/model-options` 返回当前选择及分页的“模型＋授权”选项。会话或工作区最多指定一个，读取该资源所有者的配置并检查协作者的使用权限；均不指定时读取本人在当前空间的默认模型和本人授权目录，可在创建工作区前配置默认模型。当前选择独立于分页返回，不因搜索结果或同名模型自动更换预算。
+`GET /api/v1/model-options` 返回当前选择及分页的“模型＋授权”选项。会话或工作区最多指定一个；返回当前已绑定来源及本人可选择的平台授权目录，协作者不取得他人无关授权的目录。`current.owner_user_id` 是模型提供者；账号来源的 `selection` 使用 `account_provider` 并包含 `owner_user_id`。均不指定时读取本人在当前空间的默认模型和本人授权目录，可在创建工作区前配置默认模型。当前选择独立于分页返回，不因搜索结果或同名模型自动更换预算。
 
 平台 Provider Key 轮换位于 `POST /api/v1/admin/models/providers/{provider_id}/key-rotation`；返回轮换 ID 后，通过 `/{rotation_id}/commit` 或 `/{rotation_id}/rollback` 完成操作。对应 GET 只返回待处理轮换元数据，不返回新旧 Key。普通 Provider 更新不能覆盖尚未完成的 Key 轮换。
 

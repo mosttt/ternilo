@@ -138,8 +138,12 @@ impl RunModelSnapshot {
                 reasoning_effort: self.reasoning_effort,
             },
             RunModelBinding::UserProvider {
-                provider_id, model, ..
-            } => crate::DefaultModelSelection::NamedProvider {
+                owner_user_id,
+                provider_id,
+                model,
+                ..
+            } => crate::DefaultModelSelection::AccountProvider {
+                owner_user_id: owner_user_id.clone(),
                 provider_id: provider_id.clone(),
                 model: model.clone(),
                 reasoning_effort: self.reasoning_effort,

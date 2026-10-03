@@ -111,7 +111,7 @@ export function ModelPicker({
   const t = useTranslate('model')
   const cloud = Boolean(platform && (currentSession?.placement ?? currentWorkspace?.placement) !== 'local_node')
   const edge = Boolean(platform && !cloud)
-  const accounts = useAccountProviders(edge, serverIdentity?.personal_tenant_id)
+  const accounts = useAccountProviders(Boolean(platform && serverIdentity?.personal_tenant_id), serverIdentity?.personal_tenant_id)
   const [selecting, setSelecting] = React.useState(false)
   const [localMenuOpen, setLocalMenuOpen] = React.useState(false)
   const pathname = usePathname()
@@ -159,7 +159,8 @@ export function ModelPicker({
   const loadCloud = React.useCallback(async (force = false) => {
     if (!platform) return
     const generation = ++cloudGeneration.current
-    setCloudStatus('loading'); setCloudError('')
+    if (!peekCloudModelInventory(target)) setCloudStatus('loading')
+    setCloudError('')
     try {
       const inventory = await loadCloudModelInventory(force, target)
       if (generation !== cloudGeneration.current) return
@@ -173,8 +174,8 @@ export function ModelPicker({
     if (!platform) { setCloudInventory({ key: targetKey, inventory: null }); return }
     const unsubscribe = subscribeCloudModelInventory(() => {
       const inventory = peekCloudModelInventory(target)
-      setCloudInventory({ key: targetKey, inventory })
-      if (!inventory) void loadCloud()
+      if (inventory) setCloudInventory({ key: targetKey, inventory })
+      else void loadCloud()
     }, target)
     void loadCloud(true)
     return () => { cloudGeneration.current += 1; unsubscribe() }
@@ -316,15 +317,21 @@ export function ModelPicker({
   const touchTrigger = React.useRef(false)
   const configureModels = () => { setMenuOpen(false); onConfigureModels?.() }
   const modelItems = <>
+              {platform && cloudCurrent?.owner_user_id && cloudCurrent.owner_user_id !== serverIdentity?.user.user_id && cloudCurrent.model && <>
+                <DropdownMenuLabel>{t('source.sessionDelegation')}</DropdownMenuLabel>
+                <DropdownMenuItem data-model-source="delegated" disabled={!cloudCurrent.available} onSelect={() => void select(selection)}>
+                  <div className="min-w-0 flex-1"><div>{cloudCurrent.model.display_name}</div><div className="text-xs text-muted-foreground">{cloudCurrent.source_name} · {cloudCurrent.model.model_id}</div></div><Check />
+                </DropdownMenuItem>
+              </>}
               {!cloud && <DropdownMenuItem disabled={!profileAvailable} onSelect={() => void select({ provider: 'profile_default' })}>
                 <CircleGauge /><div className="min-w-0 flex-1"><div>{t('inherit')}</div><div className="text-xs text-muted-foreground">{t('inherit.description')}</div></div>
                 {selection.provider === 'profile_default' && <Check />}
               </DropdownMenuItem>}
-              {edge && serverIdentity && <>
+              {platform && serverIdentity && <>
                 <ProviderModelItems providers={accounts.inventory?.providers ?? []} credentials={accounts.inventory?.credentials ?? null} selection={selection} accountOwner={serverIdentity.user.user_id} label={t('source.account')} onSelect={model => void select(model)} />
                 {accounts.error && <div className="px-3 py-2 text-xs text-destructive" role="alert">{accounts.error}<Button variant="ghost" size="xs" onClick={() => void accounts.load(true)}>{t('provider.retry')}</Button></div>}
               </>}
-              <ProviderModelItems providers={platform ? providers : providers.filter(provider => !isConnectionProvider(provider.id))} credentials={credentials} selection={selection} label={t(cloud ? 'source.account' : 'source.node')} onSelect={model => void select(model)} />
+              {!cloud && <ProviderModelItems providers={platform ? providers : providers.filter(provider => !isConnectionProvider(provider.id))} credentials={credentials} selection={selection} label={t('source.node')} onSelect={model => void select(model)} />}
               {!platform && providers.some(provider => isConnectionProvider(provider.id) && !isAccountConnectionProvider(provider.id)) && <ProviderModelItems providers={providers.filter(provider => isConnectionProvider(provider.id) && !isAccountConnectionProvider(provider.id))} credentials={credentials} selection={selection} label={t('source.connectedPlatform')} onSelect={model => void select(model)} />}
               {!platform && providers.some(provider => isAccountConnectionProvider(provider.id)) && <ProviderModelItems providers={providers.filter(provider => isAccountConnectionProvider(provider.id))} credentials={credentials} selection={selection} label={t('source.connectedAccount')} onSelect={model => void select(model)} />}
               {edge && currentTenantId && <ComputerModelItems key={`computer:${targetKey}`} tenantId={currentTenantId} executionComputerId={currentWorkspace?.node_id ?? undefined} selection={selection} onSelect={model => void select(model)} />}
@@ -390,7 +397,7 @@ export function ModelPicker({
           </DropdownMenuPortal>
         </DropdownMenuSub>)}
         {!reasoning && selection.provider !== 'profile_default' && <div className="px-2 py-2 text-xs text-muted-foreground" data-reasoning-unavailable=""><span className="block font-medium">{t('effort')}</span><p className="mt-1 leading-relaxed">{t(selection.provider === 'platform_model' ? 'effort.platformUnavailable' : 'effort.unavailable')}</p></div>}
-        {status === 'loading' && <div className="px-3 py-5 text-center text-xs text-muted-foreground" role="status">{t('provider.loading')}</div>}
+        {status === 'loading' && (!cloud || !cloudInventory) && <div className="px-3 py-5 text-center text-xs text-muted-foreground" role="status">{t('provider.loading')}</div>}
         {status === 'error' && <div className="grid gap-2 px-3 py-4 text-center text-xs" role="alert"><span className="break-words text-destructive">{t('provider.loadFailed', { message: loadError })}</span><Button type="button" size="sm" variant="outline" onClick={() => void load(true)}>{t('provider.retry')}</Button></div>}
         {!serverBacked && providerCatalogEmpty && !(accounts.inventory?.providers.length) && <div className="grid gap-2 px-3 py-4 text-center text-xs text-muted-foreground"><span>{providers.length ? t('provider.noUsable') : t('provider.empty')}</span>{!platform && onConfigureModels && <Button type="button" size="sm" variant="outline" onClick={configureModels}>{t('provider.configure')}</Button>}</div>}
         {platform && ((cloudCurrent && !cloudCurrent.available) || cloudStatus === 'error') && <div className="grid gap-2 px-3 py-3 text-xs text-muted-foreground">

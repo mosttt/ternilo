@@ -21,6 +21,7 @@ mod event_notifications;
 mod inbox;
 mod input_provenance;
 mod maintenance;
+mod model_delegation;
 mod outer_sandbox;
 mod resource_settings;
 mod run_lineage;
@@ -344,10 +345,13 @@ impl WorkerPolicy {
         }
         self.validate_profile_composition(&spec.profile, catalog)?;
         if let Some(model) = profile_model_snapshot(&spec.profile)?
-            && model.binding.beneficiary_user_id() != &spec.metadata.user_id
+            && matches!(
+                model.binding,
+                ternilo_protocol::RunModelBinding::ComputerProvider { .. }
+            )
         {
             return Err(HarnessError::policy(
-                "run model beneficiary must own the execution resource",
+                "computer models require a remote computer session",
             ));
         }
         Ok(ValidatedRun {
@@ -732,7 +736,7 @@ mod tests {
     }
 
     #[test]
-    fn host_gateway_snapshot_preserves_capabilities_and_requires_resource_beneficiary() {
+    fn host_gateway_snapshot_preserves_capabilities_and_allows_delegated_beneficiary() {
         use ternilo_protocol::ReasoningEffort;
         let mut catalog = Catalog::new("catalog-v1");
         catalog.register(model_gateway_factory()).unwrap();
@@ -765,6 +769,12 @@ mod tests {
             serde_json::json!("high");
         request.profile.plugins[0].config["snapshot"]["binding"]["beneficiary_user_id"] =
             serde_json::json!("other-user");
+        policy.validate(&request, &catalog).unwrap();
+        assert_eq!(request.metadata.user_id.as_str(), "user-a");
+        request.profile.plugins[0].config["snapshot"]["binding"] = serde_json::json!({
+            "kind": "computer_provider", "tenant_id": "team", "owner_user_id": "other-user",
+            "executor_id": "computer", "provider_id": "source", "model": "test-model",
+        });
         assert!(policy.validate(&request, &catalog).is_err());
     }
 

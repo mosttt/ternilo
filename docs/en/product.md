@@ -48,14 +48,14 @@ Desktop connects to the local service. A module boundary does not imply a separa
 | Area | Available | Remaining boundary |
 |---|---|---|
 | Multiple computers | Local and connected computers, remote folders, file tasks and cached history | Offline history contains only synchronized events; Cloud projections still replay events |
-| Models | Account/device/platform sources, independent client grants, actor-preserving child tasks and schedules | Device-to-device local model forwarding and broader collaborator delegation |
+| Models | Account/device/platform sources, remote-computer model forwarding, collaborator-provided managed models, independent client grants, actor-preserving child tasks and schedules | More provider-hosted tools and independent model authorization policies |
 | Protocols | OpenAI Chat, OpenAI Responses, DeepSeek Responses, Gemini and Claude Messages | Vendor-hosted search/tools, Vertex AI and Bedrock |
-| Accounts | Native accounts, invitation/open/approval registration, bans/removal, OIDC, unified local sign-in session management, Turnstile, operator password recovery and space-scoped service account identity/credentials, workspace grants and Live/SDK access | Email verification, self-service email recovery, native MFA; service accounts have verified Node platform-model tool loops; broader managed model delegation remains in progress |
-| Collaboration | Teams, groups, direct grants, manager-enabled project inheritance, team management handoff, attribution and queue conflicts | File/execution-identity migration and collaborator device-model delegation |
+| Accounts | Native accounts, invitation/open/approval registration, bans/removal, OIDC, unified local sign-in session management, Turnstile, operator password recovery and space-scoped service account identity/credentials, workspace grants and Live/SDK access | Email verification, self-service email recovery, native MFA; service accounts use explicitly authorized session models, with separate model-owner checks |
+| Collaboration | Teams, groups, direct grants, manager-enabled project inheritance, team management handoff, attribution and queue conflicts | File/execution-identity migration and more granular model delegation |
 | Usage | Per-attempt ledger, budgets, keys, device limits, late settlement, reconciliation and device reports | Account/platform-wide layered limits and persistent device-report exports |
 | Execution | Local directory coordination, background services and basic same-host Worker recovery | Work pools, dedicated workspace storage and cross-host handoff |
 | Extensions | Signed Rhai/WASM, capabilities, resource ceilings and running-tool cancellation | Synchronous host I/O and Hook cancellation follow their own lifecycles |
-| Scale | One Server with SQLite/PostgreSQL; transactional permission notifications; Node forwarding and event catch-up with actual TCP and restricted PostgreSQL contracts passed | Cross-instance real-browser acceptance, storage failover and capacity claims |
+| Scale | One Server with SQLite/PostgreSQL; transactional permission notifications; Node forwarding, event catch-up and model streaming verified through a restricted PostgreSQL two-instance browser flow | Storage failover and capacity claims |
 
 Continuous goals support immediate execution, additional rounds, blocked completion, stopping and explicit continuation. Durable history does not authorize replay of effects after a crash. Archives support read-only preview and restoration without automatically starting work. Offline log repair is available. MCP supports tool-list refresh and optional bounded reconnection without replaying failed calls; more search providers and external-agent adapters remain separate work.
 

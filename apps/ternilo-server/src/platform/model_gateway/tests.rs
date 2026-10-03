@@ -105,6 +105,7 @@ struct Fixture {
     state: AppState,
     owner: NativeSessionGrant,
     actor: ternilo_control::ControlUser,
+    model_owner: ternilo_control::ControlUser,
     server: RunningServer,
     upstream: RunningServer,
     captured: UpstreamState,
@@ -123,11 +124,15 @@ impl Fixture {
         Self::configured(byok, false).await
     }
 
+    async fn configured(byok: bool, shared: bool) -> Self {
+        Self::configured_source(byok, shared, false).await
+    }
+
     #[expect(
         clippy::too_many_lines,
         reason = "Build independent ownership, permission and execution boundaries through their public store APIs."
     )]
-    async fn configured(byok: bool, shared: bool) -> Self {
+    async fn configured_source(byok: bool, shared: bool, delegated: bool) -> Self {
         let now = now_ms().unwrap();
         let store =
             ControlStore::connect("sqlite::memory:", None, SecretCipher::from_key([93; 32]), 1)
@@ -146,6 +151,27 @@ impl Fixture {
             .unwrap();
         store
             .set_instance_mode(&owner.session.user, InstanceMode::MultiUser, 1, now)
+            .await
+            .unwrap();
+        let model_owner = if delegated {
+            store
+                .upsert_user(
+                    &ternilo_control::OidcPrincipal {
+                        issuer: "https://identity.example".into(),
+                        subject: "model-owner".into(),
+                        email: None,
+                        display_name: Some("Model owner".into()),
+                    },
+                    "model-owner",
+                    now,
+                )
+                .await
+                .unwrap()
+        } else {
+            owner.session.user.clone()
+        };
+        let model_space = store
+            .account_provider_space(&model_owner.user_id)
             .await
             .unwrap();
         let captured = UpstreamState::default();
@@ -210,7 +236,7 @@ impl Fixture {
                 &ModelGrantInput {
                     name: "Execution allowance".to_owned(),
                     subject: ModelGrantSubject::User {
-                        id: owner.session.user.user_id.as_str().to_owned(),
+                        id: model_owner.user_id.as_str().to_owned(),
                     },
                     model_ids: vec!["public-model".to_owned()],
                     monthly_tokens: 1_000_000,
@@ -225,13 +251,13 @@ impl Fixture {
         let mut binding = RunModelBinding::Platform {
             grant_id: grant.grant_id,
             model_id: "public-model".to_owned(),
-            beneficiary_user_id: owner.session.user.user_id.clone(),
+            beneficiary_user_id: model_owner.user_id.clone(),
         };
         if byok {
             store
                 .upsert_user_provider_profile(
-                    &owner.session.user,
-                    &owner.session.personal_tenant_id,
+                    &model_owner,
+                    &model_space,
                     ProviderProfile {
                         id: "personal".to_owned(),
                         api_key_ref: Some("PERSONAL_MODEL_KEY".to_owned()),
@@ -243,8 +269,8 @@ impl Fixture {
                 .unwrap();
             store
                 .put_user_credential(
-                    &owner.session.user,
-                    &owner.session.personal_tenant_id,
+                    &model_owner,
+                    &model_space,
                     "PERSONAL_MODEL_KEY",
                     "workload-upstream-secret",
                     now,
@@ -252,8 +278,8 @@ impl Fixture {
                 .await
                 .unwrap();
             binding = RunModelBinding::UserProvider {
-                tenant_id: owner.session.personal_tenant_id.clone(),
-                owner_user_id: owner.session.user.user_id.clone(),
+                tenant_id: model_space.clone(),
+                owner_user_id: model_owner.user_id.clone(),
                 provider_id: "personal".to_owned(),
                 model: "internal-model".to_owned(),
             };
@@ -299,6 +325,35 @@ impl Fixture {
             .create_cloud_workspace(user, &tenant, &project_id, "Worker models", now)
             .await
             .unwrap();
+        if delegated {
+            store
+                .set_membership(
+                    user,
+                    &tenant,
+                    &model_owner.user_id,
+                    ternilo_control::TenantRole::Member,
+                    now,
+                )
+                .await
+                .unwrap();
+            store
+                .set_resource_share(
+                    user,
+                    &tenant,
+                    ternilo_control::ResourceKind::Workspace,
+                    workspace.workspace_id.as_str(),
+                    &model_owner.user_id,
+                    Some(ternilo_control::ResourcePermissions {
+                        view: true,
+                        submit: false,
+                        stop: false,
+                        configure: true,
+                    }),
+                    now,
+                )
+                .await
+                .unwrap();
+        }
         let session = cloud
             .create_session(
                 CloudSessionDraft {
@@ -480,6 +535,7 @@ impl Fixture {
             state,
             owner,
             actor,
+            model_owner,
             server,
             upstream,
             captured,
@@ -817,7 +873,7 @@ async fn user_provider_uses_the_same_attempt_ledger_without_a_platform_allowance
     reason = "Exercise original sharing authority across a real parent run, a background subagent and live revocation through HTTP."
 )]
 async fn shared_actor_subagent_uses_original_authority_without_copying_resource_grants() {
-    let mut fixture = Fixture::configured(false, true).await;
+    let mut fixture = Fixture::configured_source(false, true, true).await;
     let now = now_ms().unwrap();
     let worker = fixture
         .state
@@ -843,7 +899,7 @@ async fn shared_actor_subagent_uses_original_authority_without_copying_resource_
     assert_eq!(parent_usage.actor_user_id, parent.claim.actor_user_id);
     assert_eq!(
         parent_usage.model_beneficiary_user_id,
-        fixture.owner.session.user.user_id
+        fixture.model_owner.user_id
     );
     let child_id = SessionId::new("background-child");
     worker
@@ -1117,4 +1173,114 @@ async fn assert_busy_child_followup_is_accepted(
     assert_eq!(unchanged.actor_user_id, parent.claim.actor_user_id);
     assert_eq!(unchanged.authorization_session_id, parent.claim.session_id);
     assert_eq!(unchanged.user_id, fixture.owner.session.user.user_id);
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep three-party attribution, forged binding rejection and live source revocation in one HTTP lifecycle."
+)]
+async fn delegated_workload_models_keep_three_identities_and_stop_when_source_access_is_removed() {
+    for byok in [false, true] {
+        let fixture = Fixture::configured_source(byok, true, true).await;
+        let response = fixture.send("complete", 1).await;
+        assert!(
+            response.status().is_success(),
+            "{}",
+            response.text().await.unwrap()
+        );
+        let id = request_id(&response);
+        assert!(matches!(
+            frames(&response.text().await.unwrap()).last(),
+            Some(WorkerModelFrame::Complete { .. })
+        ));
+        let ledger = fixture.ledger(&id).await;
+        assert_eq!(ledger.actor_user_id, fixture.actor.user_id);
+        assert_eq!(
+            ledger.model_beneficiary_user_id,
+            fixture.model_owner.user_id
+        );
+        assert_eq!(
+            ledger.resource_owner_user_id,
+            Some(fixture.owner.session.user.user_id.clone())
+        );
+        assert_eq!(ledger.accounted_tokens, Some(120));
+        let workload = ledger.workload.unwrap();
+        assert_eq!(
+            workload.execution_owner_user_id,
+            fixture.owner.session.user.user_id
+        );
+        assert_ne!(fixture.actor.user_id, fixture.model_owner.user_id);
+        assert_ne!(
+            fixture.model_owner.user_id,
+            fixture.owner.session.user.user_id
+        );
+        let mut forged = serde_json::to_value(&fixture.request).unwrap();
+        let owner_field = if byok {
+            "owner_user_id"
+        } else {
+            "beneficiary_user_id"
+        };
+        forged["binding"][owner_field] = json!(fixture.owner.session.user.user_id);
+        assert_eq!(
+            fixture.send_body(&forged).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(fixture.captured.0.lock().await.len(), 1);
+        let mut response = fixture.send("revoke", 2).await;
+        let id = request_id(&response);
+        read_partial(&mut response).await;
+        fixture
+            .state
+            .store
+            .set_resource_share(
+                &fixture.owner.session.user,
+                &workload.tenant_id,
+                ternilo_control::ResourceKind::Workspace,
+                workload.workspace_id.as_str(),
+                &fixture.model_owner.user_id,
+                Some(ternilo_control::ResourcePermissions {
+                    view: true,
+                    submit: false,
+                    stop: false,
+                    configure: false,
+                }),
+                now_ms().unwrap(),
+            )
+            .await
+            .unwrap();
+        let remainder = tokio::time::timeout(Duration::from_secs(6), response.text())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(remainder.contains("error"));
+        let stopped = fixture.ledger(&id).await;
+        assert_ne!(stopped.state, ModelRequestState::Pending);
+        assert_eq!(stopped.accounted_tokens, Some(15));
+        assert!(
+            fixture
+                .state
+                .store
+                .resource_access(
+                    &fixture.actor,
+                    &workload.tenant_id,
+                    ternilo_control::ResourceKind::Session,
+                    workload.authorization_session_id.as_str()
+                )
+                .await
+                .unwrap()
+                .permissions
+                .submit
+        );
+        assert_eq!(
+            fixture.send("complete", 3).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            fixture.captured.0.lock().await.len(),
+            2,
+            "source revocation cannot silently use the resource owner's Provider or grant"
+        );
+        fixture.close().await;
+    }
 }

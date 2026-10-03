@@ -20,7 +20,7 @@ Reasoning choices use the provider/model's declared mapping. A removed or unavai
 
 Connected standalone clients can receive explicit Server authorization for account or platform models. Remote-control Node sessions instead use their Server-side session authorization; they do not require copying platform API keys onto the Node. See [model service](model-service.md).
 
-A shared session uses its owner's selected private model only within the allowed sharing scope. Configuration permission does not reveal unrelated private providers or keys. Scheduled work preserves its original input author and rechecks permissions. Direct device-provider usage is observation data, distinct from Server-metered model settlement; see [device usage](device-provider-usage.md) and [unknown usage reconciliation](model-usage-reconciliation.md).
+A member with configuration permission can delegate their own account Provider or platform grant to a managed session. The picker separates the account's own catalog from the session's existing delegated source; it does not enumerate someone else's unrelated private providers or grants. Account selections include the model owner's identity. Keeping an existing source or adjusting its reasoning level preserves that owner. Scheduled work preserves its original input author and rechecks permissions. Direct device-provider usage is observation data, distinct from Server-metered model settlement; see [device usage](device-provider-usage.md) and [unknown usage reconciliation](model-usage-reconciliation.md).
 
 ## Use another computer's model in a remote session
 
@@ -39,3 +39,5 @@ For Anthropic's official API, choose `anthropic-messages` and set the base URL t
 Discovery follows `has_more`, `last_id` and `after_id`, preserving `display_name`, `max_input_tokens`, `max_tokens` and explicitly returned capabilities. Missing reasoning levels retain explicit configuration instead of inventing support. Reference: [Anthropic Models API](https://platform.claude.com/docs/en/api/models/list).
 
 Discovery failures show the upstream HTTP status with guidance about keys, permissions, the versioned API root or rate limits. Connection failures, timeouts and non-JSON catalogs have separate messages. Raw upstream error bodies and keys are not returned to the browser.
+
+Managed execution, storage and task reservations stay with the original resource owner. The model provider and actual submitter may be different accounts; explicitly authorized service accounts can also submit. Model calls, retries and active execution recheck the model owner's configuration permission. Platform grants must allow resource sharing for other submitters. Removing the model owner's configuration permission stops model calls even if the submitter retains workspace access. Worker receives no upstream key.

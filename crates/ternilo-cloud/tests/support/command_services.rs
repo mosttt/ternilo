@@ -284,6 +284,8 @@ pub async fn verify(mut fixture: Fixture<'_>) {
         listed
     );
 
+    revoked_reader_cannot_receive_a_late_reply(&mut fixture).await;
+
     let inactive_run = fixture.start_run("service-command-inactive-run").await;
     fixture
         .worker
@@ -636,5 +638,136 @@ pub async fn verify(mut fixture: Fixture<'_>) {
             .reply,
         Some(start_reply),
         "the committed mutation reply remains readable after its command deadline",
+    );
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "Exercise authenticated sharing, an in-flight read, revocation and owner-only late delivery as one lifecycle."
+)]
+async fn revoked_reader_cannot_receive_a_late_reply(fixture: &mut Fixture<'_>) {
+    use ternilo_control::{ResourceKind, ResourcePermissions, TenantRole};
+    let bootstrap = fixture
+        .control
+        .initialize_owner(
+            &ternilo_control::NativeRegistration {
+                email: "command-owner@example.test".into(),
+                username: "command-owner".into(),
+                password: "command-owner-fixture-password".into(),
+            },
+            fixture.tick(),
+        )
+        .await
+        .unwrap();
+    fixture
+        .control
+        .set_instance_mode(
+            &bootstrap.session.user,
+            ternilo_control::InstanceMode::MultiUser,
+            bootstrap.session.instance.revision,
+            fixture.tick(),
+        )
+        .await
+        .unwrap();
+    let tenant = fixture.session.tenant_id.clone();
+    let session = fixture.session.session_id.clone();
+    let viewer = fixture.other_user.user_id.clone();
+    fixture
+        .control
+        .set_membership(
+            fixture.owner,
+            &tenant,
+            &viewer,
+            TenantRole::Member,
+            fixture.tick(),
+        )
+        .await
+        .unwrap();
+    fixture
+        .control
+        .set_resource_share(
+            fixture.owner,
+            &tenant,
+            ResourceKind::Session,
+            session.as_str(),
+            &viewer,
+            Some(ResourcePermissions {
+                view: true,
+                ..ResourcePermissions::default()
+            }),
+            fixture.tick(),
+        )
+        .await
+        .unwrap();
+    let draft = fixture.draft(
+        "late-private-inspection",
+        ApplicationOperation::SessionCommands {
+            session_id: session.clone(),
+        },
+        CloudCommandDelivery::ReadOnly,
+    );
+    fixture.enqueue(&draft).await;
+    let worker = fixture.worker_a.clone();
+    let claim = fixture.claim(&worker).await.pop().unwrap();
+    let cloud = fixture.cloud.clone();
+    let command = draft.command.command_id.clone();
+    let read_tenant = tenant.clone();
+    let read_session = session.clone();
+    let read_viewer = viewer.clone();
+    let waiting = tokio::spawn(async move {
+        cloud
+            .wait_for_session_command_reply_as(
+                &read_tenant,
+                &read_viewer,
+                &read_session,
+                &command,
+                Duration::from_secs(5),
+                Duration::from_millis(10),
+            )
+            .await
+    });
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(
+        !waiting.is_finished(),
+        "reader waits for the original pending command"
+    );
+    fixture
+        .control
+        .set_resource_share(
+            fixture.owner,
+            &tenant,
+            ResourceKind::Session,
+            session.as_str(),
+            &viewer,
+            None,
+            fixture.tick(),
+        )
+        .await
+        .unwrap();
+    fixture
+        .complete(
+            &worker,
+            &claim,
+            serde_json::json!({"private":"late-result"}),
+        )
+        .await;
+    assert_eq!(
+        waiting.await.unwrap().unwrap_err().code,
+        ErrorCode::PolicyDenied
+    );
+    let owner_reply = fixture
+        .cloud
+        .session_command_as(
+            &tenant,
+            &fixture.owner.user_id,
+            &session,
+            &draft.command.command_id,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        owner_reply.reply.is_some(),
+        "the owner's result remains available after revoking the reader"
     );
 }

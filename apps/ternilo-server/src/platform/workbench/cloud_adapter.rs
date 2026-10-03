@@ -517,13 +517,17 @@ impl<'a> CloudAdapter<'a> {
                 &self.actor.user_id,
                 &session.session_id,
                 &command_id,
-                Duration::from_secs(if service_operation { 25 } else { 3 }),
+                if service_operation {
+                    Duration::from_secs(25)
+                } else {
+                    Duration::from_millis(expires_at_ms.saturating_sub(now_ms()?))
+                },
                 Duration::from_millis(40),
             )
             .await?
             .ok_or_else(|| {
                 HarnessError::unavailable(format!(
-                    "capability unavailable: no live cloud Worker can serve {required_capability:?}"
+                    "cloud Worker did not finish the {required_capability:?} request before its deadline; check its connection and load"
                 ))
             })?;
         match reply.outcome {
@@ -739,18 +743,15 @@ impl<'a> CloudAdapter<'a> {
             .worker_policy
             .validate(&compiled.spec, &self.state.catalog)?;
         if let Some(model) = &frozen.model {
-            self.state
-                .store
-                .resolve_workload_model_snapshot(
-                    &self.actor.user_id,
-                    &session.user_id,
-                    self.tenant_id,
-                    &model.binding,
-                    model.reasoning_effort,
-                    now_ms()?,
-                )
-                .await
-                .map_err(|error| error.error)?;
+            super::model_options::managed::current(
+                self.state,
+                self.actor,
+                self.tenant_id,
+                ResourceKind::Session,
+                session.session_id.as_str(),
+                model,
+            )
+            .await?;
             validate_task_model_budget(
                 model,
                 &compiled.spec.input,
@@ -1043,19 +1044,15 @@ impl<'a> CloudAdapter<'a> {
                 HarnessError::policy("run model must match the selected session model").into(),
             );
         }
-        let current = self
-            .state
-            .store
-            .resolve_workload_model_snapshot(
-                &self.actor.user_id,
-                &session.user_id,
-                self.tenant_id,
-                &selected.binding,
-                selected.reasoning_effort,
-                now_ms()?,
-            )
-            .await
-            .map_err(|error| error.error)?;
+        let current = super::model_options::managed::current(
+            self.state,
+            self.actor,
+            self.tenant_id,
+            ResourceKind::Session,
+            session.session_id.as_str(),
+            selected,
+        )
+        .await?;
         validate_task_model_budget(
             &current,
             &draft.input,
@@ -1124,11 +1121,22 @@ impl<'a> CloudAdapter<'a> {
         } else {
             self.actor.user_id.clone()
         };
-        super::model_options::resolve_selection(
+        let previous = if let Some((ResourceKind::Session, id)) = resource {
+            self.state
+                .cloud
+                .get_session(self.tenant_id, &SessionId::new(id))
+                .await?
+                .model
+        } else {
+            None
+        };
+        super::model_options::managed::selected(
             self.state,
             self.actor,
             self.tenant_id,
+            resource,
             &owner,
+            previous.as_ref(),
             selection,
         )
         .await

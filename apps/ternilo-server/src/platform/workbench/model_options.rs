@@ -44,11 +44,13 @@ struct CurrentModel {
     model: Option<PublicModel>,
     selectable_reasoning: Option<ProviderModelReasoning>,
     source_name: Option<String>,
+    owner_user_id: Option<UserId>,
     available: bool,
     unavailable_reason: Option<String>,
 }
 
 mod edge;
+pub(crate) mod managed;
 pub(crate) use edge::resolve_edge_selection;
 
 pub(crate) async fn resolve_selection(
@@ -215,30 +217,23 @@ pub(super) async fn model_options(
         None
     } else {
         let resolved = if let Some(snapshot) = &saved {
-            state
-                .store
-                .resolve_workload_model_snapshot(
-                    &user.user_id,
-                    &owner,
-                    &tenant,
-                    &snapshot.binding,
-                    snapshot.reasoning_effort,
-                    now_ms()?,
-                )
+            let (kind, id) = resource.expect("saved model belongs to a session");
+            managed::current(state, user, &tenant, kind, id, snapshot)
                 .await
                 .map(Some)
-                .map_err(|error| error.error)
         } else {
             resolve_selection(state, user, &tenant, &owner, selection.clone()).await
         };
         match resolved {
             Ok(Some(model)) => Some(CurrentModel {
+                owner_user_id: Some(model.binding.beneficiary_user_id().clone()),
                 selectable_reasoning: model.defaults.reasoning.clone(),
                 selection, model: Some(public_snapshot(&model)), source_name: Some(model.source_name),
                 available: true, unavailable_reason: None,
             }),
             Ok(None) => None,
             Err(error) if matches!(error.code, ternilo_protocol::ErrorCode::InvalidInput | ternilo_protocol::ErrorCode::PolicyDenied | ternilo_protocol::ErrorCode::Conflict) => Some(CurrentModel {
+                owner_user_id: saved.as_ref().map(|model| model.binding.beneficiary_user_id().clone()),
                 selectable_reasoning: None,
                 selection, model: saved.as_ref().map(public_snapshot), source_name: saved.map(|model| model.source_name),
                 available: false, unavailable_reason: Some("The selected model or authorization is unavailable. Check model settings and resource access.".to_owned()),

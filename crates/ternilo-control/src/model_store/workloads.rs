@@ -19,7 +19,7 @@ use crate::{
 };
 
 impl ControlStore {
-    /// The caller must validate canonical Worker identity, lease, fence and resource authority in this transaction.
+    /// The caller must validate canonical Worker identity, lease, fence, submitter and model-owner resource authority in this transaction.
     pub async fn reserve_workload_model_request_in(
         &self,
         tx: &mut Transaction,
@@ -43,7 +43,7 @@ impl ControlStore {
             .resolve_workload_route_in(
                 tx,
                 &principal.actor_user_id,
-                &principal.resource_owner_user_id,
+                principal.model.beneficiary_user_id(),
                 &principal.model,
                 now,
                 true,
@@ -120,7 +120,7 @@ impl ControlStore {
             .resolve_workload_route_in(
                 tx,
                 &principal.actor_user_id,
-                &principal.resource_owner_user_id,
+                principal.model.beneficiary_user_id(),
                 &principal.model,
                 now,
                 false,
@@ -194,7 +194,7 @@ impl ControlStore {
         self.resolve_workload_route_in(
             tx,
             &principal.actor_user_id,
-            &principal.resource_owner_user_id,
+            principal.model.beneficiary_user_id(),
             &principal.model,
             now,
             false,
@@ -205,11 +205,11 @@ impl ControlStore {
         Ok(())
     }
 
-    /// Resolve a model after the Server has authorized the actor's canonical resource.
+    /// Resolve a model after the Server has authorized its owner and actor on the canonical resource.
     pub async fn resolve_workload_model_snapshot(
         &self,
         actor_id: &UserId,
-        resource_owner_id: &UserId,
+        model_owner_id: &UserId,
         tenant_id: &TenantId,
         binding: &RunModelBinding,
         reasoning_effort: Option<ReasoningEffort>,
@@ -218,7 +218,7 @@ impl ControlStore {
         let mut tx = self.model_transaction().await?;
         require_provider_space(&mut tx, tenant_id, binding).await?;
         let (route, grant) = self
-            .resolve_workload_route_in(&mut tx, actor_id, resource_owner_id, binding, now, false)
+            .resolve_workload_route_in(&mut tx, actor_id, model_owner_id, binding, now, false)
             .await?;
         let snapshot = RunModelSnapshot {
             binding: binding.clone(),
@@ -245,14 +245,8 @@ impl ControlStore {
         let mut tx = self.model_transaction().await?;
         let access = resource_access_in(&mut tx, &actor.user_id, tenant, kind, id).await?;
         access.require(ResourceAction::View)?;
-        let result = grants::entitlements_for_user_in(
-            &mut tx,
-            &access.storage_user_id,
-            Some(&actor.user_id),
-            query,
-            now,
-        )
-        .await?;
+        let result =
+            grants::entitlements_for_user_in(&mut tx, &actor.user_id, None, query, now).await?;
         tx.commit().await.map_err(database_error)?;
         Ok(result)
     }
@@ -271,7 +265,7 @@ impl ControlStore {
         require_existing_account(tx, owner).await?;
         if binding.beneficiary_user_id() != owner {
             return Err(HarnessError::policy(
-                "workload model beneficiary must retain the resource owner",
+                "workload model beneficiary must match its authorized model owner",
             )
             .into());
         }

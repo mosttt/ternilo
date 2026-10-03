@@ -21,6 +21,7 @@ vi.mock('@/api/client', () => ({ api: { request: fixture.request } }))
 vi.mock('@/state/workbench', () => ({
   useWorkbench: () => ({
     platform: fixture.platform,
+    serverIdentity: fixture.platform ? { user: { user_id: 'actor' }, personal_tenant_id: 'personal' } : undefined,
     currentTenantId: fixture.currentTenantId,
     currentSession: fixture.hasSession ? { identity: { session_id: 'session-1' }, model: fixture.model, placement: fixture.placement } : null,
     currentWorkspace: fixture.workspace,
@@ -97,7 +98,7 @@ async function chooseProviderModel() {
     key: 'ArrowRight', bubbles: true, cancelable: true,
   })))
   await settle()
-  const model = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+  const model = [...document.querySelectorAll<HTMLElement>('[role="menuitem"][data-model-source="delegated"], [data-model-provider] [role="menuitem"]')]
     .find(item => item.textContent?.includes('model-a'))
   expect(model).toBeDefined()
   await act(async () => {
@@ -396,39 +397,40 @@ describe('Cloud model selection', () => {
     expect(fixture.request.mock.calls.filter(([path]) => String(path).startsWith('/model-options'))).toHaveLength(1)
   })
 
-  it('selects the resource-owner account catalog without reading execution-space Providers or credentials', async () => {
+  it('selects the actor account catalog without reading execution-space Providers or credentials', async () => {
     cloud({ provider: 'profile_default' })
-    fixture.request.mockImplementation(async (path: string) => {
-      if (!path.startsWith('/model-options')) throw new Error(`Unexpected execution-space read: ${path}`)
-      return { current: null, options: [], next_cursor: null,
-        providers: [{ ...provider, base_url: '', api_key_ref: 'ACCOUNT_KEY' }],
-        credentials: { references: [{ reference: 'ACCOUNT_KEY', configured: true, writable: false, source: 'managed' }], records: [] },
-      }
+    fixture.request.mockImplementation(async (path: string, options: { headers?: Record<string, string> }) => {
+      if (path.startsWith('/model-options')) return { current: null, options: [], next_cursor: null, providers: [], credentials: inventory }
+      expect(options.headers?.['x-ternilo-tenant']).toBe('personal')
+      expect(path).not.toContain('session_id')
+      return path === '/providers' ? [provider] : inventory
     })
     await act(async () => root.render(<ModelPicker rememberDefault={false} />))
     await chooseProviderModel()
-    expect(fixture.updateSession).toHaveBeenCalledWith('session-1', { model: { provider: 'named_provider', provider_id: 'no-key', model: 'model-a' } })
-    expect(fixture.request.mock.calls.every(([path]) => String(path).startsWith('/model-options'))).toBe(true)
+    expect(fixture.updateSession).toHaveBeenCalledWith('session-1', { model: { provider: 'account_provider', owner_user_id: 'actor', provider_id: 'no-key', model: 'model-a' } })
     expect(fixture.notify).not.toHaveBeenCalledWith(expect.anything(), 'error')
   })
 
-  it('separates model catalogs for identical session IDs in different spaces', async () => {
-    cloud({ provider: 'profile_default' })
+  it('separates delegated sources for identical session IDs in different spaces', async () => {
+    const selected = (team: string) => ({ provider: 'account_provider' as const, owner_user_id: `${team}-owner`, provider_id: 'same-provider', model: 'model-a' })
+    cloud(selected('first-team'))
     fixture.currentTenantId = 'first-team'
     fixture.request.mockImplementation(async (path: string, options: { headers?: Record<string, string> }) => {
+      if (!path.startsWith('/model-options')) return path === '/providers' ? [] : inventory
       expect(path).toContain('session_id=session-1')
-      const team = options.headers?.['x-ternilo-tenant']
-      return { current: null, options: [], next_cursor: null,
-        providers: [{ ...provider, id: `${team}-provider` }], credentials: inventory,
-      }
+      const team = options.headers?.['x-ternilo-tenant'] ?? ''
+      return { current: { selection: selected(team), owner_user_id: `${team}-owner`, source_name: team, available: true,
+        model: { ...publicModel, model_id: 'model-a', display_name: 'model-a' }, selectable_reasoning: null },
+        options: [], next_cursor: null, providers: [], credentials: inventory }
     })
     await act(async () => root.render(<ModelPicker rememberDefault={false} />))
     await chooseProviderModel()
-    expect(fixture.updateSession).toHaveBeenLastCalledWith('session-1', { model: { provider: 'named_provider', provider_id: 'first-team-provider', model: 'model-a' } })
+    expect(fixture.updateSession).toHaveBeenLastCalledWith('session-1', { model: selected('first-team') })
     fixture.currentTenantId = 'second-team'
+    fixture.model = selected('second-team')
     await act(async () => root.render(<ModelPicker rememberDefault={false} />))
     await chooseProviderModel()
-    expect(fixture.updateSession).toHaveBeenLastCalledWith('session-1', { model: { provider: 'named_provider', provider_id: 'second-team-provider', model: 'model-a' } })
+    expect(fixture.updateSession).toHaveBeenLastCalledWith('session-1', { model: selected('second-team') })
     expect(fixture.request.mock.calls.some(([, options]) => options.headers?.['x-ternilo-tenant'] === 'second-team')).toBe(true)
   })
 

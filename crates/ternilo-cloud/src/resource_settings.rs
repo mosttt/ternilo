@@ -18,11 +18,10 @@ impl CloudStore {
         kind: ResourceKind,
         resource_id: &str,
     ) -> Result<(Vec<ProviderProfile>, CredentialInventory), HarnessError> {
-        let (mut transaction, owner_id) = self
+        let (mut transaction, resource_owner) = self
             .resource_settings_transaction(tenant_id, actor_id, kind, resource_id)
             .await?;
-        let personal = ControlStore::account_provider_space_in(&mut transaction, &owner_id).await?;
-        let approved = if owner_id != *actor_id && kind == ResourceKind::Session {
+        let approved = if kind == ResourceKind::Session {
             sqlx::query_scalar::<_, Option<Json<RunModelSnapshot>>>(
                 "SELECT model_snapshot FROM cloud_sessions WHERE tenant_id=$1 AND session_id=$2",
             )
@@ -35,6 +34,31 @@ impl CloudStore {
         } else {
             None
         };
+        let owner_id = match &approved {
+            Some(RunModelBinding::UserProvider { owner_user_id, .. }) => owner_user_id.clone(),
+            _ => resource_owner,
+        };
+        if !shared_model_readable(
+            &mut transaction,
+            tenant_id,
+            actor_id,
+            kind,
+            resource_id,
+            &owner_id,
+            approved.as_ref(),
+        )
+        .await?
+        {
+            return Ok((
+                Vec::new(),
+                CredentialInventory {
+                    references: Vec::new(),
+                    records: Vec::new(),
+                },
+            ));
+        }
+        let personal = ControlStore::account_provider_space_in(&mut transaction, &owner_id).await?;
+        set_user_scope(&mut transaction, &owner_id).await?;
         set_tenant_scope(&mut transaction, &personal).await?;
         let profiles = sqlx::query_scalar::<_, Json<ProviderProfile>>(
             "SELECT provider_json FROM control_user_provider_profiles WHERE tenant_id=$1 AND user_id=$2 ORDER BY provider_id",
@@ -42,41 +66,8 @@ impl CloudStore {
         let configured: std::collections::BTreeSet<String> = sqlx::query_scalar(
             "SELECT name FROM control_user_credentials WHERE tenant_id=$1 AND user_id=$2 AND length(ciphertext)>16",
         ).bind(personal.as_str()).bind(owner_id.as_str()).fetch_all(&mut *transaction).await.map_err(database_error)?.into_iter().collect();
-        let mut references = std::collections::BTreeSet::new();
-        let providers = profiles
-            .into_iter()
-            .filter_map(|profile| {
-                let mut profile = profile.0;
-                if owner_id != *actor_id {
-                    let Some(RunModelBinding::UserProvider {
-                        tenant_id,
-                        owner_user_id,
-                        provider_id,
-                        model,
-                    }) = &approved
-                    else {
-                        return None;
-                    };
-                    if tenant_id != &personal
-                        || owner_user_id != &owner_id
-                        || provider_id != &profile.id
-                    {
-                        return None;
-                    }
-                    profile.models.retain(|entry| &entry.id == model);
-                    if profile.models.is_empty() {
-                        return None;
-                    }
-                }
-                if let Some(reference) = &profile.api_key_ref {
-                    references.insert(reference.clone());
-                }
-                if owner_id != *actor_id {
-                    profile.base_url.clear();
-                }
-                Some(profile)
-            })
-            .collect();
+        let (providers, references) =
+            visible_account_models(profiles, &personal, &owner_id, actor_id, approved.as_ref());
         transaction.commit().await.map_err(database_error)?;
         Ok((
             providers,
@@ -286,4 +277,72 @@ impl CloudStore {
         transaction.commit().await.map_err(database_error)?;
         Ok(document)
     }
+}
+
+async fn shared_model_readable(
+    tx: &mut Transaction,
+    tenant: &TenantId,
+    actor: &UserId,
+    kind: ResourceKind,
+    resource: &str,
+    owner: &UserId,
+    approved: Option<&RunModelBinding>,
+) -> Result<bool, HarnessError> {
+    if owner != actor
+        && let Some(binding) = approved
+    {
+        match crate::model_delegation::require_model_owner_in(tx, tenant, kind, resource, binding)
+            .await
+        {
+            Ok(_) => {}
+            Err(error) if error.code == ternilo_protocol::ErrorCode::PolicyDenied => {
+                return Ok(false);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(true)
+}
+
+fn visible_account_models(
+    profiles: Vec<Json<ProviderProfile>>,
+    personal: &TenantId,
+    owner_id: &UserId,
+    actor_id: &UserId,
+    approved: Option<&RunModelBinding>,
+) -> (Vec<ProviderProfile>, std::collections::BTreeSet<String>) {
+    let mut references = std::collections::BTreeSet::new();
+    let providers = profiles
+        .into_iter()
+        .filter_map(|profile| {
+            let mut profile = profile.0;
+            if owner_id != actor_id {
+                let Some(RunModelBinding::UserProvider {
+                    tenant_id,
+                    owner_user_id,
+                    provider_id,
+                    model,
+                }) = approved
+                else {
+                    return None;
+                };
+                if tenant_id != personal || owner_user_id != owner_id || provider_id != &profile.id
+                {
+                    return None;
+                }
+                profile.models.retain(|entry| &entry.id == model);
+                if profile.models.is_empty() {
+                    return None;
+                }
+            }
+            if let Some(reference) = &profile.api_key_ref {
+                references.insert(reference.clone());
+            }
+            if owner_id != actor_id {
+                profile.base_url.clear();
+            }
+            Some(profile)
+        })
+        .collect();
+    (providers, references)
 }

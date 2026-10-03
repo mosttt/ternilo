@@ -142,11 +142,22 @@ impl CloudStore {
         }
         let snapshot = crate::profile_model_snapshot(&run.claim.spec.profile)?
             .ok_or_else(|| HarnessError::policy("workload has no configured model"))?;
-        if &snapshot.binding != requested_binding
-            || snapshot.binding.beneficiary_user_id() != &metadata.user_id
-        {
+        if &snapshot.binding != requested_binding {
             return Err(HarnessError::policy(
                 "requested model does not match the accepted workload binding",
+            ));
+        }
+        let model_resource_owner = crate::model_delegation::require_model_owner_in(
+            transaction,
+            &metadata.tenant_id,
+            ternilo_control::ResourceKind::Session,
+            run.claim.authorization_session_id.as_str(),
+            &snapshot.binding,
+        )
+        .await?;
+        if model_resource_owner != metadata.user_id {
+            return Err(HarnessError::policy(
+                "model delegation no longer belongs to the execution resource",
             ));
         }
         let reservation = sqlx::query(

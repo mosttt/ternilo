@@ -299,7 +299,13 @@ impl CommandPlane {
         claim: &ClaimedCloudSessionCommand,
         request: &ApplicationOperation,
     ) -> Result<serde_json::Value, HarnessError> {
-        let timeout = Duration::from_secs(2);
+        let timeout = Duration::from_millis(
+            claim
+                .command
+                .expires_at_ms
+                .saturating_sub(now_ms()?)
+                .min(10_000),
+        );
         let value = match request {
             ApplicationOperation::SessionCommands { .. } => serde_json::to_value(
                 handle

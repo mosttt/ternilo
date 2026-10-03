@@ -41,6 +41,9 @@ pub(super) async fn edge_model_options(
             saved.source_name.clone_from(&current.source_name);
         }
         Some(CurrentModel {
+            owner_user_id: snapshot
+                .as_ref()
+                .map(|saved| saved.binding.beneficiary_user_id().clone()),
             selectable_reasoning: current.and_then(|value| value.defaults.reasoning),
             selection,
             model: snapshot.as_ref().map(public_snapshot),

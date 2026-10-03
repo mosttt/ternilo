@@ -5,22 +5,25 @@ use super::{CloudStore, database_error, json_error, mode_str, permission_str, se
 use crate::{CloudSessionDraft, CloudSessionRecord, CloudSessionUpdate};
 
 mod fork;
-async fn require_current_account_binding(
+async fn require_authorized_model_binding(
     transaction: &mut ternilo_storage::Transaction,
     tenant_id: &TenantId,
     session_id: &SessionId,
     update: &CloudSessionUpdate,
-    is_owner: bool,
+    actor_id: &UserId,
 ) -> Result<(), HarnessError> {
     let Some(Some(snapshot)) = &update.model else {
         return Ok(());
     };
-    if is_owner
-        || !matches!(
-            &snapshot.binding,
-            ternilo_protocol::RunModelBinding::UserProvider { .. }
-        )
-    {
+    crate::model_delegation::require_model_owner_in(
+        transaction,
+        tenant_id,
+        ternilo_control::ResourceKind::Session,
+        session_id.as_str(),
+        &snapshot.binding,
+    )
+    .await?;
+    if snapshot.binding.beneficiary_user_id() == actor_id {
         return Ok(());
     }
     let current = sqlx::query_scalar::<
@@ -38,7 +41,7 @@ async fn require_current_account_binding(
     .map_err(database_error)?;
     if !current.is_some_and(|current| current.0.binding == snapshot.binding) {
         return Err(HarnessError::policy(
-            "only the resource owner may authorize a new account Provider",
+            "only the model owner may authorize a new model source",
         ));
     }
     Ok(())
@@ -75,6 +78,16 @@ impl CloudStore {
         )
         .await?;
         let user_id = &owner_id;
+        if let Some(snapshot) = &draft.model {
+            crate::model_delegation::require_model_owner_in(
+                &mut transaction,
+                tenant_id,
+                ternilo_control::ResourceKind::Workspace,
+                draft.workspace_id.as_str(),
+                &snapshot.binding,
+            )
+            .await?;
+        }
         sqlx::query(
             "INSERT INTO cloud_sessions
                 (tenant_id, session_id, user_id, project_id, workspace_id, agent_id,
@@ -212,12 +225,12 @@ impl CloudStore {
         .await?;
         let user_id = &owner_id;
         set_tenant(&mut transaction, tenant_id).await?;
-        require_current_account_binding(
+        require_authorized_model_binding(
             &mut transaction,
             tenant_id,
             session_id,
             &update,
-            actor_id == user_id,
+            actor_id,
         )
         .await?;
         if update.agent_preset.is_some() {

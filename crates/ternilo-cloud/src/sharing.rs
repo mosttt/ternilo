@@ -133,23 +133,29 @@ impl CloudStore {
             ));
         }
         let deadline = tokio::time::Instant::now() + timeout;
+        let Some(mut record) = self
+            .session_command_as(tenant_id, actor_id, session_id, command_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let owner = record.user_id.clone();
         loop {
-            let Some(record) = self
-                .session_command_as(tenant_id, actor_id, session_id, command_id)
-                .await?
-            else {
-                return Ok(None);
-            };
-            if let Some(reply) = record.reply {
-                return Ok(Some(reply));
-            }
-            if tokio::time::Instant::now() >= deadline {
-                return Ok(None);
+            if record.reply.is_some() || tokio::time::Instant::now() >= deadline {
+                // Reauthorize the session and workspace before returning any private result.
+                return Ok(self
+                    .session_command_as(tenant_id, actor_id, session_id, command_id)
+                    .await?
+                    .and_then(|record| record.reply));
             }
             tokio::time::sleep(
                 poll_interval.min(deadline.saturating_duration_since(tokio::time::Instant::now())),
             )
             .await;
+            let Some(current) = self.session_command(tenant_id, &owner, command_id).await? else {
+                return Ok(None);
+            };
+            record = current;
         }
     }
 

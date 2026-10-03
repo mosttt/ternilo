@@ -14,6 +14,7 @@ export interface CloudModelCurrent {
   model: PublicModel | null
   selectable_reasoning: ProviderModelReasoning | null
   source_name: string | null
+  owner_user_id?: string | null
   available: boolean
   unavailable_reason?: string | null
 }
