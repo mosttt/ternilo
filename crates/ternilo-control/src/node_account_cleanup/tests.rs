@@ -330,8 +330,15 @@ pub(crate) async fn contract(store: &ControlStore) {
                 .is_err()
         );
     }
+    assert!(
+        store
+            .synchronize_node_cleanup(&replacement.token, "replacement-storage", 1021)
+            .await
+            .is_err()
+    );
+    let replacement_storage = format!("storage-{}", replacement.executor_id);
     store
-        .synchronize_node_cleanup(&replacement.token, "replacement-storage", 1021)
+        .synchronize_node_cleanup(&replacement.token, &replacement_storage, 1021)
         .await
         .unwrap();
     assert!(
@@ -339,7 +346,7 @@ pub(crate) async fn contract(store: &ControlStore) {
             .record_node_cleanup_receipt(
                 &replacement.token,
                 &NodeCleanupReceipt {
-                    storage_instance_id: "replacement-storage".into(),
+                    storage_instance_id: replacement_storage,
                     request_id: own.requests[0].request_id.clone(),
                     ..receipt.clone()
                 },

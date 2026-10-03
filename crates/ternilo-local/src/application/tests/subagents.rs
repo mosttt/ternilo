@@ -68,7 +68,7 @@ for line in sys.stdin:
                 kind: ternilo_builtins::ACP_SUBAGENT_KIND.to_owned(),
                 enabled: true,
                 config: serde_json::json!({
-                    "providerName": "fixture",
+                    "provider_name": "fixture",
                     "command": "python3",
                     "args": [fixture],
                     "permission": "reject",
@@ -578,10 +578,10 @@ for line in sys.stdin:
                 kind: ternilo_builtins::ACP_SUBAGENT_KIND.to_owned(),
                 enabled: true,
                 config: serde_json::json!({
-                    "providerName": "slow",
+                    "provider_name": "slow",
                     "command": "python3",
                     "args": [fixture],
-                    "shutdownGraceMs": 100,
+                    "shutdown_grace_ms": 100,
                 }),
             }],
         )

@@ -47,7 +47,7 @@ for line in sys.stdin:
             .unwrap();
         app.update_profile_plugins(name, vec![PluginEntry {
             id: "fixture-acp".into(), kind: ternilo_builtins::ACP_SUBAGENT_KIND.into(), enabled: true,
-            config: serde_json::json!({ "providerName": "fixture", "command": "python3", "args": [fixture], "permission": "reject", "shutdownGraceMs": 50 }),
+            config: serde_json::json!({ "provider_name": "fixture", "command": "python3", "args": [fixture], "permission": "reject", "shutdown_grace_ms": 50 }),
         }]).await.unwrap();
         let input = account_input(&format!("{name}-acp"), name);
         app.record_account_input_authorization(&input, &proof(1))
