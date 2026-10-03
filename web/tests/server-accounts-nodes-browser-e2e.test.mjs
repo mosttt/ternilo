@@ -87,7 +87,7 @@ async function cloneLocalHistory(seed, temporary, label) {
     }
   }
   await rewrite(dataDirectory)
-  return { id: label, dataDirectory, workspacePath, origin: `http://127.0.0.1:${await freePort()}` }
+  return { name: label, dataDirectory, workspacePath, origin: `http://127.0.0.1:${await freePort()}` }
 }
 
 async function credentials(page) {
@@ -127,7 +127,7 @@ async function verifySharingManagement(page, origin, entry, kind, memberId, arti
   const endpoint = `/${kind === 'session' ? 'sessions' : 'workspaces'}/${encodeURIComponent(id)}/sharing`
   const row = kind === 'session'
     ? page.locator(`[data-sidebar-session-row][data-session-id="${entry.session.identity.session_id}"]`)
-    : page.locator('[data-sidebar-workspace-row]').filter({ hasText: entry.workspace.node_id })
+    : page.locator('[data-sidebar-workspace-row]').filter({ hasText: entry.workspace.title })
   await row.hover()
   if (kind === 'workspace') await page.locator('button[aria-label^="复制工作区完整路径："]').waitFor()
   await row.getByRole('button', { name: /的操作$/ }).click()
@@ -187,7 +187,6 @@ async function verifySharingManagement(page, origin, entry, kind, memberId, arti
 }
 async function enrollNode(page, origin, node, processes) {
   const settings = await openSettings(page, '我的机器')
-  node.name ??= node.id
   await settings.getByLabel('电脑名称', { exact: true }).fill(node.name)
   await settings.getByRole('button', { name: '生成启动命令', exact: true }).click()
   const launch = page.getByRole('dialog', { name: '启动 Ternilo Node' })
@@ -224,8 +223,10 @@ async function selectSession(page, entry, canSubmit = true) {
   // Re-evaluate the group while waiting instead of fixing a fallback too early.
   await until(async () => {
     if (await row.isVisible()) return true
-    const machine = page.locator('[data-sidebar-workspace-button]').filter({ hasText: entry.workspace.node_id })
-    const workspace = await machine.count() ? machine : page.locator('[data-sidebar-workspace-button]').filter({ hasText: '未分组' })
+    const computer = page.locator(`[data-sidebar-computer-group="node:${entry.workspace.node_id}"] [data-sidebar-computer-button]`)
+    if (await computer.count() && await computer.getAttribute('aria-expanded') === 'false') await computer.click()
+    const named = page.locator('[data-sidebar-workspace-button]').filter({ hasText: entry.workspace.title })
+    const workspace = await named.count() ? named : page.locator('[data-sidebar-workspace-button]').filter({ hasText: '未分组' })
     if (!await workspace.count()) return false
     assert.equal(await workspace.count(), 1)
     if (await workspace.getAttribute('aria-expanded') === 'false') await workspace.click()
@@ -499,18 +500,18 @@ async function configureModel(page, node, baseUrl) {
   await settings.getByRole('button', { name: '添加 Provider', exact: true }).first().click()
   const editor = settings.locator('[data-provider-editor="new"]')
   await editor.getByLabel('Provider ID', { exact: true }).fill('same-provider-id')
-  await editor.getByLabel('显示名称', { exact: true }).fill(`${node.id} provider`)
-  await editor.getByLabel('API Key', { exact: true }).fill(`${node.id}-secret`)
+  await editor.getByLabel('显示名称', { exact: true }).fill(`${node.name} provider`)
+  await editor.getByLabel('API Key', { exact: true }).fill(`${node.name}-secret`)
   await editor.getByLabel('API 地址', { exact: true }).fill(baseUrl)
   await editor.locator('[id$="-provider-defaults-context"]').fill('128K')
   await editor.locator('[id$="-provider-defaults-output"]').fill('8K')
-  await editor.getByLabel('模型 ID 1', { exact: true }).fill(`${node.id}-model`)
-  await editor.getByLabel('显示名称（可选） 1', { exact: true }).fill(`${node.id} model`)
+  await editor.getByLabel('模型 ID 1', { exact: true }).fill(`${node.name}-model`)
+  await editor.getByLabel('显示名称（可选） 1', { exact: true }).fill(`${node.name} model`)
   await editor.getByRole('button', { name: '添加 Provider', exact: true }).click()
-  await settings.getByText(`${node.id} provider`, { exact: true }).waitFor()
+  await settings.getByText(`${node.name} provider`, { exact: true }).waitFor()
   await page.getByRole('link', { name: '返回工作台', exact: true }).click()
-  await choose(page, 'node', 'same-provider-id', `${node.id}-model`)
-  await page.getByRole('button', { name: new RegExp(`${node.id} model`) }).waitFor()
+  await choose(page, 'node', 'same-provider-id', `${node.name}-model`)
+  await page.getByRole('button', { name: new RegExp(`${node.name} model`) }).waitFor()
 }
 async function modelFixture() {
   const calls = [], streams = new Set()
@@ -584,15 +585,15 @@ test('SQLite Server preserves two private Node histories, shared permissions, an
     const localB = await enrollNode(owner, origin, nodes[1], processes)
     assert.equal(localA.workspaces[0].workspace_id, localB.workspaces[0].workspace_id)
     assert.equal(localA.sessions[0].identity.session_id, localB.sessions[0].identity.session_id)
-    const ownedState = await discovered(owner, origin, ['owner-a', 'owner-b'])
-    const a = sessionOn(ownedState, 'owner-a'), b = sessionOn(ownedState, 'owner-b')
+    const ownedState = await discovered(owner, origin, [nodes[0].id, nodes[1].id])
+    const a = sessionOn(ownedState, nodes[0].id), b = sessionOn(ownedState, nodes[1].id)
     assert.notEqual(a.workspace.workspace_id, b.workspace.workspace_id)
     assert.notEqual(a.session.identity.session_id, b.session.identity.session_id)
     assert.notEqual(a.session.identity.session_id, seed.sessionId)
     for (const [index, entry] of [[0, a], [1, b]]) {
       await selectSession(owner, entry)
       await configureModel(owner, nodes[index], fixture.baseUrl)
-      await owner.getByRole('textbox', { name: '输入任务', exact: true }).fill(`${nodes[index].id} private draft`)
+      await owner.getByRole('textbox', { name: '输入任务', exact: true }).fill(`${nodes[index].name} private draft`)
     }
     await selectSession(owner, a)
     assert.equal(await owner.getByRole('textbox', { name: '输入任务', exact: true }).inputValue(), 'owner-a private draft')
@@ -638,8 +639,8 @@ test('SQLite Server preserves two private Node histories, shared permissions, an
     assert.equal(denied.status(), 400)
     assert.deepEqual((await denied.json()).error, { code: 'invalid_input', message: 'session does not exist' }, 'private owner history is unavailable to an invited member')
     await enrollNode(member, origin, nodes[2], processes)
-    const memberState = await discovered(member, origin, ['member-c'])
-    const c = sessionOn(memberState, 'member-c')
+    const memberState = await discovered(member, origin, [nodes[2].id])
+    const c = sessionOn(memberState, nodes[2].id)
     assert.equal(memberState.workspaces.length, 1)
     assert.equal((await requestAs(owner, origin, '/state')).workspaces.length, 2)
     assert.equal(new Set([a.workspace.workspace_id, b.workspace.workspace_id, c.workspace.workspace_id]).size, 3)
@@ -673,7 +674,7 @@ test('SQLite Server preserves two private Node histories, shared permissions, an
     await member.getByRole('dialog', { name: '访问已暂停' }).waitFor({ state: 'hidden' })
     await member.getByRole('textbox', { name: '输入任务', exact: true }).waitFor()
     assert.equal(await member.evaluate(() => localStorage.getItem('ternilo.current-session')), c.session.identity.session_id)
-    const restored = await discovered(owner, origin, ['owner-a', 'owner-b'])
+    const restored = await discovered(owner, origin, [nodes[0].id, nodes[1].id])
     assert.equal(restored.sessions.find(session => session.identity.session_id === a.session.identity.session_id)?.workspace_id, a.workspace.workspace_id)
     assert.equal(restored.sessions.find(session => session.identity.session_id === b.session.identity.session_id)?.workspace_id, b.workspace.workspace_id)
     await owner.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent.includes('owner-a alternative') && !button.disabled))
