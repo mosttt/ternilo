@@ -1,7 +1,24 @@
 name: Build packages
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Build one target, or all release targets
+        type: choice
+        default: all
+        options:
+          - all
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
   workflow_call:
+    inputs:
+      target:
+        type: string
+        default: all
 
 permissions:
   contents: read
@@ -13,34 +30,38 @@ env:
   RUST_BACKTRACE: '1'
 
 jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      targets: ${{ steps.matrix.outputs.targets }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - id: matrix
+        env:
+          REQUESTED_TARGET: ${{ inputs.target || 'all' }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          targets = json.loads(Path(".github/package-targets.json").read_text())
+          selected = os.environ["REQUESTED_TARGET"]
+          if selected != "all":
+              targets = [entry for entry in targets if entry["target"] == selected]
+          if not targets:
+              raise ValueError("Unknown package target")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              print("targets=" + json.dumps({"include": targets}, separators=(",", ":")), file=output)
+          PY
   packages:
+    needs: matrix
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-packages-${{ matrix.target }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-            bundles: deb,appimage
-            suffix: ''
-          - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
-            bundles: deb,appimage
-            suffix: ''
-          - os: windows-2025
-            target: x86_64-pc-windows-msvc
-            bundles: nsis,msi
-            suffix: .exe
-          - os: macos-15
-            target: aarch64-apple-darwin
-            bundles: dmg
-            suffix: ''
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            bundles: dmg
-            suffix: ''
+      matrix: ${{ fromJSON(needs.matrix.outputs.targets) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     defaults:
@@ -74,19 +95,28 @@ jobs:
       - name: Desktop installers
         working-directory: ternilo/apps/ternilo-desktop
         run: npm exec --yes --package @tauri-apps/cli@2.12.0 -- tauri build --ci --target "$RUST_TARGET" --bundles "$BUNDLES" -- --locked
-      - name: Windows executable subsystem
+      - name: Windows executable architecture and subsystem
         if: runner.os == 'Windows'
         run: |
           python - "$RUST_TARGET" <<'PY'
           import pathlib, struct, sys
           directory = pathlib.Path("target") / sys.argv[1] / "release"
-          for name, expected in [("ternilo-desktop", 2), ("ternilo", 3), ("ternilo-server", 3)]:
+          machine = 0xaa64 if sys.argv[1].startswith("aarch64-") else 0x8664
+          for name, expected in [("ternilo-desktop", 2), ("ternilo", 3), ("ternilo-server", 3), ("ternilo-plugin", 3), ("ternilo-sandbox-windows", 3)]:
               data = (directory / (name + ".exe")).read_bytes()
               header = struct.unpack_from("<I", data, 0x3c)[0]
               assert data[header:header + 4] == b"PE\0\0"
+              actual = struct.unpack_from("<H", data, header + 4)[0]
+              assert actual == machine, (name, hex(actual), hex(machine))
               subsystem = struct.unpack_from("<H", data, header + 24 + 68)[0]
               assert subsystem == expected, (name, subsystem, expected)
           PY
+      - name: Windows ARM64 persistence and workspace boundaries
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        run: |
+          cargo test --locked --release --target "$RUST_TARGET" -p ternilo-local --lib state::tests
+          cargo test --locked --release --target "$RUST_TARGET" -p ternilo-local --lib application::workspace_browser
+          cargo test --locked --release --target "$RUST_TARGET" -p ternilo-builtins --lib process_supervision
       - name: Desktop background service lifecycle
         env:
           VERSION: ${{ steps.info.outputs.version }}
