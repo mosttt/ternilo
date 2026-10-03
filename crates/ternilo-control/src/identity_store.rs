@@ -86,8 +86,8 @@ pub struct NativeSessionGrant {
 
 /// A password verification result that must be revalidated when issuing a session.
 pub struct VerifiedNativeCredentials {
-    user: ControlUser,
-    password_hash: String,
+    pub(crate) user: ControlUser,
+    pub(crate) password_hash: String,
 }
 
 #[derive(Deserialize)]

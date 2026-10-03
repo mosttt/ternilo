@@ -1,6 +1,10 @@
-# Recover a native account password
+# Change or recover a native account password
 
 English · [简体中文](../zh-CN/account-recovery.md)
+
+Signed-in native accounts can use **User settings → General → Account → Change password**, supplying the current password and confirming the new one. Success revokes every native/OIDC browser sign-in on this site, including the current page. The password update and revocation commit together; incorrect credentials or a concurrent password change cannot overwrite the current password. OIDC-only accounts do not see this option.
+
+`POST /api/v1/auth/password` uses the current account's browser authentication and accepts `current_password` and `new_password` in JSON, without a target account parameter. The response contains no password. External identity-provider sessions, computer credentials, model keys and service-account credentials are unaffected.
 
 An operator who can read the Server's private configuration can reset an existing native account password. The account ID, roles, personal space, workspaces, sessions, computers and model grants retain their ownership. This does not create accounts or add native credentials to OIDC-only accounts.
 
@@ -29,4 +33,4 @@ The password update and revocation of existing native/OIDC site browser sessions
 
 Computer credentials, model keys and OIDC bindings are retained. External IdP credentials and organization sessions remain under IdP control. Banned and pending accounts retain their status; removed accounts cannot be recovered. Use [account administration](../zh-CN/platform-management.md) for access-state changes.
 
-This is local operator recovery, not email recovery, self-service password reset or MFA. If incorrect OIDC/Turnstile settings prevent login, use the separate [authentication-settings recovery](../zh-CN/server-authentication.md) procedure.
+Signed-in accounts can change their own password; forgotten passwords require the operator recovery above. Email recovery and MFA are not yet available. If incorrect OIDC/Turnstile settings prevent login, use the separate [authentication-settings recovery](../zh-CN/server-authentication.md) procedure.

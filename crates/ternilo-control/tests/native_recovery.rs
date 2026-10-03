@@ -54,6 +54,7 @@ async fn recovery_contract(
     store: &ControlStore,
     owner: &NativeSessionGrant,
     member: &NativeSessionGrant,
+    self_service: bool,
 ) {
     let user = &owner.session.user;
     let old_identity = store.identity_session(user.clone()).await.unwrap();
@@ -99,10 +100,46 @@ async fn recovery_contract(
         .verify_native_credentials("owner", OLD_PASSWORD)
         .await
         .unwrap();
-    let reset = store
-        .reset_native_password("OWNER", NEW_PASSWORD, 1_010)
-        .await
-        .unwrap();
+    let reset = if self_service {
+        for (actor, password) in [
+            (user.clone(), "wrong-password"),
+            (
+                ternilo_control::ControlUser {
+                    user_id: member.session.user.user_id.clone(),
+                    username: user.username.clone(),
+                },
+                OLD_PASSWORD,
+            ),
+        ] {
+            assert!(
+                store
+                    .change_native_password(&actor, password, NEW_PASSWORD, 1_009)
+                    .await
+                    .is_err()
+            );
+        }
+        assert!(
+            store
+                .change_native_password(user, OLD_PASSWORD, "short", 1_009)
+                .await
+                .is_err()
+        );
+        assert!(
+            store
+                .authenticate_native_session(&owner.access_token, 1_009)
+                .await
+                .is_ok()
+        );
+        store
+            .change_native_password(user, OLD_PASSWORD, NEW_PASSWORD, 1_010)
+            .await
+            .unwrap()
+    } else {
+        store
+            .reset_native_password("OWNER", NEW_PASSWORD, 1_010)
+            .await
+            .unwrap()
+    };
     assert_eq!(&reset.user, user);
     assert_eq!(reset.native_sessions_revoked, 1);
     assert_eq!(reset.oidc_sessions_revoked, 1);
@@ -178,13 +215,21 @@ async fn recovery_contract(
             .await
             .is_ok()
     );
-    let audit: String = sqlx::query_scalar(
-        "SELECT metadata FROM control_platform_audit WHERE action='account.password.reset'",
-    )
-    .fetch_one(store.database().pool())
-    .await
-    .unwrap();
-    assert!(audit.contains("operator_cli"));
+    let audit: String =
+        sqlx::query_scalar("SELECT metadata FROM control_platform_audit WHERE action=$1")
+            .bind(if self_service {
+                "account.password.change"
+            } else {
+                "account.password.reset"
+            })
+            .fetch_one(store.database().pool())
+            .await
+            .unwrap();
+    assert!(audit.contains(if self_service {
+        "self_service"
+    } else {
+        "operator_cli"
+    }));
     assert!(!audit.contains(OLD_PASSWORD));
     assert!(!audit.contains(NEW_PASSWORD));
     assert!(!audit.contains("argon2"));
@@ -303,13 +348,38 @@ async fn rejected_recovery_contract(
     );
 }
 
-async fn contract(url: &str, migration: Option<&str>) {
+async fn contract(url: &str, migration: Option<&str>, self_service: bool) {
     let store = ControlStore::connect(url, migration, SecretCipher::from_key([73; 32]), 4)
         .await
         .unwrap();
     let (owner, member) = accounts(&store).await;
-    recovery_contract(&store, &owner, &member).await;
-    rejected_recovery_contract(&store, &owner, &member).await;
+    recovery_contract(&store, &owner, &member, self_service).await;
+    if self_service {
+        store
+            .set_account_status(
+                &owner.session.user,
+                &member.session.user.user_id,
+                AccountStatusAction::Ban,
+                1,
+                1_020,
+            )
+            .await
+            .unwrap();
+        assert!(
+            store
+                .change_native_password(&member.session.user, OLD_PASSWORD, NEW_PASSWORD, 1_021)
+                .await
+                .is_err()
+        );
+        assert!(
+            store
+                .verify_native_credentials("member", OLD_PASSWORD)
+                .await
+                .is_ok()
+        );
+    } else {
+        rejected_recovery_contract(&store, &owner, &member).await;
+    }
     store.database().close().await;
 }
 
@@ -322,6 +392,21 @@ async fn sqlite_password_recovery_preserves_identity_and_rejects_old_authenticat
             directory.path().join("recovery.sqlite3").display()
         ),
         None,
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sqlite_self_service_password_change_revokes_logins_and_preserves_other_accounts() {
+    let directory = tempfile::tempdir().unwrap();
+    contract(
+        &format!(
+            "sqlite://{}?mode=rwc",
+            directory.path().join("change.sqlite3").display()
+        ),
+        None,
+        true,
     )
     .await;
 }
@@ -335,17 +420,19 @@ async fn postgres_password_recovery_uses_restricted_runtime_grants() {
     let admin_url = std::env::var("TERNILO_TEST_DATABASE_URL").unwrap();
     assert!(admin_url.contains("ternilo_control_test"));
     let admin = sqlx::PgPool::connect(&admin_url).await.unwrap();
-    sqlx::raw_sql("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
-        .execute(&admin)
-        .await
-        .unwrap();
-    postgres_runtime::prepare_role(&admin, "ternilo_recovery_test", "recovery-password").await;
-    let mut runtime = admin_url
-        .parse::<sqlx::any::AnyConnectOptions>()
-        .unwrap()
-        .database_url;
-    runtime.set_username("ternilo_recovery_test").unwrap();
-    runtime.set_password(Some("recovery-password")).unwrap();
-    contract(runtime.as_str(), Some(&admin_url)).await;
+    for self_service in [false, true] {
+        sqlx::raw_sql("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+            .execute(&admin)
+            .await
+            .unwrap();
+        postgres_runtime::prepare_role(&admin, "ternilo_recovery_test", "recovery-password").await;
+        let mut runtime = admin_url
+            .parse::<sqlx::any::AnyConnectOptions>()
+            .unwrap()
+            .database_url;
+        runtime.set_username("ternilo_recovery_test").unwrap();
+        runtime.set_password(Some("recovery-password")).unwrap();
+        contract(runtime.as_str(), Some(&admin_url), self_service).await;
+    }
     admin.close().await;
 }

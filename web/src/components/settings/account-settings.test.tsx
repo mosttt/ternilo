@@ -55,6 +55,7 @@ describe('Account sign-in settings', () => {
     expect(host.textContent).toContain('OIDC 登录已绑定')
     expect(host.textContent).toContain('https://identity.example')
     expect(button('绑定 OIDC 登录')).toBeUndefined()
+    expect(host.querySelector('[data-account-password]')).toBeNull()
   })
 
   it('drops an old account response after switching the current identity', async () => {
@@ -71,10 +72,11 @@ describe('Account sign-in settings', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('other')
   })
 
-  it('does not request optional OIDC metadata when the provider is disabled', async () => {
+  it('loads native password settings even when OIDC is disabled', async () => {
     workbench.serverAuthConfig.oidc_enabled = false
     await render()
-    expect(api.request).not.toHaveBeenCalled()
+    expect(api.request).toHaveBeenCalledWith('/auth/oidc-link')
+    expect(host.querySelector('[data-account-password]')).not.toBeNull()
     expect(button('绑定 OIDC 登录')).toBeUndefined()
     expect(host.textContent).toContain('My account')
     expect(host.querySelector('[data-account-id]')?.textContent).toBe('member')

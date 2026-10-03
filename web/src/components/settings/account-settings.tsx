@@ -8,6 +8,7 @@ import { useTranslate } from '@/i18n/provider'
 import { useWorkbench } from '@/state/workbench'
 import { GroupHeader, SettingRow } from './settings-ui'
 import { AccountSessions } from './account-sessions'
+import { AccountPassword } from './account-password'
 
 interface OidcLink {
   native: boolean
@@ -30,7 +31,7 @@ export function AccountSettings() {
     let cancelled = false
     setLink(null)
     setError('')
-    if (config?.oidc_enabled && identity) {
+    if (identity) {
       void api.request<OidcLink>('/auth/oidc-link').then(value => {
         if (!cancelled) setLink(value)
       }).catch(cause => {
@@ -38,7 +39,7 @@ export function AccountSettings() {
       })
     }
     return () => { cancelled = true }
-  }, [config?.oidc_enabled, identity?.user.user_id, revision])
+  }, [identity?.user.user_id, revision])
 
   const begin = async () => {
     if (busy || !link?.native || link.oidc) return
@@ -88,7 +89,8 @@ export function AccountSettings() {
             : error ? <Button type="button" variant="outline" onClick={() => setRevision(value => value + 1)}>{t('account.retry')}</Button>
               : <span className="text-sm text-muted-foreground" role="status">{t('account.loading')}</span>}
     </SettingRow>}
-    {error && <p className="mt-2 text-sm text-destructive" role="alert">{error}</p>}
+    {error && <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-sm text-destructive" role="alert">{error}</p>{!config?.oidc_enabled && <Button type="button" variant="outline" onClick={() => setRevision(value => value + 1)}>{t('account.retry')}</Button>}</div>}
+    {link?.native && <AccountPassword key={identity.user.user_id} />}
     <AccountSessions key={identity.user.user_id} />
   </section>
 }

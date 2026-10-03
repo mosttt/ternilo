@@ -46,6 +46,7 @@ pub(crate) fn router() -> Router {
             Router::new()
                 .hoop(auth::user_auth)
                 .push(Router::with_path("auth/session").get(get_session))
+                .push(Router::with_path("auth/password").post(change_password))
                 .push(sessions::router())
                 .push(Router::with_path("invitations/accept").post(join_invitation)),
         )
@@ -410,6 +411,38 @@ fn get_session(depot: &mut Depot) -> Json<BrowserSession> {
         .expect("user authentication middleware must run first")
         .clone();
     Json(browser_session(app_state(depot), session))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PasswordChangeRequest {
+    current_password: String,
+    new_password: String,
+}
+
+#[handler]
+async fn change_password(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ternilo_control::NativePasswordReset>, ApiError> {
+    let body = request
+        .parse_json::<PasswordChangeRequest>()
+        .await
+        .map_err(invalid_request)?;
+    let state = app_state(depot);
+    let result = state
+        .store
+        .change_native_password(
+            actor(depot),
+            &body.current_password,
+            &body.new_password,
+            now_ms()?,
+        )
+        .await?;
+    state
+        .cloud_events
+        .reauthenticate_user(&actor(depot).user_id);
+    Ok(Json(result))
 }
 
 #[handler]
