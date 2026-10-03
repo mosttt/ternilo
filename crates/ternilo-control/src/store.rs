@@ -24,7 +24,10 @@ use crate::{
 };
 
 mod computer_usage;
-pub use computer_usage::{ComputerProviderUsage, ComputerProviderUsagePage};
+pub use computer_usage::{
+    ComputerProviderUsage, ComputerProviderUsagePage, ComputerUsageCount, ComputerUsageGroup,
+    ComputerUsageSummary, ComputerUsageTotals,
+};
 mod projects;
 mod usage;
 
@@ -217,6 +220,7 @@ impl ControlStore {
         crate::computer_management::initialize(database).await?;
         crate::service_accounts::initialize(database).await?;
         crate::computer_models::initialize(database).await?;
+        computer_usage::initialize(database).await?;
         crate::node_account_cleanup::initialize(database).await
     }
 

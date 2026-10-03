@@ -139,7 +139,11 @@ pub(crate) fn router() -> Router {
         .push(
             Router::with_path("model-computers")
                 .get(model_computers::list)
-                .push(Router::with_path("{executor_id}/usage").get(model_computers::usage)),
+                .push(
+                    Router::with_path("{executor_id}/usage")
+                        .get(model_computers::usage)
+                        .push(Router::with_path("summary").get(model_computers::usage_summary)),
+                ),
         )
         .push(
             Router::with_path("default-model")

@@ -40,7 +40,7 @@ export function useModelPage<T, K extends string = string>(path: string, field: 
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [path, field, query, cursor, revision, tenantId])
-  return { items, draft, setDraft, loading, error, reload, nextCursor, page: cursors.length,
+  return { items, draft, setDraft, query, revision, loading, error, reload, nextCursor, page: cursors.length,
     search: () => { setQuery(draft.trim()); setCursors([null]); reload() },
     previous: () => setCursors(current => current.slice(0, -1)), next: (next: string) => setCursors(current => [...current, next]),
   }

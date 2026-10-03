@@ -1,0 +1,2 @@
+CREATE INDEX control_edge_usage_start ON control_edge_events(tenant_id,executor_id,((event_json::jsonb #>> '{occurred_at_ms}')::BIGINT),session_id,seq) WHERE (event_json::jsonb #>> '{type}')='provider_usage_started';
+CREATE INDEX control_edge_usage_finish ON control_edge_events(tenant_id,executor_id,session_id,((event_json::jsonb #>> '{started_seq}')::BIGINT),(event_json::jsonb #>> '{run_id}'),seq) WHERE (event_json::jsonb #>> '{type}')='provider_usage_finished';

@@ -172,3 +172,37 @@ pub(super) async fn forwarded_usage(
             .await?,
     ))
 }
+
+#[handler]
+pub(super) async fn usage_summary(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<ternilo_control::ComputerUsageSummary>, ApiError> {
+    let tenant = tenant_parameter(request)?;
+    let executor = ExecutorId::new(crate::platform::http::path_parameter(
+        request,
+        "executor_id",
+    )?);
+    let query = request
+        .parse_queries::<UsageQuery>()
+        .map_err(crate::platform::http::invalid_request)?;
+    if query.cursor.is_some() || query.limit.is_some() {
+        return Err(ternilo_protocol::HarnessError::invalid(
+            "monthly summaries do not accept a page cursor or limit",
+        )
+        .into());
+    }
+    Ok(Json(
+        app_state(depot)
+            .store
+            .computer_provider_usage_summary(
+                actor(depot),
+                &tenant,
+                &executor,
+                query.month.as_deref(),
+                query.query.as_deref(),
+                crate::platform::http::now_ms()?,
+            )
+            .await?,
+    ))
+}

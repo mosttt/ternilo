@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/device-provider-usage.md)
 
-In Server, open My Models → Usage and select Device local, a space, one of your computers, and a UTC month. Search by Provider/model and page through synchronized attempts. Summary counters cover only the current page, not the entire month.
+In Server, open My Models → Usage and select Device local, a space, one of your computers, and a UTC month. Search by Provider/model and page through synchronized attempts. The summary covers all retained, synchronized original attempts matching the month and search, including unseen pages. It remains a device report, not an upstream bill.
 
 A task can make multiple model calls, retries and auxiliary calls such as title generation. Each actual attempt is recorded separately. Input, output, cache read/write and reasoning counters retain their protocol meanings. Missing fields remain unreported; explicitly reported zero stays zero. A start without a finish remains incomplete and does not establish that no upstream consumption occurred. Submitters come from the original task: local user, automation, or a Server-verified account. Unverified account claims are not presented as trusted identities.
 
@@ -12,10 +12,19 @@ Computers must be enrolled for remote control with matching executor protocol `4
 
 Only the computer owner can read its report. Session sharing or a space administrator role does not grant computer-wide usage access. Reports contain public session references, Provider/model/protocol, attempt status and upstream request IDs, without prompts, credentials, raw responses or upstream error bodies. They depend on retained original journals and Server session mappings. Deleting those records removes their observations; fork copies do not become a replacement ledger. This is an operational view, not an immutable bill or proof of upstream charges.
 
-See the [Server reference](../zh-CN/server-reference.md) for API pagination and permissions. [Administrative reconciliation](model-usage-reconciliation.md) handles unknown counters in the Server ledger and does not change device reports.
+See the [Server reference](server-reference.md) for API pagination and permissions. [Administrative reconciliation](model-usage-reconciliation.md) handles unknown counters in the Server ledger and does not change device reports.
 
 ## Cross-computer calls
 
 Expand Cross-computer model calls to load the current space's separate request ledger with search and pagination. The computer/month controls above apply to direct-device reports, not this ledger. Records include each attempt, status, execution/source computer names, actual submitter, model owner and original resource owner. Submitters and model owners can read their related records; an administrator role alone does not expand visibility.
 
 These are source-computer reports, not directly observed upstream bills or platform-budget charges. Final usage may arrive after cancellation. Interrupted connections or Server shutdown can leave unknown counters; requests are never automatically replayed. Prompts, upstream addresses and keys are not stored in this ledger. Forwarding does not create an agent session on the source computer, so these calls do not enter its direct-session report.
+
+
+## Monthly summaries and export
+
+Monthly summaries distinguish Provider, model and protocol, reporting attempts, completed, failed and unfinished calls plus input, output, cache read/write and reasoning tokens. Every token field carries its reported-attempt count. Entirely missing values remain empty/unreported; partial totals include only known counters without treating missing values as zero. Refresh after delayed synchronization to obtain a new snapshot, without loading every detail page.
+
+**Export summary CSV** downloads the same snapshot for the selected month and search, with computer ID/name, UTC time, source and model groups. `row_kind=total` is the total; `row_kind=model` rows are its components and must not be added to it again. Missing tokens produce empty cells, explicit zero produces `0`, and `*_reported_attempts` describes coverage. The UTF-8 export escapes text quotes, newlines and spreadsheet formula prefixes.
+
+`GET /api/v1/model-computers/{executor_id}/usage/summary` accepts `month` and optional `query`, returning `source`, `period`, `observed_at_ms`, `totals` and `groups`. Pagination cursors/limits are rejected. More than 10000 Provider/model/protocol groups produces an explicit error requiring a narrower search, without silent truncation. Reads recheck computer ownership and space access; account/space changes cancel stale UI requests. Deleting original records or session mappings removes them from summaries as well as details. This export does not include the separate cross-computer request ledger below.

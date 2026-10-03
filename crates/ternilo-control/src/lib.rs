@@ -84,7 +84,10 @@ pub use sharing_store::{
     ResourceAction, ResourceKind, ResourcePermissions, ShareSubject, SharedGrant,
     resource_access_in,
 };
-pub use store::{ComputerProviderUsage, ComputerProviderUsagePage, ControlStore};
+pub use store::{
+    ComputerProviderUsage, ComputerProviderUsagePage, ComputerUsageCount, ComputerUsageGroup,
+    ComputerUsageSummary, ComputerUsageTotals, ControlStore,
+};
 pub use types::{
     AuditEntry, ControlAction, ControlUser, EdgeSessionMetadata, EdgeSessionRecord,
     EnrollmentGrant, ExecutorRecord, MembershipRecord, ModelUsageAnomalyKind, ModelUsageGroup,

@@ -296,3 +296,6 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 空间管理员可创建独立服务身份，签发当前空间的读取或执行 HTTP 凭据，并进行启停与逐项撤销。接口、有效期和资源边界见[服务账号](service-accounts.md)。本站 OIDC／密码会话与服务凭据分别管理，服务身份不能取得创建者的私有资源。
 
 `GET /api/v1/computer-model-requests`：当前空间内与本人有关的跨电脑模型请求。接受 `query`、`cursor`、`limit`；返回 `requests` 与 `next_cursor`。每条包含执行／来源电脑、实际提交者、模型所有者、资源原所有者和逐次设备报告，不包含提示词或 Key。只允许实际提交者或模型所有者查看，沿用当前账号、空间和分页权限。
+
+
+`GET /api/v1/model-computers/{executor_id}/usage/summary` 提供符合 `month`／`query` 的整月设备直连报告及按 Provider／模型／协议分组；权限与明细相同，计数覆盖率及 CSV 字段见[设备用量](device-provider-usage.md)。

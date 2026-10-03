@@ -1,3 +1,9 @@
+mod summary;
+pub(crate) use summary::initialize;
+pub use summary::{
+    ComputerUsageCount, ComputerUsageGroup, ComputerUsageSummary, ComputerUsageTotals,
+};
+
 use super::{ControlStore, require_action, set_tenant, to_i64, usage::period_bounds};
 use crate::{ControlAction, ControlUser, PageQuery};
 use serde::{Deserialize, Serialize};
@@ -53,18 +59,10 @@ impl ControlStore {
         query: &PageQuery,
         now: u64,
     ) -> Result<ComputerProviderUsagePage, HarnessError> {
-        executor.validate()?;
         let period = period_bounds(period, now)?;
         let mut tx = self.database.begin().await?;
         set_tenant(&mut tx, tenant).await?;
-        require_action(&mut tx, tenant, &actor.user_id, ControlAction::ExecutorRead).await?;
-        let owned: Option<i64> = sqlx::query_scalar("SELECT 1 FROM control_executors WHERE tenant_id=$1 AND executor_id=$2 AND owner_user_id=$3")
-            .bind(tenant.as_str()).bind(executor.as_str()).bind(actor.user_id.as_str()).fetch_optional(&mut *tx).await.map_err(database_error)?;
-        if owned.is_none() {
-            return Err(HarnessError::policy(
-                "computer usage is visible only to its owner",
-            ));
-        }
+        require_owner(&mut tx, actor, tenant, executor).await?;
         let rows = start_rows(&mut tx, actor, tenant, executor, &period, query).await?;
         let mut observations = Vec::with_capacity(rows.len());
         let mut authors = BTreeMap::new();
@@ -305,4 +303,22 @@ fn event_field(backend: Backend, alias: &'static str, field: &'static str) -> St
         ),
         Backend::Sqlite => format!("json_extract({alias}.event_json, '$.{field}')"),
     }
+}
+
+async fn require_owner(
+    tx: &mut Transaction,
+    actor: &ControlUser,
+    tenant: &TenantId,
+    executor: &ExecutorId,
+) -> Result<(), HarnessError> {
+    executor.validate()?;
+    require_action(tx, tenant, &actor.user_id, ControlAction::ExecutorRead).await?;
+    let owned: Option<i64> = sqlx::query_scalar("SELECT 1 FROM control_executors WHERE tenant_id=$1 AND executor_id=$2 AND owner_user_id=$3")
+        .bind(tenant.as_str()).bind(executor.as_str()).bind(actor.user_id.as_str()).fetch_optional(&mut **tx).await.map_err(database_error)?;
+    if owned.is_none() {
+        return Err(HarnessError::policy(
+            "computer usage is visible only to its owner",
+        ));
+    }
+    Ok(())
 }

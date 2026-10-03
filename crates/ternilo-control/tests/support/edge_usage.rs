@@ -69,6 +69,91 @@ pub(super) async fn verify(store: &ControlStore, fixture: &EdgeFixture) {
         first.observations[1].usage.as_ref().unwrap().output_tokens,
         Some(7)
     );
+    let summary = store
+        .computer_provider_usage_summary(
+            &fixture.alice,
+            &fixture.tenant_a,
+            &fixture.executor_a,
+            None,
+            None,
+            fixture.now,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        summary.totals.attempts, 3,
+        "monthly totals include calls outside the detail page"
+    );
+    assert_eq!(summary.totals.completed, 2);
+    assert_eq!(summary.totals.failed, 0);
+    assert_eq!(summary.totals.input.tokens, Some(75));
+    assert_eq!(summary.totals.input.reported_attempts, 2);
+    assert_eq!(summary.totals.output.tokens, Some(7));
+    assert_eq!(summary.totals.output.reported_attempts, 1);
+    assert_eq!(
+        summary.totals.reasoning.tokens, None,
+        "missing counters remain unknown"
+    );
+    assert_eq!(summary.groups.len(), 1);
+    assert_eq!(summary.groups[0].totals.attempts, 3);
+    assert!(
+        store
+            .computer_provider_usage_summary(
+                &fixture.bob,
+                &fixture.tenant_a,
+                &fixture.executor_a,
+                None,
+                None,
+                fixture.now
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        store
+            .computer_provider_usage_summary(
+                &fixture.alice,
+                &fixture.tenant_b,
+                &fixture.executor_a,
+                None,
+                None,
+                fixture.now
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        store
+            .computer_provider_usage_summary(
+                &fixture.alice,
+                &fixture.tenant_a,
+                &fixture.executor_a,
+                None,
+                Some("unrelated"),
+                fixture.now
+            )
+            .await
+            .unwrap()
+            .totals
+            .attempts,
+        0
+    );
+    assert_eq!(
+        store
+            .computer_provider_usage_summary(
+                &fixture.alice,
+                &fixture.tenant_a,
+                &fixture.executor_a,
+                Some("2000-01"),
+                None,
+                fixture.now
+            )
+            .await
+            .unwrap()
+            .totals
+            .attempts,
+        0
+    );
     let next = store
         .computer_provider_usage(
             &fixture.alice,
@@ -140,6 +225,27 @@ pub(super) async fn verify(store: &ControlStore, fixture: &EdgeFixture) {
             .output_tokens,
         Some(2)
     );
+    let summary = store
+        .computer_provider_usage_summary(
+            &fixture.alice,
+            &fixture.tenant_a,
+            &fixture.executor_a,
+            None,
+            None,
+            fixture.now,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        summary.totals.attempts, 3,
+        "replay and fork copies do not inflate summaries"
+    );
+    assert_eq!(
+        summary.totals.completed, 3,
+        "late finishes update the next snapshot"
+    );
+    assert_eq!(summary.totals.input.tokens, Some(76));
+    assert_eq!(summary.totals.output.tokens, Some(9));
     assert_eq!(
         ledger_counts(store).await,
         ledger,

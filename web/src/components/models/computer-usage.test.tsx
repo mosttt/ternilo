@@ -18,6 +18,11 @@ const observation = (seq: number, model: string, usage: unknown = null) => ({
 })
 const computers = (id: string) => ({ executors: [{ executor_id: id, state: 'active', connected: false,management: { name: '工作电脑' } }] })
 const page = (observations: unknown[]) => ({ source: 'device_reported', period: '2026-09', observations, next_cursor: null })
+
+const summary = () => ({ source: 'device_reported', period: '2026-09', observed_at_ms: 1000, groups: [], totals: {
+  attempts: 101, completed: 100, failed: 2, input: { tokens: 700, reported_attempts: 100 }, output: { tokens: 0, reported_attempts: 99 },
+  cached_input: { tokens: null, reported_attempts: 0 }, cache_write: { tokens: null, reported_attempts: 0 }, reasoning: { tokens: null, reported_attempts: 0 },
+} })
 let host: HTMLDivElement
 let root: Root
 beforeEach(() => {
@@ -32,7 +37,7 @@ afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks()
 async function render() { await act(async () => root.render(<LocaleProvider><ComputerUsage /></LocaleProvider>)) }
 
 it('distinguishes missing counters from reported zero and keeps offline reports read-only', async () => {
-  vi.mocked(api.request).mockImplementation(async path => (path.includes('/my-computers') ? computers('computer-a') : page([
+  vi.mocked(api.request).mockImplementation(async path => (path.includes('/my-computers') ? computers('computer-a') : path.includes('/summary?') ? summary() : page([
     observation(1, 'unknown-model'), observation(2, 'zero-model', { input_tokens: 0, output_tokens: 0, cached_input_tokens: null, cache_write_tokens: null, reasoning_tokens: null }),
   ])) as never)
   await render()
@@ -42,7 +47,8 @@ it('distinguishes missing counters from reported zero and keeps offline reports 
   expect(rows[0]!.textContent).toContain('结束结果未同步')
   expect(rows[1]!.querySelector('dd')?.textContent).toBe('0')
   expect(host.textContent).toContain('电脑当前离线')
-  expect(host.textContent).toContain('本页设备报告')
+  expect(host.textContent).toContain('整月已同步')
+  expect(host.querySelector('[data-computer-usage-summary]')?.textContent).toContain('101')
   expect(vi.mocked(api.request).mock.calls.every(([, options]) => options?.method === undefined)).toBe(true)
   expect(vi.mocked(api.request).mock.calls.every(([, options]) => options?.headers && (options.headers as Record<string, string>)['x-ternilo-tenant'] === 'space-a')).toBe(true)
 })
@@ -51,6 +57,7 @@ it('aborts an old report and discards its late private rows after changing accou
   let resolveOld!: (value: unknown) => void
   let oldSignal: AbortSignal | undefined
   vi.mocked(api.request).mockImplementation(async (path, options) => {
+    if (path.includes('/summary?')) return summary() as never
     if (path.includes('/space-a/my-computers')) return computers('computer-a') as never
     if (path.includes('/space-b/my-computers')) return computers('computer-b') as never
     if (path.includes('/computer-a/usage')) {

@@ -11,6 +11,7 @@ import type { ModelUsage } from './model-service-api'
 import { ModelDirectory, errorMessage, useModelDate, useModelPage } from './model-service-ui'
 import { SourcePicker, modelCenterPath } from './model-sources'
 import { ComputerModelUsage } from './computer-model-usage'
+import { ComputerUsageSummary } from './computer-usage-summary'
 import css from './model-service.module.css'
 
 interface Computer {
@@ -89,22 +90,11 @@ function ComputerUsageRecords({ tenantId, computer, month }: { tenantId: string;
   const t = useTranslate('modelService')
   const date = useModelDate()
   const records = useModelPage<Observation>(`/model-computers/${encodeURIComponent(computer.executor_id)}/usage?month=${encodeURIComponent(month)}`, 'observations', tenantId)
-  const total = (field: 'input_tokens' | 'output_tokens') => {
-    const values = records.items.flatMap(record => record.usage?.[field] == null ? [] : [record.usage[field]])
-    return values.length ? values.reduce((sum, value) => sum + value, 0).toLocaleString() : t('notReported')
-  }
-  const unknown = records.items.filter(record => record.usage?.input_tokens == null || record.usage?.output_tokens == null).length
   const author = (value: InputAuthor | null) => value?.kind === 'account' ? value.username || value.user_id
     : t(value?.kind === 'local' ? 'computerUsageLocalActor' : value?.kind === 'automation' ? 'computerUsageAutomationActor' : 'computerUsageUnknownActor')
   return <>
     {!computer.connected && <p className={css.notice}>{t('computerUsageOffline')}</p>}
-    {!records.loading && !records.error && records.items.length > 0 && <>
-      <p className={css.hint}>{t('computerUsagePageTotals')}</p>
-      <div className={css.summary}>{([
-        ['computerUsageAttempts', records.items.length.toLocaleString()], ['inputTokens', total('input_tokens')],
-        ['outputTokens', total('output_tokens')], ['computerUsageUnknown', unknown.toLocaleString()],
-      ] as const).map(([label, value]) => <article key={label}><span>{t(label)}</span><strong>{value}</strong></article>)}</div>
-    </>}
+    <ComputerUsageSummary key={records.query} tenantId={tenantId} computer={computer} month={month} query={records.query} revision={records.revision} />
     <ModelDirectory state={records} label={t('computerUsageRecords')} empty={t('computerUsageEmpty')}>
       <div className={css.list}>{records.items.map(record => <article className={css.row} key={`${record.session_id}:${record.started_seq}`} data-computer-usage-record={`${record.session_id}:${record.started_seq}`}>
         <div className={css.identity}>

@@ -1,0 +1,2 @@
+CREATE INDEX control_edge_usage_start ON control_edge_events(tenant_id,executor_id,CAST(json_extract(event_json,'$.occurred_at_ms') AS BIGINT),session_id,seq) WHERE json_extract(event_json,'$.type')='provider_usage_started';
+CREATE INDEX control_edge_usage_finish ON control_edge_events(tenant_id,executor_id,session_id,CAST(json_extract(event_json,'$.started_seq') AS BIGINT),json_extract(event_json,'$.run_id'),seq) WHERE json_extract(event_json,'$.type')='provider_usage_finished';
