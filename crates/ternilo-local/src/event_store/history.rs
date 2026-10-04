@@ -109,6 +109,11 @@ fn before_offset(file: &mut File, length: u64, before: u64) -> Result<u64, Harne
             upper = middle;
         }
     }
+    if lower == 0 && length > 0 {
+        return Err(HarnessError::execution(
+            "session history does not start at sequence 0",
+        ));
+    }
     if lower < length {
         file.seek(SeekFrom::Start(lower))
             .map_err(|error| io_error(&error))?;
@@ -247,6 +252,22 @@ mod tests {
                 "gap must not be silently omitted at cursor {before}"
             );
         }
+        std::fs::write(
+            &path,
+            events[1..100]
+                .iter()
+                .map(|event| serde_json::to_string(event).unwrap())
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .unwrap();
+        let query = SessionHistoryQuery {
+            before_seq: Some(1),
+            limit: 200,
+        };
+        assert!(load(path.clone(), query).await.is_err());
+        std::fs::write(&path, "").unwrap();
+        assert!(load(path, query).await.unwrap().events.is_empty());
     }
 
     #[tokio::test]
