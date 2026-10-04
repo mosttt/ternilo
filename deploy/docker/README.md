@@ -8,4 +8,4 @@
 
 自动化保存平台模型使用 `ternilo-deploy configure-model --provider-profile provider.json`，密钥位置及轮换见 [密钥说明](secrets/README.md)。Server 与 Worker 分别使用 `backup`、`restore` 操作；恢复时使用同一停写时间点的 Server 数据库、Server 配置和完整 Worker 卷，具体步骤以部署指南为准。
 
-Server 默认拉取公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.4`，不需要本地构建或 Linorun 源码。直接使用 Compose 的最短流程见[快速部署](../../docs/zh-CN/docker-compose.md)。可通过 `TERNILO_IMAGE` 或部署工具的 `--image` 改用其他明确版本／摘要；Worker 镜像仍需单独准备。源码构建仅用于开发，见[发布说明](../../docs/zh-CN/release-packaging.md)。
+Server 默认拉取公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.5`，不需要本地构建或 Linorun 源码。直接使用 Compose 的最短流程见[快速部署](../../docs/zh-CN/docker-compose.md)。可通过 `TERNILO_IMAGE` 或部署工具的 `--image` 改用其他明确版本／摘要；Worker 镜像仍需单独准备。源码构建仅用于开发，见[发布说明](../../docs/zh-CN/release-packaging.md)。

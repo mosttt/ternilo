@@ -4,7 +4,7 @@
 
 设置页和正常工作台首次按浏览器首选语言显示中文或英文；手动选择会保存并覆盖浏览器默认值。
 
-需要 Docker Engine 和 Compose 插件。公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.4` 支持 `linux/amd64` 和 `linux/arm64`，Docker 自动选择架构，不需要 Rust、Node.js、Python 或本地构建。
+需要 Docker Engine 和 Compose 插件。公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.5` 支持 `linux/amd64` 和 `linux/arm64`，Docker 自动选择架构，不需要 Rust、Node.js、Python 或本地构建。
 
 `ghcr.io/mosttt/ternilo-server:latest` 始终指向最新已发布稳定版，预发行版不会覆盖它。本文默认固定版本；要跟随稳定版，可在部署目录的 `.env` 中设置 `TERNILO_IMAGE=ghcr.io/mosttt/ternilo-server:latest`，更新时运行 `docker compose -f compose.server.yml pull`，再运行 `docker compose -f compose.server.yml up -d`。
 
@@ -15,7 +15,7 @@
 ```bash
 mkdir ternilo-server
 cd ternilo-server
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.4/compose.server.yml
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.5/compose.server.yml
 docker compose -f compose.server.yml up -d --wait
 docker compose -f compose.server.yml logs server
 ```
@@ -64,8 +64,8 @@ docker compose -f compose.server.yml -f compose.host.yml up -d --wait
 在同一个部署目录下载数据库叠加配置和初始化 SQL：
 
 ```bash
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.4/compose.server.postgres.yml
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.4/postgres-init.sql
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.5/compose.server.postgres.yml
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.5/postgres-init.sql
 ```
 
 在该目录创建 `.env`，设置**数据库账号密码**，这与 Ternilo 管理员密码不同：
