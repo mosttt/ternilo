@@ -1,0 +1,8 @@
+{"time":"2026-10-04T04:36:53.288Z","kind":"child_exit","pid":1651002,"code":0,"signal":null}
+{"time":"2026-10-04T04:36:53.298Z","kind":"child_exit","pid":1651003,"code":0,"signal":null}
+{"time":"2026-10-04T04:36:54.186Z","kind":"child_exit","pid":1651028,"code":0,"signal":null}
+{"time":"2026-10-04T04:36:55.674Z","kind":"child_exit","pid":1651037,"code":0,"signal":null}
+{"time":"2026-10-04T04:38:56.366Z","kind":"child_exit","pid":1651071,"code":null,"signal":"SIGKILL"}
+{"time":"2026-10-04T04:38:56.654Z","kind":"child_kill","pid":1651109,"signal":"SIGINT","stack":"Error\n    at ChildProcess.kill (file:///tmp/ternilo-model-kill-trace.mjs:7:83)\n    at stopProcess (file:///home/move/Desktop/ternilo/web/tests/platform-e2e-fixture.mjs:249:17)\n    at file:///home/move/Desktop/ternilo/web/tests/server-model-load.mjs:151:52"}
+{"time":"2026-10-04T04:38:56.674Z","kind":"child_exit","pid":1651109,"code":0,"signal":null}
+{"time":"2026-10-04T04:39:01.655Z","kind":"child_kill","pid":1651109,"signal":"SIGKILL","stack":"Error\n    at ChildProcess.kill (file:///tmp/ternilo-model-kill-trace.mjs:7:83)\n    at file:///home/move/Desktop/ternilo/web/tests/platform-e2e-fixture.mjs:252:80"}

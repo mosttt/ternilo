@@ -246,11 +246,11 @@ export function startProcess(binary, args, environment = {}) {
 
 export async function stopProcess(process) {
   if (!process || process.child.exitCode !== null || process.child.signalCode !== null) return
-  process.child.kill('SIGINT')
-  await Promise.race([
-    new Promise(resolve => process.child.once('exit', resolve)),
-    new Promise(resolve => setTimeout(resolve, 5000)).then(() => process.child.kill('SIGKILL')),
-  ])
+  await new Promise(resolve => {
+    const timeout = setTimeout(() => process.child.kill('SIGKILL'), 5000)
+    process.child.once('exit', () => { clearTimeout(timeout); resolve() })
+    process.child.kill('SIGINT')
+  })
 }
 
 export async function waitForHttp(url, process) {

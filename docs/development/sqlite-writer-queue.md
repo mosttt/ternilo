@@ -17,3 +17,7 @@
 2026-10-04：[sqlite-model-after.json](benchmarks/2026-10-03/sqlite-model-after.json) 完成 301.56 秒持续阶段，5550 次正常响应；包括限流、取消阶段在内的 6087 次实际上游调用逐个核对请求账本，6067 条已知、20 条未知用量，无活跃请求或重复结算，无 HTTP 500／写锁错误。持续阶段 JSON／流式响应 p95 约 3.04 秒，仍有进一步性能优化空间；不把这份开发构建诊断当成容量保证。
 
 PostgreSQL 双实例复测多次出现一个 Server 被 SIGKILL、另一个仍存活；保留的 Server 日志没有 panic 或数据库错误。一次采样中两实例 RSS 最高约 84 MB，所在 cgroup 未记录 OOM；这些证据不能确定发送信号的来源。此阶段记录为中断，不能将已通过的双库合同／双 Server 功能浏览器验收扩大为长时间压力通过。
+
+2026-10-04：增加仅用于本机诊断的 Node 子进程信号跟踪后，双实例复测的准入／限流／取消阶段通过，持续阶段在 91.06 秒、2219 次正确响应后因一个 Server 收到 SIGKILL 中断。原始报告见 [postgres-model-signal.json](benchmarks/2026-10-04/postgres-model-signal.json)，信号顺序见 [process-signal-trace.jsonl](benchmarks/2026-10-04/process-signal-trace.jsonl)。Server 1651071 在 04:38:56.366 UTC 退出，跟踪中此前没有 Node 的 child.kill／process.kill 调用；另一个实例 1651109 的 SIGINT 清理在 04:38:56.654 才发生。所在 cgroup OOM 计数与全局 /proc/vmstat oom_kill 均为 0；来源仍不能确定，不再盲目重跑相同压力场景。
+
+另修正公共测试辅助 stopProcess：在发送停止信号前订阅退出事件，正常退出时清除强制停止定时器，超时发送 SIGKILL 后也等待实际退出。避免已退出进程的多余信号及测试进程等待未清理定时器。修改后两个实际本机／Server 长历史浏览器流程再次通过，包含多次停止／启动和 Node 离线读取。诊断用信号跟踪没有固化为项目 CI 或标准部署。
