@@ -2,6 +2,54 @@ use super::*;
 
 const PATH: &str = "/admin/instance/authentication";
 
+#[tokio::test]
+async fn oauth_only_signup_requires_a_provider_only_while_multi_user_mode_is_active() {
+    let fixture = Fixture::new().await;
+    let actor = &fixture.owner.session.user;
+    fixture
+        .store
+        .set_registration_settings(
+            actor,
+            RegistrationMode::Invite,
+            false,
+            true,
+            1,
+            now_ms().unwrap(),
+        )
+        .await
+        .unwrap();
+    let input =
+        json!({"revision":0,"public_url":"","oidc_providers":[],"turnstile":null,"smtp":null});
+    let denied = fixture
+        .json(
+            "PUT",
+            PATH,
+            &fixture.owner.access_token,
+            Some(input.clone()),
+        )
+        .await;
+    assert_eq!(denied.status_code, Some(StatusCode::BAD_REQUEST));
+    let instance = fixture.store.instance_settings().await.unwrap().unwrap();
+    fixture
+        .store
+        .set_instance_mode(
+            actor,
+            InstanceMode::SingleUser,
+            instance.revision,
+            now_ms().unwrap(),
+        )
+        .await
+        .unwrap();
+    let updated = fixture
+        .json("PUT", PATH, &fixture.owner.access_token, Some(input))
+        .await;
+    assert_eq!(updated.status_code, Some(StatusCode::OK));
+    let identity = fixture
+        .json("GET", "/auth/session", &fixture.owner.access_token, None)
+        .await;
+    assert_eq!(identity.status_code, Some(StatusCode::OK));
+}
+
 fn turnstile(revision: u64) -> Value {
     json!({"revision": revision, "public_url": "https://server.example.test", "oidc_providers": [],
         "turnstile": {"site_key": "site-key", "secret_key": "private-turnstile-key"}})

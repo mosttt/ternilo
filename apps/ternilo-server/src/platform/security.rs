@@ -423,7 +423,14 @@ pub(super) async fn update_settings(
     }
     let mut runtime =
         LoginRuntime::build(settings, body.revision, state.security.allow_insecure).await?;
-    if state.store.registration_settings().await?.oidc_only && runtime.providers.is_empty() {
+    if state.store.registration_settings().await?.oidc_only
+        && runtime.providers.is_empty()
+        && state
+            .store
+            .instance_settings()
+            .await?
+            .is_some_and(|instance| instance.mode == ternilo_control::InstanceMode::MultiUser)
+    {
         return Err(HarnessError::invalid(
             "OAuth2-only registration requires at least one available OIDC provider",
         )

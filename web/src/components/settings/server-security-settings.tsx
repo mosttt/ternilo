@@ -5,6 +5,7 @@ import { Field, Input, Label } from '@/components/ui/field'
 import { Switch } from '@/components/ui/switch'
 import { useTranslate } from '@/i18n/provider'
 import { useWorkbench } from '@/state/workbench'
+import { randomUuid } from '@/lib/random-id'
 import { ServerMailSettings, emptySmtp, type SmtpSettings } from './server-mail-settings'
 import { GroupHeader } from './settings-ui'
 import { OidcProviderEditor, type OidcSettings } from './oidc-provider-editor'
@@ -108,7 +109,7 @@ export function ServerSecuritySettingsPanel() {
         <div className="grid min-w-0 gap-4 border-t pt-5">
           <div className="grid gap-1"><Label>{t('oauth')}</Label><p className="text-xs leading-relaxed text-muted-foreground">{t('oauthHint')}</p></div>
           {providers.map((provider, index) => <OidcProviderEditor key={provider.id} value={provider} onChange={value => setProviders(current => current.map(item => item.id === provider.id ? value : item))} onRemove={() => setProviders(current => current.filter(item => item.id !== provider.id))} index={index} />)}
-          <Button type="button" variant="outline" className="w-fit" disabled={providers.length >= 16} onClick={() => setProviders(current => [...current, { id: crypto.randomUUID(), name: '', enabled: true, issuer: '', audience: '', client_id: '', scopes: 'openid profile email', token_auth_method: 'none', has_client_secret: false, client_secret: '' }])}>{t('addProvider')}</Button>
+          <Button type="button" variant="outline" className="w-fit" disabled={providers.length >= 16} onClick={() => setProviders(current => [...current, { id: randomUuid(), name: '', enabled: true, issuer: '', audience: '', client_id: '', scopes: 'openid profile email', token_auth_method: 'none', has_client_secret: false, client_secret: '' }])}>{t('addProvider')}</Button>
           {oidcEnabled && !invalidOrigin && <p className="break-all text-xs text-muted-foreground">{t('callback')}：<code>{origin.trim().replace(/\/$/, '')}/auth/callback</code></p>}
           {oidcEnabled && <p className="text-xs text-muted-foreground">{t('callbackHint')}</p>}
         </div>

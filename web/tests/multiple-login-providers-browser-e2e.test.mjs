@@ -141,6 +141,11 @@ test('Named OIDC providers, OAuth-only open and invited registration, isolation 
     assert.equal(persisted.oidc_providers[0].name, '研发账号')
     assert.equal(persisted.oidc_providers[0].enabled, false)
     assert.equal((await admin('/admin/registration')).oidc_only, true)
+    const instance = await admin('/admin/instance')
+    await admin('/admin/instance', { method: 'PATCH', body: { mode: 'single_user', revision: instance.revision } })
+    await admin('/admin/instance/authentication', { method: 'PUT', body: { revision: persisted.revision, public_url: origin, oidc_providers: [], turnstile: null, smtp: null } })
+    assert.equal((await (await fetch(`${origin}/auth/config`)).json()).oidc_enabled, false, 'Inactive signup policy does not prevent disabling OIDC in single-user mode')
+    assert.equal((await admin('/auth/session')).is_instance_owner, true)
     assert.deepEqual(errors, [])
     assert.deepEqual(failures, [])
   } catch (error) {

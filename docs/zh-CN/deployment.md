@@ -10,7 +10,7 @@
 
 ## 通用前提
 
-- 从 [GitHub Release](https://github.com/mosttt/ternilo/releases) 下载对应平台二进制，或直接使用公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.5`。Docker 部署不需要本地构建。
+- 从 [GitHub Release](https://github.com/mosttt/ternilo/releases) 下载对应平台二进制，或直接使用公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.6`。Docker 部署不需要本地构建。
 - Docker 方式需要 Docker Engine 和 Compose 插件；使用 `ternilo-deploy` 辅助工具时另需 Python 3.9 以上。发行包中的 `deploy/docker/` 可复制到服务器独立使用，不依赖源码目录。
 - 远程访问使用域名和外部 HTTPS 反向代理。默认只把容器端口映射到服务器 `127.0.0.1:4321`；电脑的本地 `3210` 端口无需对外开放。
 - Server 数据卷包含私有配置、加密密钥及 SQLite 数据。PostgreSQL 数据库另行持久化，但仍需同时保存 Server 配置。
