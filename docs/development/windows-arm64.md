@@ -1,6 +1,6 @@
 # Windows ARM64 发行产物
 
-状态：原生 Windows ARM64 构建、程序架构／持久化／进程控制、Desktop 后台服务与 NSIS 安装器验收通过，纳入本次发行；公开附件待 Release 完成。
+状态：原生 Windows ARM64 构建、程序架构／持久化／进程控制、Desktop 后台服务与 NSIS 安装器验收通过，纳入本次发行；公开附件已随 v0.2.0 发布。
 
 GitHub 的[托管 runner 文档](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)列出 `windows-11-arm`。Tauri 的[Windows 安装器文档](https://v2.tauri.app/distribute/windows-installer/)支持 `aarch64-pc-windows-msvc`，并说明 NSIS 安装器本身仍以 x86 仿真运行，应用主体是原生 ARM64。本阶段提供 ARM64 CLI／Server ZIP、Desktop NSIS EXE；不把它标成 x64 程序，也不承诺 ARM64 MSI。
 

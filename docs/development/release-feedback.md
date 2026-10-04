@@ -1,8 +1,10 @@
 # 发行反馈与交付状态
 
-[v0.1.3](https://github.com/mosttt/ternilo/releases/tag/v0.1.3) 已公开发布，包含四平台程序和 28 项附件；[完整发行检查](https://github.com/mosttt/ternilo/actions/runs/36765832448)已通过。发行源码为 `cf965e47905303b488f3b2303821540b6b9a2b7c`。本记录描述该发行；本地 main 的后续功能尚未进入新 Release。
+最新 [v0.2.0](https://github.com/mosttt/ternilo/releases/tag/v0.2.0) 已公开发布，包含六个目标的程序／桌面安装器与 40 项附件；完整门禁、摘要／来源、匿名镜像拉取和公开 Compose 实际浏览器验收通过，详见[本版验收](release-0.2.0-acceptance.md)。之后的 main 历史优化尚未进入本版。
 
-## 当前结果
+此前 [v0.1.3](https://github.com/mosttt/ternilo/releases/tag/v0.1.3) 包含四平台程序和 28 项附件；[完整发行检查](https://github.com/mosttt/ternilo/actions/runs/36765832448)已通过，来源为 `cf965e47905303b488f3b2303821540b6b9a2b7c`。下文保留该版结果与后续推进记录。
+
+## v0.1.3 既有结果
 
 - 工作区、Desktop 与 Compose 版本统一为 `0.1.3`。Compose 默认拉取公开镜像 `ghcr.io/mosttt/ternilo-server:0.1.3`，无需用户本地构建；匿名拉取验收通过。
 - 客户端归档命名为 `ternilo-版本-平台`，Server 为 `ternilo-server-版本-平台`。Windows 使用 ZIP，Linux／macOS CLI 使用 tar.gz，Desktop 提供各平台安装器。许可、来源和校验信息随交付物提供。
@@ -20,7 +22,7 @@
 - 共享规则、权限组和项目继承变更可通知同一数据库的其他 Server，撤权清空活动历史并停止旧订阅。
 - 发行检查、四平台打包和镜像构建并行，全部通过后才发布。实际 Desktop 后台服务验证启动、持久化、停止和重启；镜像发布复用已测试的 image ID。
 
-## 验证
+## v0.1.3 验证
 
 全工作区 Clippy、953 项 Web 单元测试、类型检查、国际化、文档及发行元数据检查通过。SQLite 与受限 PostgreSQL 覆盖认证、Node 路由、任务清理、存储实例隔离、共享及事务回滚。Windows 与两种 macOS 的持久化和账号授权回归通过；Windows 进程监督包含主动终止及丢弃句柄的真实父子进程测试。
 
@@ -30,7 +32,7 @@
 
 公开镜像匿名拉取通过，版本、来源、许可和摘要一致；摘要为 `sha256:4744611182c4849fd13b53009dc9beedee5d93b34d577ef34912f721f2e91566`。发布的 Compose 文件通过无需构建的初始化、真实浏览器登录、只读根目录、UID 10001 及 down/up 后身份保留验收，控制台和网络检查通过。测试使用独立项目与数据卷，结束后已清理。
 
-## 待完成项
+## 后续推进记录
 
 资源管理权交接及工作台性能／目录分类已合入本地 main 并通过阶段验收；Node 跨 Server 路由已通过实际 TCP 与受限 PostgreSQL 合同，尚需浏览器联调。新版本推送、跨平台回归及发行尚未完成。完整分类见[当前剩余任务](remaining-task-audit.md)；Work 保持独立设计预留。
 
