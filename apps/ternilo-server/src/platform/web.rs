@@ -13,6 +13,8 @@ use ternilo_protocol::HarnessError;
 
 use super::{ApiError, app_state, security::TokenAuthMethod};
 
+pub(crate) const BASE_SECURITY_POLICY: &str = "default-src 'none'; script-src 'self'; style-src 'self'; style-src-elem 'self' 'sha256-nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=' 'sha256-441zG27rExd4/il+NvIqyL8zFx5XmyNQtE381kSkUJk=' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; manifest-src 'self'";
+
 const MAX_TOKEN_RESPONSE_BYTES: usize = 1024 * 1024;
 const MAX_AUTH_BODY_BYTES: u64 = 128 * 1024;
 
@@ -183,9 +185,7 @@ async fn web_security_headers(
     let headers = response.headers_mut();
     headers.insert(
         header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static(
-            "default-src 'none'; script-src 'self'; style-src 'self'; style-src-elem 'self' 'sha256-nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=' 'sha256-441zG27rExd4/il+NvIqyL8zFx5XmyNQtE381kSkUJk=' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; manifest-src 'self'",
-        ),
+        HeaderValue::from_static(BASE_SECURITY_POLICY),
     );
     if app_state(depot)
         .security

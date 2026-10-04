@@ -76,7 +76,7 @@ test('platform usernames remain canonical through native setup, OIDC registratio
     }
     await setPolicy('open')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, permissions: ['clipboard-read', 'clipboard-write'], serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, permissions: ['clipboard-read', 'clipboard-write'], serviceWorkers: 'block' })
     page = await context.newPage()
     page.on('pageerror', error => errors.push(`page: ${error.message}`))
     page.on('console', message => {

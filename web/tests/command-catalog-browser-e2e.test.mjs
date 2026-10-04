@@ -95,7 +95,7 @@ test('runtime command directory follows the active preset without cross-Session 
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE })
-    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 800 } })
     const pageErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))
     await page.goto(origin, { waitUntil: 'networkidle' })

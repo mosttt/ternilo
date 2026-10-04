@@ -45,12 +45,12 @@ test('unpacked Local and Server preserve identities, credentials and archives ac
     const config = path.join(serverData, 'config.json')
     const credentials = { username: 'delivery-owner', email: 'delivery-owner@example.test', password: 'synthetic-delivery-password' }
     const login = { username: credentials.username, password: credentials.password }
-    await execute(binaries['ternilo-server'], ['init', '--non-interactive', '--config-dir', path.dirname(config), '--listen', new URL(serverOrigin).host, '--public-url', serverOrigin], {
+    await execute(binaries['ternilo-server'], ['setup', '--non-interactive', '--config-dir', path.dirname(config), '--listen', new URL(serverOrigin).host, '--public-url', serverOrigin], {
       ...runtime, env: { ...environment, TERNILO_SERVER_OWNER_USERNAME: credentials.username, TERNILO_SERVER_OWNER_EMAIL: credentials.email, TERNILO_SERVER_OWNER_PASSWORD: credentials.password },
     })
     assert.equal((await stat(config)).mode & 0o777, 0o600)
     const originalConfig = await readFile(config)
-    await assert.rejects(() => execute(binaries['ternilo-server'], ['init', '--non-interactive', '--config-dir', path.dirname(config)], runtime), error => error.code === 1 && /already exists/.test(error.stderr))
+    await assert.rejects(() => execute(binaries['ternilo-server'], ['setup', '--non-interactive', '--config-dir', path.dirname(config)], runtime), error => error.code === 1 && /already exists/.test(error.stderr))
     assert.deepEqual(await readFile(config), originalConfig, 'repeat initialization does not replace existing identity or master key')
     const server = await serve(binaries['ternilo-server'], ['serve', '--config-dir', path.dirname(config)], environment, installation, `${serverOrigin}/readyz`, processes)
     const account = await serverRequest(serverOrigin, '/auth/login', { body: login })

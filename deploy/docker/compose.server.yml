@@ -2,12 +2,16 @@ name: ${TERNILO_DEPLOY_PROJECT:-ternilo-server}
 
 services:
   server:
-    image: ${TERNILO_IMAGE:-ghcr.io/mosttt/ternilo-server:0.2.0}
+    image: ${TERNILO_IMAGE:-ghcr.io/mosttt/ternilo-server:0.2.1}
     command: [server, serve, --config-dir, /var/lib/ternilo]
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
-      TERNILO_SERVER_MANAGED_EXECUTION_ENABLED: ${TERNILO_SERVER_MANAGED_EXECUTION_ENABLED:-false}
+      - TERNILO_SERVER_MANAGED_EXECUTION_ENABLED=${TERNILO_SERVER_MANAGED_EXECUTION_ENABLED:-false}
+      # Unset optional values leave the saved web configuration unchanged.
+      - TERNILO_DATABASE_URL
+      - TERNILO_MIGRATION_DATABASE_URL
+      - TERNILO_SERVER_PUBLIC_URL
     ports:
       - "${TERNILO_SERVER_HTTP_BIND_ADDRESS:-127.0.0.1}:${TERNILO_SERVER_HTTP_PORT:-4321}:4321"
     volumes:

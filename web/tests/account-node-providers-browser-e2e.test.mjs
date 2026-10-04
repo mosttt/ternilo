@@ -37,7 +37,7 @@ test('Server account and computer Providers stay independent and execute on the 
     await owner('/admin/models/publications', { body: { model_id: 'same-model', display_name: '平台同名模型', provider_id: 'platform-source', upstream_model: 'same-model', enabled: true } })
     await owner('/admin/models/grants', { body: { name: '平台独立预算', subject: { kind: 'user', id: server.owner.session.user.user_id }, model_ids: ['same-model'], monthly_tokens: 100000, max_concurrent_requests: 2, allow_resource_sharing: false } })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1366, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('request', request => { if (request.url().includes('/api/v1/')) requests.set(request, { phase, started: Date.now() }) })
     page.on('request', request => { if (restartingNode && request.method() === 'GET' && restartPaths(new URL(request.url()).pathname)) restartReads.add(request.url()) })

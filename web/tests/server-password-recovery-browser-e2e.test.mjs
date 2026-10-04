@@ -47,7 +47,7 @@ test('operator password recovery revokes old browser access and preserves the ow
       token: owner.session.access_token, body: { name: 'Retained recovery project' },
     })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => {
       if (message.type() === 'error' && !(revocationStarted && message.text().includes('401'))) errors.push(message.text())

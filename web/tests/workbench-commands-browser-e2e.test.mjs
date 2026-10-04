@@ -49,7 +49,7 @@ test('real workbench commands preserve drafts, use keyboard highlights, freeze p
     }
     await assert.rejects(local(resource, { method: 'PATCH', body: { agent_preset: 'minimal' } }), /preset is locked/)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE })
-    page = await browser.newPage({ viewport: { width: 1500, height: 950 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1500, height: 950 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })

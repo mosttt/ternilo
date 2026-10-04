@@ -98,7 +98,7 @@ test('goal execution, stop/resume and themed space switching work in real Local 
     const state = await until(() => owner('/state', { tenantId: team.tenant_id }), value => value.sessions.length === 1, 'Node discovery')
     const remoteSessionId = state.sessions[0].identity.session_id
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE })
-    page = await browser.newPage({ viewport: { width: 1500, height: 950 }, hasTouch: true })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1500, height: 950 }, hasTouch: true })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })

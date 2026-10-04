@@ -92,7 +92,7 @@ describe('ToolCallTree', () => {
   it('copies the original multiline shell command without prompt or execution metadata', async () => {
     const command = "printf '%s\\n' \"quoted argument\" 'single quotes'\nprintf '%s' 'second line' >&2"
     const writeText = vi.fn().mockResolvedValue(undefined)
-    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    vi.stubGlobal('navigator', { language: 'zh-CN', languages: ['zh-CN'], clipboard: { writeText } })
     try {
       render(trace({
         id: 'shell-copy', name: 'shell', arguments: { command },
@@ -116,7 +116,7 @@ describe('ToolCallTree', () => {
   })
 
   it('keeps the full command available when clipboard access fails', async () => {
-    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockRejectedValue(new Error('Clipboard denied')) } })
+    vi.stubGlobal('navigator', { language: 'zh-CN', languages: ['zh-CN'], clipboard: { writeText: vi.fn().mockRejectedValue(new Error('Clipboard denied')) } })
     try {
       render(trace({
         id: 'shell-copy-failed', name: 'shell', arguments: { command: 'printf hello' },

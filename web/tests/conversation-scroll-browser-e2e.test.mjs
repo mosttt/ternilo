@@ -192,7 +192,7 @@ test('Local streaming respects small reader gestures and explicit tail resume', 
 
     for (const mobile of [false, true]) {
       await t.test(mobile ? 'small touch drags stay detached while streaming' : 'small wheel, resize, history and resume', async subtest => {
-        const context = await browser.newContext({
+        const context = await browser.newContext({ locale: 'zh-CN',
           viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 820 },
           isMobile: mobile, hasTouch: mobile,
         })
@@ -478,7 +478,7 @@ test('Server account and platform Responses follow submitted messages before out
           ? { provider: 'account_provider', owner_user_id: server.owner.session.user.user_id, provider_id: profile.id, model: 'fixture-model' }
           : { provider: 'platform_model', model_id: 'summary-model', grant_id: grant.grant_id }
         await request(`/sessions/${sessionId}`, { method: 'PATCH', body: { title: `${scope}-${width}`, model: selection } })
-        const context = await browser.newContext({ viewport: { width: 1280, height: 820 }, isMobile: width < 600, hasTouch: width < 600 })
+        const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 820 }, isMobile: width < 600, hasTouch: width < 600 })
         const page = await context.newPage()
         page.setDefaultTimeout(15000)
         page.on('pageerror', error => errors.push(error.message))

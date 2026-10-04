@@ -33,8 +33,8 @@ test('a standalone device can use explicitly delegated account models without ob
     const workspace = await request('/workspaces', { body: { path: folder } })
     const session = await request('/sessions', { body: { workspace_id: workspace.workspace_id } })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    local = await browser.newPage({ viewport: { width: 1366, height: 950 }, hasTouch: true, serviceWorkers: 'block' })
-    approval = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, serviceWorkers: 'block' })
+    local = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 950 }, hasTouch: true, serviceWorkers: 'block' })
+    approval = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 844 }, hasTouch: true, serviceWorkers: 'block' })
     for (const page of [local, approval]) {
       page.on('pageerror', error => errors.push(error.message))
       page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

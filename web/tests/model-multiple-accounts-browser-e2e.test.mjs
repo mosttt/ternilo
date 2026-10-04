@@ -38,8 +38,8 @@ test('multiple Servers and accounts retain exact model and budget selection thro
     const session = await api('/sessions', { body: { workspace_id: workspace.workspace_id } })
     const sessionId = session.identity.session_id
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
-    approval = await browser.newPage({ viewport: { width: 320, height: 844 }, hasTouch: true, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    approval = await browser.newPage({ locale: 'zh-CN', viewport: { width: 320, height: 844 }, hasTouch: true, serviceWorkers: 'block' })
     for (const target of [page, approval]) {
       target.on('pageerror', error => errors.push(error.message))
       target.on('console', message => { if (message.type() === 'error' && !/^Failed to load resource: the server responded with a status of 500/.test(message.text())) errors.push(message.text()) })

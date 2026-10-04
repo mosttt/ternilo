@@ -52,7 +52,7 @@ test('another computer can open an offline computer’s same-named folder withou
     const currentNode = await startNode('d')
     await until(() => request('/execution-targets'), value => value.executors.some(node => node.executor_id === currentNode.id && node.connected), 'second computer online')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1280, height: 960 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 960 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => {
       if (message.type() !== 'error') return

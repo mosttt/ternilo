@@ -56,7 +56,7 @@ for (const platform of [false, true]) test(`settings, retained navigation and mo
     const sessionId = state.sessions[0].identity.session_id
     await until(() => request('/files'), value => value.items.length === 1, 'file visible')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1366, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('request', request => { if (request.url().includes('/api/v1/')) requests.push(new URL(request.url()).pathname) })

@@ -43,7 +43,7 @@ pub(crate) struct OidcSettings {
     pub allow_insecure: bool,
 }
 
-#[derive(Default, Args)]
+#[derive(Clone, Default, Args)]
 pub(crate) struct ServeOptions {
     #[arg(long, env = "TERNILO_SERVER_CONFIG_DIR")]
     pub config_dir: Option<PathBuf>,
@@ -202,23 +202,10 @@ impl ServerConfig {
 impl ServeOptions {
     pub fn load(self) -> Result<ServerConfig, HarnessError> {
         let path = configuration_path(self.config_dir.as_deref())?;
-        let mut config = if path.exists() {
-            ServerConfig::read(&path)?
-        } else if self.config_dir.is_none()
-            && self.database_url.is_some()
-            && self.secret_master_key.is_some()
-        {
-            ServerConfig::defaults(
-                &path,
-                self.database_url.clone().unwrap_or_default(),
-                self.secret_master_key.clone().unwrap_or_default(),
-            )
-        } else {
-            return Err(HarnessError::invalid(format!(
-                "server configuration {} does not exist; run ternilo-server init first",
-                path.display()
-            )));
-        };
+        self.apply(ServerConfig::read(&path)?)
+    }
+
+    pub fn apply(self, mut config: ServerConfig) -> Result<ServerConfig, HarnessError> {
         if let Some(value) = self.listen {
             config.listen = value;
         }

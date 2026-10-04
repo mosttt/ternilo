@@ -45,7 +45,7 @@ test('Local and Server page a long journal, resume a suffix and retain bounded o
     node = startProcess(binary, args, env); processes.push(node); await waitForHttp(origin, node)
     local = await localApi(origin)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     page = await context.newPage()
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

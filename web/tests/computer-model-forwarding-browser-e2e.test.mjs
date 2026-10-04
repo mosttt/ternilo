@@ -65,7 +65,7 @@ test('Server forwards models through the source computer while tools stay on the
     const session = await owner('/sessions', { body: { workspace_id: workspace.workspace_id } })
     const id = session.identity.session_id
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 980 }, hasTouch: true, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 980 }, hasTouch: true, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('request', request => requests.push({ method: request.method(), url: new URL(request.url()) }))

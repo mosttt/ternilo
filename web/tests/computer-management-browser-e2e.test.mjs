@@ -48,7 +48,7 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     await until(() => serverRequest(origin, `/sessions/${sessionId}/history?limit=1000`, scope), value => value.events.some(event => event.type === 'command_finished'), 'history must be replicated before management actions')
 
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
     const errors = [], detailRequests = [], removedRequests = []
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

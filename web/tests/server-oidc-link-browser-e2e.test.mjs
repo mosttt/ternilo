@@ -45,7 +45,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
   const pageErrors = [], consoleErrors = [], failedApiRequests = []
   try {
     await execute(binary, [
-      'init', '--non-interactive', '--config-dir', path.dirname(configPath),
+      'setup', '--non-interactive', '--config-dir', path.dirname(configPath),
       '--listen', new URL(origin).host, '--public-url', origin,
     ], {
       cwd: repository,
@@ -70,7 +70,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
     application = { child, diagnostics: () => output }
     await waitForHttp(`${origin}/auth/config`, application)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     page.on('pageerror', error => pageErrors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()) })
     page.on('response', response => {

@@ -29,7 +29,7 @@ test('service accounts create independent identities, constrain real API access 
     const project = application.owner.session.personal_project_id
     const privateWorkspace = (await serverRequest(origin, '/workspaces', { token: owner, tenantId: tenant, body: { name: 'Private human workspace', project_id: project, placement: 'cloud' } })).workspace
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 980 } })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 980 } })
     page.on('pageerror', error => report.errors.push(error.message))
     page.on('console', event => { if (event.type() === 'error') report.errors.push(event.text()) })
     page.on('response', response => {

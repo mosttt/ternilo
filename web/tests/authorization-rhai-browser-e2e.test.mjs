@@ -182,7 +182,7 @@ test('signed Rhai extension closes the real Local Web install, settings, runtime
       headless: true,
       executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
     })
-    const page = await browser.newPage({ viewport: { width: 1280, height: 820 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 820 } })
     page.on('pageerror', error => pageErrors.push(error.message))
     page.on('console', message => {
       if (message.type() === 'error') consoleErrors.push(message.text())

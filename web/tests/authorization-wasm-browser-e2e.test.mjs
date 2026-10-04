@@ -158,7 +158,7 @@ test('plugin authorization and signed WASM close real Local Web lifecycles', { t
   const apiRequests = []
   try {
     browser = await chromium.launch({ headless: true })
-    const page = await browser.newPage({ viewport: { width: 1280, height: 820 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 820 } })
     page.on('pageerror', error => pageErrors.push(error.message))
     page.on('console', message => {
       if (message.type() === 'error') consoleErrors.push(message.text())

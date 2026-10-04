@@ -79,7 +79,7 @@ export async function verifyAssets(origin) {
 }
 
 export async function openSession(browser, origin, sessionId, credentials, evidence) {
-  const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' })
+  const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' })
   await context.addInitScript(() => localStorage.setItem('ternilo.locale', 'zh'))
   const page = await context.newPage()
   page.setDefaultTimeout(15000)

@@ -16,6 +16,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     environment: 'jsdom',
+    setupFiles: ['src/test/browser-locale.ts'],
   },
   build: {
     outDir: 'dist',

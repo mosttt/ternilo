@@ -1,6 +1,6 @@
 import argparse
 import json
-import os
+import re
 import secrets
 import subprocess
 import time
@@ -43,18 +43,19 @@ def main():
     name = f"ternilo-image-check-{uuid.uuid4().hex[:12]}"
     volume = name + "-data"
     password = secrets.token_urlsafe(24)
-    environment = {**os.environ, "TERNILO_SERVER_OWNER_USERNAME": "image-owner", "TERNILO_SERVER_OWNER_EMAIL": "image-owner@example.test", "TERNILO_SERVER_OWNER_PASSWORD": password}
     isolation = ["--user", "0:0", "--read-only", "--tmpfs", "/tmp:size=64m,mode=1777", "--cap-drop=ALL", "--security-opt=no-new-privileges:true"]
     for capability in ["CHOWN", "DAC_READ_SEARCH", "KILL", "SETUID", "SETGID", "SETPCAP"]:
         isolation.extend(["--cap-add", capability])
     docker("volume", "create", volume)
     try:
-        docker("run", "--rm", *isolation, "--mount", f"source={volume},target=/var/lib/ternilo",
-               "--env", "TERNILO_SERVER_OWNER_USERNAME", "--env", "TERNILO_SERVER_OWNER_EMAIL", "--env", "TERNILO_SERVER_OWNER_PASSWORD",
-               args.image, "server", "init", "--non-interactive", "--config-dir", "/var/lib/ternilo", "--listen", "0.0.0.0:4321", environment=environment)
         docker("run", "-d", "--name", name, *isolation, "--mount", f"source={volume},target=/var/lib/ternilo", "-p", "127.0.0.1::4321", args.image)
         origin = "http://" + docker("port", name, "4321/tcp").splitlines()[0]
         ready(origin)
+        assert request(origin, "/readyz")["status"] == "setup_required"
+        key = re.search(r"Initialization Key: (\S+)", docker("logs", name)).group(1)
+        request(origin, "/api/v1/setup", body={"setup_token": key, "database": {"kind": "sqlite"},
+                "username": "image-owner", "email": "image-owner@example.test", "password": password, "public_url": origin})
+        assert request(origin, "/auth/config")["initialized"]
         login = request(origin, "/api/v1/auth/login", body={"username": "image-owner", "password": password})
         token = login["access_token"]
         identity = request(origin, "/api/v1/auth/session", token=token)

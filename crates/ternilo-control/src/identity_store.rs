@@ -114,6 +114,13 @@ const fn default_invitation_ttl() -> u64 {
     24 * 60 * 60
 }
 
+impl NativeRegistration {
+    pub fn validate(&self) -> Result<(), HarnessError> {
+        normalize_username(&self.username)?;
+        validate_registration(self)
+    }
+}
+
 impl ControlStore {
     pub async fn instance_settings(&self) -> Result<Option<InstanceSettings>, HarnessError> {
         sqlx::query("SELECT mode, owner_user_id, revision FROM control_instance_settings WHERE singleton = 1")

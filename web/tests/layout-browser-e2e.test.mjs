@@ -58,7 +58,7 @@ test('Workbench shell owns desktop columns, theme projection, and mobile sidebar
   const dataDirectory = await mkdtemp(path.join(tmpdir(), 'ternilo-layout-browser-'))
   const server = startTernilo(dataDirectory)
   const browser = await chromium.launch({ headless: true })
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
   const pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
 

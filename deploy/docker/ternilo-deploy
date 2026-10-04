@@ -159,7 +159,7 @@ def initialize(args):
     for name in environment_names:
         if environment.get(name):
             arguments.extend(["-e", name])
-    arguments += ["server", "server", "init", "--non-interactive", "--config-dir", "/var/lib/ternilo",
+    arguments += ["server", "server", "setup", "--non-interactive", "--config-dir", "/var/lib/ternilo",
                   "--listen", "0.0.0.0:4321", "--public-url", values["TERNILO_SERVER_PUBLIC_URL"]]
     subprocess.run(command + arguments, env=environment, check=True)
     if args.worker_policy:

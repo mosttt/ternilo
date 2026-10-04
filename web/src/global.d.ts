@@ -1,4 +1,7 @@
 interface TerniloBoot {
+  setup?: boolean
+  setup_database_preset?: boolean
+  setup_public_url?: string | null
   apiToken?: string
   remote?: boolean
   platform?: boolean

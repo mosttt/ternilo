@@ -289,7 +289,7 @@ async function createOwnedEnrollmentThroughUi(page, nodeId, projectId) {
 
 async function registerMemberThroughOidc(browser, origin, oidc) {
   oidc.selectIdentity('member')
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 800 } })
   const page = await context.newPage()
   const pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
@@ -610,7 +610,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
       headless: true,
       executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
     })
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const page = await context.newPage()
     const pageErrors = []
     const consoleMessages = []
@@ -651,7 +651,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     const projectId = await createProjectThroughUi(page)
 
     oidc.selectIdentity('member')
-    const memberContext = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+    const memberContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 800 } })
     const memberPage = await memberContext.newPage()
     const memberPageErrors = []
     memberPage.on('pageerror', error => memberPageErrors.push(error.message))
@@ -891,7 +891,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     assert.equal(localEventLog.includes('control-node-chain-ready'), true)
     assert.equal(localEventLog.includes('<local-workspace>'), false)
 
-    const localContext = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+    const localContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 800 } })
     const localPage = await localContext.newPage()
     await localPage.goto(nodeLocalOrigin, { waitUntil: 'domcontentloaded' })
     await localPage.getByRole('button', { name: selectedWorkspace, exact: true }).waitFor({ timeout: 30_000 })

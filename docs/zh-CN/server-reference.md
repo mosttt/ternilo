@@ -1,6 +1,6 @@
 # Server 技术参考
 
-Server 统一使用 `ternilo-server init`／`serve`／`admin`，电脑端 Node 角色由 `ternilo serve` 承担。Server 的单用户／多用户模式保存在同一数据库；两种模式均可选择 SQLite 或 PostgreSQL，均不强制要求 OIDC 或 Worker。
+Server 统一使用 `ternilo-server setup`／`serve`／`admin`，电脑端 Node 角色由 `ternilo serve` 承担。Server 的单用户／多用户模式保存在同一数据库；两种模式均可选择 SQLite 或 PostgreSQL，均不强制要求 OIDC 或 Worker。
 
 Server 的 Control、Cloud 和 Gateway 资源都通过同一个 Database 访问层持久化。用户通过原生账号或可选 OIDC 登录，同一工作台按资源执行位置路由：
 
@@ -21,7 +21,7 @@ Server 配置保存在私有 `config.json`，`TERNILO_SERVER_*` 与显式 CLI �
 
 ## 原生 Server 备份与恢复
 
-直接运行二进制的安装与首次初始化见[非容器部署](deployment.md#非容器部署)。已有实例恢复时沿用备份中的配置和主密钥，不要重新运行 `init` 创建另一套身份或密钥。
+直接运行二进制的安装与首次初始化见[非容器部署](deployment.md#非容器部署)。已有实例恢复时沿用备份中的配置和主密钥，不要重新运行 `setup` 创建另一套身份或密钥。
 
 完整备份前正常停止 Server，保存私有配置、实际数据库和持久文件。默认 SQLite 数据库位于实例目录的 `data/db/` 下，但 `database_url`、`workspace_root` 或外部 WorkerPolicy 可以指向其他位置；仅保存配置目录不能保证包含这些外部数据。数据库地址或主密钥由环境变量覆盖时，也要安全保存实际使用的环境配置。PostgreSQL 需要另外保存一致的数据库转储。连接电脑与 Worker 的文件也需分别备份，见[本地数据与备份](getting-started.md#5-数据与备份)及[Worker 备份与恢复](worker.md#备份与恢复)。
 
@@ -302,3 +302,9 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 
 `GET /api/v1/model-computers/{executor_id}/usage/summary` 提供符合 `month`／`query` 的整月设备直连报告及按 Provider／模型／协议分组；权限与明细相同，计数覆盖率及 CSV 字段见[设备用量](device-provider-usage.md)。
+
+## 首次网页设置
+
+未保存配置的 `serve` 提供静态设置页和 `POST /api/v1/setup`。请求填写 `setup_token`、数据库选择 `database`（`kind: sqlite`，或 `kind: postgres` 与 `url`、可选 `migration_url`）、可选 `public_url` 及 `username`、`email`、`password`。Key 校验先于数据库连接，配置与完整 schema 准备成功后创建管理员，并关闭该入口。启动已预设数据库时 `kind` 使用 `preset`，网页不可覆盖启动选项。设置成功后重新加载正常登录页；`/auth/config` 的 `initialized` 以数据库所有者记录为准。
+
+首次设置阶段 `/readyz` 表示设置 HTTP 已就绪，返回 `status: setup_required`；完成后恢复业务数据库就绪检查。配置保存但账号创建中断时，通过现有 `POST /api/v1/auth/setup` 完成；未完成时重启会从日志取得新的 Key。

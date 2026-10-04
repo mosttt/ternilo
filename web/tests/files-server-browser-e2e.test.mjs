@@ -117,7 +117,7 @@ test('native Server Files preserves Node versions, enforces ownership and explai
     }
     const token = application.owner.session.access_token
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    owner = await (await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })).newPage()
+    owner = await (await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })).newPage()
     observe(owner, 'owner')
     await loginFiles(owner, origin, application.owner)
     await owner.locator('[data-files-empty]').getByText('没有符合条件的文件。', { exact: true }).waitFor()
@@ -191,7 +191,7 @@ test('native Server Files preserves Node versions, enforces ownership and explai
     const memberSession = await serverRequest(origin, '/auth/invitations/accept', { body: { token: accountInvitation.token, email: 'files-member@example.test', ...memberCredentials } })
     const invitation = await serverRequest(origin, '/admin/invitations', { token, body: { tenant_id: tenantId, role: 'member' } })
     await serverRequest(origin, '/invitations/accept', { token: memberSession.access_token, body: { token: invitation.token } })
-    member = await (await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage()
+    member = await (await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage()
     observe(member, 'member')
     await loginFiles(member, origin, memberCredentials)
     await selectSpace(member, tenantId)

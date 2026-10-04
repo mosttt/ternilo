@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { LocaleProvider, useLocale, useTranslate } from './provider'
 import { en as commonEn, zh as commonZh } from './resources/common'
-import { LOCALE_STORAGE_KEY, LocaleRuntime } from './runtime'
+import { LOCALE_STORAGE_KEY, LocaleRuntime, storedLocale } from './runtime'
 
 const values = new Map<string, string>()
 const memoryStorage = {
@@ -22,6 +22,18 @@ describe('locale runtime', () => {
     localStorage.clear()
     document.documentElement.lang = ''
     document.body.innerHTML = ''
+  })
+
+  it('uses browser language order until the user saves a supported preference', () => {
+    expect(storedLocale(memoryStorage, ['en-US', 'zh-CN'])).toBe('en')
+    expect(storedLocale(memoryStorage, ['zh-TW', 'en-US'])).toBe('zh')
+    expect(storedLocale(memoryStorage, ['fr-FR', 'zh-CN'])).toBe('zh')
+    expect(storedLocale(memoryStorage, ['fr-FR'])).toBe('en')
+    expect(storedLocale(undefined, [])).toBe('en')
+    localStorage.setItem(LOCALE_STORAGE_KEY, 'zh')
+    expect(storedLocale(memoryStorage, ['en-US'])).toBe('zh')
+    localStorage.setItem(LOCALE_STORAGE_KEY, 'en')
+    expect(storedLocale(memoryStorage, ['zh-CN'])).toBe('en')
   })
 
   it('keeps bound translators stable and resolves the active dictionary', () => {

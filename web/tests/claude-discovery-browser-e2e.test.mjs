@@ -56,7 +56,7 @@ test('Claude catalog discovery uses official headers and pagination, with safe e
       status = 200
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 980 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 980 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error' && !(expectedError && message.text().includes('503'))) errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400 && !(expectedError && response.status() === 503 && new URL(response.url()).pathname.endsWith('/providers/discover'))) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`) })

@@ -180,7 +180,7 @@ test('Sidebar drives real workspace/session lifecycle on desktop and mobile', { 
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true })
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin })
     const page = await context.newPage()
     const pageErrors = []

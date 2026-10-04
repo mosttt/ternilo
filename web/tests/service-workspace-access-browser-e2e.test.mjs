@@ -71,7 +71,7 @@ test('service workspace grants, scoped Live, real SDK execution and revocation p
       assert.equal(rejected.frames[0].code, 'policy_denied')
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 980 } })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 980 } })
     const requests = []
     page.on('pageerror', error => report.errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') report.errors.push(message.text()) })

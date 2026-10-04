@@ -218,7 +218,7 @@ test('Local Salvo stays interactive and bounded under rapid queueing, long strea
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true })
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const pageErrors = []
     const consoleErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))

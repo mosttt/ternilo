@@ -19,7 +19,7 @@ test('single-user accounts hide registration controls while mode changes preserv
     const denied = await fetch(`${origin}/api/v1/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'single-user-candidate', email: 'single-user-candidate@example.test', password: 'single-user-candidate-password' }) })
     assert.equal(denied.status, 403, 'single-user mode must reject signup even with a saved open policy')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const page = await browser.newPage({ viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
     if (process.env.TERNILO_E2E_ASSET_DIR) {
       for (const [asset, contentType] of [['app.js', 'text/javascript'], ['app.css', 'text/css']]) {
         await page.route(`${origin}/assets/${asset}`, route => route.fulfill({ path: path.join(process.env.TERNILO_E2E_ASSET_DIR, asset), contentType }))

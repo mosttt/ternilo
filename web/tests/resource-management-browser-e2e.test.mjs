@@ -42,7 +42,7 @@ test('workspace management transfers through the browser while execution ownersh
     const session = await serverRequest(origin, '/sessions', { ...scope, body: { workspace_id: workspace.workspace_id } })
     const endpoint = `/workspaces/${workspace.workspace_id}/sharing`
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const page = await browser.newPage({ viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

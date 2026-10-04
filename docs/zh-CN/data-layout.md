@@ -60,7 +60,7 @@ ternilo-server/
     └── workspaces/
 ```
 
-初始化未指定数据库时，SQLite 固定位于实例下的 `data/db/server.sqlite3`；显式 `database_url` 可使用其他 SQLite 路径或 PostgreSQL。账号、模型设置、加密凭据、资源权限、队列、审计和 Gateway 数据仍由同一事务数据库管理，不拆成几份缺少事务一致性的配置文件。部署工具写入的 WorkerPolicy 位于 `config/worker-policy.json`。
+网页选择 SQLite 或终端设置未指定数据库时，SQLite 位于实例下的 `data/db/server.sqlite3`；显式 `database_url` 可使用其他 SQLite 路径或 PostgreSQL。账号、模型设置、加密凭据、资源权限、队列、审计和 Gateway 数据仍由同一事务数据库管理，不拆成几份缺少事务一致性的配置文件。部署工具写入的 WorkerPolicy 位于 `config/worker-policy.json`。
 
 Server 的数据库地址、主密钥及身份设置由总配置管理。平台模型 Key 加密保存在数据库中。备份须同时保存总配置、真实数据库及外部持久存储；仅复制 `config.json` 不包含数据库或连接电脑上的文件。
 
@@ -73,7 +73,6 @@ Server 的数据库地址、主密钥及身份设置由总配置管理。平台�
 备份操作见[本机数据与备份](getting-started.md#5-数据与备份)、[Server 备份](server-reference.md#原生-server-备份与恢复)及[Worker 指南](worker.md)。
 
 ```bash
-ternilo-server init --config-dir ./server
 ternilo-server serve --config-dir ./server
 ternilo-worker init --config-dir ./worker --server-url https://ternilo.example.com
 ternilo-worker serve --config-dir ./worker

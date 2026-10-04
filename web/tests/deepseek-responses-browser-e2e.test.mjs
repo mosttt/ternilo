@@ -109,7 +109,7 @@ test('DeepSeek protocol selection, live reasoning, tool history and persisted mo
       assert.equal(createHash('sha256').update(actual).digest('hex'), createHash('sha256').update(expected).digest('hex'))
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1280, height: 850 }, hasTouch: true })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 850 }, hasTouch: true })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`) })

@@ -52,7 +52,7 @@ test('scheduled account models retain their creator across later input, revocati
     await sharing(true)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const open = async () => {
-      page = await browser.newPage({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' })
+      page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' })
       page.on('pageerror', error => errors.push(error.message))
       page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
       page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })

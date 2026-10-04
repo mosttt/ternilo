@@ -70,7 +70,7 @@ test('Server account holders and their local CLI share a directory without relea
 
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const open = async (sessionId, credentials, name) => {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+      const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
       pages.push(page)
       observe(page, name, observations)
       await openSession(page, server.origin, sessionId, credentials, tenantId)

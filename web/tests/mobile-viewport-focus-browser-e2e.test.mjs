@@ -93,7 +93,7 @@ test('visual viewport keeps the mobile composer visible and nested Settings rest
   let browser, page
   try {
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' })
     await context.addInitScript(() => {
       const events = new EventTarget()
       const metrics = { height: window.innerHeight, offsetTop: 0, scale: 1 }

@@ -313,7 +313,7 @@ export async function initializeServer({
     ...Object.fromEntries(Object.keys(process.env).filter(key => key.startsWith('TERNILO_')).map(key => [key, undefined])),
     ...environment,
   }
-  const args = ['init', '--non-interactive', '--config-dir', path.dirname(configPath), '--listen', new URL(origin).host, '--public-url', origin]
+  const args = ['setup', '--non-interactive', '--config-dir', path.dirname(configPath), '--listen', new URL(origin).host, '--public-url', origin]
   if (databaseUrl) args.push('--database-url', databaseUrl)
   if (migrationDatabaseUrl) args.push('--migration-database-url', migrationDatabaseUrl)
   await execute(binary, args, { cwd: repository, env: {

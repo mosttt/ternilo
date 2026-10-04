@@ -79,7 +79,7 @@ test('Local and Server share initially hidden, themed scrollbars on desktop and 
         assert.equal(response.status, 200)
         assert.equal(createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex'), createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex'))
       }
-      const page = await browser.newPage({ viewport: { width: 1366, height: 700 }, hasTouch: true, serviceWorkers: 'block' })
+      const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 700 }, hasTouch: true, serviceWorkers: 'block' })
       page.on('pageerror', error => errors.push(error.message))
       page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
       page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`) })

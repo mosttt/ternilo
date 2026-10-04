@@ -92,7 +92,7 @@ test('Settings actions are real, bilingual, and mobile-safe', async context => {
   let browser, page
   try {
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const pageErrors = []
     const consoleErrors = []
     const httpErrors = []

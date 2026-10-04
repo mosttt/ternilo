@@ -66,7 +66,7 @@ test('sharing changes on one Server update and revoke another Server browser wit
     sessionId = state.sessions[0].identity.session_id
     const workspaceId = state.workspaces[0].workspace_id
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('response', response => {
       if (response.status() >= 400) responses.push({ url: response.url(), status: response.status(), revoked: revoking, body: response.json() })

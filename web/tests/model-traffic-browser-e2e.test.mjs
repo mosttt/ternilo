@@ -53,7 +53,7 @@ test('model traffic policies control shared Server admission and editable accoun
       return owner('/admin/models/traffic', { method: 'PUT', body: { revision: current.revision, policy: { platform, account_default: accountDefault } } })
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
     evidence.observe(page, 'owner')
     await page.goto(`${origin}/admin/models`); await login(page, application.owner)
     await page.getByRole('tab', { name: '请求限流', exact: true }).click()

@@ -100,6 +100,12 @@ async function modelDirectory(page, triggerName, english = false, surface = page
 
 async function assertLayout(page, surface) {
   await surface.evaluate(async element => { await Promise.all(element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))) })
+  // Radix updates collision positioning after the viewport and paged contents
+  // change. Wait for that layout to settle before measuring the visible menu.
+  await until(async () => {
+    const box = await surface.boundingBox(), size = page.viewportSize()
+    return Boolean(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= size.width + 1 && box.y + box.height <= size.height + 1)
+  }, fits => fits, 'model menu settles inside the viewport')
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'document stays inside viewport')
   assert.ok(await surface.evaluate(element => element.scrollWidth <= element.clientWidth), 'model menu has no horizontal overflow')
   const box = await surface.boundingBox(), size = page.viewportSize()
@@ -166,8 +172,8 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     worker = startProcess(workerBinary, ['serve', '--config-dir', path.dirname(workerConfig)])
     await until(() => worker.diagnostics(), output => /Ternilo cloud worker .* ready/.test(output), 'Worker ready')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const ownerContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, hasTouch: true, serviceWorkers: 'block' })
-    const memberContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const ownerContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, hasTouch: true, serviceWorkers: 'block' })
+    const memberContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     ownerPage = await ownerContext.newPage(); memberPage = await memberContext.newPage()
     memberPage.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/v1/default-model') memberDefaultWrites.push(request.url()) })
     for (const page of [ownerPage, memberPage]) {

@@ -221,7 +221,7 @@ Agent Team 的本机操作通过 Node 通道访问本地任务和邮箱，远程
 
 ## Server 身份、资源与存储
 
-`ternilo-server init` 创建私有配置与数据库，`ternilo-server serve` 启动唯一 Web/API 和 Node Gateway。单用户／多用户是实例中持久化的访问模式，与 SQLite／PostgreSQL 的部署选择独立；切换模式不会建立另一套账号或资源。单用户模式暂停其他账号的远程访问，保留其数据和资源归属。TLS 由外部反向代理终止。
+`ternilo-server serve` 启动统一 Web/API 和 Node Gateway；首次启动提供受日志 Key 保护的网页，选择数据库并创建管理员。`ternilo-server setup` 提供可选终端设置。单用户／多用户是实例中持久化的访问模式，与 SQLite／PostgreSQL 的部署选择独立；切换模式不会建立另一套账号或资源。单用户模式暂停其他账号的远程访问，保留其数据和资源归属。TLS 由外部反向代理终止。
 
 原生账号使用密码哈希与可撤销的浏览器会话。OIDC 可选；已经登录的原生账号可以显式绑定 OIDC 身份，保留同一 user_id、工作区、凭据和配额归属。绑定不会按邮箱合并账号，也不会把已经属于另一账号的身份转移过来。
 
@@ -314,7 +314,7 @@ Start 和过期领取回收共用存储协调锁。未提交 Start 的失效领�
 - `ternilo-extension`、`ternilo-rhai`、`code-runtime`：统一扩展包、共享受限 Rhai 基线与一次性代码运行时；
 - `ternilo-automation`、`acp`：程序化 adapter；
 - `apps/ternilo`：本地服务、Node 连接角色、CLI、RPC/ACP；
-- `apps/ternilo-server`：`init`、`serve`、`admin`，统一初始化、Web/API、账号、Node Gateway 与运维；
+- `apps/ternilo-server`：`setup`、`serve`、`admin`，统一设置、Web/API、账号、Node Gateway 与运维；
 - `apps/ternilo-worker`：独立云端执行父进程与 child；
 - `apps/ternilo-desktop`：桌面客户端及内部后台服务启动入口。
 

@@ -161,7 +161,7 @@ test('Trajectory Details shares durable images, releases Session cache, and sync
       assert.equal(createHash('sha256').update(actual).digest('hex'), createHash('sha256').update(await readFile(path.join(webRoot, 'dist/assets', asset))).digest('hex'))
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const pageErrors = []
     const networkErrors = []
     const resolveRequests = []
@@ -303,7 +303,7 @@ test('Trajectory Details shares durable images, releases Session cache, and sync
     assert.ok(mobileStickyGeometry.toolbarBottom <= mobileStickyGeometry.timelineTop + 1, JSON.stringify(mobileStickyGeometry))
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true)
 
-    const touchContext = await browser.newContext({
+    const touchContext = await browser.newContext({ locale: 'zh-CN',
       storageState: await page.context().storageState(),
       viewport: { width: 390, height: 844 },
       isMobile: true,

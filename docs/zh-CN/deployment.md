@@ -1,42 +1,67 @@
-# Docker 与生产部署
+# Server 部署与运维
 
 服务器只运行 `ternilo-server`，提供账号登录、电脑连接和共享工作台。默认使用 SQLite；也可使用 PostgreSQL。单用户／多用户由所有者在网页“平台管理 → 实例设置”切换，沿用同一数据库和原资源，不需要换程序或重建管理员。
 
 电脑另运行 `ternilo serve`，保留原来的文件、模型、插件和会话。Server 与 Ternilo 可以在同一台机器，也可以分别部署；电脑连接步骤见[远程访问](remote-access.md)。OIDC 和托管 Worker 都是可选能力。需要提供托管执行时，按[Worker 部署](worker.md)开启功能并接入独立 Worker；Worker 不连接数据库，不接收实例 master key 或模型密钥。
 
-当前按单个 Server 实例部署。PostgreSQL 已支持持久网关租约和命令记录，Cloud 事件已有 LISTEN 通知与持久补读；但 Node Gateway 的在线电脑连接和失效广播仍由各 Server 进程持有，尚未提供完整的跨实例请求转发与 Node 通知同步。连接同一个 PostgreSQL 不等于可以直接增加多个 Server 副本并获得透明故障转移。
+本文的启动步骤针对单个 Server。需要多个实例时，按[Server 集群](server-cluster.md)配置共享 PostgreSQL、主密钥及各自的 `cluster_url`，使用已实现的 Node 跨实例转发和实时补读；这不包含跨主机存储接管或透明故障转移。
+
+可以选择[直接运行二进制](#非容器部署)或[Docker 部署](#docker网页设置与启动)。两种方式运行同一个 `ternilo-server`，都需要选择数据库，并为远程浏览器提供 HTTPS 入口；只有 Docker 方式需要 Docker／Compose。
 
 ## 通用前提
 
-- 从 [GitHub Release](https://github.com/mosttt/ternilo/releases) 下载对应平台二进制，或直接使用公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.0`。Docker 部署不需要本地构建。
+- 从 [GitHub Release](https://github.com/mosttt/ternilo/releases) 下载对应平台二进制，或直接使用公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.1`。Docker 部署不需要本地构建。
 - Docker 方式需要 Docker Engine 和 Compose 插件；使用 `ternilo-deploy` 辅助工具时另需 Python 3.9 以上。发行包中的 `deploy/docker/` 可复制到服务器独立使用，不依赖源码目录。
 - 远程访问使用域名和外部 HTTPS 反向代理。默认只把容器端口映射到服务器 `127.0.0.1:4321`；电脑的本地 `3210` 端口无需对外开放。
 - Server 数据卷包含私有配置、加密密钥及 SQLite 数据。PostgreSQL 数据库另行持久化，但仍需同时保存 Server 配置。
 
-## Docker：初始化并启动
+## 非容器部署
 
-只使用 Docker Compose 时，按[快速部署](docker-compose.md)下载一个 Compose 文件即可。以下辅助工具方式适用于发行包或源码根目录，默认拉取 `ghcr.io/mosttt/ternilo-server:0.2.0`；将示例域名替换为自己的域名：
+从 Release 下载 Server 归档并解压，直接运行其中的 `bin/ternilo-server`；Windows 使用 `bin\ternilo-server.exe`。这条路径不需要 Docker、Python、Rust 或 Node.js。以下是 Linux／macOS 上的服务器部署示例，在解压后的发行包目录执行：
 
 ```bash
-python3 deploy/docker/ternilo-deploy init \
-  --directory "$HOME/ternilo-server" \
-  --public-url https://agent.example.com
-
-cd "$HOME/ternilo-server"
-./ternilo-deploy check
-./ternilo-deploy up
-./ternilo-deploy status
+./bin/ternilo-server serve \
+  --config-dir "$HOME/.local/share/ternilo-server" \
+  --listen 127.0.0.1:4321
 ```
 
-`init` 调用镜像里的真实 `ternilo-server init`，默认建立 SQLite、生成密钥并输出一次性管理员设置链接。打开链接填写用户名、邮箱和密码；链接中的 token 只放在 URL fragment，初始化完成即失效。随后使用用户名和密码登录。重复运行 `init` 保留已有配置与数据。
+先按[反向代理与 TLS](#反向代理与-tls)配置网关，上游为 `http://127.0.0.1:4321`。Server 首次启动直接输出初始化 Key，从自己的电脑或手机打开实际访问的域名，输入 Key，选择 SQLite 或 PostgreSQL，填写对外地址并创建管理员。服务器不需要桌面或浏览器，也不需要先执行设置命令。初始化、登录和工作台按浏览器首选中文／英文显示，手动选择优先并保存到当前浏览器。
 
-初始化只创建独立的 Compose 项目和数据卷，不启动常驻服务。目录中的 `.env` 保存镜像版本、端口和公开 URL；真正的 `config.json` 保存在该项目的 `server-data` 卷中，Unix 权限为 0600。不同部署默认分配不同项目名，不会因为同在一台服务器就共用数据。
+Windows PowerShell 在解压目录中使用相同选项：
 
-首次也可用 `TERNILO_SERVER_OWNER_USERNAME`、`TERNILO_SERVER_OWNER_EMAIL`、`TERNILO_SERVER_OWNER_PASSWORD` 环境变量建立管理员；三个值需要一起提供。密码优先使用隐藏输入，避免把实际密码写进命令历史；这些变量只传给初始化进程，不写入 `.env`。不提供账号时直接使用上述网页设置流程。
+```powershell
+.\bin\ternilo-server.exe serve --config-dir "$env:LOCALAPPDATA\ternilo-server" --listen 127.0.0.1:4321
+```
+
+`--public-url https://ternilo.example.com` 可预设网页的对外地址，但不是打开网页的必要参数。它用于登录回调和邮件链接，不负责 HTTPS 或反向代理。也可在首次网页设置及之后的实例设置中保存它。
+
+默认 SQLite 位于实例目录的 `data/db/server.sqlite3`。PostgreSQL 先按[准备步骤](#选择-postgresql)建立账号与数据库，再在网页填写连接地址。原生程序填写宿主机可达的地址；Docker 填容器可达的地址，见 [Compose 数据库示例](docker-compose.md)。
+
+不适合使用网页时，运行 `ternilo-server setup --config-dir <实例目录>` 进入终端向导，选择数据库并隐藏输入连接串和管理员密码。自动化使用 `setup --non-interactive --owner-username ... --owner-email ... --owner-password ...` 或对应环境变量；这只用于首次设置。已有配置时 `setup` 拒绝覆盖，日常 `serve` 不接受管理员账号参数，容器重启不会重置账号。`serve` 的 CLI > 环境变量 > 配置 > 默认值；启动覆盖不回写配置，也不搬移数据库数据。
+
+默认配置位于 `$XDG_DATA_HOME/ternilo-server/config.json`，未设置 XDG 时为 `$HOME/.local/share/ternilo-server/config.json`。无子命令也会启动服务。实例所有者可在网页“平台管理 → 实例设置”配置 OIDC、Turnstile 和邮件服务，详见[登录与人机验证](server-authentication.md)。
+
+`--config-dir` 指整个实例目录，固定读取其中的 `config.json`；环境变量为 `TERNILO_SERVER_CONFIG_DIR`。`--database-url` 指实际数据库。初始化省略数据库地址时，默认 SQLite 为实例下的 `data/db/server.sqlite3`。显式数据库地址会保存到总配置。
+
+直接运行二进制初始化时，管理员邮箱可通过 `--owner-email` 或 `TERNILO_SERVER_OWNER_EMAIL` 提供；交互初始化会询问用户名、邮箱和密码。非交互模式不提供任何管理员信息时，仍使用一次性网页初始化链接。
+
+以后 `serve --config-dir ./server` 读取总配置中保存的连接，不需要再次指定数据库地址；启动时传入 `--database-url` 或环境变量 `TERNILO_DATABASE_URL` 可以临时覆盖它，不会改写配置。选择另一实例目录不会改动原实例数据。
+
+长期运行交由 systemd 或你的服务管理器，使用独立的服务账号和相同配置路径。服务监听及公开 URL 分别由 `--listen`／`TERNILO_SERVER_LISTEN`、`--public-url`／`TERNILO_SERVER_PUBLIC_URL` 设置。可选 OIDC 和托管执行配置保留独立参数；更完整的软件分层见[架构说明](architecture.md)。
+
+原生程序的完整备份同样先停止服务，再保存私有配置和实际数据库。SQLite 若通过 `--database-url` 放在配置目录外，也必须备份那个位置；PostgreSQL 则另做转储。SQLite 也可单独使用[在线数据库快照](#在线保存-sqlite-数据库快照)。恢复到新目录后，确认配置中的数据库连接指向恢复后的数据库；不要混用另一份快照的 WAL／SHM 文件。主密钥轮换使用 `ternilo-server admin rotate-secret-master-key --help` 所列参数，完成后把新密钥保存到同一配置。不要混用另一个实例的配置或密钥。
+
+## Docker：网页设置与启动
+
+[Docker Compose 部署](docker-compose.md)提供三种完整示例：默认 SQLite、服务器上的外部 PostgreSQL，以及 Compose 自带 PostgreSQL。默认流程只需要 `docker compose up -d --wait`，查看日志 Key，再通过真实访问地址完成网页设置；不需要单独运行初始化命令。
+
+数据卷的 `/var/lib/ternilo/config.json` 保存数据库连接与主密钥，管理员账号及密码哈希在数据库中。后续启动读取保存的配置。首次初始化完成以数据库的实例所有者记录为准；已有配置但管理员创建中断时，仍可通过受 Key 保护的管理员设置页完成。初始化 Key 不写入明文配置，只保存摘要，完成后不能再次创建管理员。
+
+发行包还提供 `ternilo-deploy` 运维辅助工具，需要 Python 3.9 以上。它的 `init` 动作用于准备独立部署目录、Compose 项目和持久配置，内部调用 Server 的 `setup`，然后通过 `up` 启动；这是可选的自动化途径。日常 `status`、`logs`、`backup`、`restore` 等操作在该工具生成的部署目录执行。
 
 ### 选择 PostgreSQL
 
-当前开发版使用 Control schema 14，新增模型授权设备限制的持久化。SQLite 与 PostgreSQL 都只初始化匹配版本的最终 schema，不自动迁移历史结构；版本不匹配会明确拒绝启动，不会删除或重建已有数据。请先保留完整备份，在独立新数据库验收当前开发版；不要通过删除日常数据库来绕过版本检查。同版本备份恢复与跨 schema 数据迁移是不同操作，后者目前没有自动流程。
+当前发行的 Control 基础 schema 为 14，认证、模型限流等组件另有匹配的独立 schema。SQLite 与 PostgreSQL 都只初始化匹配版本的最终 schema，不自动迁移历史结构；版本不匹配会明确拒绝启动，不会删除或重建已有数据。请先保留完整备份，在独立新数据库验收当前开发版；不要通过删除日常数据库来绕过版本检查。同版本备份恢复与跨 schema 数据迁移是不同操作，后者目前没有自动流程。
 
 使用已有 PostgreSQL，先建立空数据库和可连接账号。初始化会实际校验连接和 schema，失败不会发布一份可用配置。建议分别使用负责建表的 owner 账号和日常运行的受限账号；新安装时，由数据库管理员在 `psql` 中执行以下示例，并通过 `\password` 隐藏设置密码：
 
@@ -55,38 +80,71 @@ GRANT USAGE ON SCHEMA public TO ternilo_runtime;
 
 已有相应角色时无需重复创建。`ternilo_runtime` 是程序初始化 schema 时授予表和函数访问权的固定组角色，必须先存在；实际登录账号的名称可以自定，但要继承该角色。日常运行账号不应拥有数据库、表或 schema，也不应具有 superuser／`BYPASSRLS` 权限。`ternilo_owner` 拥有数据库并负责初始化，`ternilo_app` 仅用于正常运行。
 
-以 Bash 为例，分别隐藏输入 runtime 和 owner 的连接串；连接串中的密码需按 URL 规则编码：
+网页选择 PostgreSQL 后分别填写运行账号连接和建表账号连接，例如：
 
-```bash
-read -rsp 'PostgreSQL URL: ' TERNILO_DATABASE_URL; echo
-read -rsp 'PostgreSQL schema-owner URL: ' TERNILO_MIGRATION_DATABASE_URL; echo
-export TERNILO_DATABASE_URL TERNILO_MIGRATION_DATABASE_URL
-python3 deploy/docker/ternilo-deploy init \
-  --directory "$HOME/ternilo-server-pg" \
-  --public-url https://agent.example.com
-unset TERNILO_DATABASE_URL TERNILO_MIGRATION_DATABASE_URL
+```text
+postgresql://ternilo_app:APP_PASSWORD@10.0.0.20:5432/ternilo
+postgresql://ternilo_owner:OWNER_PASSWORD@10.0.0.20:5432/ternilo
 ```
 
-`TERNILO_DATABASE_URL` 使用 `ternilo_app`，`TERNILO_MIGRATION_DATABASE_URL` 使用 `ternilo_owner`。PostgreSQL 地址必须能从容器访问；容器内的 `localhost` 指容器自身。数据库连接和主密钥由 `config.json` 持久保存；启动后使用模式仍可自由切换。数据库种类不决定用户数或托管执行能力。
+两个地址必须连接同一数据库，密码中的特殊字符需 URL 编码。数据库连接与主密钥保存到 `config.json`，不必重复设置环境变量。外部数据库、Docker 宿主机数据库与 Compose 服务名的具体选择见[数据库部署示例](docker-compose.md)。
 
 ### 反向代理与 TLS
 
-反向代理把 HTTPS 转发到 `127.0.0.1:4321`，保留 Host，并支持 WebSocket Upgrade 和长连接。Nginx 的主要位置配置如下；证书配置使用你现有的签发方式：
+网页或可选 `--public-url` 填浏览器最终访问的根地址，例如 `https://ternilo.example.com`；它用于登录回调和邮件链接。Server 本身提供 HTTP，HTTPS 和证书由网关处理。域名的 A／AAAA 记录应指向网关，网关的 HTTPS 入口应能从用户设备访问。
 
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:4321;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_buffering off;
-    proxy_read_timeout 3600s;
+| 网关位置 | 网关填写的 HTTP 上游 | Server 监听／端口发布 |
+|---|---|---|
+| 直接运行在 Server 宿主机 | `http://127.0.0.1:4321` | 二进制监听 `127.0.0.1:4321`；Docker 保持默认的宿主机回环端口映射 |
+| 与 Server 在同一 Docker 网络的容器 | `http://server:4321`，或为 Server 配置的网络别名 | 使用容器端口 `4321`；网关容器的 `127.0.0.1` 指它自身 |
+| 另一台机器上的网关 | `http://Server私网IP:4321` | 二进制监听该私网地址；Docker 的 `TERNILO_SERVER_HTTP_BIND_ADDRESS` 设为宿主机私网 IP，并限制上游只允许网关访问 |
+
+Docker 网关与 Server 需要加入同一网络，具体连接步骤见[容器中的网关](docker-compose.md#网关也在-docker-容器中)。不能直接在另一个容器里填 `127.0.0.1:4321`。使用反代面板时，域名填 `ternilo.example.com`，上游按表填写，开启 HTTPS 和 WebSocket，关闭流式响应缓冲。
+
+Caddy 直接安装在 Server 宿主机时，Caddyfile 可以写为：
+
+```caddyfile
+ternilo.example.com {
+    reverse_proxy 127.0.0.1:4321 {
+        flush_interval -1
+    }
 }
 ```
 
-只在同机开发时，可使用 `http://localhost:4321` 作为公开 URL，并让电脑连接 `ws://127.0.0.1:4321/api/v1/executors/connect`，显式增加 `--allow-insecure-gateway`。正式远程连接使用 HTTPS／WSS。
+Caddy 根据域名管理 HTTPS，前提是 DNS 和证书签发所需的网络入口可用；WebSocket 自动代理。见 [Caddy 反代文档](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)。
+
+Nginx 的以下 `map` 和 `server` 块放在 `http` 配置上下文中，证书路径替换为网关实际证书：
+
+```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 443 ssl;
+    server_name ternilo.example.com;
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:4321;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```
+
+整个根路径都应经过反代，包括 `/api/v1/live` 和 `/api/v1/executors/connect`；不只代理首页。Nginx 必须显式转发升级头，见[官方 WebSocket 文档](https://nginx.org/en/docs/http/websocket.html)。需要准确的客户端 IP 时，按[可信代理设置](settings.md)配置网关的实际连接 IP；转发头本身不建立信任。
+
+`localhost`／`127.0.0.1` 始终指运行浏览器或进程的当前机器。从自己的电脑打开 `http://localhost:4321` 不会访问远程服务器；只有建立[SSH 本地端口转发](docker-compose.md#本机体验与临时-ssh-访问)后才能通过它访问服务器。长期远程访问使用公开 HTTPS 域名，Node 使用同一入口派生的 WSS 地址。
 
 ## 日常运行与诊断
 
@@ -261,26 +319,3 @@ unset TERNILO_MODEL_API_KEY_NEXT
 先验证相关 Rust 与前端测试，再对实际发行物验证初始化、登录、电脑连接、共享、审批、实时重连、停机备份、新卷恢复及主密钥轮换。仓库已有完整门禁脚本，入口与覆盖范围见[发布说明](release-packaging.md#完整发行门禁)。脚本存在或脚本单元测试通过，不能替代当前发行物的实际验收。
 
 Local／Server 组件包的[安装恢复验证](release-packaging.md#客户端与-server-安装恢复验证)可以独立运行，覆盖两种 SQLite 恢复及受限 PostgreSQL runtime 的配置／转储匹配恢复。检查包括凭据、模型与设备限制、正常／归档历史、账本及恢复后真实任务。该入口不覆盖各系统安装器、Docker 完整发行门禁、Worker 活动任务恢复或跨版本迁移；不能直接替换旧 schema 日常实例。
-
-## 非容器部署
-
-服务初始化后，实例所有者可以在网页“平台管理 → 实例设置”配置 OAuth 2.0／OIDC 和 Turnstile，保存后直接生效。无需为日常修改重新构建镜像；详见[登录与人机验证](server-authentication.md)。
-
-将对应平台的发行包 `bin/ternilo-server` 放入 PATH：
-
-```bash
-ternilo-server init
-ternilo-server serve
-```
-
-终端向导默认 SQLite，可以选择 PostgreSQL，并隐藏输入连接串及管理员密码。默认配置位于 `$XDG_DATA_HOME/ternilo-server/config.json`，未设置 XDG 时为 `$HOME/.local/share/ternilo-server/config.json`。无子命令也会启动服务。自动化可使用 `--non-interactive`、`--config-dir` 及 `ternilo-server init --help`／`serve --help` 中对应的固定环境变量。
-
-`--config-dir` 指整个实例目录，固定读取其中的 `config.json`；环境变量为 `TERNILO_SERVER_CONFIG_DIR`。`--database-url` 指实际数据库。初始化省略数据库地址时，默认 SQLite 为实例下的 `data/db/server.sqlite3`。显式数据库地址会保存到总配置。
-
-直接运行二进制初始化时，管理员邮箱可通过 `--owner-email` 或 `TERNILO_SERVER_OWNER_EMAIL` 提供；交互初始化会询问用户名、邮箱和密码。非交互模式不提供任何管理员信息时，仍使用一次性网页初始化链接。
-
-以后 `serve --config-dir ./server` 读取总配置中保存的连接，不需要再次指定数据库地址；启动时传入 `--database-url` 或环境变量 `TERNILO_DATABASE_URL` 可以临时覆盖它，不会改写配置。选择另一实例目录不会改动原实例数据。
-
-长期运行交由 systemd 或你的服务管理器，使用独立的服务账号和相同配置路径。服务监听及公开 URL 分别由 `--listen`／`TERNILO_SERVER_LISTEN`、`--public-url`／`TERNILO_SERVER_PUBLIC_URL` 设置。可选 OIDC 和托管执行配置保留独立参数；更完整的软件分层见[架构说明](architecture.md)。
-
-原生程序的完整备份同样先停止服务，再保存私有配置和实际数据库。SQLite 若通过 `--database-url` 放在配置目录外，也必须备份那个位置；PostgreSQL 则另做转储。SQLite 也可单独使用上述在线数据库快照命令。恢复到新目录后，确认配置中的数据库连接指向恢复后的数据库；不要混用另一份快照的 WAL／SHM 文件。主密钥轮换使用 `ternilo-server admin rotate-secret-master-key --help` 所列参数，完成后把新密钥保存到同一配置。不要混用另一个实例的配置或密钥。

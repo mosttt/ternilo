@@ -42,7 +42,7 @@ test('matched PostgreSQL dump and Server configuration retain restricted-runtime
     const origin = `http://127.0.0.1:${await freePort()}`, nodeOrigin = `http://127.0.0.1:${await freePort()}`
     const originalData = path.join(directory, 'server'), config = path.join(originalData, 'config.json')
     const credentials = { username: 'restore-owner', password: 'synthetic-restore-password' }
-    await execute(serverBinary, ['init', '--non-interactive', '--config-dir', path.dirname(config), '--listen', new URL(origin).host, '--public-url', origin], {
+    await execute(serverBinary, ['setup', '--non-interactive', '--config-dir', path.dirname(config), '--listen', new URL(origin).host, '--public-url', origin], {
       ...runtime, env: { ...environment, TERNILO_DATABASE_URL: databaseUrl('source'), TERNILO_MIGRATION_DATABASE_URL: migrationUrl,
         TERNILO_SERVER_OWNER_USERNAME: credentials.username, TERNILO_SERVER_OWNER_PASSWORD: credentials.password, TERNILO_SERVER_OWNER_EMAIL: 'restore-owner@example.test' },
     })

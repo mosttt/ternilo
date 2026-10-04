@@ -73,7 +73,7 @@ test('Claude hosted tools persist citations, resume pause_turn and mix with loca
     await local('/credentials', { body: { name: 'HOSTED_KEY', value: 'local-hosted-key' } })
     await local('/providers', { body: profile })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`) })
@@ -154,7 +154,7 @@ test('Claude hosted tools persist citations, resume pause_turn and mix with loca
     const connectedOrigin = `http://127.0.0.1:${await freePort()}`
     const connectedNode = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--data-dir', path.join(directory, 'connected'), '--listen', new URL(connectedOrigin).host])
     processes.push(connectedNode); await waitForHttp(connectedOrigin, connectedNode)
-    const connected = await localApi(connectedOrigin), approval = await browser.newPage({ serviceWorkers: 'block', hasTouch: true })
+    const connected = await localApi(connectedOrigin), approval = await browser.newPage({ locale: 'zh-CN', serviceWorkers: 'block', hasTouch: true })
     approval.on('pageerror', error => errors.push(error.message))
     await page.goto(connectedOrigin)
     await approveConnection(page, approval, server, 'Hosted account connection', null, 'hosted')

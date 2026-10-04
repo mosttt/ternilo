@@ -59,7 +59,7 @@ test('managed collaboration keeps model ownership separate from resources, submi
     const worker = startProcess(binary, ['serve', '--config-dir', workerDirectory]); processes.push(worker)
     await until(() => worker.diagnostics(), output => /Ternilo cloud worker .* ready/.test(output), 'Worker ready')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 980 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 980 }, serviceWorkers: 'block' })
     page.on('request', request => { if (['PATCH', 'PUT'].includes(request.method())) modelWrites.push({ path: new URL(request.url()).pathname, body: request.postDataJSON() }) })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

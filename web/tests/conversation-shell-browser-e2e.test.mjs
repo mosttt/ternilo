@@ -387,7 +387,7 @@ test('conversation shell closes hero, streaming, reader intent, question, stop a
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true })
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const pageErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))
     await page.goto(origin, { waitUntil: 'networkidle' })

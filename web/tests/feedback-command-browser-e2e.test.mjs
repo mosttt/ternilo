@@ -141,7 +141,7 @@ test('/feedback is a durable localized command and never enters the model histor
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true })
-    const page = await browser.newPage({ viewport: { width: 1280, height: 820 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 820 } })
     const pageErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))
     await page.goto(origin, { waitUntil: 'networkidle' })

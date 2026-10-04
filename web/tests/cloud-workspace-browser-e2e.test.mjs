@@ -107,7 +107,7 @@ test('managed workspace browsing reads real Worker output without a model and ke
     await assert.rejects(peer(`${readerPath}/workspace`, { body: { kind: 'read', path: 'managed-proof.txt' } }), /403/)
     await access(`/workspaces/${workspace.workspace_id}/sharing/user/${member.user.user_id}`, { method: 'PUT', body: viewOnly })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })

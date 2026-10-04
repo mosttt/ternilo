@@ -51,3 +51,9 @@ For managed sessions, `/api/v1/model-options` returns the saved delegated source
 
 
 `GET /api/v1/model-computers/{executor_id}/usage/summary` returns full-month direct-device totals matching `month`/`query`, grouped by Provider/model/protocol. It enforces the detail endpoint’s ownership policy; reporting coverage and CSV fields are documented in [device usage](device-provider-usage.md).
+
+## First-run web setup
+
+Without saved configuration, `serve` provides static setup and `POST /api/v1/setup`. Submit `setup_token`, `database` (`kind: sqlite`, or `kind: postgres` with `url` and optional `migration_url`), optional `public_url`, and administrator `username`, `email`, `password`. The Key is checked before contacting the database. A startup database preset uses `kind: preset` and cannot be replaced by the form. Setup prepares complete schemas and saves configuration before creating the owner, then reloads the normal login page. `/auth/config.initialized` reflects the database's owner record.
+
+During setup, `/readyz` returns `status: setup_required`, meaning the setup HTTP interface is ready. Afterwards it checks application database readiness. If configuration was saved but owner creation was interrupted, finish through `POST /api/v1/auth/setup`; uninitialized restarts log a new Key.

@@ -200,7 +200,7 @@ async function startContainerRelay(temporary) {
       '-e', `TERNILO_SERVER_OWNER_USERNAME=${owner.username}`,
       '-e', `TERNILO_SERVER_OWNER_EMAIL=${owner.username}@example.test`,
       '-e', `TERNILO_SERVER_OWNER_PASSWORD=${owner.password}`,
-      relayImage, 'server', 'init', '--non-interactive',
+      relayImage, 'server', 'setup', '--non-interactive',
       '--config-dir', '/var/lib/ternilo', '--listen', '0.0.0.0:4321', '--public-url', origin,
     ])
     await execFileAsync('docker', [
@@ -615,7 +615,7 @@ test('unified Server browser drives its enrolled Node and local web observes the
       headless: true,
       executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
     })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 800 } })
     const remotePage = await context.newPage()
     const remoteTransport = observeLiveTransport(remotePage, 'remote')
     const remoteErrors = []

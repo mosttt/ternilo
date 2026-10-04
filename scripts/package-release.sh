@@ -102,7 +102,7 @@ done
 
 # Explicit deployment inputs exclude local secrets, backups and environment files.
 for file in \
-    compose.server.yml .env.server.example compose.worker.yml .env.worker.example \
+    compose.server.yml compose.server.postgres.yml postgres-init.sql .env.server.example compose.worker.yml .env.worker.example \
     compose.server.build.yml compose.worker.build.yml \
     ternilo-deploy cloud-rotate-credentials.sh rotate-credentials.py \
     entrypoint.sh worker-policy.json; do

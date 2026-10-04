@@ -81,7 +81,7 @@ test('Local Files preserves upload bytes, immutable versions, filters, paginatio
       await until(() => api(`/sessions/${session}/queue`), queue => !queue.active_run_id && !queue.items.some(item => item.placement === 'queued'), 'command completes')
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' })
     const page = await context.newPage()
     page.on('pageerror', error => observations.pageErrors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') observations.consoleErrors.push(message.text()) })

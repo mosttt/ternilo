@@ -1,6 +1,6 @@
 # 安全模型
 
-Ternilo 复用内核、Workspace／Session 与 Web，但本地电脑、Server 账号和独立 Worker 仍有不同信任边界。Server 统一使用 `ternilo-server init`／`serve`，Node 角色由 `ternilo serve` 承担；单用户／多用户是同一实例的访问策略，SQLite／PostgreSQL 是独立的部署选择，不是权限档位。
+Ternilo 复用内核、Workspace／Session 与 Web，但本地电脑、Server 账号和独立 Worker 仍有不同信任边界。Server 统一使用 `ternilo-server setup`／`serve`，Node 角色由 `ternilo serve` 承担；单用户／多用户是同一实例的访问策略，SQLite／PostgreSQL 是独立的部署选择，不是权限档位。
 
 原生密码使用 Argon2id；登录会话、邀请和电脑凭据只保存摘要。仅实例所有者可以切换使用模式和任命平台职责。平台管理职责与团队成员角色分别校验，不会自动获得其他用户私有资源的访问权。显式 OIDC 绑定要求有效原生会话和重新验证的 issuer＋subject，保留原 user_id；相同邮箱不构成绑定依据。
 

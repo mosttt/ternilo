@@ -8,6 +8,7 @@ use ternilo_protocol::HarnessError;
 mod admin;
 mod assets;
 mod backup;
+mod bootstrap;
 mod config;
 mod gateway_journal;
 mod http;
@@ -26,8 +27,8 @@ struct Args {
 #[derive(Subcommand)]
 enum Command {
     /// Set up the database, private configuration, and first account.
-    Init(setup::InitOptions),
-    /// Start the server using its saved configuration.
+    Setup(setup::SetupOptions),
+    /// Start Server; an unconfigured instance offers protected web setup.
     Serve(config::ServeOptions),
     /// Run backup and maintenance operations.
     Admin(admin::Args),
@@ -46,10 +47,10 @@ async fn main() -> ExitCode {
 
 async fn execute(args: Args) -> Result<(), HarnessError> {
     match args.command {
-        Some(Command::Init(options)) => setup::execute(options).await,
-        Some(Command::Serve(options)) => platform::execute(options.load()?).await,
+        Some(Command::Setup(options)) => setup::execute(options).await,
+        Some(Command::Serve(options)) => bootstrap::execute(options).await,
         Some(Command::Admin(options)) => admin::execute(options).await,
-        None => platform::execute(args.serve.load()?).await,
+        None => bootstrap::execute(args.serve).await,
     }
 }
 
@@ -68,13 +69,13 @@ mod tests {
         assert!(matches!(start.command, Some(Command::Serve(_))));
         let setup = Args::try_parse_from([
             "ternilo-server",
-            "init",
+            "setup",
             "--config-dir",
             "instance",
             "--non-interactive",
         ])
         .unwrap();
-        assert!(matches!(setup.command, Some(Command::Init(_))));
+        assert!(matches!(setup.command, Some(Command::Setup(_))));
     }
 
     #[test]

@@ -196,7 +196,7 @@ test('the four shared Agent modes are bilingual and change the real model surfac
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true })
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const pageErrors = []
     const consoleErrors = []
     const httpErrors = []

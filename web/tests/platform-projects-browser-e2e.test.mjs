@@ -179,7 +179,7 @@ test('project management preserves resources and enforces roles on desktop and m
     await mkdir(config.workspace_root, { recursive: true })
     await writeFile(sentinelPath, 'preserve workspace files')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, hasTouch: true, serviceWorkers: 'block' })
+    context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, hasTouch: true, serviceWorkers: 'block' })
     await context.tracing.start({ screenshots: true, snapshots: true })
     page = await context.newPage()
     evidence = { ...observeBrowser(page, expectedConflicts), assets }
@@ -302,7 +302,7 @@ test('returning to the same session after project rename updates its title locat
     const snapshot = await until(() => request('/state'), state => state.sessions.length === 1 && !state.sessions[0].blank, 'nonblank session synchronized')
     const sessionId = snapshot.sessions[0].identity.session_id
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    context = await browser.newContext({ viewport: { width: 1440, height: 960 }, hasTouch: true, serviceWorkers: 'block' })
+    context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, hasTouch: true, serviceWorkers: 'block' })
     await context.tracing.start({ screenshots: true, snapshots: true })
     page = await context.newPage()
     evidence = { ...observeBrowser(page), assets, sessionId, titleChecks: [] }

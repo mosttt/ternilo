@@ -138,7 +138,7 @@ test('device usage survives offline replay, excludes fork copies and preserves s
     await until(() => owner(`/tenants/${tenantId}/my-computers`), value => value.executors.every(value => !value.connected), 'Node offline')
     assert.equal((await report(5)).observations.length, 5)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     page = await context.newPage()
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

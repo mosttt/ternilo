@@ -466,7 +466,7 @@ test('model picker persists the host default across reload and new Session creat
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' })
     const observations = { pageErrors: [], consoleErrors: [], failedRequests: [], failedResponses: [] }
     observePage(page, observations)
     await page.goto(origin, { waitUntil: 'networkidle' })
@@ -561,7 +561,7 @@ test('shared workbench supports provider streaming, trajectory, stable scrolling
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' })
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin })
     const page = await context.newPage()
     const observations = {

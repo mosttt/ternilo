@@ -66,7 +66,7 @@ test('account administration cancels queued managed tasks without reviving them 
     const alice = await queueTasks(origin, ownerToken, 'cleanup-alice')
     const bob = await queueTasks(origin, ownerToken, 'cleanup-bob')
     browser = await chromium.launch({ headless: true })
-    page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 } })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()}: ${new URL(response.url()).pathname}`) })

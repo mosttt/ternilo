@@ -32,7 +32,7 @@ mod diagnostics;
 mod edge;
 mod execution_maintenance;
 mod groups;
-mod http;
+pub(crate) mod http;
 mod identity;
 mod live;
 mod model_gateway;
@@ -41,7 +41,7 @@ mod node_cleanup;
 mod security;
 mod service_accounts;
 mod state;
-mod web;
+pub(crate) mod web;
 mod workbench;
 mod worker_api;
 
@@ -85,7 +85,44 @@ pub(crate) use execution::require_managed_execution;
 
 const MAX_API_BODY_BYTES: u64 = 24 * 1024 * 1024;
 
+pub(crate) struct Runtime {
+    pub router: Arc<Router>,
+    pub store: ControlStore,
+    shutdown: tokio::sync::watch::Sender<bool>,
+    edge: Arc<EdgeGateway>,
+    maintenance: tokio::task::JoinHandle<()>,
+}
+
+impl Runtime {
+    pub async fn shutdown(&self) {
+        self.shutdown.send_replace(true);
+        self.edge.shutdown().await;
+        self.maintenance.abort();
+    }
+}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        self.shutdown.send_replace(true);
+        self.maintenance.abort();
+    }
+}
+
 pub(crate) async fn execute(config: crate::config::ServerConfig) -> Result<(), HarnessError> {
+    let listen = config.listen;
+    let runtime = prepare(config).await?;
+    crate::http::serve(
+        listen,
+        Arc::clone(&runtime.router),
+        "server",
+        runtime.shutdown(),
+    )
+    .await
+}
+
+pub(crate) async fn prepare(
+    mut config: crate::config::ServerConfig,
+) -> Result<Runtime, HarnessError> {
     config.validate()?;
     let encoded_key = Zeroizing::new(config.secret_master_key.clone());
     let cipher = SecretCipher::from_base64(&encoded_key)?;
@@ -115,7 +152,13 @@ pub(crate) async fn execute(config: crate::config::ServerConfig) -> Result<(), H
     let catalog = ternilo_cloud::catalog()?;
     let worker_policy = load_worker_policy(config.worker_policy.as_deref(), &catalog)?;
     let security = Arc::new(security::SecurityState::from_config(&config));
-    let shutdown_gateway = Arc::clone(&edge);
+    if store.instance_settings().await?.is_none() && config.setup_token_hash.is_none() {
+        let token = crate::bootstrap::new_setup_token();
+        println!("Initialization Key: {token}");
+        config.setup_token_hash = Some(crate::config::digest_token(&token));
+    }
+    let runtime_store = store.clone();
+    let runtime_edge = Arc::clone(&edge);
     let (shutdown, shutdown_receiver) = tokio::sync::watch::channel(false);
     let model_maintenance = models::start_maintenance(store.clone(), shutdown_receiver.clone());
     let app = web_router(AppState {
@@ -130,13 +173,13 @@ pub(crate) async fn execute(config: crate::config::ServerConfig) -> Result<(), H
         setup_token_hash: config.setup_token_hash.clone(),
         shutdown: shutdown_receiver,
     });
-    let result = crate::http::serve(config.listen, app, "server", async move {
-        shutdown.send_replace(true);
-        shutdown_gateway.shutdown().await;
+    Ok(Runtime {
+        router: Arc::new(app),
+        store: runtime_store,
+        shutdown,
+        edge: runtime_edge,
+        maintenance: model_maintenance,
     })
-    .await;
-    model_maintenance.abort();
-    result
 }
 
 fn load_worker_policy(

@@ -64,7 +64,7 @@ if args[0]=='ps':
     print(os.getenv('DEPLOY_TEST_CONSUMER','')); sys.exit(0)
 if 'config' in args and '--format' in args:
     print(json.dumps({'services':{service:{'volumes':[{'type':'volume','source':service+'-data','target':'/var/lib/ternilo'}]}},'volumes':{service+'-data':{'name':'test-'+service+'-data'}}}))
-if 'init' in args: state.write_text('initialized')
+if 'setup' in args or 'init' in args: state.write_text('initialized')
 if 'ps' in args:
     if '--status' in args: print('running-id' if os.getenv('DEPLOY_TEST_RUNNING') else '')
     else: print(os.getenv('DEPLOY_TEST_STATUS','[{"Service":"server","State":"running","Health":"healthy"}]'))
@@ -131,7 +131,7 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         target = self.init()
         original = (target / ".env").read_bytes()
         calls = [json.loads(line) for line in Path(self.environment["DEPLOY_TEST_CALLS"]).read_text().splitlines()]
-        initializer = next(call["args"] for call in calls if "init" in call["args"])
+        initializer = next(call["args"] for call in calls if "setup" in call["args"])
         self.assertIn("--non-interactive", initializer)
         self.assertEqual(initializer[initializer.index("--config-dir") + 1], "/var/lib/ternilo")
         self.assertFalse((target / "secrets").exists())
@@ -144,7 +144,7 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         self.run_tool("init", "--directory", target, "--image", "ternilo:test-release-2")
         self.assertEqual((target / ".env").read_bytes(), original)
         calls = [json.loads(line) for line in Path(self.environment["DEPLOY_TEST_CALLS"]).read_text().splitlines()]
-        self.assertEqual(sum("init" in call["args"] for call in calls), 1)
+        self.assertEqual(sum("setup" in call["args"] for call in calls), 1)
 
     def test_init_refuses_unversioned_image_and_nonempty_directory(self):
         for image in ("ternilo", "ternilo:latest", "ternilo:local", "registry:5000/ternilo"):
@@ -159,7 +159,7 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         self.run_tool("init", "--directory", target, "--image", "ternilo:release-test", environment=environment)
         self.run_tool("check", "--directory", target, "--offline")
         calls = [json.loads(line) for line in Path(self.environment["DEPLOY_TEST_CALLS"]).read_text().splitlines()]
-        initializer = next(call for call in calls if "init" in call["args"])
+        initializer = next(call for call in calls if "setup" in call["args"])
         self.assertEqual(initializer["database"], environment["TERNILO_DATABASE_URL"])
         self.assertIn("TERNILO_DATABASE_URL", initializer["args"])
         self.assertNotIn(environment["TERNILO_DATABASE_URL"], initializer["args"])
@@ -458,7 +458,7 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
         self.assertIn("ternilo:cli", (target / ".env").read_text())
         self.assertIn("https://cli.invalid", (target / ".env").read_text())
         calls = [json.loads(line) for line in Path(self.environment["DEPLOY_TEST_CALLS"]).read_text().splitlines()]
-        initializer = next(call["args"] for call in calls if "init" in call["args"])
+        initializer = next(call["args"] for call in calls if "setup" in call["args"])
         self.assertEqual(initializer[initializer.index("--public-url") + 1], "https://cli.invalid")
         self.run_tool("status", "--directory", target)
         self.run_tool("up", "--directory", target)

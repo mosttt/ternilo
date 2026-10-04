@@ -804,7 +804,7 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
     await mkdir(workerData, { mode: 0o700 })
     const fixtureOwner = `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`
     const serverInitArgs = [
-      'init', '--config-dir', path.dirname(containerMode ? '/var/lib/ternilo/config.json' : serverConfig), '--database-url', postgres.url,
+      'setup', '--config-dir', path.dirname(containerMode ? '/var/lib/ternilo/config.json' : serverConfig), '--database-url', postgres.url,
       '--owner-username', 'cloud-browser', '--owner-email', 'cloud-browser@example.test', '--non-interactive',
     ]
     await execute(containerMode ? 'docker' : controlBinary, containerMode ? [
@@ -870,7 +870,7 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
     worker = startTrackedWorker()
     await waitForOutput(worker, /Ternilo cloud worker .* ready/)
     browser = await chromium.launch({ headless: true })
-    page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     await page.addInitScript(header => {
       const nativeFetch = window.fetch.bind(window)
       window.fetch = (input, init) => {

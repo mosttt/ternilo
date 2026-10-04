@@ -65,7 +65,7 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
     }
     fault = ''
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const visitor = await browser.newPage({ viewport: { width: 390, height: 850 }, hasTouch: true, isMobile: true, serviceWorkers: 'block' })
+    const visitor = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 850 }, hasTouch: true, isMobile: true, serviceWorkers: 'block' })
     visitor.on('pageerror', error => errors.push(error.message))
     await visitor.goto(origin)
     await visitor.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
@@ -78,7 +78,7 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
     ])
     assert.equal(duplicate.status(), 409)
     assert.match(await visitor.getByRole('alert').innerText(), /邮箱/)
-    ownerPage = await browser.newPage({ viewport: { width: 1280, height: 950 }, serviceWorkers: 'block' })
+    ownerPage = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 950 }, serviceWorkers: 'block' })
     ownerPage.on('pageerror', error => errors.push(error.message))
     ownerPage.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     await ownerPage.goto(origin)

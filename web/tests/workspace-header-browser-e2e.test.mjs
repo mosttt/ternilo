@@ -57,7 +57,7 @@ test('workspace identity, controls, navigation and two-way deletion remain consi
     await local(`/sessions/${session.identity.session_id}`, { method: 'PATCH', body: { model: { provider: 'named_provider', provider_id: profile.id, model: 'design-model' } } })
     const state = await until(() => request('/state'), value => value.sessions.length === 1 && value.workspaces.some(item => item.status === 'online'), 'workspace synchronizes')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE })
-    page = await browser.newPage({ viewport: { width: 1440, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     const requestSession = address => {
       if (!address.startsWith(server.origin)) return false
       const url = new URL(address)

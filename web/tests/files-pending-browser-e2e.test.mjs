@@ -113,7 +113,7 @@ for (const placement of ['local', 'cloud']) {
       if (placement === 'local') await until(model.requests, count => count === 1, 'first model request is held')
 
       browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-      page = await (await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage()
+      page = await (await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage()
       page.on('pageerror', error => errors.page.push(error.message))
       page.on('console', message => { if (message.type() === 'error') errors.console.push(message.text()) })
       page.on('response', response => { if (response.status() >= 400) errors.network.push(`${response.status()} ${response.url()}`) })

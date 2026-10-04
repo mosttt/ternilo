@@ -36,7 +36,7 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     const ownerCredentials = { username: application.owner.username, password: application.owner.password }
     await serverRequest(origin, '/auth/oidc-link', { token: ownerToken, body: { access_token: provider.accessToken() } })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    ownerPage = await browser.newPage({ viewport: { width: 1440, height: 1200 }, serviceWorkers: 'block' })
+    ownerPage = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 1200 }, serviceWorkers: 'block' })
     ownerPage.on('pageerror', error => errors.push(error.message))
     ownerPage.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     await ownerPage.goto(`${origin}/admin/instance`)
@@ -78,7 +78,7 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
       assert.ok(await ownerPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal page overflow at ${width}`)
       await ownerPage.screenshot({ path: path.join(artifacts, `server-security-${width}.png`) })
     }
-    const anonymous = await browser.newPage({ viewport: { width: 320, height: 800 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' })
+    const anonymous = await browser.newPage({ locale: 'zh-CN', viewport: { width: 320, height: 800 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' })
     anonymous.on('pageerror', error => errors.push(error.message))
     await anonymous.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', route => route.fulfill({ contentType: 'application/javascript', body: `window.turnstile = {
       render(container, options) {
@@ -123,14 +123,14 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     assert.equal(identity.user.user_id, ownerUserId)
     await anonymous.getByLabel('用户名', { exact: true }).waitFor({ state: 'hidden' })
     assert.ok(tokenRequests.some(request => request.basic && request.grant === 'authorization_code'), 'persisted client secret is used for the real PKCE exchange')
-    ownerPage = await browser.newPage({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' })
+    ownerPage = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' })
     ownerPage.on('pageerror', error => errors.push(error.message))
     ownerPage.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     await ownerPage.goto(origin)
     await ownerPage.evaluate(token => sessionStorage.setItem('ternilo.native.session', JSON.stringify({ access_token: token, expires_at_ms: Date.now() + 3600000 })), ownerToken)
     await ownerPage.goto(`${origin}/admin/instance`)
     panel = ownerPage.getByRole('region', { name: '登录与人机验证' })
-    const oldDocument = await browser.newPage({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const oldDocument = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     oldDocument.on('pageerror', error => errors.push(error.message))
     await oldDocument.route('https://challenges.cloudflare.com/**', route => route.abort())
     const additionalLogin = await serverRequest(origin, '/auth/login', { body: ownerCredentials })

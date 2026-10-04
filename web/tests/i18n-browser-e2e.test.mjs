@@ -68,7 +68,7 @@ test('language preference switches the core workbench, persists across reload, a
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true })
-    const context = await browser.newContext({
+    const context = await browser.newContext({ locale: 'zh-CN',
       viewport: { width: 1280, height: 800 },
       serviceWorkers: 'block',
     })
@@ -193,6 +193,33 @@ test('language preference switches the core workbench, persists across reload, a
     await context.close()
   } finally {
     if (browser) await browser.close()
+    await stopProcess(ternilo.child)
+    await rm(dataDirectory, { recursive: true, force: true })
+  }
+})
+
+test('Fresh local workbenches follow browser language and saved choices override it', { timeout: 60_000 }, async () => {
+  const dataDirectory = await mkdtemp(path.join(tmpdir(), 'ternilo-local-browser-locale-'))
+  const ternilo = startTernilo(dataDirectory)
+  let browser
+  try {
+    const origin = await ternilo.origin
+    browser = await chromium.launch({ headless: true })
+    for (const [locale, saved, language] of [['zh-CN', null, 'zh'], ['en-US', null, 'en'], ['en-US', 'zh', 'zh'], ['zh-CN', 'en', 'en']]) {
+      const context = await browser.newContext({ locale, viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' })
+      if (saved) await context.addInitScript(value => localStorage.setItem('ternilo.locale', value), saved)
+      const page = await context.newPage()
+      const errors = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.goto(origin, { waitUntil: 'networkidle' })
+      await page.getByRole('button', { name: language === 'zh' ? '设置' : 'Settings', exact: true }).waitFor()
+      assert.equal(await page.evaluate(() => document.documentElement.lang), language === 'zh' ? 'zh-CN' : 'en')
+      assert.equal(await page.evaluate(() => localStorage.getItem('ternilo.locale')), saved)
+      assert.deepEqual(errors, [])
+      await context.close()
+    }
+  } finally {
+    await browser?.close()
     await stopProcess(ternilo.child)
     await rm(dataDirectory, { recursive: true, force: true })
   }

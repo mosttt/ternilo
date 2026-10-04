@@ -164,7 +164,7 @@ test('re-enrolled Node keeps old account inputs readable without asserting an un
     const oldSessionId = await discover(request, currentComputerId)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const contextOptions = { viewport: { width: 1440, height: 960 }, permissions: ['clipboard-read', 'clipboard-write'], serviceWorkers: 'block' }
-    let context = await browser.newContext(contextOptions)
+    let context = await browser.newContext({ locale: 'zh-CN', ...contextOptions })
     page = await context.newPage(); observe(page, observations)
     await login(page, origin, application.owner, team.tenant_id, oldSessionId)
     const oldAccepted = await submit(page, OLD_MESSAGE)
@@ -200,7 +200,7 @@ test('re-enrolled Node keeps old account inputs readable without asserting an un
     const exported = await request(`/sessions/${newSessionId}/export`)
     assert.equal(messages(exported.events, OLD_MESSAGE).length, 1)
     for (const event of exported.events.filter(event => event.type === 'user_message')) assertUnknown(event)
-    context = await browser.newContext(contextOptions)
+    context = await browser.newContext({ locale: 'zh-CN', ...contextOptions })
     page = await context.newPage(); observe(page, observations)
     await login(page, origin, application.owner, team.tenant_id, newSessionId)
     await label(row(page, OLD_MESSAGE), '身份未记录')

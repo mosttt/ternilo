@@ -255,7 +255,7 @@ test('queued inputs become separate user messages in one turn; interruption stop
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE })
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     page = await context.newPage()
     const pageErrors = []
     const consoleErrors = []

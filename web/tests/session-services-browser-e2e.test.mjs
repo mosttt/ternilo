@@ -153,7 +153,7 @@ test('background services retain state across tasks and explicit stop releases t
     await api('/sessions/' + sessions[0] + '/skills')
     assert.equal(await starts(), 0, 'cold catalog requests must not start MCP')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     async function pageFor(id) {
       const page = await context.newPage()
       page.on('pageerror', error => errors.push('page: ' + error.message))

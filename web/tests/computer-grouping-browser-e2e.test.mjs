@@ -57,7 +57,7 @@ test('computer groups and online-only cold loads preserve separate workspaces on
       value => value.workspaces.find(workspace => workspace.node_id === workspaces[0].id)?.status === 'offline', 'alpha must be offline')
 
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' })
     page = await context.newPage()
     if (process.env.TERNILO_E2E_ASSET_DIR) {
       for (const [asset, contentType] of [['app.js', 'text/javascript'], ['app.css', 'text/css']]) {

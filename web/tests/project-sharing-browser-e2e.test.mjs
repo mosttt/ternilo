@@ -91,7 +91,7 @@ test('project rules require workspace owner opt-in and revoke live, fork and arc
     assert.equal((await admin('/state', { tenantId })).sessions.length, 0)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     ;[adminPage, ownerPage, readerPage] = await Promise.all([0, 1, 2].map(async () => {
-      const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+      const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
       const page = await context.newPage()
       page.on('pageerror', error => errors.push(error.message))
       page.on('console', message => { if (message.type() === 'error') consoleErrors.push({ url: message.location().url, text: message.text() }) })

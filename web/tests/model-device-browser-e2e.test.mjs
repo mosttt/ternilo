@@ -37,8 +37,8 @@ test('account device login discovers multiple grants and runs local tasks withou
     const session = await request('/sessions', { body: { workspace_id: workspace.workspace_id } })
     const sessionId = session.identity.session_id
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    local = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
-    approval = await browser.newPage({ viewport: { width: 320, height: 844 }, hasTouch: true, serviceWorkers: 'block' })
+    local = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    approval = await browser.newPage({ locale: 'zh-CN', viewport: { width: 320, height: 844 }, hasTouch: true, serviceWorkers: 'block' })
     for (const page of [local, approval]) {
       page.on('pageerror', error => errors.push(error.message))
       page.on('console', message => {

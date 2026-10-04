@@ -60,7 +60,7 @@ test('offline computer cleanup stays pending until its revoked credential report
     await stopProcess(node)
     node=null
     browser=await chromium.launch({headless:true})
-    page=await browser.newPage({viewport:{width:1280,height:900},serviceWorkers:'block'})
+    page=await browser.newPage({ locale: 'zh-CN',viewport:{width:1280,height:900},serviceWorkers:'block'})
     const errors=[]
     page.on('pageerror',error=>errors.push(error.message))
     page.on('console',message=>{if(message.type()==='error')errors.push(message.text())})

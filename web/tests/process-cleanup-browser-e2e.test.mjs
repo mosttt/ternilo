@@ -88,7 +88,7 @@ test('browser Stop ends the managed Shell descendants and the next task remains 
     } })
     await api('/sessions/' + sessionId, { method: 'PATCH', body: { permissions: 'full_access', model: { provider: 'named_provider', provider_id: 'process-fixture', model: 'fixture' } } })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push('page: ' + error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push('console: ' + message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push('HTTP ' + response.status() + ' ' + new URL(response.url()).pathname) })

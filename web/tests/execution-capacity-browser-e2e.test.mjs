@@ -11,7 +11,7 @@ const terminal = state => ['succeeded', 'failed', 'cancelled', 'indeterminate'].
 const unavailableChildNotice = '暂时无法从这里打开子会话；任务摘要和结果仍可查看。'
 
 async function pageFor(browser, fixture, sessionId, errors) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, hasTouch: true, serviceWorkers: 'block' })
+  const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, hasTouch: true, serviceWorkers: 'block' })
   const page = await context.newPage()
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

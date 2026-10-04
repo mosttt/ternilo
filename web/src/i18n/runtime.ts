@@ -81,6 +81,16 @@ export class LocaleRuntime {
   }
 }
 
-export function storedLocale(storage: Pick<Storage, 'getItem'> | undefined): BuiltInLocaleId {
-  return storage?.getItem(LOCALE_STORAGE_KEY) === 'en' ? 'en' : 'zh'
+export function storedLocale(
+  storage: Pick<Storage, 'getItem'> | undefined,
+  languages: readonly string[] = typeof navigator === 'undefined' ? []
+    : navigator.languages.length ? navigator.languages : [navigator.language],
+): BuiltInLocaleId {
+  const saved = storage?.getItem(LOCALE_STORAGE_KEY)
+  if (saved === 'zh' || saved === 'en') return saved
+  for (const language of languages) {
+    const base = language.toLowerCase().split('-')[0]
+    if (base === 'zh' || base === 'en') return base
+  }
+  return 'en'
 }

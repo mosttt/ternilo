@@ -187,7 +187,7 @@ test('account registration enforces invitation, open signup, and approval throug
     const ownerRequest = (resource, options = {}) => serverRequest(origin, resource, { token, ...options })
     assert.equal((await ownerRequest('/admin/registration')).mode, 'invite')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const contexts = await Promise.all([0, 1, 2, 3].map(() => browser.newContext({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' })))
+    const contexts = await Promise.all([0, 1, 2, 3].map(() => browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' })))
     const [owner, user, admin, auditor] = await Promise.all(contexts.map(context => context.newPage()))
     Object.assign(pages, { owner, user, admin, auditor })
     for (const page of [owner, user, admin, auditor]) {

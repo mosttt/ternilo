@@ -21,7 +21,7 @@ async function findFile(root, name) {
 }
 
 async function openSession(browser, fixture, sessionId, errors) {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' })
+  const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' })
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
   page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })

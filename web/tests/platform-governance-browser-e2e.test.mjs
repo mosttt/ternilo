@@ -56,7 +56,7 @@ function observe(page) {
 
 async function createIdentitySpace(browser, origin, oidc, identity, space) {
   oidc.selectIdentity(identity)
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
   const page = await context.newPage()
   const observations = observe(page)
   await page.goto(origin, { waitUntil: 'domcontentloaded' })

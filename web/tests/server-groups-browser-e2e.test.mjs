@@ -177,8 +177,8 @@ test('team groups authorize real Node collaboration and revoke derived fork acce
     const state = await until(() => serverRequest(origin, '/state', { token, tenantId: team.tenant_id }), state => state.sessions.length === 1, 'Node history discovery')
     sessionId = state.sessions[0].identity.session_id
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    owner = await (await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })).newPage()
-    memberPage = await (await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage()
+    owner = await (await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })).newPage()
+    memberPage = await (await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage()
     const expectedRevokedResponse = (url, status) => revoked && [400, 403, 404].includes(status)
       && [sessionId, childId].some(id => id && url.pathname.startsWith(`/api/v1/sessions/${encodeURIComponent(id)}/`))
     for (const page of [owner, memberPage]) {

@@ -9,7 +9,7 @@ import { localApi, until } from './model-device-fixture.mjs'
 import { freePort, initializeServer, repository, selectSpace, serverRequest, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
 
 async function openArchive(browser, origin, account, tenantId, mobile, errors, network) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block', hasTouch: mobile })
+  const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, serviceWorkers: 'block', hasTouch: mobile })
   await context.addInitScript(() => localStorage.setItem('ternilo.locale', 'zh'))
   const page = await context.newPage()
   page.on('pageerror', error => errors.push(error.message))

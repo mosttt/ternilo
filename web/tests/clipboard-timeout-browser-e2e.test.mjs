@@ -84,7 +84,7 @@ test('copying, regeneration after success or failure, and cancellable timeouts w
     const serverSession = state.sessions[0].identity.session_id
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
       args: ['--host-resolver-rules=MAP clipboard.ternilo.test 127.0.0.1', '--no-proxy-server'] })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     page = await context.newPage()
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

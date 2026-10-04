@@ -19,7 +19,7 @@ export async function sharedAccountTask({ browser, page, server, owner, tenantId
   await personal('/providers', { body: profile(upstream.baseUrl) })
   const sharePath = `/sessions/${sessionId}/sharing/user/${session.user.user_id}`
   await owner(sharePath, { method: 'PUT', body: { view: true, submit: true, stop: true, configure: true } })
-  const collaborator = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+  const collaborator = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
   const errors = []
   collaborator.on('pageerror', error => errors.push(error.message))
   collaborator.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

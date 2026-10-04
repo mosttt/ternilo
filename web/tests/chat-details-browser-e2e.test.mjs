@@ -259,7 +259,7 @@ test('Chat and Details close history, feedback, stream, tool, fold, usage and mo
       headless: true,
       executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
     })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 820 } })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 820 } })
     let page = await context.newPage()
     const observations = { pageErrors: [], consoleErrors: [], failedRequests: [], failedResponses: [] }
     observePage(page, observations)
@@ -434,7 +434,7 @@ test('Chat and Details close history, feedback, stream, tool, fold, usage and mo
     // browser context. This keeps desktop stream assertions independent from
     // Chromium's mobile emulation while exercising the mobile interaction path.
     const desktopPage = page
-    const mobileContext = await browser.newContext({
+    const mobileContext = await browser.newContext({ locale: 'zh-CN',
       storageState: await context.storageState(),
       viewport: { width: 390, height: 844 },
       isMobile: true,
@@ -632,7 +632,7 @@ test('Chat history pages earlier turns without moving the reading anchor', { tim
       headless: true,
       executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
     })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 820 } })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 820 } })
     const page = await context.newPage()
     const observations = { pageErrors: [], consoleErrors: [], failedRequests: [], failedResponses: [] }
     observePage(page, observations)

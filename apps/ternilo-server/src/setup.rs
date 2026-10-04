@@ -5,18 +5,15 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use base64::{
-    Engine as _,
-    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
-};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use clap::Args;
 use ternilo_control::{ControlStore, InstanceSettings, NativeRegistration, SecretCipher};
 use ternilo_protocol::HarnessError;
 
-use crate::config::{ServerConfig, configuration_path, create_private_parent, digest_token};
+use crate::config::{ServerConfig, configuration_path, create_private_parent};
 
 #[derive(Default, Args)]
-pub(crate) struct InitOptions {
+pub(crate) struct SetupOptions {
     /// Instance directory containing config.json and persistent data.
     #[arg(long, env = "TERNILO_SERVER_CONFIG_DIR")]
     pub config_dir: Option<PathBuf>,
@@ -34,10 +31,10 @@ pub(crate) struct InitOptions {
     pub owner_username: Option<String>,
     #[arg(long, env = "TERNILO_SERVER_OWNER_EMAIL")]
     pub owner_email: Option<String>,
-    /// Prefer the environment or the interactive hidden prompt for passwords.
+    /// First-time owner password; omit it to use the interactive hidden prompt.
     #[arg(long, env = "TERNILO_SERVER_OWNER_PASSWORD", hide_env_values = true)]
     pub owner_password: Option<String>,
-    /// Save a protected setup token when no owner credentials are supplied.
+    /// Skip terminal prompts; owner credentials are optional.
     #[arg(long, env = "TERNILO_SERVER_NON_INTERACTIVE", action = clap::ArgAction::Set, num_args = 0..=1, require_equals = true, default_missing_value = "true", default_value_t = false)]
     pub non_interactive: bool,
 }
@@ -45,11 +42,10 @@ pub(crate) struct InitOptions {
 pub(crate) struct SetupOutcome {
     pub config_path: PathBuf,
     pub instance: Option<InstanceSettings>,
-    pub setup_token: Option<String>,
     pub browser_url: String,
 }
 
-pub(crate) async fn execute(options: InitOptions) -> Result<(), HarnessError> {
+pub(crate) async fn execute(options: SetupOptions) -> Result<(), HarnessError> {
     let outcome = initialize(options).await?;
     println!("Server configuration: {}", outcome.config_path.display());
     println!("Start with: ternilo-server serve --config-dir <instance-directory>");
@@ -58,17 +54,15 @@ pub(crate) async fn execute(options: InitOptions) -> Result<(), HarnessError> {
             "The owner, default tenant, and project are ready. Sign in at {}",
             outcome.browser_url
         );
-    } else if let Some(token) = outcome.setup_token {
+    } else {
         println!(
-            "Complete owner setup at: {}/#setup_token={token}",
-            outcome.browser_url.trim_end_matches('/')
+            "Start serve, then enter the Initialization Key from its logs in the owner setup page."
         );
-        println!("Keep this one-time setup link private. It stops working after owner setup.");
     }
     Ok(())
 }
 
-pub(crate) async fn initialize(mut options: InitOptions) -> Result<SetupOutcome, HarnessError> {
+pub(crate) async fn initialize(mut options: SetupOptions) -> Result<SetupOutcome, HarnessError> {
     let config_path = configuration_path(options.config_dir.take().as_deref())?;
     if config_path.exists() {
         return Err(HarnessError::conflict(
@@ -96,15 +90,10 @@ pub(crate) async fn initialize(mut options: InitOptions) -> Result<SetupOutcome,
             "server initialization requires a persistent database",
         ));
     }
-    let setup_token = format!(
-        "ter_b_{}",
-        URL_SAFE_NO_PAD.encode(rand::random::<[u8; 32]>())
-    );
     let secret_master_key = options
         .secret_master_key
         .unwrap_or_else(|| STANDARD.encode(rand::random::<[u8; 32]>()));
     let mut config = ServerConfig::defaults(&config_path, database_url, secret_master_key);
-    config.setup_token_hash = Some(digest_token(&setup_token));
     config.migration_database_url = options.migration_database_url;
     config.public_url = options.public_url;
     if let Some(listen) = options.listen {
@@ -132,6 +121,9 @@ pub(crate) async fn initialize(mut options: InitOptions) -> Result<SetupOutcome,
         options.owner_password,
         interactive,
     )?;
+    if let Some(registration) = &registration {
+        registration.validate()?;
+    }
     config.write_new(&config_path)?;
     let browser_url = config.public_url.clone().unwrap_or_else(|| {
         let address = if config.listen.ip().is_unspecified() {
@@ -142,23 +134,19 @@ pub(crate) async fn initialize(mut options: InitOptions) -> Result<SetupOutcome,
         format!("http://{address}")
     });
     let instance = if let Some(registration) = registration {
-        match store.initialize_owner(&registration, now_ms()?).await {
-            Ok(grant) => Some(grant.session.instance),
-            Err(error) => {
-                eprintln!(
-                    "Configuration was saved. Complete setup at {}/#setup_token={setup_token}",
-                    browser_url.trim_end_matches('/')
-                );
-                return Err(error);
-            }
-        }
+        Some(
+            store
+                .initialize_owner(&registration, now_ms()?)
+                .await?
+                .session
+                .instance,
+        )
     } else {
         None
     };
     store.database().close().await;
     Ok(SetupOutcome {
         config_path,
-        setup_token: instance.is_none().then_some(setup_token),
         instance,
         browser_url,
     })
@@ -202,7 +190,7 @@ fn owner_registration(
     }
 }
 
-fn default_database_url(config_path: &Path) -> Result<String, HarnessError> {
+pub(crate) fn default_database_url(config_path: &Path) -> Result<String, HarnessError> {
     let database_path = config_path
         .parent()
         .unwrap_or(Path::new("."))
@@ -257,7 +245,7 @@ fn hidden_prompt(label: &str) -> Result<String, HarnessError> {
         .map_err(|error| HarnessError::execution(format!("read private setup input: {error}")))
 }
 
-fn now_ms() -> Result<u64, HarnessError> {
+pub(crate) fn now_ms() -> Result<u64, HarnessError> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| HarnessError::execution(format!("system clock: {error}")))?
@@ -274,18 +262,17 @@ mod tests {
     async fn sqlite_setup_creates_private_configuration_and_stable_owner() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("server/config.json");
-        let outcome = initialize(InitOptions {
+        let outcome = initialize(SetupOptions {
             config_dir: Some(path.parent().unwrap().to_path_buf()),
             owner_username: Some("owner".to_owned()),
             owner_email: Some("owner@example.test".to_owned()),
             owner_password: Some("test-owner-password".to_owned()),
             non_interactive: true,
-            ..InitOptions::default()
+            ..SetupOptions::default()
         })
         .await
         .unwrap();
         assert!(outcome.instance.is_some());
-        assert!(outcome.setup_token.is_none());
         let config = ServerConfig::read(&path).unwrap();
         assert!(config.database_url.starts_with("sqlite:"));
         let store = ControlStore::connect(
@@ -302,10 +289,10 @@ mod tests {
             .unwrap();
         assert_eq!(Some(login.session.instance), outcome.instance);
         assert!(
-            initialize(InitOptions {
+            initialize(SetupOptions {
                 config_dir: Some(path.parent().unwrap().to_path_buf()),
                 non_interactive: true,
-                ..InitOptions::default()
+                ..SetupOptions::default()
             })
             .await
             .is_err()
@@ -333,10 +320,10 @@ mod tests {
         let mut urls = Vec::new();
         for name in ["first", "second"] {
             let instance = directory.path().join(name);
-            initialize(InitOptions {
+            initialize(SetupOptions {
                 config_dir: Some(instance.clone()),
                 non_interactive: true,
-                ..InitOptions::default()
+                ..SetupOptions::default()
             })
             .await
             .unwrap();
@@ -349,23 +336,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn deferred_setup_only_persists_the_bootstrap_token_digest() {
+    async fn deferred_setup_saves_database_settings_without_an_owner_or_plaintext_key() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("config.json");
-        let outcome = initialize(InitOptions {
-            config_dir: Some(path.parent().unwrap().to_path_buf()),
+        let outcome = initialize(SetupOptions {
+            config_dir: Some(directory.path().to_path_buf()),
             non_interactive: true,
-            ..InitOptions::default()
+            ..SetupOptions::default()
         })
         .await
         .unwrap();
-        let token = outcome.setup_token.unwrap();
         assert!(outcome.instance.is_none());
-        let config = ServerConfig::read(&path).unwrap();
-        assert!(crate::config::accepts_setup_token(
-            config.setup_token_hash.as_deref(),
-            &token
-        ));
-        assert!(!fs::read_to_string(path).unwrap().contains(&token));
+        assert!(
+            ServerConfig::read(&path)
+                .unwrap()
+                .setup_token_hash
+                .is_none()
+        );
     }
 }

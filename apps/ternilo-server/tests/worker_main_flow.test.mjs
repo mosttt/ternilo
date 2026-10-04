@@ -85,7 +85,7 @@ test('Server and Worker run with independent roots, private broker keys and pers
   await writeFile(policyPath, JSON.stringify(policy))
   const database = process.env.TERNILO_WORKER_E2E_DATABASE_URL
   const migration = process.env.TERNILO_WORKER_E2E_MIGRATION_URL
-  const initArgs = ['init', '--config-dir', path.dirname(serverConfig), '--non-interactive', '--owner-username', 'owner', '--listen', new URL(origin).host]
+  const initArgs = ['setup', '--config-dir', path.dirname(serverConfig), '--non-interactive', '--owner-username', 'owner', '--listen', new URL(origin).host]
   if (database) initArgs.push('--database-url', database)
   if (migration) initArgs.push('--migration-database-url', migration)
   const workers = []

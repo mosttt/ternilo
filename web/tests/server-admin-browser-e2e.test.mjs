@@ -71,8 +71,8 @@ test('platform account administration separates personal spaces, team invitation
     }
     assert.equal(new Set([...accounts.values()].map(account => account.personal_tenant_id)).size, 28)
     browser = await chromium.launch({ headless: true })
-    const ownerContext = await browser.newContext({ viewport: { width: 1440, height: 960 } })
-    const memberContext = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const ownerContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 } })
+    const memberContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 } })
     ownerPage = await ownerContext.newPage()
     memberPage = await memberContext.newPage()
     for (const page of [ownerPage, memberPage]) {

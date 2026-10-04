@@ -26,7 +26,7 @@ test('OIDC explains insecure or mismatched origins and preserves native recovery
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
       args: ['--host-resolver-rules=MAP insecure.ternilo.test 127.0.0.1', '--no-proxy-server'],
     })
-    page = await browser.newPage({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     // Resolve a non-secure origin to the isolated server for both HTTP and WebSocket.
@@ -45,7 +45,7 @@ test('OIDC explains insecure or mismatched origins and preserves native recovery
     await page.getByLabel('用户名', { exact: true }).waitFor({ state: 'hidden' })
     await page.close()
 
-    page = await browser.newPage({ serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     let settings = await serverRequest(origin, resource, { token: ownerToken })

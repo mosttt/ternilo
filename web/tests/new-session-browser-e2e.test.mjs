@@ -132,7 +132,7 @@ test('Add workspace opens its first Session and keeps both empty surfaces center
       headless: true,
       executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
     })
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const pageErrors = []
     const consoleErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))
@@ -235,7 +235,7 @@ test('changing folders opens a new session and every creation entry keeps its se
     }
     context.diagnostic(`Current Local assets: ${JSON.stringify(hashes)}`)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const errors = []
     const sessionRequests = []
     page.on('pageerror', error => errors.push(error.message))

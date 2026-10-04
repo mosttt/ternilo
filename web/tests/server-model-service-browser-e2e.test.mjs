@@ -103,8 +103,8 @@ test('platform model access works without workers or machine enrollment and stay
     for (const id of Object.keys(identities).sort()) members.push(await registerOidcUser(origin, oidc.accessToken(id), `model-member-${id}`))
     const member = members[0]
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const ownerContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
-    const memberContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block', permissions: ['clipboard-read', 'clipboard-write'] })
+    const ownerContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
+    const memberContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block', permissions: ['clipboard-read', 'clipboard-write'] })
     const owner = await ownerContext.newPage()
     const user = await memberContext.newPage()
     for (const page of [owner, user]) {
@@ -271,7 +271,7 @@ test('platform model access works without workers or machine enrollment and stay
     assert.ok(upstream.requests.length >= 2)
     assert.ok(upstream.requests.every(request => ['upstream-alpha', 'upstream-beta'].includes(request.model)))
     assert.equal(await readFile(path.join(workspacePath, 'model-service-proof.txt'), 'utf8'), 'Created by the local harness through the platform model service.\n')
-    const localPage = await (await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage()
+    const localPage = await (await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage()
     localPage.on('pageerror', error => errors.push(`local page: ${error.message}`))
     localPage.on('console', message => { if (message.type() === 'error') errors.push(`local console: ${message.text()}`) })
     localPage.on('response', response => { if (response.status() >= 400) errors.push(`local HTTP ${response.status()}: ${new URL(response.url()).pathname}`) })
@@ -392,7 +392,7 @@ test('platform model access works without workers or machine enrollment and stay
     const account = (await serverRequest(origin, `/admin/accounts?query=${encodeURIComponent(members[1].user.user_id)}`, { token: ownerToken })).accounts[0]
     await serverRequest(origin, `/admin/accounts/${account.user_id}/role`, { token: ownerToken, method: 'PATCH', body: { role: 'auditor', role_revision: account.role_revision } })
     oidc.selectIdentity('01')
-    const auditContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const auditContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     const auditor = await auditContext.newPage()
     auditor.on('pageerror', error => errors.push(`auditor: ${error.message}`))
     await auditor.goto(`${origin}/admin/models`)

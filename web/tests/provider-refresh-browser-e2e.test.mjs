@@ -44,8 +44,8 @@ test('Local provider changes refresh in an open Server computer catalog without 
       }
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const serverPage = await browser.newPage({ viewport: { width: 1366, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
-    const localPage = await browser.newPage({ viewport: { width: 1366, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    const serverPage = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    const localPage = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     for (const page of [serverPage, localPage]) {
       page.setDefaultTimeout(15000)
       page.on('pageerror', error => errors.push(error.message))

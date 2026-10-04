@@ -1,4 +1,4 @@
-use std::{future::Future, net::SocketAddr, time::Duration};
+use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 
 use salvo_core::{
     conn::tcp::TcpAcceptor,
@@ -8,7 +8,7 @@ use ternilo_protocol::HarnessError;
 
 pub(crate) async fn serve(
     listen: SocketAddr,
-    router: Router,
+    router: impl Into<Arc<Router>>,
     mode: &str,
     on_shutdown: impl Future<Output = ()>,
 ) -> Result<(), HarnessError> {
@@ -24,7 +24,7 @@ pub(crate) async fn serve(
         .map_err(|error| HarnessError::execution(format!("create server acceptor: {error}")))?;
     let server = Server::new(acceptor);
     let handle = server.handle();
-    let serving = server.try_serve(router);
+    let serving = server.try_serve(router.into());
     tokio::pin!(serving);
     let result = tokio::select! {
         result = &mut serving => result,

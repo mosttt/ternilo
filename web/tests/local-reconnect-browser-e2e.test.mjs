@@ -39,7 +39,7 @@ test('a local service restart renews the boot token without remote login, page r
     const workspace = await local('/workspaces', { body: { path: folder } })
     const session = await local('/sessions', { body: { workspace_id: workspace.workspace_id } })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE })
-    page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1400, height: 900 } })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => {
       if (message.type() !== 'error') return

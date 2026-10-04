@@ -122,7 +122,7 @@ test('Server accounts and Local preserve queue drafts, reject stale revisions an
   observations.checks.push({ name: 'missing-revision-local-and-server', passed: true })
   browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
   const open = async (origin, sessionId, login) => {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     pages.push(page)
     page.setDefaultTimeout(15_000)
     page.on('pageerror', error => observations.errors.push(error.message))

@@ -75,7 +75,7 @@ test('fork exposes shared two-stage progress from message, sidebar, desktop and 
   try {
     const origin = await ternilo.origin
     browser = await chromium.launch({ headless: true })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 820 } })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 820 } })
     const page = await context.newPage()
     const pageErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))

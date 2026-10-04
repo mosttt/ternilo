@@ -62,7 +62,7 @@ test('model grants create missing prerequisites in place and reasoning switches 
     const origin = `http://127.0.0.1:${await freePort()}`
     application = await initializeServer({ directory, origin })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })
@@ -287,8 +287,8 @@ test('the standalone client distinguishes device models from connected Server gr
     const workspace = await request('/workspaces', { body: { path: folder } })
     await request('/sessions', { body: { workspace_id: workspace.workspace_id } })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, hasTouch: true, serviceWorkers: 'block' })
-    const approval = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, serviceWorkers: 'block' })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 }, hasTouch: true, serviceWorkers: 'block' })
+    const approval = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 844 }, hasTouch: true, serviceWorkers: 'block' })
     for (const target of [page, approval]) {
       target.on('pageerror', error => errors.push(error.message))
       target.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

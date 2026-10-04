@@ -262,7 +262,7 @@ test('Local Chromium completes structured single and multi-select ask_user', { t
   let browser
   try {
     browser = await chromium.launch({ headless: true })
-    const page = await browser.newPage({ viewport: { width: 1280, height: 820 } })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 820 } })
     const pageErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))
     await page.goto(await ternilo.origin, { waitUntil: 'networkidle' })

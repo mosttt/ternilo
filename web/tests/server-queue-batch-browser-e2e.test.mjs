@@ -79,7 +79,7 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     await owner(`/sessions/${remoteSession}/queue`, { body: { content: { kind: 'prompt', input: 'A: original task' } } })
     await until(() => requests, value => value.length === 1)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     const page = await context.newPage()
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })

@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { en as serverSetupEn, zh as serverSetupZh } from './resources/server-setup'
 import { en as serviceAccountsEn, zh as serviceAccountsZh } from './resources/service-accounts'
 import { en as serverSecurityEn, zh as serverSecurityZh } from './resources/server-security'
 import { en as sessionArchiveEn, zh as sessionArchiveZh } from './resources/session-archive'
@@ -24,6 +25,7 @@ import {
 
 function createRuntime() {
   const runtime = new LocaleRuntime(storedLocale(browserStorage()))
+  runtime.register('serverSetup', { zh: serverSetupZh, en: serverSetupEn })
   runtime.register('serverSecurity', { zh: serverSecurityZh, en: serverSecurityEn })
   runtime.register('sessionArchive', { zh: sessionArchiveZh, en: sessionArchiveEn })
   runtime.register('admin', { zh: adminZh, en: adminEn })

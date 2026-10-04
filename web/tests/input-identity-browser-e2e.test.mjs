@@ -143,7 +143,7 @@ test('shared Node input keeps each submitter visible in chat, pending queue and 
     const sessionId = state.sessions[0].identity.session_id
     await ownerRequest(`/sessions/${sessionId}/sharing/user/${memberIdentity.user.user_id}`, { tenantId: team.tenant_id, method: 'PUT', body: { view: true, submit: true, stop: true, configure: false } })
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const contexts = await Promise.all([0, 1].map(() => browser.newContext({ viewport: { width: 1440, height: 960 }, permissions: ['clipboard-read', 'clipboard-write'], serviceWorkers: 'block' })))
+    const contexts = await Promise.all([0, 1].map(() => browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, permissions: ['clipboard-read', 'clipboard-write'], serviceWorkers: 'block' })))
     ;[owner, member] = await Promise.all(contexts.map(context => context.newPage()))
     for (const page of [owner, member]) {
       page.on('pageerror', error => errors.push(`page: ${error.message}`))

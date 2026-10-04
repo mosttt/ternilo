@@ -548,20 +548,21 @@ test('SQLite Server preserves two private Node histories, shared permissions, an
     const nodes = await Promise.all(['owner-a', 'owner-b', 'member-c'].map(id => cloneLocalHistory(seed, temporary, id)))
     const origin = `http://127.0.0.1:${await freePort()}`
     const config = path.join(temporary, 'server/config.json')
-    const initialized = await execute(serverBinary, ['init', '--config-dir', path.dirname(config), '--non-interactive', '--listen', new URL(origin).host, '--public-url', origin], { cwd: repository, env: cleanEnvironment })
+    await execute(serverBinary, ['setup', '--config-dir', path.dirname(config), '--non-interactive', '--listen', new URL(origin).host, '--public-url', origin], { cwd: repository, env: cleanEnvironment })
     const savedConfig = JSON.parse(await readFile(config, 'utf8'))
     assert.match(savedConfig.database_url, /^sqlite:/)
     assert.equal(savedConfig.oidc, null)
     assert.equal(savedConfig.managed_execution_enabled, false)
-    const setupUrl = initialized.stdout.match(/Complete owner setup at: (\S+)/)?.[1]
-    assert.ok(setupUrl)
     const server = start(serverBinary, ['serve', '--config-dir', path.dirname(config)])
     processes.push(server)
     await waitForHttp(`${origin}/auth/config`, server)
+    const setupKey = server.diagnostics().match(/Initialization Key: (\S+)/)?.[1]
+    assert.ok(setupKey)
+    const setupUrl = `${origin}/#setup_token=${setupKey}`
     fixture = await modelFixture()
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const ownerContext = await browser.newContext({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' })
-    const memberContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const ownerContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' })
+    const memberContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     const owner = await ownerContext.newPage(), member = await memberContext.newPage()
     for (const page of [owner, member]) {
       page.on('pageerror', error => pageErrors.push(error.message))

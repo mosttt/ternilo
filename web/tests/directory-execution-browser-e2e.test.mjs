@@ -41,7 +41,7 @@ test('local same-user sessions and CLI run concurrently while model calls and qu
       sessions.push(sessionId)
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     left = await context.newPage()
     right = await context.newPage()
     observe(left, 'first-holder', observations)

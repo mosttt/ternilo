@@ -36,7 +36,7 @@ test('cancelling batch deletion keeps the in-flight deletion and does not send r
     await request(`/workspaces/${workspace.workspace_id}`, { method: 'DELETE' })
     const order = (await request('/state')).sessions.map(session => session.identity.session_id)
     browser = await launch()
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })
     diagnostics(page, errors)
     const held = new Promise(resolve => { release = resolve })
     let started
@@ -83,7 +83,7 @@ test('projects have a discoverable management page and a themed keyboard-accessi
     server = await initializeServer({ directory, origin: `http://127.0.0.1:${await freePort()}`, mode: 'single_user' })
     const request = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId: server.owner.session.personal_tenant_id, ...options })
     browser = await launch()
-    page = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
     diagnostics(page, errors)
     await page.goto(server.origin)
     await page.getByLabel('用户名', { exact: true }).fill(server.owner.username)
