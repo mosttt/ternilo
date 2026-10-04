@@ -6,6 +6,8 @@
 
 需要 Docker Engine 和 Compose 插件。公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.3` 支持 `linux/amd64` 和 `linux/arm64`，Docker 自动选择架构，不需要 Rust、Node.js、Python 或本地构建。
 
+`ghcr.io/mosttt/ternilo-server:latest` 始终指向最新已发布稳定版，预发行版不会覆盖它。本文默认固定版本；要跟随稳定版，可在部署目录的 `.env` 中设置 `TERNILO_IMAGE=ghcr.io/mosttt/ternilo-server:latest`，更新时运行 `docker compose -f compose.server.yml pull`，再运行 `docker compose -f compose.server.yml up -d`。
+
 使用默认 SQLite 或连接已有 PostgreSQL 时，可以直接启动，不必创建 `.env`。网页保存的数据库连接和对外地址会写入数据卷的 `config.json`。`.env.server.example` 展示可选的 Docker 参数、启动覆盖，以及内置 PostgreSQL 所需的数据库账号密码，按需要使用。
 
 ## SQLite：直接启动并在网页设置

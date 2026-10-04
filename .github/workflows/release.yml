@@ -215,3 +215,10 @@ jobs:
           if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" artifacts/* --verify-tag --draft --title "Ternilo $GITHUB_REF_NAME" --notes-file release-notes.md "${flags[@]}"
           gh release edit "$GITHUB_REF_NAME" --draft=false
+  server-image-latest:
+    if: startsWith(github.ref, 'refs/tags/') && needs.version.outputs.prerelease == 'false'
+    needs: [version, publish-release]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/server-image-latest.yml

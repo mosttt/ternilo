@@ -47,7 +47,7 @@ GHCR 上传仅在镜像作业取得 `packages: write`，使用 GitHub 自带的 
 
 发行镜像包含 `linux/amd64` 与 `linux/arm64`。两种架构在各自的原生 GitHub Runner 上从同一源码和固定 Linorun 构建 `server` target，并分别验证初始化、原生登录、实例设置、嵌入网页、只读根文件系统、UID 10001 和重启持久化。每份已验收镜像及 image ID 暂存一天；发布作业等待全部检查及六个目标打包通过，加载镜像并核对 image ID 与架构，再按不可变来源提交标签推送各架构镜像。最终版本标签和 `sha-<commit>` 指向由这两份摘要组成的多平台索引；发布前核对索引的架构和摘要集合。过期候选必须重建，失败不会进入公开 Release。
 
-镜像地址自动采用仓库所有者的小写名称，例如仓库由 `mosttt` 持有时为 `ghcr.io/mosttt/ternilo-server:<版本>`。另推送 `sha-<完整源码提交>` 标签，不更新漂移的 `latest`。`server-image.txt` 记录 registry digest，部署时优先固定该 digest。
+镜像地址自动采用仓库所有者的小写名称，例如仓库由 `mosttt` 持有时为 `ghcr.io/mosttt/ternilo-server:<版本>`。另推送 `sha-<完整源码提交>` 标签。稳定版 Release 公开后，`Update Server image latest` 工作流把 `latest` 指向 GitHub 最新稳定版的同一份多平台索引；预发行版不更新它。工作流核对发行附件的校验和、两种架构及镜像摘要，不重新构建，也不会因为重跑旧版本而降级。维护者也可手动运行该工作流补齐别名。`server-image.txt` 记录 registry digest，部署时优先固定版本或 digest。
 
 镜像地址仅在对应版本发布成功后可用。发布后检查 Package 的可见性和仓库访问权限；公开仓库不保证包自动公开。Work／Worker 镜像不在这条发布流程中。
 
