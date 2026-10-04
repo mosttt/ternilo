@@ -1,6 +1,8 @@
 # 发行反馈与交付状态
 
-最新 [v0.2.0](https://github.com/mosttt/ternilo/releases/tag/v0.2.0) 已公开发布，包含六个目标的程序／桌面安装器与 40 项附件；完整门禁、摘要／来源、匿名镜像拉取和公开 Compose 实际浏览器验收通过，详见[本版验收](release-0.2.0-acceptance.md)。之后的 main 历史优化尚未进入本版。
+最新 [v0.2.3](https://github.com/mosttt/ternilo/releases/tag/v0.2.3) 已公开，42 项附件、六个目标程序／桌面安装器和双架构 Server 镜像交付完成。完整 CI、12 个实际程序归档、匿名镜像及 SQLite／PostgreSQL 公开 Compose 的真实浏览器验收通过，见[本版验收](release-0.2.3-acceptance.md)。Server 网页设置、浏览器语言默认、会话历史优化和重整的双语文档均包含在本版。
+
+此前 [v0.2.0](https://github.com/mosttt/ternilo/releases/tag/v0.2.0) 的交付结果见[验收记录](release-0.2.0-acceptance.md)。
 
 此前 [v0.1.3](https://github.com/mosttt/ternilo/releases/tag/v0.1.3) 包含四平台程序和 28 项附件；[完整发行检查](https://github.com/mosttt/ternilo/actions/runs/36765832448)已通过，来源为 `cf965e47905303b488f3b2303821540b6b9a2b7c`。下文保留该版结果与后续推进记录。
 
