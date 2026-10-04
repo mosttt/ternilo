@@ -161,7 +161,7 @@ export function ServerSecuritySettingsPanel() {
           <div className="flex items-start justify-between gap-4"><div className="grid gap-1"><Label htmlFor="auth-smtp-enabled">{t('smtp')}</Label><p className="text-xs text-muted-foreground">{t('smtpHint')}</p></div><Switch id="auth-smtp-enabled" checked={smtpEnabled} onCheckedChange={setSmtpEnabled} /></div>
           {smtpEnabled && <ServerMailSettings value={smtp} password={smtpPassword} onChange={setSmtp} onPassword={setSmtpPassword} />}
         </div>
-        <p className="text-xs leading-relaxed text-muted-foreground">{t('secretsHint')}</p>
+        <p className="border-t pt-5 text-xs leading-relaxed text-muted-foreground">{t('secretsHint')}</p>
         <Button type="submit" className="w-fit">{t('save')}</Button>
       </fieldset>
       {error && <p className="break-words text-sm text-destructive" role="alert">{error}</p>}
