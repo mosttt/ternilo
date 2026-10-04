@@ -10,15 +10,15 @@
 | `Build packages` | 手动；发行时复用 | 各平台 release 二进制、桌面安装器与 SHA256；仅上传 Actions artifacts，不创建 Release 或推送镜像 |
 | `Release` | `v*` 标签、手动 | 版本检查后并行执行 `Checks`、`Build packages` 与 Server 镜像构建／验收；全部通过后，只有匹配版本标签才推送 GHCR、上传全部附件并公开 GitHub Release |
 
-在 GitHub Actions 页面手动运行 `Build packages` 可以独立取得构建产物；未经过完整 `Checks` 的手动包只能当作候选。手动运行 `Release` 并选择分支时，完成全部验证和构建，但不发布。选择版本标签时等同于标签发行。
+在 GitHub Actions 页面手动运行 `Build packages` 可选择一个 Rust 目标或 `all`，独立取得构建产物；未经过完整 `Checks` 的手动包只能当作候选。手动运行 `Release` 并选择分支时，完成全部验证和构建，但不发布。选择版本标签时等同于标签发行。
 
 客户端／Server 门禁同时运行 LocalApplication、内置工具、授权、RPC／ACP 的 Rust 测试，以及 Python／TypeScript SDK 对实际客户端二进制的读写验证。浏览器覆盖本地任务、电脑登记与共享、团队权限组和独立模型服务；PostgreSQL 使用一次性数据库与受限运行账号验证认证及 Node 工作区路由。现有 Worker 不作为这条闭环的运行前提。
 
 Rust 缓存包含依赖的编译结果，按工具链、构建环境、目标平台及 Linorun 提交区分；检查失败后也保留依赖缓存，便于修复后复验。工作区自身代码仍由 Cargo 重新判断和编译，缓存不替代检查结果。
 
-检查按工作流、分支／PR、事件及具体作业控制并发；同一范围的新提交会取消过时的检查。五平台打包分别排队，已经开始的构建继续完成，后续保留最新候选。新提交的检查无需等待旧提交的安装器构建。Release 标签流程仍按标签串行，发布权限和门禁不变。
+检查按工作流、分支／PR、事件及具体作业控制并发；同一范围的新提交会取消过时的检查。六个目标打包分别排队，已经开始的构建继续完成，后续保留最新候选。新提交的检查无需等待旧提交的安装器构建。Release 标签流程仍按标签串行，发布权限和门禁不变。
 
-`Release` 复用检查时显式跳过其末尾打包，由发行工作流统一调用一次 `Build packages`。检查、五平台包和镜像构建可以并行；镜像推送与 Release 公开仍等待全部检查和构建成功。候选构建作业没有发布权限。
+`Release` 复用检查时显式跳过其末尾打包，由发行工作流统一调用一次 `Build packages`。检查、六个目标包和镜像构建可以并行；镜像推送与 Release 公开仍等待全部检查和构建成功。候选构建作业没有发布权限。
 
 二进制及安装器矩阵：
 
@@ -27,12 +27,13 @@ Rust 缓存包含依赖的编译结果，按工具链、构建环境、目标平
 | Linux x86_64 | `x86_64-unknown-linux-gnu` | Client、Server `.tar.gz` | `.deb`、`.AppImage` |
 | Linux ARM64 | `aarch64-unknown-linux-gnu` | Client、Server `.tar.gz` | `.deb`、`.AppImage` |
 | Windows x86_64 | `x86_64-pc-windows-msvc` | Client、Server `.zip` | NSIS `.exe`、`.msi` |
+| Windows ARM64 | `aarch64-pc-windows-msvc` | Client、Server `.zip` | NSIS `.exe` |
 | macOS Apple Silicon | `aarch64-apple-darwin` | Client、Server `.tar.gz` | `.dmg` |
 | macOS Intel | `x86_64-apple-darwin` | Client、Server `.tar.gz` | `.dmg` |
 
 客户端归档以 `ternilo-<版本>-<平台>` 命名，包含 `ternilo` 和 `ternilo-plugin`，Windows 另包含必须的 `ternilo-sandbox-windows.exe`；Server 归档包含独立 `ternilo-server`。桌面包与 CLI 包独立，同版共享实现。各归档附带正式文档和必要示例，不包含运行数据、真实凭据、开发记录或 Work 产物。
 
-Linux 二进制在 Ubuntu 24.04 构建，不承诺更早 glibc 系统兼容；Server 容器另在 Debian Bookworm 源码构建。Windows ARM64 及其他架构未列入当前发行矩阵。桌面安装器默认未进行发行者代码签名／公证，自动更新关闭；macOS 和 Windows 可能显示来源警告。构建成功不代替目标平台安装、原生隔离和签名验收。
+Linux 二进制在 Ubuntu 24.04 构建，不承诺更早 glibc 系统兼容；Server 容器另在 Debian Bookworm 源码构建。Windows ARM64 提供 NSIS EXE，安装器自身通过 x86 仿真运行，应用及辅助程序为原生 ARM64；其他架构未列入当前发行矩阵。桌面安装器默认未进行发行者代码签名／公证，自动更新关闭；macOS 和 Windows 可能显示来源警告。构建成功不代替目标平台安装、原生隔离和签名验收。
 
 ## 固定输入与权限
 
@@ -44,7 +45,7 @@ GHCR 上传仅在镜像作业取得 `packages: write`，使用 GitHub 自带的 
 
 ## Server 镜像
 
-发行镜像包含 `linux/amd64` 与 `linux/arm64`。两种架构在各自的原生 GitHub Runner 上从同一源码和固定 Linorun 构建 `server` target，并分别验证初始化、原生登录、实例设置、嵌入网页、只读根文件系统、UID 10001 和重启持久化。每份已验收镜像及 image ID 暂存一天；发布作业等待全部检查及五平台打包通过，加载镜像并核对 image ID 与架构，再按不可变来源提交标签推送各架构镜像。最终版本标签和 `sha-<commit>` 指向由这两份摘要组成的多平台索引；发布前核对索引的架构和摘要集合。过期候选必须重建，失败不会进入公开 Release。
+发行镜像包含 `linux/amd64` 与 `linux/arm64`。两种架构在各自的原生 GitHub Runner 上从同一源码和固定 Linorun 构建 `server` target，并分别验证初始化、原生登录、实例设置、嵌入网页、只读根文件系统、UID 10001 和重启持久化。每份已验收镜像及 image ID 暂存一天；发布作业等待全部检查及六个目标打包通过，加载镜像并核对 image ID 与架构，再按不可变来源提交标签推送各架构镜像。最终版本标签和 `sha-<commit>` 指向由这两份摘要组成的多平台索引；发布前核对索引的架构和摘要集合。过期候选必须重建，失败不会进入公开 Release。
 
 镜像地址自动采用仓库所有者的小写名称，例如仓库由 `mosttt` 持有时为 `ghcr.io/mosttt/ternilo-server:<版本>`。另推送 `sha-<完整源码提交>` 标签，不更新漂移的 `latest`。`server-image.txt` 记录 registry digest，部署时优先固定该 digest。
 
@@ -54,8 +55,8 @@ GHCR 上传仅在镜像作业取得 `packages: write`，使用 GitHub 自带的 
 
 1. 确认 `Cargo.toml` 的 workspace 版本与 `apps/ternilo-desktop/tauri.conf.json` 完全一致；同步变更后的正式文档。
 2. 在经过检查的提交创建并推送对应 `v<版本>` 标签，例如 `v0.2.0`。工作流拒绝标签和程序版本不一致。
-3. 等待检查、五平台包、镜像验收和上传全部完成；失败必须处理后重跑，不以跳过门禁发布。
-4. 工作流上传全部附件后自动公开 Release；检查其中的五平台产物、`SHA256SUMS`、`SOURCE` 和 `server-image.txt`。`SOURCE` 记录 Ternilo 与 Linorun 提交，校验和覆盖实际附件。
+3. 等待检查、六个目标包、镜像验收和上传全部完成；失败必须处理后重跑，不以跳过门禁发布。
+4. 工作流上传全部附件后自动公开 Release；检查其中的六个目标产物、`SHA256SUMS`、`SOURCE` 和 `server-image.txt`。`SOURCE` 记录 Ternilo 与 Linorun 提交，校验和覆盖实际附件。
 5. 下载 `compose.server.yml` 可直接使用已发布的 Server 镜像，无需源码构建；`docker-compose.md` 与英文版提供初始化和启动步骤。未签名安装器始终明确标注，签名／公证及目标平台实机安装验收单独推进。
 
 流水线不修改源码、不自动创建版本标签，也不更改用户部署。凭据、数据库和私有运行配置不得进入仓库或交付包。实际发布状态以对应版本的 Actions、Release 和 GHCR 记录为准，候选构建不等于公开发行。

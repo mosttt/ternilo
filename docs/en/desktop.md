@@ -37,6 +37,6 @@ Windows execution requires `ternilo-sandbox-windows.exe`. Release tooling builds
 
 ## Packaging and updates
 
-Build Web first, then use `cargo tauri build` from `apps/ternilo-desktop` on the target platform. GitHub packages Linux DEB/AppImage, Windows NSIS/MSI and separate Intel/Apple Silicon DMGs. License files are included in application resources.
+Build Web first, then use `cargo tauri build` from `apps/ternilo-desktop` on the target platform. GitHub packages Linux DEB/AppImage, Windows x86_64 NSIS/MSI, Windows ARM64 NSIS EXE and separate Intel/Apple Silicon DMGs. License files are included in application resources.
 
 Automatic desktop updates are disabled until release signing and update delivery are configured. Current installers are unsigned/unnotarized. Operating-system warnings and platform installation checks must be handled as part of release acceptance. Linux portable delivery does not include every host dependency; consult [packaging](release-packaging.md) and [security](security.md).

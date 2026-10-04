@@ -31,7 +31,7 @@ Ternilo 是能读写项目文件、执行命令并保留工作过程的 AI 助�
 
 二进制安装包与镜像的可用版本以仓库发行记录为准。也可以按[构建交付包](docs/zh-CN/release-packaging.md)生成独立的本地、Server 或 Worker 安装包；运行这些包无需 Rust、Node.js 或 Linorun 源码。
 
-仓库已提供[GitHub CI 与发行流程](docs/zh-CN/ci-release.md)：分别检查、构建四平台客户端／Server 及桌面包，并验收和发布 Server 镜像。主分支生成候选产物；版本标签经过检查后发布 Server 镜像并上传完整附件并公开 Release。
+仓库已提供[GitHub CI 与发行流程](docs/zh-CN/ci-release.md)：分别检查、构建 Linux／Windows 的 x86_64／ARM64 与两种 macOS 客户端／Server 及桌面包，并验收和发布 Server 镜像。主分支生成候选产物；版本标签经过检查后发布 Server 镜像并上传完整附件并公开 Release。
 
 ### 从源码运行
 

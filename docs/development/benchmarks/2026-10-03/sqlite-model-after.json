@@ -1,0 +1,217 @@
+{
+  "workload": "closed_loop_model_admission_streams_and_cancellation",
+  "build_label": "dev-no-debug-after-writer-queue",
+  "generated_at": "2026-10-03T13:14:45.044Z",
+  "backend": "sqlite",
+  "source_commit": "56c4ff014bd0ab6171d7f9fb0f8e79f4cb07e78d",
+  "working_tree_dirty": false,
+  "binary": {
+    "sha256": "9bf3abbec05d5c5d2636d14f0b8ac591ab39e263df1ee943bf442d04736c8eb5",
+    "version": "ternilo-server 0.2.0"
+  },
+  "host": {
+    "os": "linux",
+    "release": "7.2.3-arch1-3",
+    "architecture": "x64",
+    "cpu": "Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz",
+    "available_cpus": 8,
+    "memory_bytes": 16638603264,
+    "node": "v26.8.1"
+  },
+  "settings": {
+    "concurrency": [
+      32
+    ],
+    "seconds": 5,
+    "soak_seconds": 300,
+    "instances": 1,
+    "upstream_latency_ms": 25
+  },
+  "phases": [
+    {
+      "mode": "baseline",
+      "concurrency": 32,
+      "elapsed_seconds": 5.380037301000001,
+      "validated_requests": 279,
+      "validated_responses_per_second": 51.8583765112821,
+      "admitted_requests_per_second": 51.8583765112821,
+      "limited_responses_per_second": 0,
+      "results": {
+        "streamed": {
+          "count": 139,
+          "p50_ms": 589.8974369999996,
+          "p95_ms": 709.7103740000002,
+          "p99_ms": 760.7620180000004,
+          "max_ms": 813.4174719999996
+        },
+        "json": {
+          "count": 140,
+          "p50_ms": 594.657447,
+          "p95_ms": 706.9260539999996,
+          "p99_ms": 742.2963670000004,
+          "max_ms": 748.6894500000003
+        },
+        "cancelled": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        },
+        "limited": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        }
+      },
+      "errors": {}
+    },
+    {
+      "mode": "limited",
+      "concurrency": 32,
+      "elapsed_seconds": 5.387491590000001,
+      "validated_requests": 429,
+      "validated_responses_per_second": 79.62889460399138,
+      "admitted_requests_per_second": 13.549905142404128,
+      "limited_responses_per_second": 66.07898946158726,
+      "results": {
+        "streamed": {
+          "count": 39,
+          "p50_ms": 818.3440979999996,
+          "p95_ms": 1002.2770830000009,
+          "p99_ms": 1004.4218349999992,
+          "max_ms": 1004.4218349999992
+        },
+        "json": {
+          "count": 34,
+          "p50_ms": 821.0693250000004,
+          "p95_ms": 1013.041396999999,
+          "p99_ms": 1013.6452200000003,
+          "max_ms": 1013.6452200000003
+        },
+        "cancelled": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        },
+        "limited": {
+          "count": 356,
+          "p50_ms": 294.22185700000045,
+          "p95_ms": 366.3381730000001,
+          "p99_ms": 377.9101620000001,
+          "max_ms": 378.8779149999991
+        }
+      },
+      "errors": {}
+    },
+    {
+      "mode": "cancellation",
+      "concurrency": 32,
+      "elapsed_seconds": 5.654348637000001,
+      "validated_requests": 185,
+      "validated_responses_per_second": 32.71818062109352,
+      "admitted_requests_per_second": 32.71818062109352,
+      "limited_responses_per_second": 0,
+      "results": {
+        "streamed": {
+          "count": 139,
+          "p50_ms": 970.3194589999985,
+          "p95_ms": 1150.451430000001,
+          "p99_ms": 1198.4953170000008,
+          "max_ms": 1250.1804100000008
+        },
+        "json": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        },
+        "cancelled": {
+          "count": 46,
+          "p50_ms": 851.2583979999999,
+          "p95_ms": 1011.536474999999,
+          "p99_ms": 1017.1450339999992,
+          "max_ms": 1017.1450339999992
+        },
+        "limited": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        }
+      },
+      "errors": {}
+    },
+    {
+      "mode": "soak",
+      "concurrency": 32,
+      "elapsed_seconds": 301.555324649,
+      "validated_requests": 5550,
+      "validated_responses_per_second": 18.404582994712523,
+      "admitted_requests_per_second": 18.404582994712523,
+      "limited_responses_per_second": 0,
+      "results": {
+        "streamed": {
+          "count": 2775,
+          "p50_ms": 1702.9742079999996,
+          "p95_ms": 3046.974649999989,
+          "p99_ms": 3193.321759000013,
+          "max_ms": 3291.403399999952
+        },
+        "json": {
+          "count": 2775,
+          "p50_ms": 1700.4428999999946,
+          "p95_ms": 3039.058163000038,
+          "p99_ms": 3190.51689899998,
+          "max_ms": 3279.852888000023
+        },
+        "cancelled": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        },
+        "limited": {
+          "count": 0,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null,
+          "max_ms": null
+        }
+      },
+      "errors": {}
+    }
+  ],
+  "errors": [],
+  "final": {
+    "accepted_requests": 6087,
+    "actual_upstream_calls": 6087,
+    "periods": [
+      {
+        "month": "2026-10",
+        "accepted_requests": 6087,
+        "known_requests": 6067,
+        "unknown_requests": 20,
+        "known_tokens": 254814,
+        "reserved_tokens": 104160,
+        "active_requests": 0
+      }
+    ],
+    "aggregate_verified_month": "2026-10"
+  },
+  "server_diagnostics": [
+    {
+      "pid": 1062141,
+      "exit_code": null,
+      "signal_code": null,
+      "output": "Ternilo server (server) listening on http://127.0.0.1:44175\nUse an external HTTPS gateway for public access and preserve WebSocket upgrades.\n"
+    }
+  ]
+}

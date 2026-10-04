@@ -10,6 +10,7 @@ import { localApi, until } from './model-device-fixture.mjs'
 
 const { values } = parseArgs({ options: {
   concurrency: { type: 'string', default: '1,8,32' }, seconds: { type: 'string', default: '10' },
+  instances: { type: 'string', default: '1' }, rpc: { type: 'boolean', default: false },
   sessions: { type: 'string', default: '4' }, deltas: { type: 'string', default: '10000' },
   attempts: { type: 'string', default: '200' }, 'build-label': { type: 'string', default: 'unspecified' }, output: { type: 'string', default: 'server-read-load.json' },
 } })
@@ -19,6 +20,8 @@ const seconds = positive(values.seconds, 300, 'seconds'), sessions = positive(va
 const deltas = positive(values.deltas, 100000, 'deltas'), attempts = positive(values.attempts, 10000, 'attempts')
 if (sessions * (deltas + 2 * attempts + 3) > 1_000_000) throw new Error('Use at most one million synthetic events per run')
 if (process.env.TERNILO_LOAD_DATABASE_URL && !new URL(process.env.TERNILO_LOAD_DATABASE_URL).pathname.startsWith('/ternilo_load_')) throw new Error('Load testing requires an empty disposable database whose name begins with ternilo_load_')
+const instances = positive(values.instances, 2, 'instances')
+if (instances > 1 && !process.env.TERNILO_LOAD_DATABASE_URL) throw new Error('Multiple Server instances require disposable PostgreSQL')
 const output = path.resolve(values.output)
 const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-read-load-')), processes = []
 const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
@@ -29,7 +32,7 @@ const report = {
   source_commit: (await execute('git', ['rev-parse', 'HEAD'], { cwd: repository })).stdout.trim(),
   working_tree_dirty: Boolean((await execute('git', ['status', '--porcelain'], { cwd: repository })).stdout.trim()),
   binaries: {}, host: { os: platform(), release: release(), architecture: process.arch, cpu: cpus()[0]?.model, available_cpus: availableParallelism(), memory_bytes: totalmem(), node: process.version },
-  settings: { concurrency: levels, seconds, sessions, deltas_per_session: deltas, attempts_per_session: attempts },
+  settings: { concurrency: levels, seconds, instances, rpc: values.rpc, sessions, deltas_per_session: deltas, attempts_per_session: attempts },
   phases: [], errors: [],
 }
 const save = async () => { await mkdir(path.dirname(output), { recursive: true }); await writeFile(output, JSON.stringify(report, null, 2) + '\n') }
@@ -52,15 +55,25 @@ function statistics(values) {
 }
 try {
   for (const [component, file] of Object.entries({ node: binary, server: serverBinary })) report.binaries[component] = { sha256: createHash('sha256').update(await readFile(file)).digest('hex'), version: (await execute(file, ['--version'])).stdout.trim() }
-  const server = await initializeServer({ directory: path.join(directory, 'server'), origin: `http://127.0.0.1:${await freePort()}`, mode: 'single_user',
+  const serverOrigin = `http://127.0.0.1:${await freePort()}`
+  const server = await initializeServer({ directory: path.join(directory, 'server'), origin: serverOrigin, mode: 'single_user', environment: instances > 1 ? { TERNILO_SERVER_CLUSTER_URL: serverOrigin } : {},
     databaseUrl: process.env.TERNILO_LOAD_DATABASE_URL, migrationDatabaseUrl: process.env.TERNILO_LOAD_MIGRATION_DATABASE_URL })
   processes.push(server)
+  let gateway = server.origin
+  if (instances > 1) {
+    gateway = `http://127.0.0.1:${await freePort()}`
+    const peerDirectory = path.join(directory, 'peer'); await mkdir(peerDirectory)
+    const config = JSON.parse(await readFile(server.configPath, 'utf8'))
+    await writeFile(path.join(peerDirectory, 'config.json'), JSON.stringify({ ...config, listen: new URL(gateway).host, cluster_url: gateway }), { mode: 0o600 })
+    const peer = startProcess(serverBinary, ['serve', '--config-dir', peerDirectory]); processes.push(peer)
+    await waitForHttp(`${gateway}/readyz`, peer)
+  }
   const tenantId = server.owner.session.personal_tenant_id, token = server.owner.session.access_token
   const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token, tenantId, ...options })
   const { enrollment } = await owner(`/tenants/${tenantId}/my-computer-enrollments`, { body: { name: 'read-load-node', project_id: null, ttl_seconds: 600 } })
   const { credential } = await owner('/enrollments/consume', { body: { token: enrollment.token } })
   const origin = `http://127.0.0.1:${await freePort()}`, data = path.join(directory, 'node')
-  const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data, '--node-id', enrollment.executor_id, '--gateway-url', `${server.origin.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
+  const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data, '--node-id', enrollment.executor_id, '--gateway-url', `${gateway.replace('http:', 'ws:')}/api/v1/executors/connect`, '--allow-insecure-gateway']
   const environment = { TERNILO_LOCAL_TOKEN: credential.token, XDG_STATE_HOME: path.join(directory, 'state') }
   let node = startProcess(binary, args, environment); processes.push(node); await waitForHttp(origin, node)
   const local = await localApi(origin), folder = path.join(directory, 'workspace'); await mkdir(folder)
@@ -81,19 +94,22 @@ try {
   const summaryPath = `/model-computers/${enrollment.executor_id}/usage/summary?month=${month}`
   await until(() => owner(summaryPath), value => value.totals.attempts === sessions * attempts && value.totals.completed === sessions * attempts, 'complete device observations replicated')
   for (const id of publicIds) await until(() => owner(`/sessions/${id}/history?limit=100`), value => value.events.at(-1)?.seq === length - 1, 'history fully replicated')
-  const operations = ['state', 'history_tail', 'history_older', 'usage_summary']
+  const baseOperations = ['state', 'history_tail', 'history_older', 'usage_summary']
   const call = async (operation, user) => {
     const id = publicIds[user % publicIds.length]
-    const resource = operation === 'state' ? '/state' : operation === 'usage_summary' ? summaryPath : `/sessions/${id}/history?limit=100${operation === 'history_older' ? `&before_seq=${length - 100}` : ''}`
+    const resource = operation === 'state' ? '/state' : operation === 'usage_summary' ? summaryPath : operation === 'session_commands' ? `/sessions/${id}/commands` : operation === 'live_events' ? `/sessions/${id}/events` : `/sessions/${id}/history?limit=100${operation === 'history_older' ? `&before_seq=${length - 100}` : ''}`
     const response = await fetch(server.origin + '/api/v1' + resource, { headers: { authorization: `Bearer ${token}`, 'x-ternilo-tenant': tenantId }, signal: AbortSignal.timeout(15_000) })
     if (!response.ok) { await response.arrayBuffer(); throw new Error(`${operation}: HTTP ${response.status}`) }
     const bytes = await response.arrayBuffer(), body = JSON.parse(Buffer.from(bytes).toString())
     if (operation === 'state') assert.equal(body.sessions.length, sessions)
     else if (operation === 'usage_summary') assert.equal(body.totals.attempts, sessions * attempts)
+    else if (operation === 'session_commands') { assert.equal(body.session_id, id); assert.ok(body.commands.some(command => command.name === 'write')) }
+    else if (operation === 'live_events') { assert.equal(body.length, length); assert.equal(body.at(-1).seq, length - 1) }
     else { assert.equal(body.events.length, 100); assert.equal(body.events.at(-1).seq, length - 1 - (operation === 'history_older' ? 100 : 0)) }
     return bytes.byteLength
   }
   for (const placement of ['connected', 'offline']) {
+    const operations = [...baseOperations, ...(values.rpc && placement === 'connected' ? ['session_commands', 'live_events'] : [])]
     if (placement === 'offline') {
       await stopProcess(node)
       await until(() => owner(`/tenants/${tenantId}/my-computers`), value => value.executors.every(computer => !computer.connected), 'load Node offline')
@@ -119,6 +135,7 @@ try {
   }
 } catch (error) { report.errors.push(error.message); process.exitCode = 1; console.error(error.message) }
 finally {
+  report.server_diagnostics = processes.map(process => ({ pid: process.child.pid, exit_code: process.child.exitCode, signal_code: process.child.signalCode, output: process.diagnostics() }))
   for (const process of processes.reverse()) await stopProcess(process)
   await rm(directory, { recursive: true, force: true }); await save()
   console.log(`Read-load evidence: ${output}`)

@@ -133,7 +133,7 @@ Linux `.deb` 声明 `bubblewrap` 与 `ripgrep` 运行依赖；AppImage 与 CLI �
 
 打包配置显式包含 PNG、Windows ICO 和 macOS ICNS 图标。更新已有 PNG 图案后，在源码根目录运行 `python3 scripts/prepare-desktop-icons.py` 重新生成 ICO／ICNS；脚本只封装已有图像，不调用图像生成服务。生成的两份图标与 PNG 一起作为源码资产提交，Windows sidecar 可执行文件仍是单独的构建产物。
 
-Tauri 已配置启用 bundle；`Build packages` 在 Linux x86_64、Windows x86_64、macOS Apple Silicon 与 Intel runner 构建原生安装器，Windows 先准备同目标 sidecar，详见[CI 与发行](ci-release.md)。默认未接入发行者签名／公证，也尚无全部平台正式安装器验收记录。各平台仍需实际安装／卸载、启动和签名检查，不能以 Linux 本机或浏览器测试代替。
+Tauri 已配置启用 bundle；`Build packages` 在 Linux x86_64／ARM64、Windows x86_64／ARM64、macOS Apple Silicon 与 Intel runner 构建原生安装器，Windows 先准备同目标 sidecar，ARM64 使用 NSIS EXE，x86_64 使用 NSIS EXE／MSI，详见[CI 与发行](ci-release.md)。默认未接入发行者签名／公证，也尚无全部平台正式安装器验收记录。各平台仍需实际安装／卸载、启动和签名检查，不能以 Linux 本机或浏览器测试代替。
 
 源码配置保持 `createUpdaterArtifacts = false`。在启用自动更新前，发行方必须提供：
 

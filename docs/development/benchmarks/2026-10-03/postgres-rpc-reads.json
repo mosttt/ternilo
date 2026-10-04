@@ -1,0 +1,370 @@
+{
+  "workload": "closed_loop_authenticated_reads",
+  "build_label": "dev-release-rpc",
+  "generated_at": "2026-10-04T03:30:44.193Z",
+  "backend": "postgresql",
+  "source_commit": "785bc9e6941a68c584c2071ad10ed71ab8c9eb1d",
+  "working_tree_dirty": true,
+  "binaries": {
+    "node": {
+      "sha256": "db83802e54a30b1026d92c98f2aad9f2a859906be37ba5b13c8f6af244f4e9ef",
+      "version": "ternilo 0.2.0"
+    },
+    "server": {
+      "sha256": "c7b7ac3fe25406f865e2d8edfe2a56dddd10a7a73d7b99cf37a7e5c292002b43",
+      "version": "ternilo-server 0.2.0"
+    }
+  },
+  "host": {
+    "os": "linux",
+    "release": "7.2.3-arch1-3",
+    "architecture": "x64",
+    "cpu": "Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz",
+    "available_cpus": 8,
+    "memory_bytes": 16638603264,
+    "node": "v26.8.1"
+  },
+  "settings": {
+    "concurrency": [
+      1,
+      8,
+      16
+    ],
+    "seconds": 5,
+    "instances": 2,
+    "rpc": true,
+    "sessions": 2,
+    "deltas_per_session": 1000,
+    "attempts_per_session": 20,
+    "events_per_session": 1043
+  },
+  "phases": [
+    {
+      "placement": "connected",
+      "concurrency": 1,
+      "elapsed_seconds": 5.007253370000003,
+      "successful_requests": 40,
+      "requests_per_second": 7.988411419252783,
+      "operations": {
+        "state": {
+          "count": 7,
+          "p50_ms": 121.53254699999889,
+          "p95_ms": 190.69991200000004,
+          "p99_ms": 190.69991200000004,
+          "max_ms": 190.69991200000004,
+          "bytes": 22078
+        },
+        "history_tail": {
+          "count": 7,
+          "p50_ms": 130.71147699999892,
+          "p95_ms": 159.30091700000048,
+          "p99_ms": 159.30091700000048,
+          "max_ms": 159.30091700000048,
+          "bytes": 104181
+        },
+        "history_older": {
+          "count": 7,
+          "p50_ms": 129.40109800000027,
+          "p95_ms": 145.84290299999884,
+          "p99_ms": 145.84290299999884,
+          "max_ms": 145.84290299999884,
+          "bytes": 103838
+        },
+        "usage_summary": {
+          "count": 7,
+          "p50_ms": 24.299880000000485,
+          "p95_ms": 28.642918999999893,
+          "p99_ms": 28.642918999999893,
+          "max_ms": 28.642918999999893,
+          "bytes": 23912
+        },
+        "session_commands": {
+          "count": 6,
+          "p50_ms": 103.14111800000137,
+          "p95_ms": 119.810508999999,
+          "p99_ms": 119.810508999999,
+          "max_ms": 119.810508999999,
+          "bytes": 28980
+        },
+        "live_events": {
+          "count": 6,
+          "p50_ms": 208.5805619999992,
+          "p95_ms": 346.3598920000004,
+          "p99_ms": 346.3598920000004,
+          "max_ms": 346.3598920000004,
+          "bytes": 955212
+        }
+      },
+      "failures": {}
+    },
+    {
+      "placement": "connected",
+      "concurrency": 8,
+      "elapsed_seconds": 5.497814410999999,
+      "successful_requests": 105,
+      "requests_per_second": 19.098498448750203,
+      "operations": {
+        "state": {
+          "count": 18,
+          "p50_ms": 293.97718800000075,
+          "p95_ms": 790.4245110000011,
+          "p99_ms": 790.4245110000011,
+          "max_ms": 790.4245110000011,
+          "bytes": 56772
+        },
+        "history_tail": {
+          "count": 17,
+          "p50_ms": 434.693933999999,
+          "p95_ms": 923.0675029999984,
+          "p99_ms": 923.0675029999984,
+          "max_ms": 923.0675029999984,
+          "bytes": 253011
+        },
+        "history_older": {
+          "count": 16,
+          "p50_ms": 434.2280750000027,
+          "p95_ms": 981.2297629999994,
+          "p99_ms": 981.2297629999994,
+          "max_ms": 981.2297629999994,
+          "bytes": 237344
+        },
+        "usage_summary": {
+          "count": 17,
+          "p50_ms": 51.22033299999748,
+          "p95_ms": 132.08974600000147,
+          "p99_ms": 132.08974600000147,
+          "max_ms": 132.08974600000147,
+          "bytes": 58072
+        },
+        "session_commands": {
+          "count": 18,
+          "p50_ms": 367.2671659999978,
+          "p95_ms": 647.5258439999998,
+          "p99_ms": 647.5258439999998,
+          "max_ms": 647.5258439999998,
+          "bytes": 86940
+        },
+        "live_events": {
+          "count": 19,
+          "p50_ms": 604.1317129999989,
+          "p95_ms": 964.3823529999972,
+          "p99_ms": 964.3823529999972,
+          "max_ms": 964.3823529999972,
+          "bytes": 3024838
+        }
+      },
+      "failures": {}
+    },
+    {
+      "placement": "connected",
+      "concurrency": 16,
+      "elapsed_seconds": 5.7718119250000015,
+      "successful_requests": 113,
+      "requests_per_second": 19.577907504323257,
+      "operations": {
+        "state": {
+          "count": 17,
+          "p50_ms": 710.7721740000015,
+          "p95_ms": 1140.3342899999989,
+          "p99_ms": 1140.3342899999989,
+          "max_ms": 1140.3342899999989,
+          "bytes": 53618
+        },
+        "history_tail": {
+          "count": 19,
+          "p50_ms": 942.9588379999987,
+          "p95_ms": 1229.844175000002,
+          "p99_ms": 1229.844175000002,
+          "max_ms": 1229.844175000002,
+          "bytes": 282777
+        },
+        "history_older": {
+          "count": 18,
+          "p50_ms": 937.3142100000005,
+          "p95_ms": 1504.820340000002,
+          "p99_ms": 1504.820340000002,
+          "max_ms": 1504.820340000002,
+          "bytes": 267012
+        },
+        "usage_summary": {
+          "count": 20,
+          "p50_ms": 49.500553999998374,
+          "p95_ms": 103.25212599999941,
+          "p99_ms": 119.71160699999746,
+          "max_ms": 119.71160699999746,
+          "bytes": 68320
+        },
+        "session_commands": {
+          "count": 21,
+          "p50_ms": 975.6586629999983,
+          "p95_ms": 1194.6428979999982,
+          "p99_ms": 1304.6648739999982,
+          "max_ms": 1304.6648739999982,
+          "bytes": 101430
+        },
+        "live_events": {
+          "count": 18,
+          "p50_ms": 1102.4423749999987,
+          "p95_ms": 1404.227605,
+          "p99_ms": 1404.227605,
+          "max_ms": 1404.227605,
+          "bytes": 2865636
+        }
+      },
+      "failures": {}
+    },
+    {
+      "placement": "offline",
+      "concurrency": 1,
+      "elapsed_seconds": 5.025365277000001,
+      "successful_requests": 115,
+      "requests_per_second": 22.88390866358111,
+      "operations": {
+        "state": {
+          "count": 29,
+          "p50_ms": 49.435418999994,
+          "p95_ms": 90.54987500000061,
+          "p99_ms": 93.13061200000084,
+          "max_ms": 93.13061200000084,
+          "bytes": 91495
+        },
+        "history_tail": {
+          "count": 29,
+          "p50_ms": 43.49817299999995,
+          "p95_ms": 73.73173400000087,
+          "p99_ms": 83.61264799999844,
+          "max_ms": 83.61264799999844,
+          "bytes": 431607
+        },
+        "history_older": {
+          "count": 29,
+          "p50_ms": 43.18148099999962,
+          "p95_ms": 54.521551000005275,
+          "p99_ms": 55.98573200000101,
+          "max_ms": 55.98573200000101,
+          "bytes": 430186
+        },
+        "usage_summary": {
+          "count": 28,
+          "p50_ms": 25.191971000000194,
+          "p95_ms": 30.933263999999326,
+          "p99_ms": 154.0898269999998,
+          "max_ms": 154.0898269999998,
+          "bytes": 95648
+        }
+      },
+      "failures": {}
+    },
+    {
+      "placement": "offline",
+      "concurrency": 8,
+      "elapsed_seconds": 5.068661553999998,
+      "successful_requests": 419,
+      "requests_per_second": 82.664820985994,
+      "operations": {
+        "state": {
+          "count": 105,
+          "p50_ms": 114.60486500000115,
+          "p95_ms": 168.43647699999565,
+          "p99_ms": 186.29168299999583,
+          "max_ms": 205.61659900000086,
+          "bytes": 331275
+        },
+        "history_tail": {
+          "count": 106,
+          "p50_ms": 103.38903500000015,
+          "p95_ms": 150.08645299999625,
+          "p99_ms": 167.54436200000055,
+          "max_ms": 170.04923699999927,
+          "bytes": 1577598
+        },
+        "history_older": {
+          "count": 104,
+          "p50_ms": 103.72339800000191,
+          "p95_ms": 159.8510099999985,
+          "p99_ms": 175.5761130000028,
+          "max_ms": 179.32010499999888,
+          "bytes": 1542736
+        },
+        "usage_summary": {
+          "count": 104,
+          "p50_ms": 49.98794700000144,
+          "p95_ms": 64.34658200000558,
+          "p99_ms": 78.7208380000011,
+          "max_ms": 97.94755599999917,
+          "bytes": 355264
+        }
+      },
+      "failures": {}
+    },
+    {
+      "placement": "offline",
+      "concurrency": 16,
+      "elapsed_seconds": 5.143410496000004,
+      "successful_requests": 425,
+      "requests_per_second": 82.62999819487861,
+      "operations": {
+        "state": {
+          "count": 109,
+          "p50_ms": 234.59296499999618,
+          "p95_ms": 346.6303110000008,
+          "p99_ms": 497.2839049999966,
+          "max_ms": 515.6586289999977,
+          "bytes": 343895
+        },
+        "history_tail": {
+          "count": 105,
+          "p50_ms": 189.3859550000052,
+          "p95_ms": 286.9526059999989,
+          "p99_ms": 453.54467300000397,
+          "max_ms": 463.5891980000015,
+          "bytes": 1562715
+        },
+        "history_older": {
+          "count": 105,
+          "p50_ms": 197.50329700000293,
+          "p95_ms": 311.2365520000021,
+          "p99_ms": 378.91684299999906,
+          "max_ms": 399.6136740000002,
+          "bytes": 1557570
+        },
+        "usage_summary": {
+          "count": 106,
+          "p50_ms": 86.52793399999791,
+          "p95_ms": 232.37951700000121,
+          "p99_ms": 243.61689600000682,
+          "max_ms": 281.99017399999866,
+          "bytes": 362096
+        }
+      },
+      "failures": {}
+    }
+  ],
+  "errors": [],
+  "server_diagnostics": [
+    {
+      "pid": 1606047,
+      "exit_code": null,
+      "signal_code": null,
+      "output": "Ternilo server (server) listening on http://127.0.0.1:41679\nUse an external HTTPS gateway for public access and preserve WebSocket upgrades.\n"
+    },
+    {
+      "pid": 1606105,
+      "exit_code": null,
+      "signal_code": null,
+      "output": "Ternilo server (server) listening on http://127.0.0.1:43369\nUse an external HTTPS gateway for public access and preserve WebSocket upgrades.\n"
+    },
+    {
+      "pid": 1606120,
+      "exit_code": 0,
+      "signal_code": null,
+      "output": "Ternilo local web: http://127.0.0.1:37511\nTernilo node ter_pc_oswrIKfMG6kje0N9KdqD9w connecting outbound to gateway\nTernilo node ter_pc_oswrIKfMG6kje0N9KdqD9w connected for tenant=ten_qPeTUlEQ26ghBLehqEDi7w user=usr_WkxWL3yVH80WTWMbZ5Voyg\n"
+    },
+    {
+      "pid": 1606161,
+      "exit_code": 0,
+      "signal_code": null,
+      "output": "Ternilo local web: http://127.0.0.1:37511\nTernilo node ter_pc_oswrIKfMG6kje0N9KdqD9w connecting outbound to gateway\nTernilo node ter_pc_oswrIKfMG6kje0N9KdqD9w connected for tenant=ten_qPeTUlEQ26ghBLehqEDi7w user=usr_WkxWL3yVH80WTWMbZ5Voyg\n"
+    }
+  ]
+}
