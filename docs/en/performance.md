@@ -4,6 +4,8 @@
 
 `web/tests/server-read-load.mjs` creates an isolated Server, enrolled Node, workspace and synthetic long conversations. It exercises authenticated workbench state, recent/older history and monthly device usage while the computer is connected and offline. Every response is validated; errors or empty results cannot inflate throughput.
 
+Local/Node history reads the latest page from the journal tail and locates older pages by sequence and byte offset, without an additional disk index. Cached switching, page sizes and Live continuation address separate reading costs.
+
 Build matching programs and run:
 
 ```bash
