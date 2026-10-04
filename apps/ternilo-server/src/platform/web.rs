@@ -54,6 +54,7 @@ impl CloudWebAuth {
 
     pub(super) fn new(
         authenticator: &OidcAuthenticator,
+        provider_id: &str,
         public_url: &str,
         client_id: &str,
         scope: &str,
@@ -92,7 +93,7 @@ impl CloudWebAuth {
             })?;
         Ok(Self {
             binding: URL_SAFE_NO_PAD.encode(Sha256::digest(format!(
-                "{}\n{client_id}",
+                "{provider_id}\n{}\n{client_id}",
                 authenticator.issuer()
             ))),
             authorization_endpoint: authenticator.authorization_endpoint().to_owned(),
@@ -145,6 +146,7 @@ pub(super) struct BrowserAuthConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CodeExchangeRequest {
+    provider_id: String,
     code: String,
     code_verifier: String,
     nonce: String,
@@ -153,6 +155,7 @@ struct CodeExchangeRequest {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RefreshRequest {
+    provider_id: String,
     refresh_token: String,
 }
 

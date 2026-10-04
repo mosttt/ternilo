@@ -163,7 +163,7 @@ async fn recovery_contract(
     );
     assert!(
         store
-            .authenticate_oidc_session(&oidc.access_token, "recovery-binding", 1_011)
+            .authenticate_oidc_session(&oidc.access_token, &["recovery-binding"], 1_011)
             .await
             .is_err()
     );
@@ -325,6 +325,7 @@ async fn rejected_recovery_contract(
             &owner.session.user,
             RegistrationMode::Open,
             false,
+            false,
             settings.revision,
             1_028,
         )
@@ -337,7 +338,13 @@ async fn rejected_recovery_contract(
         display_name: None,
     };
     store
-        .register_oidc(&principal, "oidc-only", "oidc-only@example.test", 1_029)
+        .register_oidc(
+            &principal,
+            "oidc-only",
+            "oidc-only@example.test",
+            None,
+            1_029,
+        )
         .await
         .unwrap();
     assert!(

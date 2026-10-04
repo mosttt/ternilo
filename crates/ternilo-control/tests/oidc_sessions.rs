@@ -46,7 +46,7 @@ async fn lifecycle(store: &ControlStore) -> (OidcSessionGrant, ControlUser, Cont
         .unwrap();
     assert_eq!(
         store
-            .authenticate_oidc_session(&grant.access_token, "client-binding", 2000)
+            .authenticate_oidc_session(&grant.access_token, &["client-binding"], 2000)
             .await
             .unwrap()
             .0,
@@ -54,13 +54,13 @@ async fn lifecycle(store: &ControlStore) -> (OidcSessionGrant, ControlUser, Cont
     );
     assert!(
         store
-            .authenticate_oidc_session(&grant.access_token, "other-client", 2000)
+            .authenticate_oidc_session(&grant.access_token, &["other-client"], 2000)
             .await
             .is_err()
     );
     assert!(
         store
-            .authenticate_oidc_session(&grant.access_token, "client-binding", 61000)
+            .authenticate_oidc_session(&grant.access_token, &["client-binding"], 61000)
             .await
             .is_err()
     );
@@ -99,7 +99,7 @@ async fn lifecycle(store: &ControlStore) -> (OidcSessionGrant, ControlUser, Cont
     let next = first.or(second).unwrap();
     assert!(
         store
-            .authenticate_oidc_session(&grant.access_token, "client-binding", 2001)
+            .authenticate_oidc_session(&grant.access_token, &["client-binding"], 2001)
             .await
             .is_err()
     );
@@ -141,7 +141,7 @@ async fn contract(url: &str, migration: Option<&str>) {
         .unwrap();
     assert!(
         reopened
-            .authenticate_oidc_session(&grant.access_token, "client-binding", 3000)
+            .authenticate_oidc_session(&grant.access_token, &["client-binding"], 3000)
             .await
             .is_ok()
     );
@@ -159,7 +159,7 @@ async fn contract(url: &str, migration: Option<&str>) {
         .unwrap();
     assert!(
         reopened
-            .authenticate_oidc_session(&grant.access_token, "client-binding", 3002)
+            .authenticate_oidc_session(&grant.access_token, &["client-binding"], 3002)
             .await
             .is_err()
     );
@@ -193,7 +193,7 @@ async fn contract(url: &str, migration: Option<&str>) {
         .unwrap();
     assert!(
         reopened
-            .authenticate_oidc_session(&next.access_token, "client-binding", 3005)
+            .authenticate_oidc_session(&next.access_token, &["client-binding"], 3005)
             .await
             .is_err()
     );

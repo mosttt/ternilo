@@ -15,7 +15,7 @@ test('single-user accounts hide registration controls while mode changes preserv
     server = await initializeServer({ directory: path.join(directory, 'server'), origin, mode: 'single_user' })
     const token = server.owner.session.access_token
     const original = await serverRequest(origin, '/admin/registration', { token })
-    await serverRequest(origin, '/admin/registration', { token, method: 'PATCH', body: { mode: 'open', require_approval: true, revision: original.revision } })
+    await serverRequest(origin, '/admin/registration', { token, method: 'PATCH', body: { mode: 'open', require_approval: true, oidc_only: false, revision: original.revision } })
     const denied = await fetch(`${origin}/api/v1/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'single-user-candidate', email: 'single-user-candidate@example.test', password: 'single-user-candidate-password' }) })
     assert.equal(denied.status, 403, 'single-user mode must reject signup even with a saved open policy')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })

@@ -14,7 +14,9 @@ use crate::{
         require_team_in,
     },
     crypto::{hex, random_identifier, random_token, token_hash},
-    registration_store::require_account_invitations_in,
+    registration_store::{
+        registration_settings_in, require_account_invitations_in, require_password_registration,
+    },
     store::append_audit,
 };
 
@@ -529,12 +531,14 @@ impl ControlStore {
     ) -> Result<NativeSessionGrant, HarnessError> {
         let username = normalize_username(&registration.username)?;
         validate_registration(registration)?;
+        require_password_registration(&self.registration_settings().await?)?;
         let password_hash = hash_password(&registration.password).await?;
         let mut transaction = self.database.begin().await?;
         lock(&mut transaction, "ternilo:instance").await?;
         let instance = required_instance(&mut transaction).await?;
         require_multi_user(&instance)?;
         require_account_invitations_in(&mut transaction).await?;
+        require_password_registration(&registration_settings_in(&mut transaction).await?)?;
         let invitation = consume_invitation(&mut transaction, token, now_ms).await?;
         if invitation.tenant_id.is_some() {
             return Err(HarnessError::policy(
@@ -620,13 +624,13 @@ async fn identity_session_in(
     })
 }
 
-struct ConsumedInvitation {
+pub(crate) struct ConsumedInvitation {
     invitation_id: String,
-    tenant_id: Option<TenantId>,
+    pub(crate) tenant_id: Option<TenantId>,
     role: TenantRole,
 }
 
-async fn consume_invitation(
+pub(crate) async fn consume_invitation(
     transaction: &mut Transaction,
     token: &str,
     now_ms: u64,
@@ -671,7 +675,7 @@ async fn consume_invitation(
     Ok(invitation)
 }
 
-async fn finish_invitation(
+pub(crate) async fn finish_invitation(
     transaction: &mut Transaction,
     user: &ControlUser,
     invitation: &ConsumedInvitation,
@@ -1567,7 +1571,7 @@ mod tests {
         runtime_url
             .set_password(Some("identity-test-password"))
             .unwrap();
-        for scenario in 0..17 {
+        for scenario in 0..18 {
             if scenario != 0 {
                 admin.execute("DROP SCHEMA public CASCADE").await.unwrap();
                 admin.execute("CREATE SCHEMA public").await.unwrap();
@@ -1617,6 +1621,7 @@ mod tests {
                 14 => crate::account_status_store::tests::email_contract(&store).await,
                 15 => crate::account_status_store::lock_order_tests::invitation_lock_order_contract(&store, &admin).await,
                 16 => crate::account_status_store::lock_order_tests::node_lock_order_contract(&store, &admin).await,
+                17 => crate::registration_store::tests::oauth_only_contract(&store).await,
                 _ => unreachable!(),
             }
             store.database().close().await;

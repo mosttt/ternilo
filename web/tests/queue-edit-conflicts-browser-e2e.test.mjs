@@ -46,7 +46,7 @@ test('Server accounts and Local preserve queue drafts, reject stale revisions an
   let tenantId = server.owner.session.personal_tenant_id
   const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
   const registration = await owner('/admin/registration')
-  await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+  await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
   const credentials = { username: 'queue-member', email: 'queue-member@example.test', password: 'queue-member-password' }
   const { session: account } = await serverRequest(server.origin, '/auth/register', { body: credentials })
   const { tenant } = await owner('/tenants', { body: { slug: 'queue-team', display_name: 'Queue team' } })

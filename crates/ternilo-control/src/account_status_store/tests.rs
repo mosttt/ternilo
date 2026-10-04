@@ -43,7 +43,7 @@ pub(crate) async fn lifecycle_contract(store: &ControlStore) {
         .await
         .unwrap();
     store
-        .set_registration_settings(admin, RegistrationMode::Open, true, 1, 1_002)
+        .set_registration_settings(admin, RegistrationMode::Open, true, false, 1, 1_002)
         .await
         .unwrap();
     let mut signup = registration("member");
@@ -340,7 +340,7 @@ pub(crate) async fn lifecycle_contract(store: &ControlStore) {
     );
     assert!(
         store
-            .register_oidc(&oidc, "new-name", "new-contact@example.test", 1_024)
+            .register_oidc(&oidc, "new-name", "new-contact@example.test", None, 1_024)
             .await
             .is_err()
     );
@@ -520,7 +520,7 @@ pub(crate) async fn email_contract(store: &ControlStore) {
         .await
         .unwrap();
     store
-        .set_registration_settings(actor, RegistrationMode::Open, false, 1, 1_002)
+        .set_registration_settings(actor, RegistrationMode::Open, false, false, 1, 1_002)
         .await
         .unwrap();
     for email in [
@@ -574,7 +574,7 @@ pub(crate) async fn email_contract(store: &ControlStore) {
         "choose a platform username to finish registration"
     );
     let external = store
-        .register_oidc(&principal, "external", "external@example.test", 1_006)
+        .register_oidc(&principal, "external", "external@example.test", None, 1_006)
         .await
         .unwrap();
     assert_ne!(external.user_id, actor.user_id);

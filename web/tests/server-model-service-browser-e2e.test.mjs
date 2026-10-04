@@ -98,7 +98,7 @@ test('platform model access works without workers or machine enrollment and stay
     application = await initializeServer({ directory: path.join(directory, 'server'), origin, oidc: { issuer: oidc.issuer, audience: 'model-browser', client_id: 'model-browser' }, managedExecutionEnabled: false })
     const ownerToken = application.owner.session.access_token
     const registrationPolicy = await serverRequest(origin, '/admin/registration', { token: ownerToken })
-    await serverRequest(origin, '/admin/registration', { token: ownerToken, method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registrationPolicy.revision } })
+    await serverRequest(origin, '/admin/registration', { token: ownerToken, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registrationPolicy.revision } })
     const members = []
     for (const id of Object.keys(identities).sort()) members.push(await registerOidcUser(origin, oidc.accessToken(id), `model-member-${id}`))
     const member = members[0]
@@ -209,7 +209,7 @@ test('platform model access works without workers or machine enrollment and stay
     await dialog.getByRole('button', { name: '保存', exact: true }).click()
     await dialog.waitFor({ state: 'hidden' })
     await user.goto(`${origin}/models`)
-    await user.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await user.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await user.waitForURL(`${origin}/models`)
     await user.getByRole('button', { name: '平台授权', exact: true }).click()
     await user.locator('[data-model-entitlement]').waitFor()
@@ -396,7 +396,7 @@ test('platform model access works without workers or machine enrollment and stay
     const auditor = await auditContext.newPage()
     auditor.on('pageerror', error => errors.push(`auditor: ${error.message}`))
     await auditor.goto(`${origin}/admin/models`)
-    await auditor.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await auditor.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await auditor.waitForURL(`${origin}/admin/models`)
     await auditor.locator('[data-published-model]').first().waitFor()
     assert.equal(await auditor.getByRole('button', { name: '发布模型', exact: true }).count(), 0)

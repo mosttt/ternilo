@@ -147,7 +147,7 @@ test('unified browser sessions preserve account boundaries and manage local OIDC
     const ownerToken = application.owner.session.access_token
     const owner = (resource, options = {}) => serverRequest(origin, resource, { token: ownerToken, ...options })
     const registration = await owner('/admin/registration')
-    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const credentials = { username: 'sessions-member', password: 'sessions-browser-password' }
     const { session: member } = await serverRequest(origin, '/auth/register', { body: { ...credentials, email: 'sessions-member@example.test' } })
     const memberRequest = (resource, options = {}) => serverRequest(origin, resource, { token: member.access_token, ...options })
@@ -275,7 +275,7 @@ test('unified browser sessions preserve account boundaries and manage local OIDC
     const nativeForOidc = await serverRequest(origin, '/auth/login', { body: credentials })
     const oidcLogin = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/session'
       && !response.request().headers().authorization?.startsWith('Bearer ter_a_'))
-    await page.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await page.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     const oidcResponse = await oidcLogin
     assert.equal(oidcResponse.status(), 200)
     assert.equal((await oidcResponse.json()).user.user_id, member.user.user_id)

@@ -27,7 +27,7 @@ test('Server account holders and their local CLI share a directory without relea
     let tenantId = server.owner.session.personal_tenant_id
     const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
     const registration = await owner('/admin/registration')
-    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const credentials = { username: 'directory-member', email: 'directory-member@example.test', password: 'directory-member-password' }
     const { session: account } = await serverRequest(server.origin, '/auth/register', { body: credentials })
     const { tenant } = await owner('/tenants', { body: { slug: 'directory-team', display_name: 'Directory team' } })

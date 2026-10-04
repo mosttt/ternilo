@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use salvo_core::prelude::{Depot, Json, Request, handler};
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,8 @@ pub(super) use turnstile::TurnstileSettings;
 #[serde(deny_unknown_fields)]
 pub(super) struct LoginSettings {
     pub public_url: String,
-    pub oidc: Option<OidcSettings>,
+    #[serde(default)]
+    pub oidc_providers: Vec<OidcSettings>,
     pub turnstile: Option<TurnstileSettings>,
     pub smtp: Option<MailSettings>,
 }
@@ -27,6 +28,9 @@ pub(super) struct LoginSettings {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct OidcSettings {
+    pub id: String,
+    pub name: String,
+    pub enabled: bool,
     pub issuer: String,
     #[serde(default)]
     pub audience: String,
@@ -50,11 +54,67 @@ pub(super) enum TokenAuthMethod {
 pub(super) struct LoginRuntime {
     pub revision: u64,
     pub settings: LoginSettings,
-    pub auth: Option<Arc<OidcAuthenticator>>,
-    pub web_auth: Option<Arc<CloudWebAuth>>,
+    pub providers: BTreeMap<String, OidcProvider>,
     pub mailer: Option<Arc<AccountMailer>>,
     oidc_unavailable: bool,
     loaded_at: std::time::Instant,
+}
+
+pub(super) struct OidcProvider {
+    pub name: String,
+    pub auth: OidcAuthenticator,
+    pub web: CloudWebAuth,
+}
+
+impl OidcProvider {
+    async fn discover(
+        oidc: &OidcSettings,
+        public_url: &str,
+        allow_insecure: bool,
+    ) -> Result<Option<Self>, HarnessError> {
+        if oidc.token_auth_method != TokenAuthMethod::None
+            && oidc
+                .client_secret
+                .as_ref()
+                .is_none_or(|value| value.trim().is_empty())
+        {
+            return Err(HarnessError::invalid(
+                "OAuth client secret is required for the selected token authentication method",
+            ));
+        }
+        if oidc
+            .client_secret
+            .as_ref()
+            .is_some_and(|value| value.len() > 4096 || value.chars().any(char::is_control))
+        {
+            return Err(HarnessError::invalid("OAuth client secret is invalid"));
+        }
+        let authenticator = OidcAuthenticator::discover(OidcConfig {
+            issuer: oidc.issuer.clone(),
+            audience: oidc.audience.clone(),
+            allow_insecure_discovery: allow_insecure,
+            jwks_cache_ttl: Duration::from_secs(300),
+        })
+        .await;
+        match authenticator {
+            Ok(auth) => {
+                let web = CloudWebAuth::new(
+                    &auth,
+                    &oidc.id,
+                    public_url,
+                    &oidc.client_id,
+                    &oidc.scopes,
+                    allow_insecure,
+                )?;
+                Ok(Some(Self {
+                    name: oidc.name.clone(),
+                    auth,
+                    web: web.with_client_secret(oidc.token_auth_method, oidc.client_secret.clone()),
+                }))
+            }
+            Err(_) => Ok(None),
+        }
+    }
 }
 
 impl LoginRuntime {
@@ -74,64 +134,81 @@ impl LoginRuntime {
         let mut runtime = Self {
             revision,
             settings,
-            auth: None,
-            web_auth: None,
+            providers: BTreeMap::new(),
             mailer,
             oidc_unavailable: false,
             loaded_at: std::time::Instant::now(),
         };
-        if (runtime.settings.oidc.is_some() || runtime.settings.turnstile.is_some())
+        if (runtime
+            .settings
+            .oidc_providers
+            .iter()
+            .any(|provider| provider.enabled)
+            || runtime.settings.turnstile.is_some())
             && super::web::validate_public_url(&runtime.settings.public_url, allow_insecure)
                 .is_err()
         {
             // Keep native access available so the owner can correct the saved URL.
             // Configured Turnstile verification remains enforced by verify_turnstile.
-            runtime.oidc_unavailable = runtime.settings.oidc.is_some();
+            runtime.oidc_unavailable = runtime
+                .settings
+                .oidc_providers
+                .iter()
+                .any(|provider| provider.enabled);
             return Ok(runtime);
         }
-        if let Some(oidc) = &runtime.settings.oidc {
-            if oidc.token_auth_method != TokenAuthMethod::None
-                && oidc
-                    .client_secret
-                    .as_ref()
-                    .is_none_or(|value| value.trim().is_empty())
+        let mut identifiers = std::collections::BTreeSet::new();
+        if runtime.settings.oidc_providers.len() > 16 {
+            return Err(HarnessError::invalid(
+                "at most 16 OIDC providers may be configured",
+            ));
+        }
+        for oidc in &runtime.settings.oidc_providers {
+            if oidc.id.is_empty()
+                || oidc.id.len() > 64
+                || !oidc
+                    .id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+                || !identifiers.insert(&oidc.id)
+                || oidc.name.trim().is_empty()
+                || oidc.name.len() > 100
+                || oidc.name.chars().any(char::is_control)
             {
                 return Err(HarnessError::invalid(
-                    "OAuth client secret is required for the selected token authentication method",
+                    "OIDC providers need unique IDs and a display name",
                 ));
             }
-            if oidc
-                .client_secret
-                .as_ref()
-                .is_some_and(|value| value.len() > 4096 || value.chars().any(char::is_control))
-            {
-                return Err(HarnessError::invalid("OAuth client secret is invalid"));
-            }
-            let authenticator = OidcAuthenticator::discover(OidcConfig {
-                issuer: oidc.issuer.clone(),
-                audience: oidc.audience.clone(),
-                allow_insecure_discovery: allow_insecure,
-                jwks_cache_ttl: Duration::from_secs(300),
-            })
-            .await;
-            match authenticator {
-                Ok(auth) => {
-                    let web = CloudWebAuth::new(
-                        &auth,
-                        &runtime.settings.public_url,
-                        &oidc.client_id,
-                        &oidc.scopes,
-                        allow_insecure,
-                    )?;
-                    runtime.auth = Some(Arc::new(auth));
-                    runtime.web_auth = Some(Arc::new(
-                        web.with_client_secret(oidc.token_auth_method, oidc.client_secret.clone()),
-                    ));
-                }
-                Err(_) => runtime.oidc_unavailable = true,
+        }
+        let discovered = futures_util::future::try_join_all(
+            runtime
+                .settings
+                .oidc_providers
+                .iter()
+                .filter(|provider| provider.enabled)
+                .map(|oidc| async {
+                    Ok::<_, HarnessError>((
+                        oidc.id.clone(),
+                        OidcProvider::discover(oidc, &runtime.settings.public_url, allow_insecure)
+                            .await?,
+                    ))
+                }),
+        )
+        .await?;
+        for (id, provider) in discovered {
+            if let Some(provider) = provider {
+                runtime.providers.insert(id, provider);
+            } else {
+                runtime.oidc_unavailable = true;
             }
         }
         Ok(runtime)
+    }
+
+    pub(super) fn provider(&self, id: &str) -> Result<&OidcProvider, HarnessError> {
+        self.providers.get(id).ok_or_else(|| {
+            HarnessError::policy("selected OIDC provider is disabled or unavailable")
+        })
     }
 
     pub(super) async fn verify_turnstile(
@@ -162,14 +239,22 @@ impl SecurityState {
             trusted_proxy_ips: config.trusted_proxy_ips.clone(),
             fallback: LoginSettings {
                 public_url: config.public_url.clone().unwrap_or_default(),
-                oidc: config.oidc.as_ref().map(|oidc| OidcSettings {
-                    issuer: oidc.issuer.clone(),
-                    audience: oidc.audience.clone(),
-                    client_id: oidc.client_id.clone(),
-                    scopes: oidc.scopes.clone(),
-                    token_auth_method: TokenAuthMethod::None,
-                    client_secret: None,
-                }),
+                oidc_providers: config
+                    .oidc
+                    .as_ref()
+                    .map(|oidc| OidcSettings {
+                        id: "organization".into(),
+                        name: "Organization".into(),
+                        enabled: true,
+                        issuer: oidc.issuer.clone(),
+                        audience: oidc.audience.clone(),
+                        client_id: oidc.client_id.clone(),
+                        scopes: oidc.scopes.clone(),
+                        token_auth_method: TokenAuthMethod::None,
+                        client_secret: None,
+                    })
+                    .into_iter()
+                    .collect(),
                 turnstile: None,
                 smtp: None,
             },
@@ -211,7 +296,7 @@ impl SecurityState {
 struct UpdateLoginSettings {
     revision: u64,
     public_url: String,
-    oidc: Option<OidcSettings>,
+    oidc_providers: Vec<OidcSettings>,
     turnstile: Option<TurnstileSettings>,
     smtp: Option<MailSettings>,
 }
@@ -221,11 +306,22 @@ fn public_settings(runtime: &LoginRuntime) -> serde_json::Value {
         serde_json::to_value(&runtime.settings).expect("login settings contain JSON values");
     settings["revision"] = runtime.revision.into();
     settings["oidc_unavailable"] = runtime.oidc_unavailable.into();
-    if let Some(oidc) = settings["oidc"].as_object_mut() {
+    for provider in settings["oidc_providers"]
+        .as_array_mut()
+        .expect("provider array")
+    {
+        let oidc = provider.as_object_mut().expect("provider object");
         let has_secret = oidc
             .remove("client_secret")
             .is_some_and(|value| value.as_str().is_some_and(|value| !value.is_empty()));
         oidc.insert("has_client_secret".into(), has_secret.into());
+        oidc.insert(
+            "available".into(),
+            runtime
+                .providers
+                .contains_key(oidc["id"].as_str().expect("provider ID"))
+                .into(),
+        );
     }
     if let Some(turnstile) = settings["turnstile"].as_object_mut() {
         let has_secret = turnstile
@@ -274,15 +370,13 @@ pub(super) async fn update_settings(
         )
         .into());
     }
-    if let Some(oidc) = body.oidc.as_mut() {
+    for oidc in &mut body.oidc_providers {
         if oidc.token_auth_method == TokenAuthMethod::None {
             oidc.client_secret = None;
         } else if oidc.client_secret.as_ref().is_none_or(String::is_empty) {
-            let previous = previous
-                .settings
-                .oidc
-                .as_ref()
-                .filter(|old| old.issuer == oidc.issuer && old.client_id == oidc.client_id);
+            let previous = previous.settings.oidc_providers.iter().find(|old| {
+                old.id == oidc.id && old.issuer == oidc.issuer && old.client_id == oidc.client_id
+            });
             oidc.client_secret = previous.and_then(|old| old.client_secret.clone());
         }
     }
@@ -315,18 +409,23 @@ pub(super) async fn update_settings(
     }
     let settings = LoginSettings {
         public_url: body.public_url.trim_end_matches('/').to_owned(),
-        oidc: body.oidc,
+        oidc_providers: body.oidc_providers,
         turnstile: body.turnstile,
         smtp: body.smtp,
     };
-    if settings.oidc.is_some() || settings.turnstile.is_some() {
+    if settings
+        .oidc_providers
+        .iter()
+        .any(|provider| provider.enabled)
+        || settings.turnstile.is_some()
+    {
         super::web::validate_public_url(&settings.public_url, state.security.allow_insecure)?;
     }
     let mut runtime =
         LoginRuntime::build(settings, body.revision, state.security.allow_insecure).await?;
-    if runtime.oidc_unavailable {
+    if state.store.registration_settings().await?.oidc_only && runtime.providers.is_empty() {
         return Err(HarnessError::invalid(
-            "OIDC discovery or signing keys could not be verified; existing settings were kept",
+            "OAuth2-only registration requires at least one available OIDC provider",
         )
         .into());
     }

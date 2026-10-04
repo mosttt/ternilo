@@ -441,7 +441,7 @@ async fn native_management_lists_and_revokes_local_oidc_sessions_with_refresh_in
         fixture
             .state
             .store
-            .authenticate_oidc_session(&oidc.access_token, "session-api", now + 1)
+            .authenticate_oidc_session(&oidc.access_token, &["session-api"], now + 1)
             .await
             .is_err()
     );

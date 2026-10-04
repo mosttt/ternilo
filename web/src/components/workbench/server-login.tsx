@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { navigate } from '@/app/navigation'
 import { api } from '@/api/client'
-import { OidcFlowError, readPendingOidcMfa, completeOidcMfa, clearOidcSession } from '@/auth/oidc'
+import { OidcFlowError, readPendingOidcMfa, completeOidcMfa, clearOidcSession, beginOidcLogin, readOidcInvitation } from '@/auth/oidc'
 import type { TenantSummary } from '@/types'
 import { LoaderCircle } from 'lucide-react'
 import { clearAccountLink, readAccountLink, type NativeLoginInput } from '@/auth/server'
@@ -17,7 +17,7 @@ const pendingTeamKey = 'ternilo.pending-team-invitation'
 const emptyLink = { setupToken: '', invitationToken: '', teamInvitationToken: '' }
 
 export function ServerLogin() {
-  const { authRequired, serverAuthConfig: config, error: connectionError, authenticate, login, retryAuthentication, accessPaused, oidcRegistrationRequired, registerOidcUsername, logout, selectTenant, notify } = useWorkbench()
+  const { authRequired, serverAuthConfig: config, error: connectionError, authenticate, retryAuthentication, accessPaused, oidcRegistrationRequired, registerOidcUsername, logout, selectTenant, notify } = useWorkbench()
   const t = useTranslate('app')
   const settingsT = useTranslate('settings')
   const adminT = useTranslate('admin')
@@ -29,7 +29,7 @@ export function ServerLogin() {
     return { ...next, teamInvitationToken: next.teamInvitationToken || sessionStorage.getItem(pendingTeamKey) || '' }
   })
   const [choice, setChoice] = React.useState<'login' | 'register' | 'accept'>(link.invitationToken ? 'accept' : 'login')
-  const [token, setToken] = React.useState(link.setupToken || link.invitationToken)
+  const [token, setToken] = React.useState(link.setupToken || link.invitationToken || readOidcInvitation())
   const [username, setUsername] = React.useState('')
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
@@ -48,6 +48,7 @@ export function ServerLogin() {
     : choice === 'register' && publicSignup ? 'register'
       : choice === 'accept' && inviteSignup ? 'accept' : 'login'
   const creating = action !== 'login'
+  const oauthOnlyCreating = creating && action !== 'setup' && config?.registration.oidc_only
   const requiresToken = action === 'setup' || action === 'accept'
   const turnstile = config?.turnstile && action !== 'setup' ? config.turnstile : undefined
   const turnstileAction = oidcRegistrationRequired || action === 'register' ? 'register' : action === 'accept' ? 'invitation' : 'login'
@@ -97,17 +98,17 @@ export function ServerLogin() {
     return () => window.removeEventListener('hashchange', acceptLink)
   }, [])
 
-  const submit = async (oidc = false) => {
+  const submit = async (providerId?: string) => {
     if (busy) return
     setBusy(true)
     setError('')
     try {
-      if (oidcRegistrationRequired) {
-        const status = await registerOidcUsername(username.trim(), email.trim(), turnstileToken || undefined)
+      if (providerId) await beginOidcLogin(providerId, action === 'accept' ? token.trim() : undefined)
+      else if (oidcRegistrationRequired) {
+        const status = await registerOidcUsername(username.trim(), email.trim(), turnstileToken || undefined, token.trim() || undefined)
         setEmail('')
         if (status === 'pending') { setPendingOidc(true); setPending(true) }
-      } else if (oidc) await login('')
-      else {
+      } else {
         const account = { username: username.trim(), password }
         const input: NativeLoginInput = action === 'login' ? { action, ...account, ...(mfaRequired ? { mfa_code: mfaCode } : {}) }
           : action === 'register' ? { action, ...account, email: email.trim() }
@@ -185,6 +186,7 @@ export function ServerLogin() {
       </div> : oidcRegistrationRequired ? <form className="grid gap-4" data-oidc-registration=""
         onKeyDown={event => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault() }}
         onSubmit={event => { event.preventDefault(); void submit() }}>
+        {inviteSignup && <Field><Label htmlFor="oidc-invitation-token">{t('server.invitationToken')}</Label><Input id="oidc-invitation-token" type="password" autoComplete="off" required disabled={busy} value={token} onChange={event => setToken(event.target.value)} /></Field>}
         <Field>
           <Label htmlFor="server-username">{t('server.username')}</Label>
           <Input id="server-username" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={64} disabled={busy} value={username} onChange={event => { setUsername(event.target.value); setMfaRequired(false); setMfaCode('') }} />
@@ -203,7 +205,11 @@ export function ServerLogin() {
         onSubmit={event => { event.preventDefault(); void submit() }}>
         {link.teamInvitationToken && <p className="text-sm leading-relaxed text-muted-foreground">{adminT('join.signInFirst')}</p>}
         {link.invitationToken && !inviteSignup && <p className="text-sm leading-relaxed text-muted-foreground">{t('server.invitationUnavailable')}</p>}
-        {config.native_enabled && <>
+        {oauthOnlyCreating && <>
+          <p className="text-sm text-muted-foreground">{t('server.oauthOnlyRegistration')}</p>
+          {action === 'accept' && <Field><Label htmlFor="server-account-token">{t('server.invitationToken')}</Label><Input id="server-account-token" type="password" autoComplete="off" required disabled={busy} value={token} onChange={event => setToken(event.target.value)} /></Field>}
+        </>}
+        {config.native_enabled && !oauthOnlyCreating && <>
           {creating && <p className="text-xs leading-relaxed text-muted-foreground">{t('server.accountHint')}</p>}
           {requiresToken && <Field>
             <Label htmlFor="server-account-token">{t(action === 'setup' ? 'server.setupToken' : 'server.invitationToken')}</Label>
@@ -229,7 +235,7 @@ export function ServerLogin() {
             {t(action === 'setup' ? 'server.setup' : action === 'accept' ? 'server.accept' : action === 'register' ? config.registration.require_approval ? 'server.submitRegistration' : 'server.register' : 'server.login')}
           </Button>
         </>}
-        {config.initialized && config.oidc_enabled && action === 'login' && <Button type="button" variant="outline" disabled={busy} onClick={() => void submit(true)}>{t('auth.login')}</Button>}
+        {config.initialized && config.oidc_providers.map(provider => <Button key={provider.id} type="button" variant="outline" disabled={busy || (action === 'accept' && !token.trim())} data-oidc-provider={provider.id} onClick={() => void submit(provider.id)}>{t('server.providerLogin', { name: provider.name })}</Button>)}
         {config.initialized && config.native_enabled && (creating || publicSignup || (inviteSignup && !link.teamInvitationToken)) && <Button type="button" variant="ghost" disabled={busy} onClick={() => {
           setChoice(creating ? 'login' : publicSignup ? 'register' : 'accept')
           setMfaRequired(false); setMfaCode('')

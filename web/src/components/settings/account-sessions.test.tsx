@@ -7,7 +7,7 @@ import { AccountSettings } from './account-settings'
 
 const workbench = vi.hoisted(() => ({
   serverIdentity: { email: 'member@example.test', user: { user_id: 'member', username: 'Member' } },
-  serverAuthConfig: { oidc_enabled: false },
+  serverAuthConfig: { oidc_enabled: false, oidc_providers: [] },
   logout: vi.fn(),
 }))
 vi.mock('@/state/workbench', () => ({ useWorkbench: () => workbench }))

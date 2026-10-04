@@ -57,6 +57,7 @@ pub(crate) fn router() -> Router {
 struct UpdateRegistrationRequest {
     mode: RegistrationMode,
     require_approval: bool,
+    oidc_only: bool,
     revision: u64,
 }
 
@@ -86,6 +87,20 @@ async fn update_registration(
         .parse_json::<UpdateRegistrationRequest>()
         .await
         .map_err(invalid_request)?;
+    let state = app_state(depot);
+    if body.oidc_only
+        && state
+            .security
+            .current(&state.store)
+            .await?
+            .providers
+            .is_empty()
+    {
+        return Err(ternilo_protocol::HarnessError::invalid(
+            "OAuth2-only registration requires at least one available OIDC provider",
+        )
+        .into());
+    }
     Ok(Json(
         app_state(depot)
             .store
@@ -93,6 +108,7 @@ async fn update_registration(
                 actor(depot),
                 body.mode,
                 body.require_approval,
+                body.oidc_only,
                 body.revision,
                 now_ms()?,
             )

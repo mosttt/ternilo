@@ -56,8 +56,8 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
       const saved = await response
       assert.equal(saved.status(), 200, await saved.text())
       const body = await saved.json()
-      assert.equal(body.oidc.has_client_secret, true)
-      assert.equal(body.oidc.client_secret, undefined)
+      assert.equal(body.oidc_providers[0].has_client_secret, true)
+      assert.equal(body.oidc_providers[0].client_secret, undefined)
       assert.equal(JSON.stringify(body).includes(secret), false)
       return body
     }
@@ -116,7 +116,7 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     await anonymous.reload()
     const [exchange] = await Promise.all([
       anonymous.waitForResponse(response => response.url() === `${origin}/auth/token`),
-      anonymous.getByRole('button', { name: '使用组织账号登录', exact: true }).click(),
+      anonymous.getByRole('button', { name: '使用 Organization 登录', exact: true }).click(),
     ])
     assert.equal(exchange.status(), 200, await exchange.text())
     const identity = await serverRequest(origin, '/auth/session', { token: (await exchange.json()).access_token })
@@ -155,7 +155,7 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     assert.equal(config.turnstile, undefined)
     const recovered = await serverRequest(origin, resource, { token: ownerToken })
     assert.equal(recovered.revision, 0)
-    assert.equal(recovered.oidc.has_client_secret, false)
+    assert.equal(recovered.oidc_providers[0].has_client_secret, false)
     assert.equal((await serverRequest(origin, '/auth/login', { body: ownerCredentials })).user.user_id, ownerUserId)
     assert.deepEqual(errors, [])
   } catch (error) {

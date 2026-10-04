@@ -14,22 +14,24 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('OIDC session lifecycle', () => {
   it('keeps token refresh on the existing root endpoint', async () => {
+    sessionStorage.setItem('ternilo.oidc.provider', 'organization')
     sessionStorage.setItem('ternilo.oidc.refresh', 'refresh-token')
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ access_token: 'new-token', expires_in: 3600 })))
     vi.stubGlobal('fetch', fetchMock)
     await expect(refreshOidcSession()).resolves.toBe('new-token')
-    expect(fetchMock).toHaveBeenCalledWith('/auth/refresh', expect.objectContaining({ method: 'POST', body: JSON.stringify({ refresh_token: 'refresh-token' }) }))
+    expect(fetchMock).toHaveBeenCalledWith('/auth/refresh', expect.objectContaining({ method: 'POST', body: JSON.stringify({ provider_id: 'organization', refresh_token: 'refresh-token' }) }))
     await expect(initializeOidcSession()).resolves.toBe('new-token')
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('does not restore old OIDC credentials after switching to a native account', async () => {
+    sessionStorage.setItem('ternilo.oidc.provider', 'organization')
     sessionStorage.setItem('ternilo.oidc.refresh', 'old-account-refresh')
     let release!: (response: Response) => void
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { release = resolve })))
     const request = refreshOidcSession()
     clearOidcSession()
-    release(new Response(JSON.stringify({ access_token: 'old-account-token', refresh_token: 'old-next-refresh', expires_in: 3600 })))
+    release(new Response(JSON.stringify({ access_token: 'old-account-token', refresh_token: 'old-next-refresh', provider_id: 'organization', expires_in: 3600 })))
     await expect(request).rejects.toMatchObject({ failure: 'expired' })
     expect(sessionStorage.getItem('ternilo.oidc.access')).toBeNull()
     expect(sessionStorage.getItem('ternilo.oidc.refresh')).toBeNull()
@@ -42,6 +44,7 @@ describe('Explicit native account linking', () => {
     sessionStorage.setItem('ternilo.oidc.link-native', 'native-original')
     sessionStorage.setItem('ternilo.oidc.state', 'expected')
     sessionStorage.setItem('ternilo.oidc.verifier', 'verifier')
+    sessionStorage.setItem('ternilo.oidc.attempt-provider', 'organization')
     sessionStorage.setItem('ternilo.oidc.nonce', 'expected-nonce-for-login')
     vi.stubGlobal('location', { pathname: '/auth/callback', search: '?code=code&state=expected' })
     vi.stubGlobal('history', { replaceState: vi.fn() })
@@ -51,7 +54,7 @@ describe('Explicit native account linking', () => {
     callback()
     const nativeSession = sessionStorage.getItem('ternilo.native.session')
     const fetchMock = vi.fn(async path => new Response(JSON.stringify(path === '/auth/token'
-      ? { access_token: 'oidc-token', refresh_token: 'oidc-refresh', expires_in: 3600 }
+      ? { access_token: 'oidc-token', refresh_token: 'oidc-refresh', provider_id: 'organization', expires_in: 3600 }
       : { native: true, oidc: { issuer: 'https://issuer.test', subject: 'subject' } })))
     vi.stubGlobal('fetch', fetchMock)
     await expect(completeOidcLink()).resolves.toBe(true)
@@ -107,6 +110,7 @@ describe('Management page OIDC return paths', () => {
   it.each(['/admin/accounts', '/admin/models', '/models', '/spaces/current', '/files'])('restores the authorized application path %s after login', async path => {
     sessionStorage.setItem('ternilo.oidc.state', 'expected')
     sessionStorage.setItem('ternilo.oidc.verifier', 'verifier')
+    sessionStorage.setItem('ternilo.oidc.attempt-provider', 'organization')
     sessionStorage.setItem('ternilo.oidc.nonce', 'expected-nonce-for-login')
     sessionStorage.setItem('ternilo.oidc.return-path', path)
     vi.stubGlobal('location', { pathname: '/auth/callback', search: '?code=code&state=expected' })
@@ -120,6 +124,7 @@ describe('Management page OIDC return paths', () => {
   it.each(['https://evil.test/', '//evil.test/', '/admin/accounts?redirect=https://evil.test', 'https://evil.test/files?session_id=private', '//evil.test/files?session_id=private', '/\\evil.test/files'])('discards an unsupported return path %s', async path => {
     sessionStorage.setItem('ternilo.oidc.state', 'expected')
     sessionStorage.setItem('ternilo.oidc.verifier', 'verifier')
+    sessionStorage.setItem('ternilo.oidc.attempt-provider', 'organization')
     sessionStorage.setItem('ternilo.oidc.nonce', 'expected-nonce-for-login')
     sessionStorage.setItem('ternilo.oidc.return-path', path)
     vi.stubGlobal('location', { pathname: '/auth/callback', search: '?code=code&state=expected' })
@@ -134,9 +139,9 @@ describe('Management page OIDC return paths', () => {
     vi.stubGlobal('crypto', { getRandomValues: (value: Uint8Array) => value.fill(7), subtle: { digest: async () => new ArrayBuffer(32) } })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: true,
-      oidc: { authorization_endpoint: 'https://identity.test/authorize', client_id: 'client', redirect_uri: 'https://app.test/auth/callback', scope: 'openid' },
+      oidc_providers: [{ id: 'organization', name: 'Organization', config: { authorization_endpoint: 'https://identity.test/authorize', client_id: 'client', redirect_uri: 'https://app.test/auth/callback', scope: 'openid' } }],
     }))))
-    await beginOidcLogin()
+    await beginOidcLogin('organization')
     expect(sessionStorage.getItem('ternilo.oidc.return-path')).toBe('/files?session_id=session%2Fa&query=release+notes')
 
     sessionStorage.setItem('ternilo.oidc.state', 'expected')
@@ -155,7 +160,7 @@ describe('OIDC browser prerequisites', () => {
     vi.stubGlobal('crypto', { getRandomValues: (value: Uint8Array) => value.fill(7), subtle: { digest: async () => new ArrayBuffer(32) } })
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       oidc_enabled: true,
-      oidc: { authorization_endpoint: 'https://identity.test/authorize', client_id: 'client', redirect_uri: redirect, scope: 'openid' },
+      oidc_providers: [{ id: 'organization', name: 'Organization', config: { authorization_endpoint: 'https://identity.test/authorize', client_id: 'client', redirect_uri: redirect, scope: 'openid' } }],
     })))
     vi.stubGlobal('fetch', fetchMock)
     sessionStorage.setItem('ternilo.oidc.access', 'existing-session')
@@ -165,7 +170,7 @@ describe('OIDC browser prerequisites', () => {
   it('reports unavailable browser cryptography before requests or session changes', async () => {
     const fetchMock = configure()
     vi.stubGlobal('crypto', { getRandomValues: vi.fn() })
-    await expect(beginOidcLogin()).rejects.toMatchObject({ failure: 'secure_context_required' })
+    await expect(beginOidcLogin('organization')).rejects.toMatchObject({ failure: 'secure_context_required' })
     expect(fetchMock).not.toHaveBeenCalled()
     expect(location.assign).not.toHaveBeenCalled()
     expect(sessionStorage.getItem('ternilo.oidc.access')).toBe('existing-session')
@@ -174,7 +179,7 @@ describe('OIDC browser prerequisites', () => {
 
   it.each(['http://app.test/auth/callback', 'https://other.test/auth/callback', 'https://app.test:4321/auth/callback'])('rejects a different callback origin: %s', async callback => {
     configure(callback)
-    await expect(beginOidcLogin()).rejects.toMatchObject({ failure: 'origin_mismatch' })
+    await expect(beginOidcLogin('organization')).rejects.toMatchObject({ failure: 'origin_mismatch' })
     expect(location.assign).not.toHaveBeenCalled()
     expect(sessionStorage.getItem('ternilo.oidc.access')).toBe('existing-session')
     expect(sessionStorage.getItem('ternilo.oidc.verifier')).toBeNull()
@@ -185,7 +190,7 @@ describe('OIDC browser prerequisites', () => {
     let finish!: (digest: ArrayBuffer) => void
     const digest = vi.fn(() => new Promise<ArrayBuffer>(resolve => { finish = resolve }))
     vi.stubGlobal('crypto', { getRandomValues: (value: Uint8Array) => value.fill(7), subtle: { digest } })
-    const login = beginOidcLogin()
+    const login = beginOidcLogin('organization')
     await vi.waitFor(() => expect(digest).toHaveBeenCalledOnce())
     clearOidcSession()
     finish(new ArrayBuffer(32))

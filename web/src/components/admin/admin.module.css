@@ -99,9 +99,20 @@
 .approvalOption input { margin-top: 4px; width: 16px; height: 16px; accent-color: var(--primary); flex-shrink: 0; }
 .approvalOption small { display: block; color: var(--muted-foreground); font-size: 12px; }
 .accountRole { flex-wrap: wrap; }
-[data-account-status="pending"] { color: var(--foreground); }
-[data-account-status="banned"] { color: var(--destructive); }
-[data-account-status="removed"] { color: var(--muted-foreground); }
+.accountHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.accountIdentity .accountStatus {
+  --status-color: var(--muted-foreground);
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: var(--status-color);
+  border: 1px solid color-mix(in srgb, var(--status-color) 40%, var(--border));
+  background: color-mix(in srgb, var(--status-color) 12%, var(--card));
+}
+.accountStatus::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.accountIdentity .accountStatus[data-account-status="active"] { --status-color: var(--success); }
+.accountIdentity .accountStatus[data-account-status="pending"] { --status-color: var(--warning); }
+.accountIdentity .accountStatus[data-account-status="banned"],
+.accountIdentity .accountStatus[data-account-status="rejected"] { --status-color: var(--destructive); }
 .nodeCleanup { width: 100%; max-width: 680px; font-size: 12px; }
 .nodeCleanup summary { cursor: pointer; color: var(--foreground); }
 .nodeCleanup > div { display: grid; gap: 10px; padding-top: 10px; }

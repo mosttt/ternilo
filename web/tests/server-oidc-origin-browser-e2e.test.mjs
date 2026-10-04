@@ -34,7 +34,7 @@ test('OIDC explains insecure or mismatched origins and preserves native recovery
     await page.goto(insecure)
     assert.equal(await page.evaluate(() => isSecureContext), false)
     assert.equal(await page.evaluate(() => Boolean(crypto.subtle)), false)
-    await page.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await page.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await page.getByRole('alert').filter({ hasText: '浏览器加密功能' }).waitFor()
     assert.equal(await page.evaluate(() => sessionStorage.getItem('ternilo.oidc.verifier')), null)
     assert.equal(new URL(page.url()).origin, insecure)
@@ -49,10 +49,10 @@ test('OIDC explains insecure or mismatched origins and preserves native recovery
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     let settings = await serverRequest(origin, resource, { token: ownerToken })
-    const update = publicUrl => ({ revision: settings.revision, public_url: publicUrl, oidc: {
-      issuer: settings.oidc.issuer, audience: settings.oidc.audience, client_id: settings.oidc.client_id,
-      scopes: settings.oidc.scopes, token_auth_method: settings.oidc.token_auth_method,
-    }, turnstile: null })
+    const update = publicUrl => ({ revision: settings.revision, public_url: publicUrl, oidc_providers: [{ id: 'organization', name: 'Organization', enabled: true, ...{
+      issuer: settings.oidc_providers[0].issuer, audience: settings.oidc_providers[0].audience, client_id: settings.oidc_providers[0].client_id,
+      scopes: settings.oidc_providers[0].scopes, token_auth_method: settings.oidc_providers[0].token_auth_method,
+    } }], turnstile: null })
     for (const publicUrl of ['https://0.0.0.0:4321', 'https://[::]:4321']) {
       const response = await fetch(`${origin}/api/v1${resource}`, {
         method: 'PUT', headers: { authorization: `Bearer ${ownerToken}`, 'content-type': 'application/json' }, body: JSON.stringify(update(publicUrl)),
@@ -63,7 +63,7 @@ test('OIDC explains insecure or mismatched origins and preserves native recovery
     settings = await serverRequest(origin, resource, { token: ownerToken, method: 'PUT', body: update('https://ternilo.example.test') })
     await page.goto(origin)
     assert.equal(await page.evaluate(() => Boolean(crypto.subtle)), true)
-    await page.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await page.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await page.getByRole('alert').filter({ hasText: '当前访问地址与登录回调地址不一致' }).waitFor()
     assert.equal(new URL(page.url()).origin, origin)
     assert.equal(await page.evaluate(() => sessionStorage.getItem('ternilo.oidc.verifier')), null)

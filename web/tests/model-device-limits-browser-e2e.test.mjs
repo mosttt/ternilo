@@ -50,7 +50,7 @@ test('device limits span account providers and platform budgets in real Server a
       models: [{ id: 'account-model', display_name: 'Account Model', settings: { mode: 'inherit' } }],
     } })
     const registration = await owner('/admin/registration')
-    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const memberCredentials = { username: 'limits-member', email: 'limits-member@example.test', password: 'synthetic-limits-member-password' }
     const { session: memberSession } = await evidence.http(server.origin, '/api/v1/auth/register', { method: 'POST', body: memberCredentials, status: 201 })
     const origin = `http://127.0.0.1:${await freePort()}`

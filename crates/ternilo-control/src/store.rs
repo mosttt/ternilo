@@ -213,6 +213,7 @@ impl ControlStore {
             )
             .await?;
         crate::authentication_settings::initialize(database).await?;
+        crate::registration_store::initialize(database).await?;
         crate::account_email::initialize(database).await?;
         crate::project_sharing::initialize(database).await?;
         crate::resource_ownership::initialize(database).await?;

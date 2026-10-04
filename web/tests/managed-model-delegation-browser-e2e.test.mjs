@@ -29,7 +29,7 @@ test('managed collaboration keeps model ownership separate from resources, submi
     const identity = server.owner.session
     const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token: identity.access_token, tenantId: identity.personal_tenant_id, ...options })
     const registration = await owner('/admin/registration')
-    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const credentials = { username: 'model-provider', email: 'model-provider@example.test', password: 'model-provider-fixture-password' }
     const { session: source } = await serverRequest(server.origin, '/auth/register', { body: credentials })
     const { tenant } = await owner('/tenants', { body: { slug: 'delegated-models', display_name: 'Delegated models' } })

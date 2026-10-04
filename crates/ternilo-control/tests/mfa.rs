@@ -323,7 +323,7 @@ async fn oidc_contract(
     assert!(challenge.mfa_challenge.starts_with("ter_mc_"));
     assert!(
         store
-            .authenticate_oidc_session(&challenge.mfa_challenge, "mfa-binding", now)
+            .authenticate_oidc_session(&challenge.mfa_challenge, &["mfa-binding"], now)
             .await
             .is_err()
     );
@@ -360,7 +360,7 @@ async fn oidc_contract(
     );
     assert_eq!(
         store
-            .authenticate_oidc_session(&grant.access_token, "mfa-binding", now + 3)
+            .authenticate_oidc_session(&grant.access_token, &["mfa-binding"], now + 3)
             .await
             .unwrap()
             .0
@@ -387,7 +387,7 @@ async fn oidc_contract(
         .unwrap();
     assert!(
         store
-            .authenticate_oidc_session(&rotated.access_token, "mfa-binding", now + 6)
+            .authenticate_oidc_session(&rotated.access_token, &["mfa-binding"], now + 6)
             .await
             .is_ok()
     );
@@ -399,7 +399,7 @@ async fn oidc_contract(
         .unwrap();
     assert!(
         store
-            .authenticate_oidc_session(&rotated.access_token, "mfa-binding", now + 7)
+            .authenticate_oidc_session(&rotated.access_token, &["mfa-binding"], now + 7)
             .await
             .is_err()
     );
@@ -483,7 +483,7 @@ async fn oidc_contract(
         .unwrap();
     assert!(
         reopened
-            .authenticate_oidc_session(&approved.access_token, "mfa-binding", now + 13)
+            .authenticate_oidc_session(&approved.access_token, &["mfa-binding"], now + 13)
             .await
             .is_ok()
     );
@@ -504,7 +504,7 @@ async fn oidc_contract(
     assert!(!reopened.mfa_status(actor).await.unwrap().enabled);
     assert!(
         reopened
-            .authenticate_oidc_session(&approved.access_token, "mfa-binding", now + 16)
+            .authenticate_oidc_session(&approved.access_token, &["mfa-binding"], now + 16)
             .await
             .is_err()
     );

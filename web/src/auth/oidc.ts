@@ -1,6 +1,7 @@
 import { loadServerAuthConfig, readNativeToken } from './server'
 
 interface BrowserTokens {
+  provider_id: string
   access_token: string
   expires_in: number
   refresh_token?: string
@@ -39,6 +40,9 @@ const keys = {
   linkNative: 'ternilo.oidc.link-native',
   returnPath: 'ternilo.oidc.return-path',
   mfa: 'ternilo.oidc.mfa',
+  provider: 'ternilo.oidc.provider',
+  attemptProvider: 'ternilo.oidc.attempt-provider',
+  invitation: 'ternilo.oidc.invitation',
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -62,6 +66,7 @@ function base64Url(value: Uint8Array) {
 }
 
 function storeTokens(tokens: BrowserTokens, fallbackRefresh = '') {
+  sessionStorage.setItem(keys.provider, tokens.provider_id)
   sessionStorage.setItem(keys.access, tokens.access_token)
   const refresh = tokens.refresh_token || fallbackRefresh
   if (refresh) sessionStorage.setItem(keys.refresh, refresh)
@@ -94,6 +99,7 @@ function clearAttempt() {
   sessionStorage.removeItem(keys.state)
   sessionStorage.removeItem(keys.nonce)
   sessionStorage.removeItem(keys.returnPath)
+  sessionStorage.removeItem(keys.attemptProvider)
 }
 
 function isCallback() {
@@ -107,24 +113,25 @@ async function finishCallback(accept: (tokens: BrowserTokens) => void | Promise<
   const expectedState = sessionStorage.getItem(keys.state)
   const verifier = sessionStorage.getItem(keys.verifier)
   const nonce = sessionStorage.getItem(keys.nonce)
+  const providerId = sessionStorage.getItem(keys.attemptProvider)
   const revision = sessionRevision
   const returnPath = applicationReturnPath(sessionStorage.getItem(keys.returnPath))
   try {
     if (parameters.has('error')) throw new OidcFlowError('provider_denied')
     const code = parameters.get('code')
-    if (!code || !verifier || !nonce || !expectedState || parameters.get('state') !== expectedState) {
+    if (!code || !verifier || !nonce || !providerId || !expectedState || parameters.get('state') !== expectedState) {
       throw new OidcFlowError('state_mismatch')
     }
     const tokens = await fetchJson<BrowserTokens | PendingOidcMfa>('/auth/token', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code, code_verifier: verifier, nonce }),
+      body: JSON.stringify({ provider_id: providerId, code, code_verifier: verifier, nonce }),
     })
     if (revision !== sessionRevision) throw new OidcFlowError('expired')
     if ('mfa_challenge' in tokens) {
       if (!allowMfa) throw new OidcFlowError('mfa_required')
-      sessionStorage.setItem(keys.mfa, JSON.stringify(tokens))
-    } else await accept(tokens)
+      sessionStorage.setItem(keys.mfa, JSON.stringify({ ...tokens, provider_id: providerId }))
+    } else await accept({ ...tokens, provider_id: providerId })
     return true
   } finally {
     clearAttempt()
@@ -155,7 +162,7 @@ export async function completeOidcLink() {
   }
 }
 
-export interface PendingOidcMfa { mfa_challenge: string; expires_at_ms: number }
+export interface PendingOidcMfa { mfa_challenge: string; expires_at_ms: number; provider_id: string }
 export function readPendingOidcMfa(): PendingOidcMfa | null {
   try {
     const value = JSON.parse(sessionStorage.getItem(keys.mfa) ?? 'null')
@@ -167,10 +174,10 @@ export function readPendingOidcMfa(): PendingOidcMfa | null {
 export async function completeOidcMfa(code: string) {
   const pending = readPendingOidcMfa(), revision = sessionRevision
   if (!pending) throw new OidcFlowError('expired')
-  const tokens = await fetchJson<BrowserTokens>('/auth/mfa', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ challenge: pending.mfa_challenge, code }) })
+  const tokens = await fetchJson<BrowserTokens>('/auth/mfa', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider_id: pending.provider_id, challenge: pending.mfa_challenge, code }) })
   if (revision !== sessionRevision || readPendingOidcMfa()?.mfa_challenge !== pending.mfa_challenge) throw new OidcFlowError('expired')
   sessionStorage.removeItem(keys.mfa)
-  storeTokens(tokens)
+  storeTokens({ ...tokens, provider_id: pending.provider_id })
 }
 
 export async function initializeOidcSession() {
@@ -188,33 +195,35 @@ export async function initializeOidcSession() {
 export async function refreshOidcSession() {
   const revision = sessionRevision
   const refresh = sessionStorage.getItem(keys.refresh)
-  if (!refresh) throw new OidcFlowError('expired')
+  const providerId = sessionStorage.getItem(keys.provider)
+  if (!refresh || !providerId) throw new OidcFlowError('expired')
   const tokens = await fetchJson<BrowserTokens>('/auth/refresh', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refresh }),
+    body: JSON.stringify({ provider_id: providerId, refresh_token: refresh }),
   })
   if (revision !== sessionRevision) throw new OidcFlowError('expired')
-  storeTokens(tokens, refresh)
+  storeTokens({ ...tokens, provider_id: providerId }, refresh)
   return tokens.access_token
 }
 
-export function beginOidcLogin() {
-  return beginOidcFlow()
+export function beginOidcLogin(providerId: string, invitationToken?: string) {
+  return beginOidcFlow(providerId, undefined, invitationToken)
 }
 
-export function beginOidcLink() {
+export function beginOidcLink(providerId: string) {
   const token = readNativeToken()
   if (!token) throw new OidcFlowError('expired')
-  return beginOidcFlow(token)
+  return beginOidcFlow(providerId, token)
 }
 
-async function beginOidcFlow(nativeToken?: string) {
+async function beginOidcFlow(providerId: string, nativeToken?: string, invitationToken?: string) {
   if (!globalThis.crypto?.subtle) throw new OidcFlowError('secure_context_required')
   const revision = sessionRevision
   const returnPath = applicationReturnPath(location.pathname === '/files' ? `${location.pathname}${location.search}` : location.pathname)
-  const { oidc: config, oidc_enabled: enabled } = await loadServerAuthConfig()
-  if (!enabled || !config) throw new OidcFlowError('provider_denied')
+  const { oidc_providers: providers } = await loadServerAuthConfig()
+  const config = providers.find(provider => provider.id === providerId)?.config
+  if (!config) throw new OidcFlowError('provider_denied')
   if (new URL(config.redirect_uri).origin !== location.origin) throw new OidcFlowError('origin_mismatch')
   const verifier = randomBase64Url(64)
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
@@ -223,6 +232,8 @@ async function beginOidcFlow(nativeToken?: string) {
   if (revision !== sessionRevision) throw new OidcFlowError('expired')
   if (nativeToken && nativeToken !== readNativeToken()) throw new OidcFlowError('expired')
   clearOidcSession()
+  sessionStorage.setItem(keys.attemptProvider, providerId)
+  if (invitationToken) sessionStorage.setItem(keys.invitation, invitationToken)
   if (nativeToken) {
     sessionStorage.setItem(keys.linkNative, nativeToken)
   }
@@ -252,3 +263,6 @@ export function clearOidcSession() {
 export function readOidcToken() {
   return sessionStorage.getItem(keys.access) ?? ''
 }
+
+export function readOidcInvitation() { return sessionStorage.getItem(keys.invitation) ?? '' }
+export function clearOidcInvitation() { sessionStorage.removeItem(keys.invitation) }

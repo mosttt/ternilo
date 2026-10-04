@@ -18,7 +18,7 @@ describe('Server account endpoints', () => {
     expect(isServerAccessPaused({ code: 'unavailable', message: 'this account is paused while the server is in single-user mode' })).toBe(false)
   })
   it('reads the one root public config, including optional OIDC', async () => {
-    const config = { initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false }
+    const config = { initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, oidc_providers: [] }
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(config)))
     vi.stubGlobal('fetch', fetchMock)
     await expect(loadServerAuthConfig()).resolves.toEqual(config)

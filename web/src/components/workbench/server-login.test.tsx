@@ -1,6 +1,8 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beginOidcLogin } from '@/auth/oidc'
+import type { ServerAuthConfig } from '@/auth/server'
 import { api, ApiError } from '@/api/client'
 import { LocaleProvider } from '@/i18n/provider'
 import { ServerLogin } from './server-login'
@@ -10,7 +12,7 @@ const workbench = vi.hoisted(() => ({
   accessPaused: false,
   oidcRegistrationRequired: false,
   registerOidcUsername: vi.fn<() => Promise<'active' | 'pending' | void>>(async () => 'active'),
-  serverAuthConfig: { initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, registration: { mode: 'invite', require_approval: false, revision: 1 } },
+  serverAuthConfig: { initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, oidc_providers: [] as ServerAuthConfig['oidc_providers'], registration: { mode: 'invite', require_approval: false, oidc_only: false, revision: 1 } },
   error: '',
   authenticate: vi.fn<() => Promise<'active' | 'pending' | void>>(async () => undefined),
   login: vi.fn(async () => undefined),
@@ -20,6 +22,7 @@ const workbench = vi.hoisted(() => ({
   notify: vi.fn(),
 }))
 vi.mock('@/state/workbench', () => ({ useWorkbench: () => workbench }))
+vi.mock('@/auth/oidc', async original => ({ ...await original<typeof import('@/auth/oidc')>(), beginOidcLogin: vi.fn() }))
 
 let root: Root
 let host: HTMLDivElement
@@ -28,7 +31,7 @@ beforeEach(() => {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  workbench.serverAuthConfig = { initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, registration: { mode: 'invite', require_approval: false, revision: 1 } }
+  workbench.serverAuthConfig = { initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, oidc_providers: [] as ServerAuthConfig['oidc_providers'], registration: { mode: 'invite', require_approval: false, oidc_only: false, revision: 1 } }
   sessionStorage.clear()
   workbench.accessPaused = false
   workbench.oidcRegistrationRequired = false
@@ -82,7 +85,7 @@ describe('Server account form', () => {
   })
   it('signs in natively in single-user mode without requiring an OIDC provider', async () => {
     await mount()
-    expect(document.body.textContent).not.toContain('使用组织账号登录')
+    expect(document.body.textContent).not.toContain('使用 Organization 登录')
     await settle(() => { fill('server-username', ' alice '); fill('server-password', ' password ') })
     await settle(submit)
     expect(workbench.authenticate).toHaveBeenCalledWith({ action: 'login', username: 'alice', password: ' password ' })
@@ -121,10 +124,11 @@ describe('Server account form', () => {
 
   it('offers organization sign-in only when the server enables OIDC', async () => {
     workbench.serverAuthConfig.oidc_enabled = true
+    workbench.serverAuthConfig.oidc_providers = [{ id: 'organization', name: 'Organization', config: { authorization_endpoint: '', client_id: '', redirect_uri: '', scope: 'openid' } }]
     await mount()
-    const button = [...document.querySelectorAll('button')].find(button => button.textContent === '使用组织账号登录')!
+    const button = [...document.querySelectorAll('button')].find(button => button.textContent === '使用 Organization 登录')!
     await settle(() => button.click())
-    expect(workbench.login).toHaveBeenCalledWith('')
+    expect(beginOidcLogin).toHaveBeenCalledWith('organization', undefined)
     expect(workbench.authenticate).not.toHaveBeenCalled()
   })
 })
@@ -156,7 +160,7 @@ it('keeps the team invitation while an existing account signs in', async () => {
 
 it('offers public signup without an invitation and explains pending registration before sign-in', async () => {
   workbench.serverAuthConfig.mode = 'multi_user'
-  workbench.serverAuthConfig.registration = { mode: 'open', require_approval: true, revision: 2 }
+  workbench.serverAuthConfig.registration = { mode: 'open', require_approval: true, oidc_only: false, revision: 2 }
   workbench.authenticate.mockResolvedValueOnce('pending')
   await mount()
   expect(document.body.textContent).not.toContain('使用邀请创建账号')
@@ -195,7 +199,7 @@ it('does not expose signup in single-user mode even when the stored policy is op
 
 it('keeps a team invitation through review registration without turning it into account invitation signup', async () => {
   workbench.serverAuthConfig.mode = 'multi_user'
-  workbench.serverAuthConfig.registration = { mode: 'open', require_approval: true, revision: 2 }
+  workbench.serverAuthConfig.registration = { mode: 'open', require_approval: true, oidc_only: false, revision: 2 }
   history.replaceState({}, '', '/#team_invite=team-token')
   workbench.authenticate.mockResolvedValueOnce('pending')
   await mount()
@@ -213,7 +217,7 @@ it('keeps a team invitation through review registration without turning it into 
 it('explains reviewed registration in English without an invitation field', async () => {
   vi.stubGlobal('localStorage', { getItem: () => 'en', setItem: vi.fn() })
   workbench.serverAuthConfig.mode = 'multi_user'
-  workbench.serverAuthConfig.registration = { mode: 'open', require_approval: true, revision: 2 }
+  workbench.serverAuthConfig.registration = { mode: 'open', require_approval: true, oidc_only: false, revision: 2 }
   workbench.authenticate.mockResolvedValueOnce('pending')
   await mount()
   await settle(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Create a new account')!.click())
@@ -229,9 +233,10 @@ it('explains reviewed registration in English without an invitation field', asyn
 it('translates pending OIDC identity errors on the login screen', async () => {
   workbench.error = 'account registration is pending approval'
   workbench.serverAuthConfig.oidc_enabled = true
+    workbench.serverAuthConfig.oidc_providers = [{ id: 'organization', name: 'Organization', config: { authorization_endpoint: '', client_id: '', redirect_uri: '', scope: 'openid' } }]
   await mount()
   expect(document.querySelector('[role="alert"]')?.textContent).toContain('等待管理员审核')
-  expect(document.body.textContent).toContain('使用组织账号登录')
+  expect(document.body.textContent).toContain('使用 Organization 登录')
 })
 
 
@@ -245,12 +250,12 @@ it('asks a verified OIDC user for their platform username and contact email, kee
   expect(input('server-account-token')).toBeNull()
   await settle(() => { fill('server-username', 'chosen-user'); fill('server-email', 'chosen@example.test') })
   await settle(submit)
-  expect(workbench.registerOidcUsername).toHaveBeenCalledWith('chosen-user', 'chosen@example.test', undefined)
+  expect(workbench.registerOidcUsername).toHaveBeenCalledWith('chosen-user', 'chosen@example.test', undefined, undefined)
   expect(document.querySelector('[role="alert"]')?.textContent).toContain('这个用户名已被使用')
   expect(input('server-username').value).toBe('chosen-user')
   await settle(() => fill('server-username', 'available-user'))
   await settle(submit)
-  expect(workbench.registerOidcUsername).toHaveBeenLastCalledWith('available-user', 'chosen@example.test', undefined)
+  expect(workbench.registerOidcUsername).toHaveBeenLastCalledWith('available-user', 'chosen@example.test', undefined, undefined)
   expect(document.querySelector('[role="alert"]')).toBeNull()
   expect(workbench.authenticate).not.toHaveBeenCalled()
   expect(workbench.login).not.toHaveBeenCalled()

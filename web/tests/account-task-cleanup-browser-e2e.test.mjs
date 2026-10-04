@@ -62,7 +62,7 @@ test('account administration cancels queued managed tasks without reviving them 
     application = await initializeServer({ directory: path.join(directory, 'server'), origin, managedExecutionEnabled: true })
     const ownerToken = application.owner.session.access_token
     const registration = await serverRequest(origin, '/admin/registration', { token: ownerToken })
-    await serverRequest(origin, '/admin/registration', { token: ownerToken, method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await serverRequest(origin, '/admin/registration', { token: ownerToken, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const alice = await queueTasks(origin, ownerToken, 'cleanup-alice')
     const bob = await queueTasks(origin, ownerToken, 'cleanup-bob')
     browser = await chromium.launch({ headless: true })

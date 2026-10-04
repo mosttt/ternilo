@@ -745,7 +745,7 @@ async fn unified_oidc_contract(f: Fixture) {
     assert!(revoked.current_revoked);
     assert!(
         f.store
-            .authenticate_oidc_session(&next.access_token, "session-management", 3_006)
+            .authenticate_oidc_session(&next.access_token, &["session-management"], 3_006)
             .await
             .is_err()
     );
@@ -812,7 +812,7 @@ async fn mixed_session_revocation_invalidates_oidc_access_and_refresh_and_never_
     assert!(!revoked.current_revoked);
     assert!(
         f.store
-            .authenticate_oidc_session(&first.access_token, "session-management", 2_004)
+            .authenticate_oidc_session(&first.access_token, &["session-management"], 2_004)
             .await
             .is_err()
     );

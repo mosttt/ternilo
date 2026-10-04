@@ -51,6 +51,149 @@ fn account_invitation() -> UserInvitationRequest {
     }
 }
 
+#[tokio::test]
+async fn oauth_only_registration_enforces_password_and_invitation_admission() {
+    oauth_only_contract(&store().await).await;
+}
+
+pub(crate) async fn oauth_only_contract(store: &ControlStore) {
+    let owner = owner(store).await;
+    let actor = &owner.session.user;
+    let policy = store
+        .set_registration_settings(actor, RegistrationMode::Open, true, true, 1, 1_002)
+        .await
+        .unwrap();
+    assert!(policy.oidc_only);
+    let before = resource_counts(store).await;
+    let rejected = store
+        .register_native(&registration("password-new"), 1_003)
+        .await
+        .err()
+        .expect("password registration must be denied");
+    assert_eq!(rejected.code, ErrorCode::PolicyDenied);
+    assert_eq!(resource_counts(store).await, before);
+    assert!(
+        store
+            .login_native("owner", "registration-test-password", 1_004)
+            .await
+            .is_ok()
+    );
+    let external = principal("oauth-new");
+    let pending = store
+        .register_oidc(
+            &external,
+            "oauth-new",
+            "oauth-new@example.test",
+            None,
+            1_005,
+        )
+        .await
+        .unwrap();
+    assert_eq!(pending.status, AccountStatus::Pending);
+    oauth_only_invitation_contract(store, actor, policy.revision).await;
+}
+
+async fn oauth_only_invitation_contract(store: &ControlStore, actor: &ControlUser, revision: u64) {
+    let invitation_policy = store
+        .set_registration_settings(
+            actor,
+            RegistrationMode::Invite,
+            false,
+            true,
+            revision,
+            1_006,
+        )
+        .await
+        .unwrap();
+    assert!(invitation_policy.oidc_only);
+    let invitation = store
+        .create_user_invitation(actor, &account_invitation(), 1_007)
+        .await
+        .unwrap();
+    let invited = principal("oauth-invited");
+    let before = resource_counts(store).await;
+    assert!(
+        store
+            .accept_user_invitation(&invitation.token, &registration("password-invited"), 1_008)
+            .await
+            .is_err()
+    );
+    assert!(
+        store
+            .register_oidc(
+                &invited,
+                "oauth-invited",
+                "oauth-invited@example.test",
+                None,
+                1_009
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        store
+            .register_oidc(
+                &invited,
+                "oauth-invited",
+                "oauth-invited@example.test",
+                Some("invalid"),
+                1_009
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(resource_counts(store).await, before);
+    let active = store
+        .register_oidc(
+            &invited,
+            "oauth-invited",
+            "oauth-invited@example.test",
+            Some(&invitation.token),
+            1_010,
+        )
+        .await
+        .unwrap();
+    assert_eq!(active.status, AccountStatus::Active);
+    assert_eq!(
+        store
+            .authenticate_oidc_user(&invited, 1_011)
+            .await
+            .unwrap()
+            .user_id,
+        active.user_id
+    );
+    let replay = principal("oauth-replay");
+    assert!(
+        store
+            .register_oidc(
+                &replay,
+                "oauth-replay",
+                "oauth-replay@example.test",
+                Some(&invitation.token),
+                1_012
+            )
+            .await
+            .is_err()
+    );
+    store
+        .set_registration_settings(
+            actor,
+            RegistrationMode::Open,
+            false,
+            false,
+            invitation_policy.revision,
+            1_013,
+        )
+        .await
+        .unwrap();
+    assert!(
+        store
+            .register_native(&registration("password-restored"), 1_014)
+            .await
+            .is_ok()
+    );
+}
+
 async fn resource_counts(store: &ControlStore) -> (i64, i64, i64) {
     let row = sqlx::query("SELECT (SELECT COUNT(*) FROM control_users) AS users, (SELECT COUNT(*) FROM control_account_spaces) AS spaces, (SELECT COUNT(*) FROM control_browser_sessions) AS sessions")
         .fetch_one(store.database.pool()).await.unwrap();
@@ -92,13 +235,13 @@ pub(crate) async fn native_review_contract(store: &ControlStore) {
     );
     assert!(
         store
-            .set_registration_settings(actor, RegistrationMode::Invite, true, 1, 1_003)
+            .set_registration_settings(actor, RegistrationMode::Invite, true, false, 1, 1_003)
             .await
             .is_err()
     );
     assert_eq!(store.registration_settings().await.unwrap(), defaults);
     let settings = store
-        .set_registration_settings(actor, RegistrationMode::Open, true, 1, 1_004)
+        .set_registration_settings(actor, RegistrationMode::Open, true, false, 1, 1_004)
         .await
         .unwrap();
     let registered = store
@@ -235,6 +378,7 @@ pub(crate) async fn native_review_contract(store: &ControlStore) {
                     denied_actor,
                     RegistrationMode::Open,
                     false,
+                    false,
                     settings.revision,
                     1_008
                 )
@@ -335,6 +479,7 @@ pub(crate) async fn native_review_contract(store: &ControlStore) {
             &admin,
             RegistrationMode::Open,
             false,
+            false,
             settings.revision,
             1_016,
         )
@@ -391,7 +536,7 @@ pub(crate) async fn invitation_gate_contract(store: &ControlStore) {
         .await
         .unwrap();
     let open = store
-        .set_registration_settings(actor, RegistrationMode::Open, true, 1, 1_003)
+        .set_registration_settings(actor, RegistrationMode::Open, true, false, 1, 1_003)
         .await
         .unwrap();
     let before = resource_counts(store).await;
@@ -412,7 +557,14 @@ pub(crate) async fn invitation_gate_contract(store: &ControlStore) {
     );
     assert_eq!(resource_counts(store).await, before);
     let invite = store
-        .set_registration_settings(actor, RegistrationMode::Invite, false, open.revision, 1_005)
+        .set_registration_settings(
+            actor,
+            RegistrationMode::Invite,
+            false,
+            false,
+            open.revision,
+            1_005,
+        )
         .await
         .unwrap();
     let invited = store
@@ -465,7 +617,14 @@ pub(crate) async fn invitation_gate_contract(store: &ControlStore) {
     );
     assert_eq!(resource_counts(store).await, before);
     let open = store
-        .set_registration_settings(actor, RegistrationMode::Open, true, invite.revision, 1_010)
+        .set_registration_settings(
+            actor,
+            RegistrationMode::Open,
+            true,
+            false,
+            invite.revision,
+            1_010,
+        )
         .await
         .unwrap();
     let pending = store
@@ -519,6 +678,7 @@ pub(crate) async fn invitation_gate_contract(store: &ControlStore) {
                 actor,
                 RegistrationMode::Invite,
                 false,
+                false,
                 invite.revision,
                 1_017
             )
@@ -565,11 +725,11 @@ pub(crate) async fn oidc_gate_contract(store: &ControlStore) {
             .err()
             .unwrap()
             .message,
-        "registration requires an administrator invitation"
+        "choose a platform username to finish registration"
     );
     assert_eq!(resource_counts(store).await, before);
     let settings = store
-        .set_registration_settings(actor, RegistrationMode::Open, true, 1, 1_003)
+        .set_registration_settings(actor, RegistrationMode::Open, true, false, 1, 1_003)
         .await
         .unwrap();
     assert_eq!(
@@ -587,8 +747,20 @@ pub(crate) async fn oidc_gate_contract(store: &ControlStore) {
         "OIDC login cannot silently create an unnamed account"
     );
     let (first, second) = tokio::join!(
-        store.register_oidc(&identity, "chosen-external", "external@example.test", 1_004),
-        store.register_oidc(&identity, "other-name", "external@example.test", 1_004)
+        store.register_oidc(
+            &identity,
+            "chosen-external",
+            "external@example.test",
+            None,
+            1_004
+        ),
+        store.register_oidc(
+            &identity,
+            "other-name",
+            "external@example.test",
+            None,
+            1_004
+        )
     );
     let first = first.unwrap();
     assert_eq!(first.status, AccountStatus::Pending);
@@ -619,6 +791,7 @@ pub(crate) async fn oidc_gate_contract(store: &ControlStore) {
         .set_registration_settings(
             actor,
             RegistrationMode::Open,
+            false,
             false,
             settings.revision,
             1_005,
@@ -669,6 +842,7 @@ pub(crate) async fn oidc_gate_contract(store: &ControlStore) {
             &principal("immediate"),
             "immediate",
             "immediate@example.test",
+            None,
             1_009,
         )
         .await
@@ -683,6 +857,7 @@ pub(crate) async fn oidc_gate_contract(store: &ControlStore) {
         .set_registration_settings(
             actor,
             RegistrationMode::Invite,
+            false,
             false,
             settings.revision,
             1_010,
@@ -743,7 +918,7 @@ pub(crate) async fn status_pagination_contract(store: &ControlStore) {
     let owner = owner(store).await;
     let actor = &owner.session.user;
     store
-        .set_registration_settings(actor, RegistrationMode::Open, true, 1, 1_002)
+        .set_registration_settings(actor, RegistrationMode::Open, true, false, 1, 1_002)
         .await
         .unwrap();
     let mut expected = BTreeSet::new();
@@ -754,6 +929,7 @@ pub(crate) async fn status_pagination_contract(store: &ControlStore) {
                     &principal(subject),
                     subject,
                     &format!("{subject}@example.test"),
+                    None,
                     1_003,
                 )
                 .await
@@ -837,7 +1013,7 @@ pub(crate) async fn canonical_username_contract(store: &ControlStore) {
     let actor = &owner.session.user;
     assert_eq!(actor.username, "owner");
     store
-        .set_registration_settings(actor, RegistrationMode::Open, false, 1, 1_002)
+        .set_registration_settings(actor, RegistrationMode::Open, false, false, 1, 1_002)
         .await
         .unwrap();
     let external = principal("arbitrary-external-subject");
@@ -855,6 +1031,7 @@ pub(crate) async fn canonical_username_contract(store: &ControlStore) {
             &external,
             "  Alice.User  ",
             "alice.user@example.test",
+            None,
             1_004,
         )
         .await
@@ -878,6 +1055,7 @@ pub(crate) async fn canonical_username_contract(store: &ControlStore) {
                 &principal("other-subject"),
                 "Alice.User",
                 "other-subject@example.test",
+                None,
                 1_006,
             )
             .await
@@ -887,6 +1065,7 @@ pub(crate) async fn canonical_username_contract(store: &ControlStore) {
                 &principal("other-owner"),
                 "OWNER",
                 "other-owner@example.test",
+                None,
                 1_006,
             )
             .await
@@ -909,6 +1088,7 @@ pub(crate) async fn canonical_username_contract(store: &ControlStore) {
             &changed_claims,
             "attempted-rename",
             "changed@example.test",
+            None,
             1_007,
         )
         .await
@@ -997,6 +1177,7 @@ pub(crate) async fn canonical_username_contract(store: &ControlStore) {
             &linked_identity,
             "attempted-owner-rename",
             "ignored@example.test",
+            None,
             1_013,
         )
         .await
@@ -1017,17 +1198,34 @@ async fn concurrent_native_and_oidc_registration_share_one_username_namespace() 
     username_race_contract(&store().await).await;
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Verify registration, linking and account identity through one concurrent lifecycle."
+)]
 pub(crate) async fn username_race_contract(store: &ControlStore) {
     let owner = owner(store).await;
     store
-        .set_registration_settings(&owner.session.user, RegistrationMode::Open, false, 1, 1_002)
+        .set_registration_settings(
+            &owner.session.user,
+            RegistrationMode::Open,
+            false,
+            false,
+            1,
+            1_002,
+        )
         .await
         .unwrap();
     let native_request = registration("Race.User");
     let external = principal("race-external");
     let (native, oidc) = tokio::join!(
         store.register_native(&native_request, 1_003),
-        store.register_oidc(&external, "RACE.USER", "race.user@example.test", 1_003),
+        store.register_oidc(
+            &external,
+            "RACE.USER",
+            "race.user@example.test",
+            None,
+            1_003
+        ),
     );
     let native = native.map(|outcome| outcome.user_id);
     let oidc = oidc.map(|outcome| outcome.user_id);
@@ -1058,6 +1256,7 @@ pub(crate) async fn username_race_contract(store: &ControlStore) {
             &linked_identity,
             "race-link-user",
             "race-link@example.test",
+            None,
             1_004
         ),
         store.link_native_oidc(&owner.session.user, &linked_identity, 1_004),

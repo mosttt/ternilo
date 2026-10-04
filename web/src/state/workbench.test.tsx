@@ -118,7 +118,7 @@ describe('WorkbenchProvider Server accounts', () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
     localStorage.setItem('ternilo.sidebar-view-v1', JSON.stringify({ groupBy: 'computer', onlineComputersOnly: true }))
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false }))))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, oidc_providers: [] }))))
     const request = nativeServerRoutes()
     const full = deferred<ApplicationState>()
     request.mockImplementation(async (path: string) => {
@@ -147,7 +147,7 @@ describe('WorkbenchProvider Server accounts', () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     let registered = false
     const fetchMock = vi.fn(async (path: string) => {
-      if (path === '/auth/config') return new Response(JSON.stringify({ initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: true, registration: { mode: 'open', require_approval: status === 'pending', revision: 2 } }))
+      if (path === '/auth/config') return new Response(JSON.stringify({ initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: true, oidc_providers: [], registration: { mode: 'open', require_approval: status === 'pending', oidc_only: false, revision: 2 } }))
       if (path === '/api/v1/auth/oidc/register') {
         registered = true
         return new Response(JSON.stringify({ status, user_id: 'oidc-user' }), { status: 201 })
@@ -200,7 +200,7 @@ describe('WorkbenchProvider Server accounts', () => {
   it('retains the verified OIDC registration flow after a username conflict', async () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     vi.stubGlobal('fetch', vi.fn(async (path: string) => new Response(JSON.stringify(path === '/auth/config'
-      ? { initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: true, registration: { mode: 'open', require_approval: false, revision: 2 } }
+      ? { initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: true, oidc_providers: [], registration: { mode: 'open', require_approval: false, oidc_only: false, revision: 2 } }
       : { error: { code: 'conflict', message: 'username is already registered' } }), { status: path === '/auth/config' ? 200 : 409 })))
     vi.spyOn(api, 'request').mockRejectedValue(new ApiError('choose a platform username to finish registration', 403, 'policy_denied'))
     await mount()
@@ -216,7 +216,7 @@ describe('WorkbenchProvider Server accounts', () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     let approved = false
     const fetchMock = vi.fn(async (path: string) => new Response(JSON.stringify(path === '/auth/config'
-      ? { initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: false, registration: { mode: 'open', require_approval: true, revision: 2 } }
+      ? { initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: false, oidc_providers: [], registration: { mode: 'open', require_approval: true, oidc_only: false, revision: 2 } }
       : { status: approved ? 'active' : 'pending', user_id: 'native-owner', session: approved ? { ...serverIdentity, access_token: 'native-token', expires_at_ms: Date.now() + 60_000 } : null })))
     vi.stubGlobal('fetch', fetchMock)
     nativeServerRoutes()
@@ -239,7 +239,7 @@ describe('WorkbenchProvider Server accounts', () => {
   it('stops a paused account and clears visible data while retaining its credential for a later retry', async () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
-    const configResponse = () => new Response(JSON.stringify({ initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: false }))
+    const configResponse = () => new Response(JSON.stringify({ initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: false, oidc_providers: [] }))
     vi.stubGlobal('fetch', vi.fn(async () => configResponse()))
     const routes = nativeServerRoutes()
     await mount()
@@ -262,7 +262,7 @@ describe('WorkbenchProvider Server accounts', () => {
   it('reloads account-owned resources and rejects a late prior-account refresh in the same space', async () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => new Response(JSON.stringify(path === '/auth/config'
-      ? { initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: false }
+      ? { initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: false, oidc_providers: [] }
       : { ...serverIdentity, user: { user_id: JSON.parse(String(options?.body)).username, username: JSON.parse(String(options?.body)).username }, access_token: JSON.parse(String(options?.body)).username, expires_at_ms: Date.now() + 60_000 }))))
     const stale = deferred<ApplicationState>()
     let holdOldState = false
@@ -292,7 +292,7 @@ describe('WorkbenchProvider Server accounts', () => {
   it('restores a native account in single-user mode while retaining the Server resource model', async () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false }))))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, oidc_providers: [] }))))
     nativeServerRoutes()
     await mount()
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
@@ -309,7 +309,7 @@ describe('WorkbenchProvider Server accounts', () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     let registrationMode = 'invite'
     const fetchMock = vi.fn(async (path: string) => new Response(JSON.stringify(path === '/auth/config'
-      ? { initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, registration: { mode: registrationMode, require_approval: false, revision: 1 } }
+      ? { initialized: true, mode: 'single_user', native_enabled: true, oidc_enabled: false, oidc_providers: [], registration: { mode: registrationMode, require_approval: false, oidc_only: false, revision: 1 } }
       : { ...serverIdentity, access_token: 'native-token', expires_at_ms: Date.now() + 60_000 })))
     vi.stubGlobal('fetch', fetchMock)
     const request = nativeServerRoutes()
@@ -766,7 +766,7 @@ describe('WorkbenchProvider request epochs', () => {
 
   it('prevents an old tenant load from retargeting the API or ending the active load', async () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: true }))))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, mode: 'multi_user', native_enabled: true, oidc_enabled: true, oidc_providers: [] }))))
     localStorage.setItem('ternilo.current-tenant', 'tenant-a')
     const oldRoster = deferred<{ tenants: TenantSummary[] }>()
     const nextRoster = deferred<{ tenants: TenantSummary[] }>()

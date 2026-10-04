@@ -1,4 +1,7 @@
 export const zh = {
+  "registration.oidcOnly": "仅限 OAuth2 方式注册",
+  "registration.oidcOnlyDescription": "新账号必须通过已启用的 OAuth2 / OIDC 登录方式注册，邀请注册同样适用。已有账号仍可用密码登录。",
+
   'accounts.nodeCleanup.issue.unknown': '电脑重启前未记录进程退出，当前无法确认旧进程状态。请在电脑端检查。',
   'accounts.nodeCleanup.issue.process': '正在等待受管进程退出。',
   'accounts.nodeCleanup.issue.session': '正在等待会话任务结束并保存清理状态。',
@@ -135,6 +138,9 @@ export const zh = {
 } satisfies Record<string, string>
 
 export const en: Record<keyof typeof zh, string> = {
+  "registration.oidcOnly": "OAuth2-only registration",
+  "registration.oidcOnlyDescription": "New accounts must register through an enabled OAuth2 / OIDC provider, including invitation registration. Existing accounts can still sign in with a password.",
+
   'accounts.nodeCleanup.issue.unknown': 'Process completion was not recorded before the computer restarted. Check the original process state on that computer.',
   'accounts.nodeCleanup.issue.process': 'Waiting for supervised processes to exit.',
   'accounts.nodeCleanup.issue.session': 'Waiting for session work to end and cleanup state to be saved.',

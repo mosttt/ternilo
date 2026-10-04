@@ -13,7 +13,7 @@ beforeEach(() => {
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   workbench.serverIdentity = { platform_role: 'owner', instance: { mode: 'multi_user' } }
-  vi.spyOn(api, 'request').mockImplementation(async (_path, options) => options?.body ? { ...options.body, revision: 4 } as never : { mode: 'invite', require_approval: false, revision: 3 } as never)
+  vi.spyOn(api, 'request').mockImplementation(async (_path, options) => options?.body ? { ...options.body, revision: 4 } as never : { mode: 'invite', require_approval: false, oidc_only: false, revision: 3 } as never)
 })
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.clearAllMocks() })
 async function settle(action?: () => void) { await act(async () => { action?.(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve() }) }
@@ -24,16 +24,16 @@ async function mode(value: string) { await settle(() => { const select = host.qu
 it('offers review only for open signup and removes account invitations before saving it', async () => {
   await mount()
   expect(host.querySelector('[data-admin-invitations]')).not.toBeNull()
-  expect(host.querySelector('input[type="checkbox"]')).toBeNull()
+  expect(host.querySelector('#registration-approval')).toBeNull()
   await mode('open')
   expect(host.querySelector('[data-admin-invitations]')).toBeNull()
-  await settle(() => (host.querySelector('input[type="checkbox"]') as HTMLInputElement).click())
+  await settle(() => (host.querySelector('#registration-approval') as HTMLInputElement).click())
   await settle(() => button('保存注册设置').click())
-  expect(api.request).toHaveBeenCalledWith('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: true, revision: 3 } })
+  expect(api.request).toHaveBeenCalledWith('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: true, oidc_only: false, revision: 3 } })
   await mode('invite')
-  expect(host.querySelector('input[type="checkbox"]')).toBeNull()
+  expect(host.querySelector('#registration-approval')).toBeNull()
   await settle(() => button('保存注册设置').click())
-  expect(api.request).toHaveBeenCalledWith('/admin/registration', { method: 'PATCH', body: { mode: 'invite', require_approval: false, revision: 4 } })
+  expect(api.request).toHaveBeenCalledWith('/admin/registration', { method: 'PATCH', body: { mode: 'invite', require_approval: false, oidc_only: false, revision: 4 } })
   expect(host.querySelector('[data-admin-invitations]')).not.toBeNull()
 })
 
@@ -61,7 +61,7 @@ it('hides single-user registration controls and does not load registration or in
   expect(host.textContent).toContain('不能注册新账号')
   expect(host.querySelector('[data-registration-settings]')).toBeNull()
   expect(host.querySelector('select')).toBeNull()
-  expect(host.querySelector('input[type="checkbox"]')).toBeNull()
+  expect(host.querySelector('#registration-approval')).toBeNull()
   expect(host.querySelector('[data-admin-invitations]')).toBeNull()
   expect(button('保存注册设置')).toBeUndefined()
   expect(api.request).not.toHaveBeenCalled()

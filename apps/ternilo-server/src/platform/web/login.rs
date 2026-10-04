@@ -48,6 +48,7 @@ pub(super) enum BrowserSignIn {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct MfaRequest {
+    provider_id: String,
     challenge: String,
     code: String,
 }
@@ -67,10 +68,8 @@ pub(super) async fn complete_mfa(
         .map_err(crate::platform::invalid_request)?;
     let state = app_state(depot);
     let runtime = state.security.current(&state.store).await?;
-    let web = runtime
-        .web_auth
-        .as_ref()
-        .ok_or_else(|| HarnessError::policy("OIDC is not enabled on this server"))?;
+    let provider = runtime.provider(&body.provider_id)?;
+    let web = &provider.web;
     let now = now_ms()?;
     let grant = state
         .store
@@ -105,14 +104,9 @@ pub(super) async fn exchange_code(
     }
     let state = app_state(depot);
     let runtime = state.security.current(&state.store).await?;
-    let web = runtime
-        .web_auth
-        .as_ref()
-        .ok_or_else(|| HarnessError::policy("OIDC is not enabled on this server"))?;
-    let validator = runtime
-        .auth
-        .as_ref()
-        .ok_or_else(|| HarnessError::policy("OIDC is not enabled on this server"))?;
+    let provider = runtime.provider(&body.provider_id)?;
+    let web = &provider.web;
+    let validator = &provider.auth;
     let token = exchange(
         web,
         &[
@@ -183,14 +177,9 @@ pub(super) async fn refresh_token(
         .map_err(crate::platform::invalid_request)?;
     let state = app_state(depot);
     let runtime = state.security.current(&state.store).await?;
-    let web = runtime
-        .web_auth
-        .as_ref()
-        .ok_or_else(|| HarnessError::policy("OIDC is not enabled on this server"))?;
-    let validator = runtime
-        .auth
-        .as_ref()
-        .ok_or_else(|| HarnessError::policy("OIDC is not enabled on this server"))?;
+    let provider = runtime.provider(&body.provider_id)?;
+    let web = &provider.web;
+    let validator = &provider.auth;
     let previous = state
         .store
         .oidc_refresh_session(&body.refresh_token, &web.binding, now_ms()?)

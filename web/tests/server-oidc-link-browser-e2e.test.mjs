@@ -106,7 +106,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
     const [authorization, linked] = await Promise.all([
       page.waitForRequest(request => request.url().startsWith(`${provider.issuer}/authorize?`)),
       page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/oidc-link' && response.request().method() === 'POST'),
-      settings.getByRole('button', { name: '绑定 OIDC 登录', exact: true }).click(),
+      settings.getByRole('button', { name: '关联 Organization', exact: true }).click(),
     ])
     const authorizationUrl = new URL(authorization.url())
     assert.equal(authorizationUrl.searchParams.get('code_challenge_method'), 'S256')
@@ -130,7 +130,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
     const linkedSettings = await openAccountSettings(page)
     await linkedSettings.getByText('OIDC 登录已绑定', { exact: true }).waitFor()
     await linkedSettings.getByText(provider.issuer, { exact: true }).waitFor()
-    assert.equal(await linkedSettings.getByRole('button', { name: '绑定 OIDC 登录', exact: true }).count(), 0)
+    assert.equal(await linkedSettings.getByRole('button', { name: '关联 Organization', exact: true }).count(), 0)
     await linkedSettings.locator('[data-account-settings]').scrollIntoViewIfNeeded()
     await page.screenshot({ path: path.join(artifacts, 'server-oidc-linked-owner.png'), fullPage: true })
     await page.getByRole('button', { name: '返回工作台', exact: true }).click()
@@ -138,7 +138,7 @@ test('A native owner explicitly links OIDC through PKCE and keeps the same accou
     await page.getByRole('button', { name: '退出登录', exact: true }).click()
     await page.getByLabel('用户名', { exact: true }).waitFor()
     assert.equal(await page.evaluate(key => sessionStorage.getItem(key), nativeKey), null)
-    await page.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await page.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await page.waitForURL(url => url.origin === origin && url.pathname === '/' && !url.search && !url.hash)
     await page.getByRole('button', { name: '用户设置', exact: true }).waitFor()
     const oidcToken = await page.evaluate(() => sessionStorage.getItem('ternilo.oidc.access'))

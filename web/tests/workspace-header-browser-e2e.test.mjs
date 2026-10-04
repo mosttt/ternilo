@@ -192,7 +192,7 @@ test('workspace identity, controls, navigation and two-way deletion remain consi
     const originalRow = page.locator(`[data-sidebar-session-row][data-session-id="${originalId}"]`)
     await originalRow.waitFor()
     const registration = await request('/admin/registration')
-    await request('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await request('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const member = (await serverRequest(server.origin, '/auth/register', { body: { username: 'delete-viewer', email: 'delete-viewer@example.test', password: 'delete-viewer-password' } })).session
     await request(`/tenants/${tenantId}/members/${member.user.user_id}`, { method: 'PUT', body: { role: 'member' } })
     const memberRequest = (resource, options = {}) => serverRequest(server.origin, resource, { token: member.access_token, tenantId, ...options })

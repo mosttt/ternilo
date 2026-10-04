@@ -75,10 +75,14 @@ function RegistrationSettingsEditor() {
             </Select>
           </Field>
           {draft.mode === 'open' ? <label className={css.approvalOption}>
-            <input type="checkbox" checked={draft.require_approval} disabled={!canEdit || saving} onChange={event => setDraft({ ...draft, require_approval: event.target.checked })} />
+            <input id="registration-approval" type="checkbox" checked={draft.require_approval} disabled={!canEdit || saving} onChange={event => setDraft({ ...draft, require_approval: event.target.checked })} />
             <span>{t('registration.requireApproval')}<small>{t('registration.approvalDescription')}</small></span>
           </label> : <p className={css.hint}>{t('registration.inviteDescription')}</p>}
-          {canEdit && <Button type="submit" variant="outline" disabled={saving || (draft.mode === settings?.mode && draft.require_approval === settings.require_approval)}>
+          <label className={css.approvalOption}>
+            <input id="registration-oidc-only" type="checkbox" checked={draft.oidc_only} disabled={!canEdit || saving} onChange={event => setDraft({ ...draft, oidc_only: event.target.checked })} />
+            <span>{t('registration.oidcOnly')}<small>{t('registration.oidcOnlyDescription')}</small></span>
+          </label>
+          {canEdit && <Button type="submit" variant="outline" disabled={saving || (draft.mode === settings?.mode && draft.require_approval === settings.require_approval && draft.oidc_only === settings.oidc_only)}>
             {saving && <LoaderCircle className="animate-spin" />}{t('registration.save')}
           </Button>}
         </form>}

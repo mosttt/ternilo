@@ -6,6 +6,7 @@ export type PlatformRole = 'owner' | 'admin' | 'operator' | 'auditor' | 'user'
 export interface RegistrationSettings {
   mode: 'open' | 'invite'
   require_approval: boolean
+  oidc_only: boolean
   revision: number
 }
 
@@ -23,12 +24,12 @@ export interface ServerAuthConfig {
   email_enabled?: boolean
   registration: RegistrationSettings
   turnstile?: { site_key: string }
-  oidc?: {
+  oidc_providers: Array<{ id: string; name: string; config: {
     authorization_endpoint: string
     client_id: string
     redirect_uri: string
     scope: string
-  }
+  } }>
 }
 
 export interface ServerInstance {
@@ -110,8 +111,8 @@ export function registerNative(input: Extract<NativeLoginInput, { action: 'regis
   return publicRequest<RegistrationResult>('/api/v1/auth/register', body)
 }
 
-export function registerOidcAccount(username: string, email: string, bearer: string, turnstileToken?: string) {
-  return publicRequest<Pick<RegistrationResult, 'status' | 'user_id'>>('/api/v1/auth/oidc/register', { username, email, ...(turnstileToken ? { turnstile_token: turnstileToken } : {}) }, bearer)
+export function registerOidcAccount(username: string, email: string, bearer: string, turnstileToken?: string, invitationToken?: string) {
+  return publicRequest<Pick<RegistrationResult, 'status' | 'user_id'>>('/api/v1/auth/oidc/register', { username, email, ...(turnstileToken ? { turnstile_token: turnstileToken } : {}), ...(invitationToken ? { invitation_token: invitationToken } : {}) }, bearer)
 }
 
 export function loadServerIdentity() {

@@ -295,7 +295,7 @@ async function registerMemberThroughOidc(browser, origin, oidc) {
   page.on('pageerror', error => pageErrors.push(error.message))
   try {
     await page.goto(origin, { waitUntil: 'domcontentloaded' })
-    await page.getByRole('button', { name: '使用组织账号登录' }).click()
+    await page.getByRole('button', { name: '使用 Organization 登录' }).click()
     await page.getByRole('dialog', { name: '完善账号信息', exact: true }).waitFor()
     await page.getByLabel('用户名', { exact: true }).fill('control-node-member')
     await page.getByLabel('邮箱', { exact: true }).fill('control-node-member@example.test')
@@ -604,7 +604,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
       workerPolicy: policyPath,
     })
     const registrationPolicy = await serverRequest(origin, '/admin/registration', { token: control.owner.session.access_token })
-    await serverRequest(origin, '/admin/registration', { token: control.owner.session.access_token, method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registrationPolicy.revision } })
+    await serverRequest(origin, '/admin/registration', { token: control.owner.session.access_token, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registrationPolicy.revision } })
     await waitForHttp(`${origin}/health`, control)
     browser = await chromium.launch({
       headless: true,
@@ -640,7 +640,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     })
 
     await page.goto(origin, { waitUntil: 'domcontentloaded' })
-    await page.getByRole('button', { name: '使用组织账号登录' }).click()
+    await page.getByRole('button', { name: '使用 Organization 登录' }).click()
     await selectSpace(page, control.owner.session.personal_tenant_id)
     const teamId = await createTeamThroughUi(page, 'Control Node Team', 'control-node-team')
 
@@ -656,7 +656,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     const memberPageErrors = []
     memberPage.on('pageerror', error => memberPageErrors.push(error.message))
     await memberPage.goto(origin, { waitUntil: 'domcontentloaded' })
-    await memberPage.getByRole('button', { name: '使用组织账号登录' }).click()
+    await memberPage.getByRole('button', { name: '使用 Organization 登录' }).click()
     await selectSpace(memberPage, teamId)
     oidc.selectIdentity('owner')
 

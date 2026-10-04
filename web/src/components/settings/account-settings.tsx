@@ -43,11 +43,11 @@ export function AccountSettings() {
     return () => { cancelled = true }
   }, [identity?.user.user_id, revision])
 
-  const begin = async () => {
+  const begin = async (providerId: string) => {
     if (busy || !link?.native || link.oidc) return
     setBusy(true)
     setError('')
-    try { await beginOidcLink() } catch (cause) {
+    try { await beginOidcLink(providerId) } catch (cause) {
       setError(cause instanceof OidcFlowError
         ? appT(cause.translationKey)
         : cause instanceof Error ? cause.message : String(cause))
@@ -86,7 +86,7 @@ export function AccountSettings() {
       description={link?.oidc ? link.oidc.issuer : t('account.oidcDescription')}
     >
       {link?.oidc ? <span className="text-sm text-muted-foreground">{t('account.linked')}</span>
-        : link?.native ? <Button type="button" disabled={busy} onClick={() => void begin()}>{t(busy ? 'account.redirecting' : 'account.linkOidc')}</Button>
+        : link?.native ? <div className="flex flex-wrap gap-2">{config.oidc_providers.map(provider => <Button key={provider.id} type="button" disabled={busy} onClick={() => void begin(provider.id)}>{busy ? t('account.redirecting') : appT('server.providerLink', { name: provider.name })}</Button>)}</div>
           : link ? <span className="text-sm text-muted-foreground">{t('account.nativeRequired')}</span>
             : error ? <Button type="button" variant="outline" onClick={() => setRevision(value => value + 1)}>{t('account.retry')}</Button>
               : <span className="text-sm text-muted-foreground" role="status">{t('account.loading')}</span>}

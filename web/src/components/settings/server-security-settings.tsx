@@ -1,32 +1,23 @@
 import * as React from 'react'
 import { api, ApiError } from '@/api/client'
 import { Button } from '@/components/ui/button'
-import { Field, Input, Label, Select } from '@/components/ui/field'
+import { Field, Input, Label } from '@/components/ui/field'
 import { Switch } from '@/components/ui/switch'
 import { useTranslate } from '@/i18n/provider'
 import { useWorkbench } from '@/state/workbench'
 import { ServerMailSettings, emptySmtp, type SmtpSettings } from './server-mail-settings'
 import { GroupHeader } from './settings-ui'
-
-interface OidcSettings {
-  issuer: string
-  audience: string
-  client_id: string
-  scopes: string
-  token_auth_method: 'none' | 'client_secret_basic' | 'client_secret_post'
-  has_client_secret: boolean
-}
+import { OidcProviderEditor, type OidcSettings } from './oidc-provider-editor'
 
 export interface ServerSecuritySettings {
   revision: number
   public_url: string
   oidc_unavailable: boolean
-  oidc: OidcSettings | null
+  oidc_providers: OidcSettings[]
   turnstile: { site_key: string; has_secret_key: boolean } | null
   smtp: SmtpSettings | null
 }
 
-const emptyOidc: OidcSettings = { issuer: '', audience: '', client_id: '', scopes: 'openid profile email', token_auth_method: 'none', has_client_secret: false }
 const endpoint = '/admin/instance/authentication'
 
 function validPublicOrigin(value: string) {
@@ -44,9 +35,8 @@ export function ServerSecuritySettingsPanel() {
   const { notify, retryAuthentication } = useWorkbench()
   const [saved, setSaved] = React.useState<ServerSecuritySettings | null>(null)
   const [origin, setOrigin] = React.useState('')
-  const [oidcEnabled, setOidcEnabled] = React.useState(false)
-  const [oidc, setOidc] = React.useState(emptyOidc)
-  const [clientSecret, setClientSecret] = React.useState('')
+  const [providers, setProviders] = React.useState<OidcSettings[]>([])
+  const oidcEnabled = providers.some(provider => provider.enabled)
   const [turnstileEnabled, setTurnstileEnabled] = React.useState(false)
   const [siteKey, setSiteKey] = React.useState('')
   const [secretKey, setSecretKey] = React.useState('')
@@ -62,11 +52,9 @@ export function ServerSecuritySettingsPanel() {
   const accept = React.useCallback((settings: ServerSecuritySettings) => {
     setSaved(settings)
     setOrigin(settings.public_url || location.origin)
-    setOidcEnabled(Boolean(settings.oidc))
-    setOidc(settings.oidc ?? emptyOidc)
+    setProviders(settings.oidc_providers.map(provider => ({ ...provider, client_secret: '' })))
     setTurnstileEnabled(Boolean(settings.turnstile))
     setSiteKey(settings.turnstile?.site_key ?? '')
-    setClientSecret('')
     setSecretKey('')
     setSmtpEnabled(Boolean(settings.smtp))
     setSmtp(settings.smtp ?? emptySmtp)
@@ -89,12 +77,11 @@ export function ServerSecuritySettingsPanel() {
     setBusy(true)
     setError('')
     try {
-      const { has_client_secret: _, ...oidcInput } = oidc
       const { has_password: _password, ...smtpInput } = smtp
       const settings = await api.request<ServerSecuritySettings>(endpoint, { method: 'PUT', body: {
         revision: saved.revision,
         public_url: origin.trim(),
-        oidc: oidcEnabled ? { ...oidcInput, issuer: oidc.issuer.trim(), audience: oidc.audience.trim(), client_id: oidc.client_id.trim(), client_secret: clientSecret || null } : null,
+        oidc_providers: providers.map(({ has_client_secret: _, available: _available, ...provider }) => ({ ...provider, name: provider.name.trim(), issuer: provider.issuer.trim(), audience: provider.audience.trim(), client_id: provider.client_id.trim(), client_secret: provider.client_secret || null })),
         turnstile: turnstileEnabled ? { site_key: siteKey.trim(), secret_key: secretKey || null } : null,
         smtp: smtpEnabled ? { ...smtpInput, host: smtp.host.trim(), from: smtp.from.trim(), password: smtpPassword || null } : null,
       } })
@@ -119,32 +106,11 @@ export function ServerSecuritySettingsPanel() {
           {invalidOrigin && <p id="auth-public-url-error" className="text-xs text-destructive">{t('invalidOrigin')}</p>}
         </Field>
         <div className="grid min-w-0 gap-4 border-t pt-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="grid gap-1"><Label htmlFor="auth-oidc-enabled">{t('oauth')}</Label><p className="text-xs leading-relaxed text-muted-foreground">{t('oauthHint')}</p></div>
-            <Switch id="auth-oidc-enabled" checked={oidcEnabled} onCheckedChange={setOidcEnabled} />
-          </div>
-          {oidcEnabled && <>
-            <Button type="button" variant="outline" className="w-fit" onClick={() => {
-              setOidc({ ...emptyOidc, issuer: 'https://connect.linux.do/', token_auth_method: 'client_secret_post' })
-              setClientSecret('')
-            }}>{t('linuxDo')}</Button>
-            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-              <Field><Label htmlFor="auth-issuer">{t('issuer')}</Label><Input id="auth-issuer" type="url" required value={oidc.issuer} onChange={event => setOidc(current => ({ ...current, issuer: event.target.value }))} /></Field>
-              <Field><Label htmlFor="auth-client-id">{t('clientId')}</Label><Input id="auth-client-id" required value={oidc.client_id} onChange={event => setOidc(current => ({ ...current, client_id: event.target.value }))} /></Field>
-              <Field><Label htmlFor="auth-scopes">{t('scopes')}</Label><Input id="auth-scopes" required value={oidc.scopes} onChange={event => setOidc(current => ({ ...current, scopes: event.target.value }))} /></Field>
-            </div>
-            <Field><Label htmlFor="auth-token-method">{t('method')}</Label><Select id="auth-token-method" value={oidc.token_auth_method} onValueChange={value => setOidc(current => ({ ...current, token_auth_method: value as OidcSettings['token_auth_method'] }))}>
-              <option value="none">{t('publicClient')}</option><option value="client_secret_basic">{t('basic')}</option><option value="client_secret_post">{t('post')}</option>
-            </Select></Field>
-            {oidc.token_auth_method !== 'none' && <Field><Label htmlFor="auth-client-secret">{t('clientSecret')}</Label><Input id="auth-client-secret" type="password" autoComplete="new-password" value={clientSecret} onChange={event => setClientSecret(event.target.value)} placeholder={t(oidc.has_client_secret ? 'secretKept' : 'secretRequired')} /></Field>}
-            {!invalidOrigin && <p className="break-all text-xs text-muted-foreground">{t('callback')}：<code>{origin.trim().replace(/\/$/, '')}/auth/callback</code></p>}
-            <p className="text-xs text-muted-foreground">{t('callbackHint')}</p>
-            <details className="min-w-0 rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm">{t('advanced')}</summary>
-              <Field className="mt-3"><Label htmlFor="auth-audience">{t('audience')}</Label><Input id="auth-audience" value={oidc.audience} onChange={event => setOidc(current => ({ ...current, audience: event.target.value }))} /><p className="text-xs leading-relaxed text-muted-foreground">{t('audienceHint')}</p></Field>
-            </details>
-            {saved.oidc_unavailable && <p className="text-sm text-destructive" role="status">{t('unavailable')}</p>}
-          </>}
+          <div className="grid gap-1"><Label>{t('oauth')}</Label><p className="text-xs leading-relaxed text-muted-foreground">{t('oauthHint')}</p></div>
+          {providers.map((provider, index) => <OidcProviderEditor key={provider.id} value={provider} onChange={value => setProviders(current => current.map(item => item.id === provider.id ? value : item))} onRemove={() => setProviders(current => current.filter(item => item.id !== provider.id))} index={index} />)}
+          <Button type="button" variant="outline" className="w-fit" disabled={providers.length >= 16} onClick={() => setProviders(current => [...current, { id: crypto.randomUUID(), name: '', enabled: true, issuer: '', audience: '', client_id: '', scopes: 'openid profile email', token_auth_method: 'none', has_client_secret: false, client_secret: '' }])}>{t('addProvider')}</Button>
+          {oidcEnabled && !invalidOrigin && <p className="break-all text-xs text-muted-foreground">{t('callback')}：<code>{origin.trim().replace(/\/$/, '')}/auth/callback</code></p>}
+          {oidcEnabled && <p className="text-xs text-muted-foreground">{t('callbackHint')}</p>}
         </div>
         <div className="grid min-w-0 gap-4 border-t pt-5">
           <div className="flex items-start justify-between gap-4">

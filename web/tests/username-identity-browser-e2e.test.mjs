@@ -9,7 +9,7 @@ import { freePort, initializeServer, repository, serverRequest, startOidcServer,
 
 async function organizationLogin(page, origin) {
   await page.goto(origin)
-  await page.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+  await page.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
 }
 
 async function existingOrganizationLogin(page, origin) {

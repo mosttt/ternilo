@@ -117,6 +117,7 @@ async fn contract(url: &str, migration: Option<&str>) {
             user,
             RegistrationMode::Open,
             false,
+            false,
             settings.revision,
             100_005,
         )

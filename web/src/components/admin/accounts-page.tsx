@@ -160,11 +160,13 @@ export function AccountsPage() {
               const draft = draftRoles[account.user_id] ?? account.platform_role
               return <article className={css.account} key={account.user_id} data-admin-account={account.user_id}>
                 <div className={css.accountIdentity}>
-                  <strong>{label}</strong>
+                  <div className={css.accountHeading}>
+                    <strong>{label}</strong>
+                    <span className={css.accountStatus} data-account-status={account.status}>{t(statusLabels[account.status])}</span>
+                  </div>
                   <span data-account-email="">{account.email ?? t('accounts.emailMissing')}</span>
                   <code>{account.user_id}</code>
                   <small>{t('accounts.created', { date: new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', { dateStyle: 'medium' }).format(account.created_at_ms) })}</small>
-                  <span data-account-status={account.status}>{t(statusLabels[account.status])}</span>
                   {(account.status === 'banned' || account.status === 'removed' || account.status === 'active') && account.platform_role !== 'owner' && <NodeCleanupPanel userId={account.user_id} statusRevision={account.status_revision} />}
                 </div>
                 <div className={css.accountRole}>

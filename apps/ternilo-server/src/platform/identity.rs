@@ -112,8 +112,7 @@ pub(crate) struct AuthConfig {
     oidc_enabled: bool,
     email_enabled: bool,
     registration: RegistrationSettings,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    oidc: Option<serde_json::Value>,
+    oidc_providers: Vec<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     turnstile: Option<serde_json::Value>,
 }
@@ -129,20 +128,18 @@ pub(crate) async fn auth_config(
     let state = app_state(depot);
     let instance = state.store.instance_settings().await?;
     let runtime = state.security.current(&state.store).await?;
-    let oidc = runtime
-        .web_auth
-        .as_ref()
-        .map(|auth| serde_json::to_value(auth.public_config()))
-        .transpose()
-        .map_err(|error| HarnessError::execution(format!("encode OIDC configuration: {error}")))?;
+    let oidc_providers = runtime.settings.oidc_providers.iter().filter_map(|settings| {
+        let provider = runtime.providers.get(&settings.id)?;
+        Some(serde_json::json!({"id":settings.id,"name":provider.name,"config":provider.web.public_config()}))
+    }).collect::<Vec<_>>();
     Ok(Json(AuthConfig {
         initialized: instance.is_some(),
         mode: instance.map_or(InstanceMode::SingleUser, |value| value.mode),
         native_enabled: true,
-        oidc_enabled: oidc.is_some(),
+        oidc_enabled: !oidc_providers.is_empty(),
         email_enabled: runtime.mailer.is_some(),
         registration: state.store.registration_settings().await?,
-        oidc,
+        oidc_providers,
         turnstile: runtime
             .settings
             .turnstile
@@ -369,6 +366,7 @@ async fn register(
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct OidcRegistrationRequest {
+    invitation_token: Option<String>,
     email: String,
     username: String,
     turnstile_token: Option<String>,
@@ -395,7 +393,13 @@ async fn register_oidc(
         .await?;
     let registration = state
         .store
-        .register_oidc(&principal, &body.username, &body.email, now_ms()?)
+        .register_oidc(
+            &principal,
+            &body.username,
+            &body.email,
+            body.invitation_token.as_deref(),
+            now_ms()?,
+        )
         .await?;
     response.status_code(StatusCode::CREATED);
     Ok(Json(registration))

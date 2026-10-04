@@ -2,15 +2,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{Row, any::AnyRow};
 use ternilo_protocol::{HarnessError, UserId};
-use ternilo_storage::{Transaction, database_error, lock};
+use ternilo_storage::{Database, Transaction, database_error, lock};
 
 use crate::{
     AccountRecord, ControlStore, ControlUser, NativeRegistration, NativeSessionGrant,
     OidcPrincipal, PlatformAction,
     account_store::{account_in, append_platform_audit, authorize_platform_in},
     identity_store::{
-        create_native_user, hash_password, issue_session, normalize_username, require_multi_user,
-        required_instance, validate_registration,
+        consume_invitation, create_native_user, finish_invitation, hash_password, issue_session,
+        normalize_username, require_multi_user, required_instance, validate_registration,
     },
 };
 
@@ -35,6 +35,7 @@ impl RegistrationMode {
 pub struct RegistrationSettings {
     pub mode: RegistrationMode,
     pub require_approval: bool,
+    pub oidc_only: bool,
     pub revision: u64,
 }
 
@@ -43,9 +44,38 @@ impl Default for RegistrationSettings {
         Self {
             mode: RegistrationMode::Invite,
             require_approval: false,
+            oidc_only: false,
             revision: 1,
         }
     }
+}
+
+pub(crate) async fn initialize(database: &Database) -> Result<(), HarnessError> {
+    database
+        .initialize(
+            "registration_policy",
+            1,
+            "CREATE TABLE control_registration_policy (
+            singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
+            oidc_only BIGINT NOT NULL CHECK (oidc_only IN (0, 1))
+        );",
+            "REVOKE ALL ON control_registration_policy FROM PUBLIC;
+         DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ternilo_runtime') THEN
+         GRANT SELECT, INSERT, UPDATE, DELETE ON control_registration_policy TO ternilo_runtime;
+         END IF; END $$;",
+        )
+        .await
+}
+
+pub(crate) fn require_password_registration(
+    settings: &RegistrationSettings,
+) -> Result<(), HarnessError> {
+    if settings.oidc_only {
+        return Err(HarnessError::policy(
+            "new accounts must register using OAuth2/OIDC",
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -116,7 +146,7 @@ pub struct OidcRegistrationOutcome {
 impl ControlStore {
     /// Public bootstrap metadata contains no account information or credentials.
     pub async fn registration_settings(&self) -> Result<RegistrationSettings, HarnessError> {
-        sqlx::query("SELECT registration_mode, registration_require_approval, registration_revision FROM control_instance_settings WHERE singleton = 1")
+        sqlx::query("SELECT registration_mode, registration_require_approval, registration_revision, COALESCE((SELECT oidc_only FROM control_registration_policy WHERE singleton = 1), 0) AS oidc_only FROM control_instance_settings WHERE singleton = 1")
             .fetch_optional(self.database.pool()).await.map_err(database_error)?.as_ref().map(settings_from_row).transpose().map(Option::unwrap_or_default)
     }
 
@@ -125,6 +155,7 @@ impl ControlStore {
         actor: &ControlUser,
         mode: RegistrationMode,
         require_approval: bool,
+        oidc_only: bool,
         revision: u64,
         now_ms: u64,
     ) -> Result<RegistrationSettings, HarnessError> {
@@ -147,7 +178,10 @@ impl ControlStore {
                 "registration settings changed; reload before saving",
             ));
         }
-        if previous.mode == mode && previous.require_approval == require_approval {
+        if previous.mode == mode
+            && previous.require_approval == require_approval
+            && previous.oidc_only == oidc_only
+        {
             transaction.commit().await.map_err(database_error)?;
             return Ok(previous);
         }
@@ -155,9 +189,12 @@ impl ControlStore {
         sqlx::query("UPDATE control_instance_settings SET registration_mode = $1, registration_require_approval = $2, registration_revision = $3, updated_at_ms = $4 WHERE singleton = 1")
             .bind(mode.as_str()).bind(i64::from(require_approval)).bind(timestamp(revision)?).bind(timestamp(now_ms)?)
             .execute(&mut *transaction).await.map_err(database_error)?;
+        sqlx::query("INSERT INTO control_registration_policy (singleton, oidc_only) VALUES (1, $1) ON CONFLICT (singleton) DO UPDATE SET oidc_only = EXCLUDED.oidc_only")
+            .bind(i64::from(oidc_only)).execute(&mut *transaction).await.map_err(database_error)?;
         let settings = RegistrationSettings {
             mode,
             require_approval,
+            oidc_only,
             revision,
         };
         append_platform_audit(
@@ -185,12 +222,15 @@ impl ControlStore {
             .await?
             .ok_or_else(|| HarnessError::policy("server initialization is required"))?;
         require_multi_user(&instance)?;
-        public_registration_status(&self.registration_settings().await?)?;
+        let settings = self.registration_settings().await?;
+        require_password_registration(&settings)?;
+        public_registration_status(&settings)?;
         let password_hash = hash_password(&registration.password).await?;
         let mut transaction = self.database.begin().await?;
         lock(&mut transaction, "ternilo:instance").await?;
         let instance = required_instance(&mut transaction).await?;
         require_multi_user(&instance)?;
+        require_password_registration(&registration_settings_in(&mut transaction).await?)?;
         let status = public_registration_status_in(&mut transaction).await?;
         let user = create_native_user(
             &mut transaction,
@@ -235,7 +275,6 @@ impl ControlStore {
             return Ok(user);
         }
         require_multi_user(&required_instance(&mut transaction).await?)?;
-        public_registration_status_in(&mut transaction).await?;
         Err(HarnessError::policy(
             "choose a platform username to finish registration",
         ))
@@ -248,6 +287,7 @@ impl ControlStore {
         principal: &OidcPrincipal,
         username: &str,
         email: &str,
+        invitation_token: Option<&str>,
         now_ms: u64,
     ) -> Result<OidcRegistrationOutcome, HarnessError> {
         validate_oidc_principal(principal)?;
@@ -283,11 +323,37 @@ impl ControlStore {
             });
         }
         require_multi_user(&instance)?;
-        let status = public_registration_status_in(&mut transaction).await?;
+        let settings = registration_settings_in(&mut transaction).await?;
+        let invitation = if settings.mode == RegistrationMode::Invite {
+            let invitation = consume_invitation(
+                &mut transaction,
+                invitation_token.ok_or_else(|| {
+                    HarnessError::policy("registration requires an administrator invitation")
+                })?,
+                now_ms,
+            )
+            .await?;
+            if invitation.tenant_id.is_some() {
+                return Err(HarnessError::policy(
+                    "team invitations require an existing active account; register or sign in first",
+                ));
+            }
+            Some(invitation)
+        } else {
+            None
+        };
+        let status = if invitation.is_some() {
+            AccountStatus::Active
+        } else {
+            public_registration_status(&settings)?
+        };
         let mut principal = principal.clone();
         principal.email = Some(email);
         let user =
             Self::upsert_user_in(&mut transaction, &principal, &username, status, now_ms).await?;
+        if let Some(invitation) = &invitation {
+            finish_invitation(&mut transaction, &user, invitation, now_ms).await?;
+        }
         append_registration_audit(&mut transaction, &user.user_id, status, "oidc", now_ms).await?;
         transaction.commit().await.map_err(database_error)?;
         Ok(OidcRegistrationOutcome {
@@ -352,7 +418,7 @@ impl ControlStore {
 pub(crate) async fn registration_settings_in(
     transaction: &mut Transaction,
 ) -> Result<RegistrationSettings, HarnessError> {
-    sqlx::query("SELECT registration_mode, registration_require_approval, registration_revision FROM control_instance_settings WHERE singleton = 1")
+    sqlx::query("SELECT registration_mode, registration_require_approval, registration_revision, COALESCE((SELECT oidc_only FROM control_registration_policy WHERE singleton = 1), 0) AS oidc_only FROM control_instance_settings WHERE singleton = 1")
         .fetch_optional(&mut **transaction).await.map_err(database_error)?.as_ref().map(settings_from_row).transpose().map(Option::unwrap_or_default)
 }
 
@@ -436,6 +502,7 @@ fn settings_from_row(row: &AnyRow) -> Result<RegistrationSettings, HarnessError>
             .try_get::<i64, _>("registration_require_approval")
             .map_err(database_error)?
             != 0,
+        oidc_only: row.try_get::<i64, _>("oidc_only").map_err(database_error)? != 0,
         revision: u64::try_from(
             row.try_get::<i64, _>("registration_revision")
                 .map_err(database_error)?,

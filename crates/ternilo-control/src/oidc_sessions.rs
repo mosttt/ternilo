@@ -268,15 +268,19 @@ impl ControlStore {
     pub async fn authenticate_oidc_session(
         &self,
         token: &str,
-        binding: &str,
+        bindings: &[&str],
         now_ms: u64,
-    ) -> Result<(OidcPrincipal, u64), HarnessError> {
+    ) -> Result<(OidcPrincipal, u64, String), HarnessError> {
         if !token.starts_with("ter_o_") || token.len() > 128 {
             return Err(expired());
         }
-        let row = sqlx::query("SELECT session_id, nonce, ciphertext, access_expires_at_ms FROM control_oidc_sessions WHERE token_hash = $1 AND binding = $2 AND access_expires_at_ms > $3 AND expires_at_ms > $3")
-            .bind(hex(&token_hash(token))).bind(binding).bind(timestamp(now_ms)?)
+        let row = sqlx::query("SELECT session_id, nonce, ciphertext, binding, access_expires_at_ms FROM control_oidc_sessions WHERE token_hash = $1 AND access_expires_at_ms > $2 AND expires_at_ms > $2")
+            .bind(hex(&token_hash(token))).bind(timestamp(now_ms)?)
             .fetch_optional(&self.pool).await.map_err(database_error)?.ok_or_else(expired)?;
+        let binding: String = row.try_get("binding").map_err(database_error)?;
+        if !bindings.contains(&binding.as_str()) {
+            return Err(expired());
+        }
         let identity = self.oidc_identity_from_row(&row)?;
         let mut tx = self.database.begin().await?;
         crate::mfa::oidc::authorize_oidc_session(
@@ -291,7 +295,7 @@ impl ControlStore {
             .try_get::<i64, _>("access_expires_at_ms")
             .map_err(database_error)?
             .cast_unsigned();
-        Ok((identity.principal, expiry))
+        Ok((identity.principal, expiry, binding))
     }
 
     pub async fn oidc_refresh_session(

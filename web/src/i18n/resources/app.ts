@@ -1,4 +1,8 @@
 export const zh = {
+  "server.providerLogin": "使用 {name} 登录",
+  "server.providerLink": "关联 {name}",
+  "server.oauthOnlyRegistration": "新账号仅允许通过 OAuth2 / OIDC 注册。请选择登录方式，验证身份后完成注册。",
+
   'server.oidcUsernameTitle': '完善账号信息',
   'server.oidcUsernameDescription': '组织账号已验证。填写用户名和联系邮箱，完成 Ternilo 账号注册。',
   'server.oidcUsernameContinue': '完成注册并继续',
@@ -55,7 +59,6 @@ export const zh = {
   'auth.connectDescription': '输入此远程入口的访问令牌。默认仅保存在当前标签页，关闭标签页后清除。',
   'auth.token': '访问令牌', 'auth.remember': '在此设备上记住令牌',
   'auth.rememberDescription': '勾选后会保存到浏览器本地存储，手动注销时清除。',
-  'auth.login': '使用组织账号登录', 'auth.connect': '连接',
 
   'workspace.deepLinkOpened': '已打开工作区 {path}',
   'error.tenantPlatformOnly': '空间只存在于 Ternilo 平台。',
@@ -80,6 +83,10 @@ export const zh = {
 } satisfies Record<string, string>
 export type AppKey = keyof typeof zh
 export const en = {
+  "server.providerLogin": "Sign in with {name}",
+  "server.providerLink": "Link {name}",
+  "server.oauthOnlyRegistration": "New accounts must register through OAuth2 / OIDC. Choose a login provider, verify your identity, then finish registration.",
+
   'server.oidcUsernameTitle': 'Complete your account',
   'server.oidcUsernameDescription': 'Your organization account is verified. Enter a username and contact email to finish registering your Ternilo account.',
   'server.oidcUsernameContinue': 'Complete registration',
@@ -136,7 +143,6 @@ export const en = {
   'auth.connectDescription': 'Enter the access token for this remote endpoint. By default it lasts only for this browser tab and is cleared when the tab closes.',
   'auth.token': 'Access token', 'auth.remember': 'Remember the token on this device',
   'auth.rememberDescription': 'Stores it in browser local storage until you sign out.',
-  'auth.login': 'Sign in with organization account', 'auth.connect': 'Connect',
 
   'workspace.deepLinkOpened': 'Opened Workspace {path}',
   'error.tenantPlatformOnly': 'Spaces are available only on the Ternilo platform.',

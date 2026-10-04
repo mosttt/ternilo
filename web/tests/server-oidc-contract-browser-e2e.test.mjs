@@ -44,9 +44,9 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
     const ownerId = application.owner.session.user.user_id
     const admin = (resource, options = {}) => serverRequest(origin, resource, { token: ownerToken, ...options })
     await admin('/admin/instance/authentication', { method: 'PUT', body: { revision: 0, public_url: origin,
-      oidc: { issuer: provider.issuer, client_id: 'browser-client', scopes: 'openid profile email', token_auth_method: 'client_secret_post', client_secret: 'fixture-client-secret' }, turnstile: null,
+      oidc_providers: [{ id: 'organization', name: 'Organization', enabled: true, ...{ issuer: provider.issuer, client_id: 'browser-client', scopes: 'openid profile email', token_auth_method: 'client_secret_post', client_secret: 'fixture-client-secret' } }], turnstile: null,
     } })
-    await admin('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: 1 } })
+    await admin('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: 1 } })
 
     const exchange = async () => {
       const verifier = randomBytes(48).toString('base64url')
@@ -55,7 +55,7 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
       const redirect = await fetch(`${provider.issuer}/authorize?${query}`, { redirect: 'manual' })
       assert.equal(redirect.status, 302)
       const code = new URL(redirect.headers.get('location')).searchParams.get('code')
-      return fetch(`${origin}/auth/token`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, code_verifier: verifier, nonce }) })
+      return fetch(`${origin}/auth/token`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, code_verifier: verifier, provider_id: 'organization', nonce }) })
     }
     for (const invalid of ['nonce', 'missing-nonce', 'issuer', 'audience', 'party', 'multiple-audiences', 'expired', 'issued', 'hash', 'signature', 'missing-id-token', 'userinfo']) {
       fault = invalid
@@ -68,7 +68,7 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
     const visitor = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 850 }, hasTouch: true, isMobile: true, serviceWorkers: 'block' })
     visitor.on('pageerror', error => errors.push(error.message))
     await visitor.goto(origin)
-    await visitor.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await visitor.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await visitor.locator('[data-oidc-registration]').waitFor()
     await visitor.getByLabel('用户名', { exact: true }).fill('duplicate-email-user')
     await visitor.getByLabel('邮箱', { exact: true }).fill(application.owner.email)
@@ -97,7 +97,7 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
     await ownerPage.getByRole('button', { name: '用户设置', exact: true }).click()
     const [linked] = await Promise.all([
       ownerPage.waitForResponse(response => response.url().endsWith('/auth/oidc-link') && response.request().method() === 'POST'),
-      ownerPage.getByRole('button', { name: '绑定 OIDC 登录', exact: true }).click(),
+      ownerPage.getByRole('button', { name: '关联 Organization', exact: true }).click(),
     ])
     assert.equal(linked.status(), 200, await linked.text())
     await ownerPage.getByRole('button', { name: '用户设置', exact: true }).waitFor()
@@ -105,7 +105,7 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
     await visitor.getByRole('button', { name: '使用其他账号', exact: true }).click()
     const [login] = await Promise.all([
       visitor.waitForResponse(response => response.url() === `${origin}/auth/token`),
-      visitor.getByRole('button', { name: '使用组织账号登录', exact: true }).click(),
+      visitor.getByRole('button', { name: '使用 Organization 登录', exact: true }).click(),
     ])
     assert.equal(login.status(), 200, await login.text())
     const tokens = await login.json()
@@ -117,19 +117,19 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
     assert.equal(identity.email, application.owner.email)
     await visitor.close()
     fault = 'missing-id-token'
-    const refresh = await fetch(`${origin}/auth/refresh`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: tokens.refresh_token }) })
+    const refresh = await fetch(`${origin}/auth/refresh`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: tokens.refresh_token, provider_id: 'organization' }) })
     assert.equal(refresh.status, 200, await refresh.clone().text())
     const next = await refresh.json()
     assert.notEqual(next.access_token, tokens.access_token)
     assert.equal((await serverRequest(origin, '/auth/session', { token: next.access_token })).user.user_id, ownerId)
-    const replay = await fetch(`${origin}/auth/refresh`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: tokens.refresh_token }) })
+    const replay = await fetch(`${origin}/auth/refresh`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: tokens.refresh_token, provider_id: 'organization' }) })
     assert.equal(replay.status, 401)
     await serverRequest(origin, '/auth/logout', { token: next.access_token, body: {} })
     assert.equal((await fetch(`${origin}/api/v1/auth/session`, { headers: { authorization: `Bearer ${next.access_token}` } })).status, 401)
     fault = ''
     const beforeSwap = await (await exchange()).json()
     fault = 'subject'
-    const swapped = await fetch(`${origin}/auth/refresh`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: beforeSwap.refresh_token }) })
+    const swapped = await fetch(`${origin}/auth/refresh`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: beforeSwap.refresh_token, provider_id: 'organization' }) })
     assert.equal(swapped.status, 401)
     assert.deepEqual(errors, [])
   } catch (error) {

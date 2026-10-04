@@ -54,7 +54,7 @@ test('matched PostgreSQL dump and Server configuration retain restricted-runtime
     await request('/credentials', { body: { name: 'SAME_PROVIDER_KEY', value: 'synthetic-pg-restore-key' } })
     await request('/providers', { body: profile(model.baseUrl) })
     const registration = await request('/admin/registration')
-    await request('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await request('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const memberCredentials = { username: 'restore-member', password: 'synthetic-member-password', email: 'restore-member@example.test' }
     const member = (await serverRequest(origin, '/auth/register', { body: memberCredentials })).session
     const authorization = await serverRequest(origin, '/model-device/authorize', { body: { device_name: 'Restored PostgreSQL device' } })

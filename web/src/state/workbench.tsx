@@ -4,7 +4,7 @@ import { randomUuid } from '@/lib/random-id'
 import { api, ApiError } from '@/api/client'
 import type { SessionLiveActivity } from '@/api/live-client'
 import { refreshLocalToken, usesLocalBootstrap } from '@/auth/local'
-import { beginOidcLogin, completeOidcLink, clearOidcSession, initializeOidcSession, OidcFlowError, readOidcToken, refreshOidcSession } from '@/auth/oidc'
+import { beginOidcLogin, completeOidcLink, clearOidcSession, initializeOidcSession, OidcFlowError, readOidcToken, refreshOidcSession, readOidcInvitation, clearOidcInvitation } from '@/auth/oidc'
 import {
   clearAccountLink, clearNativeSession, isOidcUsernameRequired, isServerAccessPaused, loadServerAuthConfig, loadServerIdentity,
   readNativeToken, registerNative, registerOidcAccount, signInNative, storeNativeSession,
@@ -52,7 +52,7 @@ interface WorkbenchContextValue {
   authRequired: boolean
   accessPaused: boolean
   oidcRegistrationRequired: boolean
-  registerOidcUsername(username: string, email: string, turnstileToken?: string): Promise<'active' | 'pending' | void>
+  registerOidcUsername(username: string, email: string, turnstileToken?: string, invitationToken?: string): Promise<'active' | 'pending' | void>
   pauseAccess(): void
   serverAuthConfig: ServerAuthConfig | null
   serverIdentity: ServerIdentity | null
@@ -368,7 +368,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     }
   }, [platform, t, authenticationRevision, pauseAccess])
 
-  const registerOidcUsername = React.useCallback(async (username: string, email: string, turnstileToken?: string) => {
+  const registerOidcUsername = React.useCallback(async (username: string, email: string, turnstileToken?: string, invitationToken?: string) => {
     if (!oidcRegistrationRequired) return
     const requestId = ++authenticationRequestRef.current
     const token = await initializeOidcSession()
@@ -377,7 +377,8 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       setOidcRegistrationRequired(false)
       throw new OidcFlowError('expired')
     }
-    const result = await registerOidcAccount(username.trim(), email.trim(), token, turnstileToken)
+    const result = await registerOidcAccount(username.trim(), email.trim(), token, turnstileToken, invitationToken || readOidcInvitation())
+    clearOidcInvitation()
     if (requestId !== authenticationRequestRef.current) return
     setOidcRegistrationRequired(false)
     if (result.status === 'pending') {
@@ -637,7 +638,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const login = React.useCallback(async (token: string, remember = false) => {
     if (platform) {
       setError('')
-      await beginOidcLogin()
+      await beginOidcLogin(token)
       return
     }
     const normalized = token.trim()

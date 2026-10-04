@@ -208,7 +208,7 @@ async function startOidcServer() {
         access_token: jwt(privateKey, issuer),
         token_type: 'Bearer',
         expires_in: 3600,
-        refresh_token: 'cloud-refresh',
+        refresh_token: 'cloud-refresh', provider_id: 'organization',
         scope: 'openid profile email',
       })
     }
@@ -1046,7 +1046,7 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
     await failedCallbackDialog.waitFor()
     assert.equal(await failedCallbackDialog.getByRole('alert').textContent(), 'OIDC 登录状态校验失败。')
     await page.goto(origin, { waitUntil: 'domcontentloaded' })
-    await page.getByRole('button', { name: '使用组织账号登录' }).click()
+    await page.getByRole('button', { name: '使用 Organization 登录' }).click()
     const tenantPicker = page.getByRole('combobox', { name: '切换空间' })
     try {
       await tenantPicker.waitFor({ timeout: 30_000 })

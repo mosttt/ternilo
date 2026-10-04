@@ -23,7 +23,7 @@ test('scheduled account models retain their creator across later input, revocati
     let tenantId = server.owner.session.personal_tenant_id
     const owner = (resource, options = {}) => serverRequest(server.origin, resource, { token: server.owner.session.access_token, tenantId, ...options })
     const registration = await owner('/admin/registration')
-    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const credentials = { username: 'schedule-member', email: 'schedule@example.test', password: 'schedule-member-password' }
     const { session: account } = await serverRequest(server.origin, '/auth/register', { body: credentials })
     const { tenant } = await owner('/tenants', { body: { slug: 'schedules', display_name: 'Scheduled team' } })

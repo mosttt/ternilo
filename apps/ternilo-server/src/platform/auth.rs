@@ -1,3 +1,4 @@
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use salvo_core::prelude::{Depot, FlowCtrl, Request, Response, Scribe, handler};
 use ternilo_control::{ControlUser, IdentitySession, OidcPrincipal};
 use ternilo_protocol::{ErrorCode, HarnessError};
@@ -79,19 +80,41 @@ pub(crate) async fn authenticate_oidc_identity(
 ) -> Result<(OidcPrincipal, Option<u64>), HarnessError> {
     let runtime = state.security.current(&state.store).await?;
     if token.starts_with("ter_o_") {
-        let web = runtime
-            .web_auth
-            .as_ref()
-            .ok_or_else(|| HarnessError::policy("OIDC is not configured on this server"))?;
-        let (principal, expiry) = state
+        let bindings = runtime
+            .providers
+            .values()
+            .map(|provider| provider.web.binding.as_str())
+            .collect::<Vec<_>>();
+        let (principal, expiry, _) = state
             .store
-            .authenticate_oidc_session(token, &web.binding, now_ms()?)
+            .authenticate_oidc_session(token, &bindings, now_ms()?)
             .await?;
         return Ok((principal, Some(expiry)));
     }
+    // Unverified issuer selects a validator only; that validator verifies all claims and the signature.
+    let claims: serde_json::Value = token
+        .split('.')
+        .nth(1)
+        .filter(|payload| payload.len() <= 64 * 1024)
+        .and_then(|payload| URL_SAFE_NO_PAD.decode(payload).ok())
+        .and_then(|payload| serde_json::from_slice(&payload).ok())
+        .ok_or_else(|| HarnessError::policy("browser session is invalid or expired"))?;
     let auth = runtime
-        .auth
-        .as_ref()
+        .settings
+        .oidc_providers
+        .iter()
+        .filter(|settings| !settings.audience.is_empty())
+        .filter(|settings| {
+            claims["aud"].as_str() == Some(settings.audience.as_str())
+                || claims["aud"].as_array().is_some_and(|values| {
+                    values
+                        .iter()
+                        .any(|value| value.as_str() == Some(settings.audience.as_str()))
+                })
+        })
+        .filter_map(|settings| runtime.providers.get(&settings.id))
+        .find(|provider| claims["iss"].as_str() == Some(provider.auth.issuer()))
+        .map(|provider| &provider.auth)
         .ok_or_else(|| HarnessError::policy("browser session is invalid or expired"))?;
     Ok((auth.authenticate(token).await?, None))
 }

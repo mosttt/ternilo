@@ -66,8 +66,8 @@ test('native and OIDC MFA require a second factor, email recovery retains it, an
     const { origin, owner } = application; let access = owner.session.access_token
     const api = (resource, options = {}) => serverRequest(origin, resource, { token: access, ...options })
     const settings = await api('/admin/instance/authentication')
-    const { has_client_secret: _secret, ...oidc } = settings.oidc
-    await api('/admin/instance/authentication', { method: 'PUT', body: { revision: settings.revision, public_url: origin, oidc, turnstile: null,
+    const { has_client_secret: _secret, available: _available, ...oidc } = settings.oidc_providers[0]
+    await api('/admin/instance/authentication', { method: 'PUT', body: { revision: settings.revision, public_url: origin, oidc_providers: [oidc], turnstile: null,
       smtp: { host: '127.0.0.1', port: smtp.port, security: 'local', from: 'ternilo@example.test', username: 'fixture-user', password: 'fixture-smtp-password' } } })
     await api('/auth/email/send', { method: 'POST' })
     await until(() => Promise.resolve(smtp.messages), values => values.length === 1, 'email verification arrives')
@@ -104,7 +104,7 @@ test('native and OIDC MFA require a second factor, email recovery retains it, an
     const rawOidc = await fetch(`${origin}/api/v1/auth/session`, { headers: { authorization: `Bearer ${provider.accessToken()}` } })
     assert.equal(rawOidc.status, 401); await rawOidc.arrayBuffer()
     const oidcPage = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 844 }, serviceWorkers: 'block' }); observe(oidcPage)
-    await oidcPage.goto(origin); await oidcPage.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await oidcPage.goto(origin); await oidcPage.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     const challengeForm = oidcPage.locator('[data-oidc-mfa]'); await challengeForm.waitFor()
     assert.equal(await oidcPage.evaluate(() => sessionStorage.getItem('ternilo.oidc.access')), null)
     const challenge = await oidcPage.evaluate(() => JSON.parse(sessionStorage.getItem('ternilo.oidc.mfa')).mfa_challenge)

@@ -61,7 +61,7 @@ test('platform account administration separates personal spaces, team invitation
       oidc: { issuer: oidc.issuer, audience, client_id: 'browser' }, mode: 'multi_user' })
     const ownerToken = application.owner.session.access_token
     const registrationPolicy = await serverRequest(origin, '/admin/registration', { token: ownerToken })
-    await serverRequest(origin, '/admin/registration', { token: ownerToken, method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registrationPolicy.revision } })
+    await serverRequest(origin, '/admin/registration', { token: ownerToken, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registrationPolicy.revision } })
     const accounts = new Map()
     for (const key of Object.keys(identities)) {
       const identity = await registerOidcUser(origin, oidc.accessToken(key), `b1-account-${key}`)
@@ -99,7 +99,7 @@ test('platform account administration separates personal spaces, team invitation
 
     oidc.selectIdentity('00')
     await memberPage.goto(`${origin}/admin/accounts`)
-    await memberPage.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await memberPage.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await memberPage.locator('[data-admin-account]').first().waitFor()
     assert.equal(await memberPage.getByRole('button', { name: '保存职责', exact: true }).count(), 0)
     assert.equal(await memberPage.locator('[data-admin-invitations="platform"]').count(), 1)

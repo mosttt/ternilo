@@ -1,4 +1,9 @@
 export const zh = {
+  "addProvider": "添加登录方式",
+  "newProvider": "新登录方式",
+  "providerName": "登录方式名称",
+  "removeProvider": "移除登录方式",
+
   smtp: "账号邮件服务",
   smtpHint: "发送邮箱验证和密码找回链接。用户须先验证邮箱，才能通过邮件找回密码。",
   smtpHost: "SMTP 主机",
@@ -33,7 +38,7 @@ export const zh = {
   callbackHint: '在身份提供方登记此回调地址，并从相同协议、主机和端口打开 Ternilo 后登录。',
   secretKept: '已保存；留空保持不变',
   secretRequired: '输入密钥',
-  secretsHint: '密钥加密保存，不会回显。更换 Issuer、Client ID 或 Site Key 后需重新输入对应密钥；关闭功能会清除其配置。',
+  secretsHint: '密钥加密保存，不会回显。更换登录方式的 Issuer、Client ID 或人机验证 Site Key 后需重新输入对应密钥。停用登录方式保留配置，移除后清除；关闭邮件或人机验证会清除对应配置。',
   turnstile: 'Cloudflare Turnstile',
   turnstileHint: '保护密码登录、新用户注册和邀请注册。已有账号的 OIDC 登录由身份提供方负责验证，不在跳转时重复验证。',
   siteKey: 'Site Key',
@@ -53,6 +58,11 @@ export const zh = {
 } satisfies Record<string, string>
 
 export const en: Record<keyof typeof zh, string> = {
+  "addProvider": "Add login provider",
+  "newProvider": "New login provider",
+  "providerName": "Provider display name",
+  "removeProvider": "Remove provider",
+
   smtp: "Account email",
   smtpHint: "Send verification and password recovery links. Users must verify their email before email recovery is available.",
   smtpHost: "SMTP host",
@@ -87,7 +97,7 @@ export const en: Record<keyof typeof zh, string> = {
   callbackHint: 'Register this callback with the identity provider and open Ternilo using the same scheme, host and port before signing in.',
   secretKept: 'Saved; leave blank to keep',
   secretRequired: 'Enter secret',
-  secretsHint: 'Secrets are encrypted and never returned. Changing the issuer, client ID or site key requires the corresponding secret again. Disabling a feature clears its configuration.',
+  secretsHint: 'Secrets are encrypted and never returned. Changing a provider’s issuer, client ID or the Turnstile site key requires the corresponding secret again. Disabling a provider keeps its settings; removing it clears them. Disabling mail or Turnstile clears that configuration.',
   turnstile: 'Cloudflare Turnstile',
   turnstileHint: 'Protect password sign-in, new-account registration and invitation sign-up. Existing OIDC accounts are verified by the identity provider without an additional challenge during redirects.',
   siteKey: 'Site Key',

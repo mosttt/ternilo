@@ -25,7 +25,7 @@ test('offline computer cleanup stays pending until its revoked credential report
     server=await initializeServer({directory:path.join(directory,'server'),origin})
     const owner=server.owner.session.access_token
     const registration=await serverRequest(origin,'/admin/registration',{token:owner})
-    await serverRequest(origin,'/admin/registration',{token:owner,method:'PATCH',body:{mode:'open',require_approval:false,revision:registration.revision}})
+    await serverRequest(origin,'/admin/registration',{token:owner,method:'PATCH',body:{mode:'open',require_approval:false, oidc_only: false,revision:registration.revision}})
     await serverRequest(origin,'/auth/register',{body:{username:'cleanup-member',email:'cleanup-member@example.test',password:'cleanup-member-password'}})
     const member=await serverRequest(origin,'/auth/login',{body:{username:'cleanup-member',password:'cleanup-member-password'}})
     const {enrollment}=await serverRequest(origin,`/tenants/${member.personal_tenant_id}/my-computer-enrollments`,{token:member.access_token,body:{name:'offline-cleanup-computer',project_id:null,ttl_seconds:600}})

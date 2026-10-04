@@ -24,7 +24,7 @@ async fn set_policy(fixture: &Fixture, mode: &str, approval: bool, revision: u64
                 "PATCH",
                 "/admin/registration",
                 &fixture.owner.access_token,
-                Some(json!({"mode":mode,"require_approval":approval,"revision":revision})),
+                Some(json!({"mode":mode,"require_approval":approval,"oidc_only":false,"revision":revision})),
             )
             .await,
         StatusCode::OK,
@@ -53,7 +53,7 @@ async fn registration_policy_has_current_authorization_and_public_discovery() {
         .await;
         assert_eq!(
             settings,
-            json!({"mode":"invite","require_approval":false,"revision":1})
+            json!({"mode":"invite","require_approval":false,"oidc_only":false,"revision":1})
         );
     }
     for account in [&operator, &user] {
@@ -65,7 +65,7 @@ async fn registration_policy_has_current_authorization_and_public_discovery() {
             Some(StatusCode::FORBIDDEN)
         );
     }
-    let update = json!({"mode":"open","require_approval":true,"revision":1});
+    let update = json!({"mode":"open","require_approval":true,"oidc_only":false,"revision":1});
     for account in [&auditor, &operator, &user] {
         assert_eq!(
             fixture
@@ -111,7 +111,9 @@ async fn registration_policy_has_current_authorization_and_public_discovery() {
                 "PATCH",
                 "/admin/registration",
                 &administrator.access_token,
-                Some(json!({"mode":"invite","require_approval":true,"revision":2}))
+                Some(
+                    json!({"mode":"invite","require_approval":true,"oidc_only":false,"revision":2})
+                )
             )
             .await
             .status_code,

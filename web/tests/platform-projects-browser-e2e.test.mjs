@@ -150,7 +150,7 @@ test('project management preserves resources and enforces roles on desktop and m
     const [lastProject] = (await owner(`/tenants/${lastProjectTeam.tenant_id}/projects`)).projects
     const { project: editable } = await request('/projects', { body: { name: 'Editable project' } })
     const registration = await owner('/admin/registration')
-    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const credentials = { username: 'project-member', email: 'project-member@example.test', password: 'project-member-password' }
     const { session: member } = await serverRequest(origin, '/auth/register', { body: credentials })
     for (const role of [null, 'viewer', 'member', 'admin']) {

@@ -128,7 +128,7 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
     const adminSession = server.owner.session
     const admin = (resource, options = {}) => serverRequest(serverOrigin, resource, { token: adminSession.access_token, ...options })
     const registration = await admin('/admin/registration')
-    await admin('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await admin('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     const account = { username: 'archive-member', email: 'archive-member@example.test', password: 'archive-member-password' }
     const { session: member } = await serverRequest(serverOrigin, '/auth/register', { body: account })
     const { tenant } = await admin('/tenants', { body: { slug: 'archive-team', display_name: 'Archive team' } })

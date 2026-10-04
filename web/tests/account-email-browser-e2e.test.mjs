@@ -59,7 +59,7 @@ test('SMTP settings, verified email and self-service password recovery work in a
     const verificationUrl = emailLink(smtp.messages[0], 'verify-email')
     const verifyPage = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 844 }, serviceWorkers: 'block' }); observe(verifyPage)
     await verifyPage.goto(verificationUrl)
-    await verifyPage.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await verifyPage.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await verifyPage.waitForURL(url => url.pathname === '/auth/verify-email')
     await verifyPage.getByRole('button', { name: '验证邮箱', exact: true }).waitFor()
     assert.equal(new URL(verifyPage.url()).hash, '', 'one-time credential is removed from the visible URL')
@@ -103,7 +103,7 @@ test('SMTP settings, verified email and self-service password recovery work in a
     let mailSettings = await serverRequest(origin, '/admin/instance/authentication', { token: after.access_token })
     const { has_password: _secret, ...smtpInput } = mailSettings.smtp
     const saveMail = async (smtp, publicUrl = origin) => {
-      const response = await fetch(`${origin}/api/v1/admin/instance/authentication`, { method: 'PUT', headers: { authorization: `Bearer ${after.access_token}`, 'content-type': 'application/json' }, body: JSON.stringify({ revision: mailSettings.revision, public_url: publicUrl, oidc: null, turnstile: null, smtp }) })
+      const response = await fetch(`${origin}/api/v1/admin/instance/authentication`, { method: 'PUT', headers: { authorization: `Bearer ${after.access_token}`, 'content-type': 'application/json' }, body: JSON.stringify({ revision: mailSettings.revision, public_url: publicUrl, oidc_providers: [], turnstile: null, smtp }) })
       const payload = await response.json(); return { status: response.status, payload }
     }
     const invalidRelay = await saveMail({ ...smtpInput, host: 'smtp.example.test', password: 'fixture-smtp-password' })

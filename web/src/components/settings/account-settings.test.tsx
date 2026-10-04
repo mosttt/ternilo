@@ -8,7 +8,7 @@ import { AccountSettings } from './account-settings'
 
 const workbench = vi.hoisted(() => ({
   serverIdentity: { email: 'member@example.test', user: { user_id: 'member', username: 'My account' }, is_instance_owner: false },
-  serverAuthConfig: { oidc_enabled: true },
+  serverAuthConfig: { oidc_enabled: true, oidc_providers: [{ id: 'organization', name: 'Organization', config: {} }] },
   currentTenantId: 'team-a',
 }))
 vi.mock('@/state/workbench', () => ({ useWorkbench: () => workbench }))
@@ -43,7 +43,7 @@ describe('Account sign-in settings', () => {
     await render()
     expect(host.textContent).toContain('My account')
     expect(host.querySelector('[data-account-email]')?.textContent).toBe('member@example.test')
-    const link = button('绑定 OIDC 登录')!
+    const link = button('关联 Organization')!
     await act(async () => link.click())
     expect(beginOidcLink).toHaveBeenCalledOnce()
     expect(link.disabled).toBe(true)
@@ -54,7 +54,7 @@ describe('Account sign-in settings', () => {
     await render()
     expect(host.textContent).toContain('OIDC 登录已绑定')
     expect(host.textContent).toContain('https://identity.example')
-    expect(button('绑定 OIDC 登录')).toBeUndefined()
+    expect(button('关联 Organization')).toBeUndefined()
     expect(host.querySelector('[data-account-password]')).toBeNull()
   })
 
@@ -66,7 +66,7 @@ describe('Account sign-in settings', () => {
     await render()
     await act(async () => release({ native: false, oidc: { issuer: 'https://old.example', subject: 'old' } }))
     expect(host.textContent).not.toContain('https://old.example')
-    expect(button('绑定 OIDC 登录')).toBeDefined()
+    expect(button('关联 Organization')).toBeDefined()
     expect(host.querySelector('[data-account-id]')?.textContent).toBe('other')
     await act(async () => copyIdButton().click())
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('other')
@@ -77,7 +77,7 @@ describe('Account sign-in settings', () => {
     await render()
     expect(api.request).toHaveBeenCalledWith('/auth/oidc-link')
     expect(host.querySelector('[data-account-password]')).not.toBeNull()
-    expect(button('绑定 OIDC 登录')).toBeUndefined()
+    expect(button('关联 Organization')).toBeUndefined()
     expect(host.textContent).toContain('My account')
     expect(host.querySelector('[data-account-id]')?.textContent).toBe('member')
     await act(async () => copyIdButton().click())

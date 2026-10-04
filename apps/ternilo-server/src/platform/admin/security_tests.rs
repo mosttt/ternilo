@@ -3,7 +3,7 @@ use super::*;
 const PATH: &str = "/admin/instance/authentication";
 
 fn turnstile(revision: u64) -> Value {
-    json!({"revision": revision, "public_url": "https://server.example.test", "oidc": null,
+    json!({"revision": revision, "public_url": "https://server.example.test", "oidc_providers": [],
         "turnstile": {"site_key": "site-key", "secret_key": "private-turnstile-key"}})
 }
 

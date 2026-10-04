@@ -10,7 +10,7 @@ Permission groups simplify sharing to current team members. Resource view, submi
 
 ## Accounts
 
-The instance owner selects single-user or multi-user access and the registration policy. Registration, approval and invitation flows preserve a stable account identity. Matching email addresses do not automatically merge native and external identities; linking is explicit.
+The instance owner selects single-user or multi-user access and the registration policy. Registration, approval and invitation flows preserve a stable account identity. Matching email addresses do not automatically merge native and external identities; linking is explicit. Multiple OIDC providers appear by name on sign-in and linking pages. OAuth2-only registration restricts both open and account-invitation registration; existing password sign-in remains available.
 
 Banning or removing an account revokes access and invalidates credentials according to the operation. Unbanning does not revive previously revoked sessions or authorize replay of old commands. Do not treat account removal as proof that every external file, transferred resource or already-started side effect has been deleted. Ownership handoff and full resource cleanup remain separate administrative concerns.
 

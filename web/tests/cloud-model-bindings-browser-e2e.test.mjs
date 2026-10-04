@@ -140,7 +140,7 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     const token = application.owner.session.access_token
     const assetHashes = {}
     const registrationPolicy = await serverRequest(origin, '/admin/registration', { token: token })
-    await serverRequest(origin, '/admin/registration', { token: token, method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registrationPolicy.revision } })
+    await serverRequest(origin, '/admin/registration', { token: token, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registrationPolicy.revision } })
     for (const asset of ['app.js', 'app.css']) {
       const response = await fetch(`${origin}/assets/${asset}`)
       assert.equal(response.status, 200)
@@ -297,7 +297,7 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     }
     await ownerPage.setViewportSize({ width: 1440, height: 1000 })
     await memberPage.goto(origin)
-    await memberPage.getByRole('button', { name: '使用组织账号登录', exact: true }).click()
+    await memberPage.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await selectSession(memberPage, team.tenant_id, sessionId)
     assert.equal(await memberPage.getByRole('button', { name: '平台管理', exact: true }).count(), 0, 'ordinary users have no platform administration entrance')
     await memberPage.getByRole('button', { name: '用户设置', exact: true }).click()

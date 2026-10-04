@@ -24,14 +24,19 @@ async fn authentication(
     }
     if token.starts_with("ter_o_") {
         let runtime = state.security.current(&state.store).await?;
-        let web = runtime.web_auth.as_ref().ok_or_else(|| {
-            authentication_error(ternilo_protocol::HarnessError::policy(
-                "OIDC is not configured on this server",
-            ))
-        })?;
+        let bindings = runtime
+            .providers
+            .values()
+            .map(|provider| provider.web.binding.as_str())
+            .collect::<Vec<_>>();
+        let (_, _, binding) = state
+            .store
+            .authenticate_oidc_session(token, &bindings, now_ms()?)
+            .await
+            .map_err(authentication_error)?;
         return Ok(BrowserSessionAuthentication::OidcToken {
             token: token.to_owned(),
-            binding: web.binding.clone(),
+            binding,
         });
     }
     let (principal, _) = crate::platform::auth::authenticate_oidc_identity(state, token)

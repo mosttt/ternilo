@@ -18,7 +18,7 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   workbench.serverIdentity.platform_role = 'owner'
   workbench.serverIdentity.user.user_id = 'owner'
-  vi.spyOn(api, 'request').mockImplementation(async path => (path === '/admin/registration' ? { mode: 'invite', require_approval: false, revision: 1 } : { accounts: [account('owner', 'owner'), account('alice')], next_cursor: null }) as never)
+  vi.spyOn(api, 'request').mockImplementation(async path => (path === '/admin/registration' ? { mode: 'invite', require_approval: false, oidc_only: false, revision: 1 } : { accounts: [account('owner', 'owner'), account('alice')], next_cursor: null }) as never)
 })
 
 async function chooseAction(id: string, action: string) {
@@ -31,7 +31,7 @@ async function chooseAction(id: string, action: string) {
 it('keeps rejected applications available for approval and shows their contact email', async () => {
   const rejected = { ...account('reconsider'), status: 'rejected', status_revision: 8 }
   vi.mocked(api.request).mockImplementation(async path => (path === '/admin/registration'
-    ? { mode: 'open', require_approval: true, revision: 2 }
+    ? { mode: 'open', require_approval: true, oidc_only: false, revision: 2 }
     : { accounts: [rejected], next_cursor: null }) as never)
   await mount()
   const row = host.querySelector('[data-admin-account="reconsider"]')!
@@ -46,7 +46,7 @@ it('protects the instance owner and current administrator from account actions',
   workbench.serverIdentity.platform_role = 'admin'
   workbench.serverIdentity.user.user_id = 'my-admin'
   vi.mocked(api.request).mockImplementation(async path => (path === '/admin/registration'
-    ? { mode: 'invite', require_approval: false, revision: 1 }
+    ? { mode: 'invite', require_approval: false, oidc_only: false, revision: 1 }
     : { accounts: [account('owner', 'owner'), account('my-admin', 'admin'), account('other')], next_cursor: null }) as never)
   await mount()
   expect(host.querySelector('[aria-label="账号“owner”的操作"]')).toBeNull()
@@ -60,7 +60,7 @@ it.each([
   { action: 'remove', status: 'rejected', label: '注销账号', description: '不会自动删除项目文件' },
 ] as const)('confirms $action and submits the displayed account revision', async ({ action, status, label, description }) => {
   vi.mocked(api.request).mockImplementation(async path => (path === '/admin/registration'
-    ? { mode: 'invite', require_approval: false, revision: 1 }
+    ? { mode: 'invite', require_approval: false, oidc_only: false, revision: 1 }
     : { accounts: [{ ...account('target'), status, status_revision: 9 }], next_cursor: null }) as never)
   await mount()
   await chooseAction('target', label)
@@ -74,7 +74,7 @@ it.each([
 
 it('retains closed accounts for lookup without offering restoration or mutation', async () => {
   vi.mocked(api.request).mockImplementation(async path => (path === '/admin/registration'
-    ? { mode: 'invite', require_approval: false, revision: 1 }
+    ? { mode: 'invite', require_approval: false, oidc_only: false, revision: 1 }
     : { accounts: [{ ...account('closed'), status: 'removed' }], next_cursor: null }) as never)
   await mount()
   expect(host.querySelector('[data-account-status="removed"]')?.textContent).toBe('已注销')
@@ -105,7 +105,7 @@ function fill(id: string, value: string) {
 describe('Platform account directory', () => {
   it('uses bounded server cursors and restarts paging for a new search', async () => {
     vi.mocked(api.request).mockImplementation(async path => {
-      if (path === '/admin/registration') return { mode: 'invite', require_approval: false, revision: 1 } as never
+      if (path === '/admin/registration') return { mode: 'invite', require_approval: false, oidc_only: false, revision: 1 } as never
       const query = new URL(path, 'http://server.test').searchParams
       return { accounts: [account(query.has('cursor') ? 'second' : 'first')], next_cursor: query.has('cursor') ? null : 'cursor+page2' } as never
     })
@@ -154,7 +154,7 @@ describe('Platform account directory', () => {
 
 it('filters pending accounts server-side and reviews with the displayed status revision', async () => {
   vi.mocked(api.request).mockImplementation(async (path, options) => {
-    if (path === '/admin/registration') return { mode: 'open', require_approval: true, revision: 2 } as never
+    if (path === '/admin/registration') return { mode: 'open', require_approval: true, oidc_only: false, revision: 2 } as never
     return { accounts: [{ ...account('candidate'), status: options?.method ? 'active' : 'pending', status_revision: 7 }], next_cursor: null } as never
   })
   await mount()
@@ -169,7 +169,7 @@ it('filters pending accounts server-side and reviews with the displayed status r
 })
 
 it('refreshes a conflicting review without applying a second decision', async () => {
-  vi.mocked(api.request).mockImplementation(async path => (path === '/admin/registration' ? { mode: 'open', require_approval: true, revision: 2 } : { accounts: [{ ...account('candidate'), status: 'pending', status_revision: 7 }], next_cursor: null }) as never)
+  vi.mocked(api.request).mockImplementation(async path => (path === '/admin/registration' ? { mode: 'open', require_approval: true, oidc_only: false, revision: 2 } : { accounts: [{ ...account('candidate'), status: 'pending', status_revision: 7 }], next_cursor: null }) as never)
   await mount()
   await settle(() => button('拒绝申请', host.querySelector('[data-admin-account="candidate"]')!).click())
   vi.mocked(api.request).mockRejectedValueOnce(new ApiError('Status changed', 409, 'conflict'))

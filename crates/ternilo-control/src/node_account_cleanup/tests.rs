@@ -37,7 +37,7 @@ pub(crate) async fn contract(store: &ControlStore) {
         .await
         .unwrap();
     store
-        .set_registration_settings(admin, RegistrationMode::Open, false, 1, 1002)
+        .set_registration_settings(admin, RegistrationMode::Open, false, false, 1, 1002)
         .await
         .unwrap();
     let alice = store

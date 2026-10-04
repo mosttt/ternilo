@@ -60,7 +60,7 @@ async function createIdentitySpace(browser, origin, oidc, identity, space) {
   const page = await context.newPage()
   const observations = observe(page)
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
-  await page.getByRole('button', { name: '使用组织账号登录' }).click()
+  await page.getByRole('button', { name: '使用 Organization 登录' }).click()
   const spaces = page.getByRole('combobox', { name: '切换空间' })
   await spaces.waitFor({ timeout: 30_000 })
   assert.equal(await page.getByRole('dialog', { name: '创建 Ternilo 空间' }).count(), 0)
@@ -226,7 +226,7 @@ test('platform quota, usage, and audit form a real owner/admin/member browser fl
       ownerOidcToken: oidc.accessToken('owner'), mode: 'multi_user',
     })
     const registrationPolicy = await serverRequest(origin, '/admin/registration', { token: control.owner.session.access_token })
-    await serverRequest(origin, '/admin/registration', { token: control.owner.session.access_token, method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registrationPolicy.revision } })
+    await serverRequest(origin, '/admin/registration', { token: control.owner.session.access_token, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registrationPolicy.revision } })
     for (const account of ['admin', 'member']) await registerOidcUser(origin, oidc.accessToken(account), `governance-${account}`)
     await waitForHttp(`${origin}/health`, control)
     const created = await fetch(`${origin}/api/v1/tenants`, {
@@ -457,7 +457,7 @@ test('platform quota, usage, and audit form a real owner/admin/member browser fl
     await admin.page.getByRole('button', { name: 'Open sidebar' }).click()
     oidc.selectIdentity('admin')
     await admin.page.getByRole('button', { name: 'Sign out', exact: true }).click()
-    await admin.page.getByRole('button', { name: 'Sign in with organization account' }).waitFor({ timeout: 30_000 })
+    await admin.page.getByRole('button', { name: 'Sign in with Organization' }).waitFor({ timeout: 30_000 })
     assert.deepEqual(await admin.page.evaluate(() => ({
       access: sessionStorage.getItem('ternilo.oidc.access'),
       refresh: sessionStorage.getItem('ternilo.oidc.refresh'),
@@ -477,7 +477,7 @@ test('platform quota, usage, and audit form a real owner/admin/member browser fl
       request.method() === 'GET'
         && new URL(request.url()).pathname === '/api/v1/tenants'
     ))
-    await admin.page.getByRole('button', { name: 'Sign in with organization account' }).click()
+    await admin.page.getByRole('button', { name: 'Sign in with Organization' }).click()
     assert.equal((await tenantRosterAfterLogin).headers()['x-ternilo-tenant'], undefined)
     const tenantAfterLogin = admin.page.getByRole('combobox', { name: 'Switch space' })
     await tenantAfterLogin.waitFor({ timeout: 30_000 })

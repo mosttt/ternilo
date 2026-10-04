@@ -14,7 +14,7 @@ test('workspace management transfers through the browser while execution ownersh
     server = await initializeServer({ directory: path.join(directory, 'server'), origin })
     const token = server.owner.session.access_token
     const registration = await serverRequest(origin, '/admin/registration', { token })
-    await serverRequest(origin, '/admin/registration', { token, method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+    await serverRequest(origin, '/admin/registration', { token, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
     await serverRequest(origin, '/auth/register', { body: { username: 'management-recipient', email: 'recipient@example.test', password: 'management-recipient-password' } })
     const recipient = await serverRequest(origin, '/auth/login', { body: { username: 'management-recipient', password: 'management-recipient-password' } })
     const { tenant } = await serverRequest(origin, '/tenants', { token, body: { slug: 'management-team', display_name: 'Management team' } })

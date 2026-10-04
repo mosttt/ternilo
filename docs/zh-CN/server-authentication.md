@@ -8,7 +8,7 @@
 
 ## OAuth 2.0／OIDC
 
-启用后填写 Server 公网 HTTPS 根地址、Issuer、Client ID 和 Scopes。Scopes 必须包含 `openid`。在身份提供方登记页面显示的回调地址，例如 `https://ternilo.example.com/auth/callback`。网页登录不需要填写 Audience；“高级兼容设置”中的 Audience 只用于仍直接携带上游 JWT access token 的旧 API 客户端，一般留空。
+先填写 Server 公网 HTTPS 根地址，再点击“添加登录方式”。每项填写名称、Issuer、Client ID 和 Scopes，并分别启用或停用。登录页按名称显示按钮，用户可选择账号所属的提供方；已登录的密码账号绑定时同样可以选择。提供方 ID 由界面生成并保持固定，修改名称不改变现有会话。Scopes 必须包含 `openid`。在身份提供方登记页面显示的回调地址，例如 `https://ternilo.example.com/auth/callback`。网页登录不需要填写 Audience；“高级兼容设置”中的 Audience 只用于仍直接携带上游 JWT access token 的旧 API 客户端，一般留空。
 
 公网地址必须是浏览器实际访问的地址。`0.0.0.0` 和 `::` 只用于监听，不能作为公网或回调地址。将 Server 放在提供有效证书的 HTTPS 反向代理后，填写代理对外的地址；只在设置中将 `http` 改成 `https` 不会启用 TLS。浏览器地址、Server 公网地址和已登记的回调地址必须使用相同协议、主机及端口。
 
@@ -18,9 +18,9 @@
 
 Server 成功校验后签发本站短期 OIDC 会话及可轮换的刷新凭据，而不是把上游令牌当成本站登录凭据。浏览器仅在当前标签页 sessionStorage 保存本站凭据；上游 refresh token 加密存入数据库，不返回浏览器。刷新会校验新 ID Token（若提供）及 UserInfo 的身份一致性，单次消费本站刷新凭据；并发重复刷新、退出登录后的刷新和账号封禁后的旧凭据均被拒绝。刷新会话最长七天，短期访问会话不超过一小时，且不超过上游返回的相关有效期。
 
-Token 端点支持公开客户端（不带 Client Secret）、`client_secret_basic` 和 `client_secret_post`。按身份提供方的应用配置选择；私密客户端填写 Client Secret。保存前会核验 discovery 和签名公钥，失败不覆盖旧设置。身份提供方临时不可用时，密码登录仍可使用；页面暂不提供不可用的组织登录入口。
+Token 端点支持公开客户端（不带 Client Secret）、`client_secret_basic` 和 `client_secret_post`。按身份提供方的应用配置选择；私密客户端填写 Client Secret。每个启用的提供方独立核验 discovery 和签名公钥。无法核验时，配置页标记该项不可用，登录页暂不提供该入口；其他可用提供方和密码登录继续可用。授权码交换、本站会话、刷新和 MFA 都绑定所选提供方；不能用另一家的配置刷新或完成验证。停用期间或移除后立即拒绝该提供方的本站会话，不删除平台账号和资源。
 
-已有账号从“用户设置 → 通用 → 账号”显式绑定组织身份，绑定后两种登录方式共用原 user_id。外部身份由 issuer + sub 识别，不使用用户名或邮箱作为身份键。未注销账号的平台注册邮箱不能重复；外部登录返回相同邮箱也不能自动登录或合并已有账号，必须先登录原账号并绑定。修改 Issuer 或客户端身份前，应确保实例所有者仍持有可用的原生密码；旧组织身份的登录可能失效，但不会删除账号或资源。
+已有账号从“用户设置 → 通用 → 账号”显式绑定组织身份，绑定后两种登录方式共用原 user_id。每个平台账号可显式绑定一个 OIDC 身份。外部身份由 issuer + sub 识别，不使用用户名或邮箱作为身份键。未注销账号的平台注册邮箱不能重复；外部登录返回相同邮箱也不能自动登录或合并已有账号，必须先登录原账号并绑定。修改 Issuer 或客户端身份前，应确保实例所有者仍持有可用的原生密码；旧组织身份的登录可能失效，但不会删除账号或资源。
 
 生产使用 HTTPS。仅显式开启部署配置 `oidc.allow_insecure` 的本机开发环境允许回环 HTTP，不允许任意明文远程地址。
 
@@ -29,6 +29,14 @@ Token 端点支持公开客户端（不带 Client Secret）、`client_secret_bas
 点击“使用 LINUX DO 配置”，自动填写 `https://connect.linux.do/`、`openid profile email` 和请求正文中的 Client Secret 认证。填入自己的 Client ID、Client Secret，将页面显示的回调地址登记到 LINUX DO Connect 后保存。该按钮只填入公开参数，不带任何用户凭据，也不会自动保存。
 
 LINUX DO 的[公开 discovery](https://connect.linux.do/.well-known/openid-configuration)声明授权码、S256 PKCE、RS256、UserInfo 和 Client Secret 两种认证方式。此实现按其公开 OIDC 合同支持接入；本地验证使用真实签名的兼容测试身份服务，不代表已登录你的生产 LINUX DO 应用。生产验收应完成一次授权、绑定／注册及退出重登，不需要把 Client Secret 发送给开发者。
+
+## 注册方式与 OAuth2 限制
+
+多用户模式下，在“平台管理 → 账号”选择开放注册或管理员邀请，并可勾选“仅限 OAuth2 方式注册”。需要至少一个已启用且可用的 OIDC 登录提供方才能保存该条件。开放注册可同时要求审核；邀请注册无需重复审核。
+
+勾选后，新账号通过登录提供方验证身份，再填写平台用户名和联系邮箱。密码注册接口和通过密码创建邀请账号的接口都会拒绝请求；已有账号的密码登录、首次实例所有者设置及账号密码修改保持可用。只有单独更改网页入口不能绕过后端限制。
+
+邀请链接在 OAuth 跳转前保存邀请令牌，验证返回后仍需完成账号信息；Server 在同一事务内核对、消费邀请并创建账号。过期、无效或已使用的邀请不能注册。团队邀请仍要求已有账号，不替代账号注册邀请。
 
 ## Cloudflare Turnstile
 
@@ -42,9 +50,9 @@ Server 实际调用 Cloudflare Siteverify，并核对成功状态、`action` 和
 
 ## 密钥、备份与恢复
 
-Client Secret 和 Turnstile Secret Key 与登录设置一起使用实例主密钥加密保存在数据库，不写入审计正文，不通过管理 API 回显。编辑框留空保留原密钥；更换 Issuer、Client ID 或 Site Key 后必须重新填写对应密钥。关闭功能会清除其已保存配置。
+Client Secret 和 Turnstile Secret Key 与登录设置一起使用实例主密钥加密保存在数据库，不写入审计正文，不通过管理 API 回显。编辑框留空保留原密钥；更换 Issuer、Client ID 或 Site Key 后必须重新填写对应密钥。停用登录方式会保留该项配置和密钥，移除登录方式才清除该项；关闭 Turnstile 或邮件服务会清除对应配置。
 
-备份必须同时保存数据库和匹配的 `secret_master_key`；主密钥轮换包含登录设置及上游刷新凭据。认证配置和 OIDC 会话分别使用独立的 `authentication` schema 1 与 `oidc_sessions` schema 1，不改变 Control schema 14 或既有账号表。首次安装这些组件时，PostgreSQL 需要提供 schema-owner 连接进行初始化，此后受限 runtime 使用固定授权访问。
+备份必须同时保存数据库和匹配的 `secret_master_key`；主密钥轮换包含登录设置及上游刷新凭据。认证配置、OIDC 会话及 OAuth2 注册条件分别使用独立的 `authentication`、`oidc_sessions`、`registration_policy` 组件，不改变既有账号身份和资源。首次安装这些组件时，PostgreSQL 需要提供 schema-owner 连接进行初始化，此后受限 runtime 使用固定授权访问。
 
 如果错误的 Turnstile 配置导致无法登录，在受信任的 Server 主机上执行：
 
@@ -54,4 +62,4 @@ ternilo-server admin reset-authentication --config-dir /path/to
 
 此操作清除网页保存的登录配置，关闭 Turnstile，并让 OIDC 恢复到部署配置；保留账号、密码和所有资源，同时写入操作审计。命令必须使用该实例实际的配置、数据库连接和主密钥；如果运行进程临时覆盖了数据库地址，应先确认配置指向同一实例。刷新网页后重新登录并正确配置。
 
-管理 API 为 `GET/PUT /api/v1/admin/instance/authentication`，仅接受实例所有者的有效登录；`GET /auth/config` 只公开登录所需元数据和 Turnstile Site Key。受保护的注册／登录 JSON 请求使用 `turnstile_token` 传递本次表单的验证令牌。
+管理 API 为 `GET/PUT /api/v1/admin/instance/authentication`，其中 `oidc_providers` 是含固定 `id`、显示 `name`、`enabled` 及独立凭据的列表。`POST /auth/token`、`/auth/refresh` 和 `/auth/mfa` 必须传入所选 `provider_id`。管理 API 仅接受实例所有者的有效登录；`GET /auth/config` 只公开可用提供方的 `id`、`name`、公开授权参数及 Turnstile Site Key。受保护的注册／登录 JSON 请求使用 `turnstile_token` 传递本次表单的验证令牌。
