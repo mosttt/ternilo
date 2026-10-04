@@ -4,7 +4,7 @@
 
 Setup and the regular workbench initially follow the browser’s preferred Chinese/English language. A saved manual choice overrides that default.
 
-Requires Docker Engine and the Compose plugin. The public image `ghcr.io/mosttt/ternilo-server:0.2.3` supports `linux/amd64` and `linux/arm64`; Docker selects the host architecture. Rust, Node.js, Python and local builds are unnecessary.
+Requires Docker Engine and the Compose plugin. The public image `ghcr.io/mosttt/ternilo-server:0.2.4` supports `linux/amd64` and `linux/arm64`; Docker selects the host architecture. Rust, Node.js, Python and local builds are unnecessary.
 
 `ghcr.io/mosttt/ternilo-server:latest` follows the latest published stable release; prereleases never replace it. These instructions pin a version by default. To follow stable releases, set `TERNILO_IMAGE=ghcr.io/mosttt/ternilo-server:latest` in the deployment directory's `.env`. Update with `docker compose -f compose.server.yml pull`, followed by `docker compose -f compose.server.yml up -d`.
 
@@ -15,7 +15,7 @@ Default SQLite and an existing PostgreSQL database can start without a `.env` fi
 ```bash
 mkdir ternilo-server
 cd ternilo-server
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.3/compose.server.yml
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.4/compose.server.yml
 docker compose -f compose.server.yml up -d --wait
 docker compose -f compose.server.yml logs server
 ```
@@ -62,8 +62,8 @@ Use `host.docker.internal` as the database hostname in web setup. PostgreSQL mus
 Download the database overlay and initialization SQL into the same deployment directory:
 
 ```bash
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.3/compose.server.postgres.yml
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.3/postgres-init.sql
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.4/compose.server.postgres.yml
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.4/postgres-init.sql
 ```
 
 Create `.env` with **database account passwords**, separate from the Ternilo administrator password:
