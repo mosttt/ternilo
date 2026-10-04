@@ -113,6 +113,7 @@ test('PWA installs, upgrades, opens an explicit credential-free offline shell, a
   try {
     const origin = await server.origin
     context = await chromium.launchPersistentContext(path.join(dataDirectory, 'browser-profile'), {
+      locale: 'zh-CN',
       headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
       viewport: { width: 1440, height: 900 }, serviceWorkers: 'allow',
     })
