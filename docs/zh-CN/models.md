@@ -86,7 +86,7 @@ OpenAI Responses 在配置了非 `none` 的实际推理强度时，同时请求 
 
 添加 Provider 时可以选择 `Google Gemini` 或 `Claude · Anthropic Messages`。账号、平台和本地共用这个入口；不是 OpenAI 兼容模式。Gemini 默认基础地址为 `https://generativelanguage.googleapis.com/v1beta`，Claude 为 `https://api.anthropic.com/v1`，填写相应服务的 API Key 后即可获取模型。切换协议会更新未自定义的默认地址，已填写的中转地址不会被覆盖。
 
-两种协议支持文本、图像输入、流式回答、函数工具和思考历史。Gemini 使用原生 `generateContent` / `streamGenerateContent`；Claude 使用 Anthropic Messages。工具循环和刷新后的下一轮请求保留原始思考签名，不把签名当作可见回答。Gemini 附件由 Ternilo 解析为 base64 图像；原生模式不提供 Vertex AI/OAuth、Bedrock、实时语音、图像生成或服务商内置搜索工具。
+两种协议支持文本、图像输入、流式回答、函数工具和思考历史。Gemini 使用原生 `generateContent` / `streamGenerateContent`；Claude 使用 Anthropic Messages。工具循环和刷新后的下一轮请求保留原始思考签名，不把签名当作可见回答。Gemini 附件由 Ternilo 解析为 base64 图像；原生模式不提供 Vertex AI/OAuth、Bedrock、实时语音、图像生成或 Gemini 内置搜索工具。Claude Provider 可显式启用托管网页搜索／读取，见[网页工具](web-access.md#claude-托管网页工具)。
 
 推理强度依实际模型能力配置，不要将所有统一档位全部勾选。Gemini 的实际值可以是 `minimal`、`low`、`medium`、`high`，或思考 token 预算（`-1` 自动，`0` 关闭）。Claude 新模型使用 `low`、`medium`、`high`、`xhigh`、`max` 等自适应强度；旧模型使用不少于 `1024` 且低于最大输出 token 的预算值；`none` 关闭。空映射只是不发送参数，不会关闭服务商默认思考。发现接口没有明确提供的档位继续继承手动 Provider 配置，不按模型名称猜测。
 

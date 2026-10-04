@@ -6,6 +6,8 @@ Setup and the regular workbench initially follow the browser’s preferred Chine
 
 Requires Docker Engine and the Compose plugin. The public image `ghcr.io/mosttt/ternilo-server:0.2.3` supports `linux/amd64` and `linux/arm64`; Docker selects the host architecture. Rust, Node.js, Python and local builds are unnecessary.
 
+Default SQLite and an existing PostgreSQL database can start without a `.env` file. Web setup saves database connections and the public URL in the volume's `config.json`. `.env.server.example` documents optional Docker settings, startup overrides and the database-role passwords required by included PostgreSQL; use the sections you need.
+
 ## SQLite: start and configure in the browser
 
 ```bash
