@@ -1,5 +1,10 @@
 #![forbid(unsafe_code)]
 
+/// Select the process-level TLS provider before applications create network clients.
+pub fn initialize_tls() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 mod server_models;
 pub use server_models::{ModelInputOrigin, ServerModelGateway};
 

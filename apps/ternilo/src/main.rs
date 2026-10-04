@@ -136,6 +136,7 @@ enum ProviderCommand {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    ternilo_local::initialize_tls();
     match execute(Args::parse_from(arguments_with_default_serve(
         std::env::args_os(),
     )))

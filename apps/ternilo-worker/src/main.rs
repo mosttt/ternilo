@@ -136,6 +136,7 @@ enum WorkerCommand {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    ternilo_local::initialize_tls();
     match run(Args::parse()).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

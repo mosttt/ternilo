@@ -48,6 +48,7 @@ struct Args {
 }
 
 fn main() -> ExitCode {
+    ternilo_local::initialize_tls();
     match run(Args::parse()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
