@@ -4,14 +4,14 @@
 
 设置页和正常工作台首次按浏览器首选语言显示中文或英文；手动选择会保存并覆盖浏览器默认值。
 
-需要 Docker Engine 和 Compose 插件。公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.2` 支持 `linux/amd64` 和 `linux/arm64`，Docker 自动选择架构，不需要 Rust、Node.js、Python 或本地构建。
+需要 Docker Engine 和 Compose 插件。公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.3` 支持 `linux/amd64` 和 `linux/arm64`，Docker 自动选择架构，不需要 Rust、Node.js、Python 或本地构建。
 
 ## SQLite：直接启动并在网页设置
 
 ```bash
 mkdir ternilo-server
 cd ternilo-server
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.2/compose.server.yml
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.3/compose.server.yml
 docker compose -f compose.server.yml up -d --wait
 docker compose -f compose.server.yml logs server
 ```
@@ -60,8 +60,8 @@ docker compose -f compose.server.yml -f compose.host.yml up -d --wait
 在同一个部署目录下载数据库叠加配置和初始化 SQL：
 
 ```bash
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.2/compose.server.postgres.yml
-curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.2/postgres-init.sql
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.3/compose.server.postgres.yml
+curl -fLO https://github.com/mosttt/ternilo/releases/download/v0.2.3/postgres-init.sql
 ```
 
 在该目录创建 `.env`，设置**数据库账号密码**，这与 Ternilo 管理员密码不同：

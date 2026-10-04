@@ -11,7 +11,7 @@
 在运行 Server 的机器上执行：
 
 ```bash
-./bin/ternilo-server admin reset-password \
+ternilo-server admin reset-password \
   --config-dir /path/to \
   --username owner
 ```
@@ -21,7 +21,7 @@
 自动化场景使用 `--password-stdin`，例如从受保护的临时文件读取：
 
 ```bash
-./bin/ternilo-server admin reset-password \
+ternilo-server admin reset-password \
   --config-dir /path/to \
   --username owner \
   --password-stdin < /path/to/protected-password-file
@@ -65,7 +65,7 @@ SMTP 密码加密保存，不在读取设置时回显；未修改连接参数时
 验证器密钥加密保存在 Server 数据库，恢复码仅保存摘要；请求不缓存。丢失验证器和全部恢复码时，具有 Server 私有配置及主密钥访问权的运维人员可以执行：
 
 ```bash
-./bin/ternilo-server admin reset-mfa \
+ternilo-server admin reset-mfa \
   --config-dir /path/to \
   --username owner
 ```

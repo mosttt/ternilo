@@ -2,6 +2,13 @@
 
 Run `ternilo serve` on every execution computer and deploy one Ternilo Server as the authenticated entry point. Open Server from your phone or another computer to use the selected computer's workspaces, sessions, models and plugins. The execution computer makes an outbound WebSocket connection; its local port does not need port forwarding or public exposure.
 
+```mermaid
+flowchart LR
+    B[Phone or another browser] -->|Sign in and work| S[Ternilo Server]
+    C[ternilo on the execution computer] -->|Outbound connection| S
+    C --> F[Files and tools on that computer]
+```
+
 Start with [Server deployment](deployment.md) or [Docker Compose](docker-compose.md). Native username/password authentication works without OIDC. Single-user mode restricts access to the instance owner; multi-user mode adds accounts and explicit resource sharing. Personal computers and personal VPS instances use the same connection procedure. A managed Worker is optional and is not required for personal computers.
 
 ## Register and connect a computer

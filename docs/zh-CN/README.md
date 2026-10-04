@@ -2,54 +2,47 @@
 
 [English](../en/README.md) · [简体中文](README.md)
 
-第一次使用，从[本地快速开始](getting-started.md)进入。需要远程管理多台机器，接着阅读[远程访问](remote-access.md)。先完成一个真实任务，再按需要配置协作、插件和托管执行。
+先选择下面的入口，完成启动与第一个任务，再阅读所需功能。文档中的命令使用已安装到 `PATH` 的程序名。
 
-## 安装部署
+## 从这里开始
 
-- [本地快速开始](getting-started.md)：启动程序、打开文件夹、配置模型、发送第一个任务。
-- [远程访问](remote-access.md)：部署 Server、接入自己的电脑或 VPS、从其他设备访问。
-- [Server 部署与运维](deployment.md)：初始化、SQLite／PostgreSQL、反向代理、诊断、备份与恢复。
-- [多 Server Node 路由](server-cluster.md)：实例地址、在线转发和实时补读；阶段验收待完成。
-- [桌面应用](desktop.md)：原生窗口、后台服务、通知和深链。
-- [托管 Worker](worker.md)：现有可选执行服务的接入、存储和维护；完整 Work 能力仍为预留范围。
+| 你的情况 | 阅读顺序 |
+|---|---|
+| 只在当前电脑使用 | [本地快速开始](getting-started.md) → [用户指南](user-guide.md) |
+| 使用桌面窗口 | [桌面应用](desktop.md) → [本地快速开始](getting-started.md) |
+| 用手机或另一台电脑继续工作 | [部署 Server](deployment.md)／[Docker Compose](docker-compose.md) → [接入电脑](remote-access.md) |
+| 与其他账号协作 | [远程访问](remote-access.md) → [账号与协作](collaboration.md) → [平台管理](platform-management.md) |
+| 提供平台托管执行 | [Worker 部署](worker.md) |
 
-## 日常使用
+本机客户端叫 `ternilo`，统一远程入口叫 `ternilo-server`。自己的电脑和 VPS 使用同一种客户端接入。Worker 是可选的托管执行组件，Work 仍是独立预留设计。
 
-- [工作区与对话](user-guide.md)：项目和目录、会话、队列、权限、阅读过程与导出。
-- [模型配置](models.md)：Provider、协议、思考过程、上下文和请求超时。
-- [设置与预设](settings.md)：配置归属、Agent 预设、工具调用和执行步数上限。
-- [消息与文件](files.md)：上传、上下文引用、生成产物、预览和下载。
-- [工具与多 Agent](agents.md)：技能、计划、工作流、子代理、后台任务与服务。
-- [账号与协作](collaboration.md)：我的机器、独立输入、共享权限与提交者。
-- [电脑管理](computers.md)：名称、备注、详情、暂停／恢复接入、吊销与保留历史的移除登记。
-- [资源管理权交接](resource-management.md)：在团队内转交工作区或会话，保留原存储和执行身份。
-- [联网工具排查](web-access.md)：网页抓取、搜索和代理 DNS。
+## 使用工作台
 
-## 平台管理
+- [用户指南](user-guide.md)：工作区、会话、队列、任务权限和历史。
+- [模型配置](models.md)与[平台模型接入](model-service.md)：连接自己的服务或使用已授权模型。
+- [设置与预设](settings.md)：界面语言、主题、配置目标和 Agent 预设。
+- [文件与附件](files.md)：引用项目文件、上传、预览和下载。
+- [工具与多 Agent](agents.md)：技能、目标、计划、定时任务、后台任务和工作流。
+- [联网排查](web-access.md)：抓取、搜索和代理连接问题。
 
-- [账号与平台管理](platform-management.md)：单／多用户模式、注册、账号、团队、管理职责与 Worker 页面。
-- [登录与人机验证](server-authentication.md)：在 Server 设置 OAuth 2.0／OIDC、Turnstile、管理密钥及恢复登录。
-- [原生账号密码恢复](account-recovery.md)：通过本机维护命令重置密码，保留原账号和资源。
-- [平台模型服务](model-service.md)：发布模型、分配授权、领取模型 Key、客户端登录与用量。
-- [产品与能力边界](product.md)：两个使用模式、三类共享、页面分工、已有能力与当前限制。
-- [安全模型](security.md)：身份、凭据、审批、操作系统隔离和遥测。
+## 管理 Server 与协作
 
-## 开发维护
+- [Server 部署与运维](deployment.md)和[Docker Compose](docker-compose.md)：网页首次设置、SQLite／PostgreSQL、HTTPS、运行与备份。
+- [电脑管理](computers.md)：系统 ID、可修改名称、详情、暂停／恢复、吊销和移除登记。
+- [账号与平台管理](platform-management.md)、[登录配置](server-authentication.md)和[账号安全](account-recovery.md)：访问模式、账号、OIDC、验证、密码与 MFA。
+- [账号与协作](collaboration.md)、[项目共享](project-sharing.md)和[资源管理权交接](resource-management.md)：成员、资源权限、提交者及归属。
+- [服务账号](service-accounts.md)：自动化身份、凭据与明确授权。
+- [设备模型用量](device-provider-usage.md)、[用量核对](model-usage-reconciliation.md)和[性能](performance.md)：额度、账本、导出、限制及验证范围。
+- [多 Server 路由](server-cluster.md)：共享数据库、实例地址、跨实例 Node 请求与事件补读。
+- [配置与数据目录](data-layout.md)：程序配置、持久数据、凭据与备份位置。
 
-- [架构](architecture.md)：程序和模块的职责、数据归属与执行链路。
-- [Server 技术参考](server-reference.md)：路由、事务、执行与计量、HTTP 接口。
-- [扩展配置](extensions.md)与[扩展包开发](extension-packages.md)：插件、MCP、LSP、Hooks、Rhai、WASM 和签名。
-- [自动化与 SDK](automation.md)：CLI、JSON-RPC、ACP、Python 和 TypeScript。
-- [开发与验证](contributing.md)：源码环境、按范围测试、浏览器与双库验证。
-- [构建交付包](release-packaging.md)：本地二进制包、版本镜像和离线交付。
-- [CI 与 GitHub 发行](ci-release.md)：检查、各平台二进制／桌面安装包、GHCR Server 镜像和 Release 草稿。
+## 扩展与开发
 
-文档按使用任务组织。功能限制见[产品与能力边界](product.md)，尚未实施的技术设计位于 `docs/development/`，不进入交付包。
+- [自动化与 SDK](automation.md)和[远程 SDK](remote-sdks.md)：CLI、JSON-RPC、ACP、Python 与 TypeScript。
+- [扩展配置](extensions.md)和[扩展包开发](extension-packages.md)：MCP、LSP、Hooks、Rhai、WASM、签名与安装。
+- [开发指南](contributing.md)：源码检出、环境、构建和按范围验证。
+- [架构](architecture.md)与[Server 参考](server-reference.md)：模块职责、存储、事务和接口。
+- [包内程序](binaries.md)、[构建交付包](release-packaging.md)和[CI／发行](ci-release.md)：可执行程序、安装包、镜像及发布验证。
+- [标识与凭据](identifiers.md)和[会话日志修复](session-log-repair.md)：当前命名与离线维护。
 
-命令默认从源码或交付包根目录执行。示例域名、路径、账号和密钥需要按自己的环境填写，不代表已提供公共服务。
-
-- [未知模型用量核对](model-usage-reconciliation.md)：管理员依据上游记录补齐未知计数，保留原月份和审计。
-
-- [标识与凭据命名](identifiers.md)：当前对外前缀与用途。
-
-- [配置与数据目录](data-layout.md)
+支持范围见[产品与能力边界](product.md)，权限和隔离见[安全模型](security.md)。正式文档提供中文与英文版本，`docs/development/` 保存中文开发记录；开发记录中的计划不代表已交付能力。

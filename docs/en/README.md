@@ -1,58 +1,48 @@
-# Ternilo Documentation
+# Ternilo documentation
 
 [English](README.md) · [简体中文](../zh-CN/README.md)
 
-Start with the [local quickstart](getting-started.md). To manage computers from another device, continue with [remote access](remote-access.md). Complete a real task first, then configure collaboration, plugins, or managed execution as needed.
+Choose an entry point below, complete a first task, then read the features you need. Command examples use installed executable names on `PATH`.
 
-Formal guides are organized in parallel English and Simplified Chinese directories. Development records remain Chinese-only and are not included in binary packages.
+## Start here
 
-## Installation and deployment
+| Your situation | Reading order |
+|---|---|
+| Work on this computer | [Local quickstart](getting-started.md) → [User guide](user-guide.md) |
+| Use a desktop window | [Desktop](desktop.md) → [Local quickstart](getting-started.md) |
+| Continue from a phone or another computer | [Deploy Server](deployment.md) / [Docker Compose](docker-compose.md) → [Connect computers](remote-access.md) |
+| Collaborate with other accounts | [Remote access](remote-access.md) → [Collaboration](collaboration.md) → [Platform management](platform-management.md) |
+| Provide managed execution | [Worker deployment](worker.md) |
 
-- [Local quickstart](getting-started.md): start Ternilo, open a folder, configure a model, and submit a task.
-- [Remote access](remote-access.md): deploy a Server, connect computers or VPS instances, and work from other devices.
-- [Server operations](deployment.md): initialization, databases, reverse proxies, diagnostics, backups, and recovery.
-- [Cross-Server Node routing](server-cluster.md): instance origins, online forwarding and live catch-up; milestone acceptance remains pending.
-- [Desktop application](desktop.md): native windows, background services, notifications, and deep links.
-- [Managed Worker](worker.md): configure and maintain the optional execution service; the separate Work container model is not yet implemented.
+`ternilo` is the client and `ternilo-server` the shared remote entry point. Personal computers and VPS instances use the same client connection procedure. Worker is optional managed execution; Work remains a separate planned component.
 
-## Everyday use
+## Use the workbench
 
-- [Computer management](computers.md): names, notes, details, suspend/resume access, revocation and removal with history retained.
+- [User guide](user-guide.md): workspaces, sessions, queues, task permissions and history.
+- [Model configuration](models.md) and [platform model access](model-service.md): your own services or explicitly granted models.
+- [Settings and presets](settings.md): language, theme, configuration targets and Agent presets.
+- [Files and attachments](files.md): references, uploads, previews and downloads.
+- [Tools and agents](agents.md): skills, goals, plans, schedules, background work and workflows.
+- [Web diagnostics](web-access.md): fetching, search and proxy connections.
 
-- [Workspaces and conversations](user-guide.md): projects, folders, sessions, queues, permissions, and exports.
-- [Model configuration](models.md): providers, protocols, reasoning, context windows, and request timeouts.
-- [Settings and presets](settings.md): configuration ownership, Agent presets, tool calls, and execution limits.
-- [Messages and files](files.md): attachments, context references, generated files, previews, and downloads.
-- [Tools and multiple agents](agents.md): skills, plans, workflows, subagents, and background services.
-- [Accounts and collaboration](collaboration.md): computers, independent drafts, sharing permissions, and submitter identity.
-- [Resource management handoff](resource-management.md): transfer team workspace or session management while retaining storage and execution identity.
-- [Web access troubleshooting](web-access.md): fetching, search, proxies, and DNS.
+## Manage Server and collaboration
 
-## Administration
+- [Server deployment](deployment.md) and [Docker Compose](docker-compose.md): protected web setup, SQLite/PostgreSQL, HTTPS, operations and backups.
+- [Computers](computers.md): immutable IDs, editable names, details, pause/resume, revocation and removal.
+- [Platform management](platform-management.md), [login configuration](server-authentication.md) and [account security](account-recovery.md): access modes, accounts, OIDC, verification, passwords and MFA.
+- [Collaboration](collaboration.md), [project sharing](project-sharing.md) and [management handoff](resource-management.md): membership, resource rights, attribution and ownership.
+- [Service accounts](service-accounts.md): automation identities, credentials and explicit grants.
+- [Device model usage](device-provider-usage.md), [reconciliation](model-usage-reconciliation.md) and [performance](performance.md): budgets, ledgers, exports, limits and validation scope.
+- [Multiple Servers](server-cluster.md): shared database, instance origins, Node routing and event catch-up.
+- [Configuration and data layout](data-layout.md): settings, persistent data, credentials and backups.
 
-- [Platform administration](platform-management.md): access modes, registration, accounts, teams, and managed execution.
-- [Authentication and human verification](server-authentication.md): OAuth 2.0/OIDC, Turnstile, secrets, and login recovery.
-- [Native account recovery](account-recovery.md): reset an existing password through the local operator CLI while retaining identity and resources.
-- [Platform model service](model-service.md): published models, grants, access keys, client authorization, and usage.
-- [Capabilities and limitations](product.md): deployment modes, resource sharing, supported features, and boundaries.
-- [Security model](security.md): identity, credentials, approvals, operating-system isolation, and telemetry.
+## Extend and develop
 
-## Development and maintenance
+- [Automation and SDKs](automation.md) and [remote SDKs](remote-sdks.md): CLI, JSON-RPC, ACP, Python and TypeScript.
+- [Extension configuration](extensions.md) and [extension packages](extension-packages.md): MCP, LSP, Hooks, Rhai, WASM, signing and installation.
+- [Development](contributing.md): checkout, environment, builds and focused validation.
+- [Architecture](architecture.md) and [Server reference](server-reference.md): modules, storage, transactions and interfaces.
+- [Package programs](binaries.md), [packaging](release-packaging.md) and [CI/releases](ci-release.md): executables, installers, images and publication checks.
+- [Identifiers and credentials](identifiers.md) and [session log repair](session-log-repair.md): current names and offline maintenance.
 
-- [Architecture](architecture.md): program responsibilities, data ownership, and execution paths.
-- [Server reference](server-reference.md): routing, transactions, metering, and HTTP interfaces.
-- [Extension configuration](extensions.md) and [extension packages](extension-packages.md): plugins, MCP, LSP, hooks, Rhai, WASM, and signing.
-- [Automation and SDKs](automation.md): CLI, JSON-RPC, ACP, Python, and TypeScript.
-- [Development and validation](contributing.md): source setup, scoped tests, browser checks, and database verification.
-- [Build and package](release-packaging.md): component archives, versioned images, and offline delivery.
-- [CI and GitHub releases](ci-release.md): checks, platform binaries, desktop installers, GHCR images, and published release assets.
-
-Documentation is organized around usage and maintenance tasks. Unimplemented technical designs live in `docs/development/` and are not included in delivery packages.
-
-Commands assume the repository or extracted package root unless stated otherwise. Replace example domains, paths, accounts, and secrets with your own values; they do not identify public services.
-
-- [Reconcile unknown model usage](model-usage-reconciliation.md): complete missing counters with administrative evidence and immutable audit.
-
-- [Identifiers and credentials](identifiers.md): current prefixes and their purposes.
-
-- [Configuration and data directories](data-layout.md)
+See [capabilities and boundaries](product.md) for supported behavior and [security](security.md) for permissions and isolation. Formal guides have Chinese and English editions; `docs/development/` holds Chinese development records. Planned work in those records is not a delivered feature.

@@ -2,14 +2,14 @@
 
 Deploy `ternilo-server` for accounts, connected computers and shared workspaces. SQLite is the default; PostgreSQL is optional. The owner switches single-user/multi-user mode in Platform administration → Instance settings without recreating accounts or resources. Personal computers run `ternilo serve`, retaining their own files, models, extensions and sessions. OIDC and managed Workers are optional.
 
-Choose [native binaries](#native-deployment) or [Docker Compose](docker-compose.md). They run the same Server. Docker pulls `ghcr.io/mosttt/ternilo-server:0.2.2` without a local build; native deployment needs no Docker, Python, Rust or Node.js. For multiple Servers, see the explicit shared-database/master-key and routing configuration in [Server clustering](server-cluster.md). Cross-host storage takeover and transparent failover remain separate capabilities.
+Choose [native binaries](#native-deployment) or [Docker Compose](docker-compose.md). They run the same Server. Docker pulls `ghcr.io/mosttt/ternilo-server:0.2.3` without a local build; native deployment needs no Docker, Python, Rust or Node.js. For multiple Servers, see the explicit shared-database/master-key and routing configuration in [Server clustering](server-cluster.md). Cross-host storage takeover and transparent failover remain separate capabilities.
 
 ## Native deployment
 
-Download and extract the matching Server archive. From its root on Linux or macOS:
+Download the matching Server archive and install its executable on `PATH`. Examples use the installed `ternilo-server` name on every platform. On Linux or macOS:
 
 ```bash
-./bin/ternilo-server serve \
+ternilo-server serve \
   --config-dir "$HOME/.local/share/ternilo-server" \
   --listen 127.0.0.1:4321
 ```
@@ -17,7 +17,7 @@ Download and extract the matching Server archive. From its root on Linux or macO
 Windows PowerShell:
 
 ```powershell
-.\bin\ternilo-server.exe serve --config-dir "$env:LOCALAPPDATA\ternilo-server" --listen 127.0.0.1:4321
+ternilo-server serve --config-dir "$env:LOCALAPPDATA\ternilo-server" --listen 127.0.0.1:4321
 ```
 
 For a remote server, first configure an HTTPS reverse proxy using upstream `http://127.0.0.1:4321`. Start Server, copy its Initialization Key from the logs, open the actual domain from your computer or phone, choose a database and create the administrator. The server does not need a desktop or browser. First start directly serves the setup page; no separate setup command is required. Setup, login and the workbench follow the browser’s preferred Chinese/English language, with saved manual choices taking precedence.

@@ -1,77 +1,84 @@
-# Ternilo
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mosttt/ternilo/main/web/public/assets/icon.svg" alt="Ternilo logo" width="88" height="88">
+</p>
 
-[English](README.md) · [简体中文](README.zh-CN.md)
+<h1 align="center">Ternilo</h1>
 
-让想法，动起来。
+<p align="center"><strong>让想法，动起来。</strong><br>能读取项目文件、执行工具的 AI 助手，支持本机使用、远程访问与多电脑协作。</p>
 
-Ternilo 是能读写项目文件、执行命令并保留工作过程的 AI 助手。你可以只在自己的电脑上使用，也可以通过一个 Server 管理多台电脑和 VPS，与其他人协作，或提供模型和托管执行服务。
+<p align="center">
+  <a href="https://github.com/mosttt/ternilo/actions/workflows/ci.yml"><img src="https://github.com/mosttt/ternilo/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
+  <a href="https://github.com/mosttt/ternilo/releases/latest"><img src="https://img.shields.io/github/v/release/mosttt/ternilo?color=456bdc" alt="Latest release"></a>
+  <a href="https://github.com/mosttt/ternilo/pkgs/container/ternilo-server"><img src="https://img.shields.io/badge/GHCR-ternilo--server-456bdc?logo=docker&amp;logoColor=white" alt="Server container image"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/mosttt/ternilo?color=456bdc" alt="Apache-2.0 license"></a>
+</p>
 
-## 选择使用方式
+<p align="center">
+  <a href="docs/zh-CN/getting-started.md">快速开始</a> ·
+  <a href="docs/zh-CN/README.md">文档</a> ·
+  <a href="docs/zh-CN/deployment.md">部署</a> ·
+  <a href="https://github.com/mosttt/ternilo/releases">下载</a> ·
+  <a href="https://github.com/mosttt/ternilo/issues">问题反馈</a>
+</p>
 
-| 你的需要 | 要运行的程序 | 从这里开始 |
-|---|---|---|
-| 在当前电脑完成任务 | `ternilo` | [本地快速开始](docs/zh-CN/getting-started.md) |
-| 从手机或其他电脑访问自己的机器 | `ternilo` + `ternilo-server` | [远程访问](docs/zh-CN/remote-access.md) |
-| 多人使用、共享模型和工作 | 同一个 Server 开启多用户模式，按资源授权 | [部署](docs/zh-CN/deployment.md)、[平台管理](docs/zh-CN/platform-management.md) |
-| 平台提供隔离的执行环境 | 在 Server 上启用托管执行，再接入 `ternilo-worker` | [Worker 部署](docs/zh-CN/worker.md) |
+<p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a></p>
 
-单用户和多用户都能管理本地电脑与云端 VPS，都能选择 SQLite 或 PostgreSQL。Worker 是可选组件；自己的 VPS 可以直接运行普通 `ternilo`。Work 容器模型是独立的预留设计，不等同于现有 Worker。
+---
 
-## 开始使用
+Ternilo 是能读取项目文件、执行工具并保留工作过程的 AI 助手。你可以在自己的电脑上使用，也可以将电脑和 VPS 接入 Server，从其他设备继续工作或与他人协作。
 
-已取得针对当前系统构建的交付包时，在解压目录运行：
+## 先在自己的电脑上使用
 
-```bash
-./bin/ternilo serve
+从 [Releases](https://github.com/mosttt/ternilo/releases) 下载适合当前系统的桌面安装包或客户端归档。打开桌面应用；使用命令行时，先将可执行程序安装到 `PATH`，再运行：
+
+```sh
+ternilo serve --open-browser
 ```
 
-打开终端显示的地址，选择工作文件夹，在“设置 → 模型”添加模型连接，然后交代任务。没有可用模型时，页面会提示配置并保留草稿。
+选择工作文件夹，在“设置 → 模型”添加模型连接，然后发送任务。对话页会逐步显示回答和工具执行过程。[本地快速开始](docs/zh-CN/getting-started.md)说明安装、第一次配置模型和停止服务的完整步骤。
 
-本地网页只监听回环地址。需要远程访问时，由电脑主动连接 Server，再通过 Server 的登录入口访问。桌面应用也连接同一个本地服务；关闭网页或窗口不会停止已经开始的任务。
+本机使用只需要 `ternilo`。桌面应用和浏览器连接同一个本地服务。界面首次按浏览器首选语言显示中文或英文，手动选择后使用保存的语言。
 
-二进制安装包与镜像的可用版本以仓库发行记录为准。也可以按[构建交付包](docs/zh-CN/release-packaging.md)生成独立的本地、Server 或 Worker 安装包；运行这些包无需 Rust、Node.js 或 Linorun 源码。
+## 从其他设备访问电脑
 
-仓库已提供[GitHub CI 与发行流程](docs/zh-CN/ci-release.md)：分别检查、构建 Linux／Windows 的 x86_64／ARM64 与两种 macOS 客户端／Server 及桌面包，并验收和发布 Server 镜像。主分支运行检查，手动打包生成候选产物；版本标签经过检查后发布 Server 镜像并上传完整附件并公开 Release。
+在其他设备可访问的电脑或服务器运行 `ternilo-server`。Docker 用户按 [Compose 部署](docs/zh-CN/docker-compose.md)操作；直接运行二进制见 [Server 部署与运维](docs/zh-CN/deployment.md)。
 
-### 从源码运行
+Server 首次启动提供受保护的网页设置：从日志复制初始化 Key，在网页选择 SQLite 或 PostgreSQL，再创建管理员。设置完成后，重启读取保存的数据库连接和原账号。
 
-源码依赖同级目录中的 [Linorun](https://github.com/mosttt/linorun)，请使用与当前 Ternilo 版本配套的源码：
+登录 Server，进入“用户设置 → 我的机器”，生成连接命令并在执行任务的电脑上运行。之后从手机或其他浏览器打开 Server，选择这台电脑即可继续工作。文件和工具仍在执行电脑上，电脑主动连接 Server，不需要开放它的本地端口。
 
-配套提交固定在 `.github/linorun-revision`；CI 和发行均使用该提交。本地切换 Linorun 前先确认它没有未保存的修改，不要覆盖正在开发的代码。
+多人使用时，由所有者开启多用户模式，并授予具体资源权限。模型授权与工作区权限分别管理。接入步骤见 [远程访问](docs/zh-CN/remote-access.md)，共享方式见 [账号与协作](docs/zh-CN/collaboration.md)。
 
-```text
-/path/to/source/
-├── linorun/
-└── ternilo/
-```
+## 按需要继续阅读
 
-准备 `rust-toolchain.toml` 指定的 Rust 工具链和 Node.js，在 Ternilo 仓库执行：
+| 你要做什么 | 阅读入口 |
+|---|---|
+| 本机启动并完成第一个任务 | [本地快速开始](docs/zh-CN/getting-started.md) |
+| 安装和使用桌面应用 | [桌面应用](docs/zh-CN/desktop.md) |
+| 用 Docker 部署，选择 SQLite 或 PostgreSQL | [Docker Compose](docs/zh-CN/docker-compose.md) |
+| 直接运行 Server 二进制，配置 HTTPS 或备份数据 | [Server 部署与运维](docs/zh-CN/deployment.md) |
+| 接入自己的电脑和 VPS | [远程访问](docs/zh-CN/remote-access.md) |
+| 使用模型、文件、工具和会话 | [用户指南](docs/zh-CN/user-guide.md)、[模型配置](docs/zh-CN/models.md) |
+| 管理账号、电脑与共享资源 | [平台管理](docs/zh-CN/platform-management.md)、[电脑管理](docs/zh-CN/computers.md) |
 
-```bash
-npm --prefix web ci
-npm --prefix web run build
-cargo run --locked -p ternilo -- serve
-```
+[文档首页](docs/zh-CN/README.md)还提供 SDK、扩展和运维入口。平台托管执行使用可选的 [Worker](docs/zh-CN/worker.md)，Work 容器组件仍是独立预留设计。
 
-文件搜索需要在 `PATH` 中提供 `ripgrep`（`rg`）。Linux 执行受限命令还需要 `bubblewrap`。更完整的环境要求和验证方式见[开发指南](docs/zh-CN/contributing.md)。
+## 主要能力
 
-## 可以做什么
+Ternilo 提供工作区和会话、流式回答、文件与命令工具、持久终端、后台任务、附件、历史搜索和导出。支持 OpenAI Chat／Responses、DeepSeek Responses、原生 Gemini 和 Claude Messages，也可使用 Server 授权的模型。
 
-- 管理工作区与会话，流式对话，折叠思考和工具过程，搜索与导出历史。
-- 配置 OpenAI Chat、OpenAI Responses、DeepSeek Responses、原生 Gemini 或 Claude Messages；使用自己的模型或 Server 授予的模型额度。
-- 读写文件、执行命令、运行持久终端和后台任务，预览并下载附件与生成文件。
-- 使用技能、计划、目标、定时任务、子 Agent、Agent Team 和工作流。
-- 通过预设组合插件，接入 MCP、LSP、网页工具、Rhai 与签名的 Rhai／WASM 扩展。
-- 用只读、工作区写入或完整访问控制任务权限，按次审批需要确认的操作。
-- 在 Server 管理账号、机器、团队、工作区／会话共享、模型授权、用量和审计。
-- 通过网页、桌面、PWA、CLI、JSON-RPC、ACP、Python 或 TypeScript SDK 使用同一套能力。
+预设可以组合插件与工具，包括技能、计划、显式启用的目标、定时任务、子 Agent、MCP、LSP 以及签名的 Rhai／WASM 扩展。任务权限控制文件访问和执行范围。Server 另提供账号、电脑管理、资源共享、模型授权、用量和审计。
 
-支持范围和限制见[产品与能力边界](docs/zh-CN/product.md)。部署前应根据实际硬件和工作负载验证容量。
+已支持行为、隔离边界和剩余能力见 [产品与能力边界](docs/zh-CN/product.md)。
 
-## 文档与源码
+## 开发
 
-[文档首页](docs/zh-CN/README.md)按安装部署、日常使用、平台管理、开发维护组织。源码中的 `apps/` 是程序入口，`crates/` 是共享模块，`web/` 是工作台，`sdk/` 是客户端，`deploy/` 和 `scripts/` 提供部署与打包工具。`docs/development/` 保存开发进度、待办和技术设计，不作为已支持功能的说明。
+源码构建需要 `rust-toolchain.toml` 指定的 Rust、Node.js，以及 `.github/linorun-revision` 固定的 Linorun 提交。检出、构建和验证步骤见 [开发指南](docs/zh-CN/contributing.md)，制作交付包见 [构建与打包](docs/zh-CN/release-packaging.md)。
+
+`apps/` 保存程序入口，`crates/` 是共享 Rust 模块，`web/` 是界面，`sdk/` 是客户端库。正式文档位于 `docs/zh-CN/` 和 `docs/en/`，`docs/development/` 保存中文开发记录。
+
+[CI 与发行](docs/zh-CN/ci-release.md)验证源码、原生平台和部署，再发布客户端／Server 归档、桌面安装包及 Server 镜像。可用下载以 [Releases](https://github.com/mosttt/ternilo/releases) 为准。
 
 ## 许可证
 
-Ternilo 使用 [Apache-2.0 许可证](LICENSE)。第三方组件保留各自的许可证，见[第三方声明](THIRD_PARTY_NOTICES.md)。
+[Apache-2.0](LICENSE)。第三方组件保留自己的许可证，见 [第三方声明](THIRD_PARTY_NOTICES.md)。

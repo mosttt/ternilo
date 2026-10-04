@@ -11,7 +11,7 @@ An operator who can read the Server's private configuration can reset an existin
 Run on the Server host:
 
 ```bash
-./bin/ternilo-server admin reset-password \
+ternilo-server admin reset-password \
   --config-dir /path/to \
   --username owner
 ```
@@ -21,7 +21,7 @@ The terminal hides the new password and asks for confirmation. Registration pass
 For automation, explicitly read from standard input, for example from a protected temporary file:
 
 ```bash
-./bin/ternilo-server admin reset-password \
+ternilo-server admin reset-password \
   --config-dir /path/to \
   --username owner \
   --password-stdin < /path/to/protected-password-file
@@ -65,7 +65,7 @@ Password changes, operator password resets and email recovery retain MFA. Comput
 The Server database encrypts authenticator secrets and stores only recovery-code digests; responses are not cached. If both the authenticator and all recovery codes are lost, an operator with access to the Server's private configuration and master key can run:
 
 ```bash
-./bin/ternilo-server admin reset-mfa \
+ternilo-server admin reset-mfa \
   --config-dir /path/to \
   --username owner
 ```

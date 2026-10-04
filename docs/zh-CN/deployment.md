@@ -10,27 +10,27 @@
 
 ## 通用前提
 
-- 从 [GitHub Release](https://github.com/mosttt/ternilo/releases) 下载对应平台二进制，或直接使用公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.2`。Docker 部署不需要本地构建。
+- 从 [GitHub Release](https://github.com/mosttt/ternilo/releases) 下载对应平台二进制，或直接使用公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.3`。Docker 部署不需要本地构建。
 - Docker 方式需要 Docker Engine 和 Compose 插件；使用 `ternilo-deploy` 辅助工具时另需 Python 3.9 以上。发行包中的 `deploy/docker/` 可复制到服务器独立使用，不依赖源码目录。
 - 远程访问使用域名和外部 HTTPS 反向代理。默认只把容器端口映射到服务器 `127.0.0.1:4321`；电脑的本地 `3210` 端口无需对外开放。
 - Server 数据卷包含私有配置、加密密钥及 SQLite 数据。PostgreSQL 数据库另行持久化，但仍需同时保存 Server 配置。
 
 ## 非容器部署
 
-从 Release 下载 Server 归档并解压，直接运行其中的 `bin/ternilo-server`；Windows 使用 `bin\ternilo-server.exe`。这条路径不需要 Docker、Python、Rust 或 Node.js。以下是 Linux／macOS 上的服务器部署示例，在解压后的发行包目录执行：
+从 Release 下载 Server 归档，将可执行程序安装到 `PATH`。以下命令统一使用 `ternilo-server`，Windows 使用同一程序名。运行现成二进制只需程序及其配置；Linux／macOS 示例：
 
 ```bash
-./bin/ternilo-server serve \
+ternilo-server serve \
   --config-dir "$HOME/.local/share/ternilo-server" \
   --listen 127.0.0.1:4321
 ```
 
 先按[反向代理与 TLS](#反向代理与-tls)配置网关，上游为 `http://127.0.0.1:4321`。Server 首次启动直接输出初始化 Key，从自己的电脑或手机打开实际访问的域名，输入 Key，选择 SQLite 或 PostgreSQL，填写对外地址并创建管理员。服务器不需要桌面或浏览器，也不需要先执行设置命令。初始化、登录和工作台按浏览器首选中文／英文显示，手动选择优先并保存到当前浏览器。
 
-Windows PowerShell 在解压目录中使用相同选项：
+Windows PowerShell 使用相同选项：
 
 ```powershell
-.\bin\ternilo-server.exe serve --config-dir "$env:LOCALAPPDATA\ternilo-server" --listen 127.0.0.1:4321
+ternilo-server serve --config-dir "$env:LOCALAPPDATA\ternilo-server" --listen 127.0.0.1:4321
 ```
 
 `--public-url https://ternilo.example.com` 可预设网页的对外地址，但不是打开网页的必要参数。它用于登录回调和邮件链接，不负责 HTTPS 或反向代理。也可在首次网页设置及之后的实例设置中保存它。
@@ -39,13 +39,11 @@ Windows PowerShell 在解压目录中使用相同选项：
 
 不适合使用网页时，运行 `ternilo-server setup --config-dir <实例目录>` 进入终端向导，选择数据库并隐藏输入连接串和管理员密码。自动化使用 `setup --non-interactive --owner-username ... --owner-email ... --owner-password ...` 或对应环境变量；这只用于首次设置。已有配置时 `setup` 拒绝覆盖，日常 `serve` 不接受管理员账号参数，容器重启不会重置账号。`serve` 的 CLI > 环境变量 > 配置 > 默认值；启动覆盖不回写配置，也不搬移数据库数据。
 
-默认配置位于 `$XDG_DATA_HOME/ternilo-server/config.json`，未设置 XDG 时为 `$HOME/.local/share/ternilo-server/config.json`。无子命令也会启动服务。实例所有者可在网页“平台管理 → 实例设置”配置 OIDC、Turnstile 和邮件服务，详见[登录与人机验证](server-authentication.md)。
+`--config-dir` 指整个实例目录，固定读取其中的 `config.json`，环境变量为 `TERNILO_SERVER_CONFIG_DIR`。默认目录为 `$XDG_DATA_HOME/ternilo-server`，未设置 XDG 时为 `$HOME/.local/share/ternilo-server`。无子命令也会启动服务。
 
-`--config-dir` 指整个实例目录，固定读取其中的 `config.json`；环境变量为 `TERNILO_SERVER_CONFIG_DIR`。`--database-url` 指实际数据库。初始化省略数据库地址时，默认 SQLite 为实例下的 `data/db/server.sqlite3`。显式数据库地址会保存到总配置。
+后续 `serve --config-dir ./server` 读取保存的数据库连接，不必重复指定。`--database-url`／`TERNILO_DATABASE_URL` 可在本次启动覆盖连接，`--migration-database-url`／`TERNILO_MIGRATION_DATABASE_URL` 指定建表连接；它们不会改写配置或迁移原数据库。选择另一实例目录也不会改动原实例数据。
 
-直接运行二进制初始化时，管理员邮箱可通过 `--owner-email` 或 `TERNILO_SERVER_OWNER_EMAIL` 提供；交互初始化会询问用户名、邮箱和密码。非交互模式不提供任何管理员信息时，仍使用一次性网页初始化链接。
-
-以后 `serve --config-dir ./server` 读取总配置中保存的连接，不需要再次指定数据库地址；启动时传入 `--database-url` 或环境变量 `TERNILO_DATABASE_URL` 可以临时覆盖它，不会改写配置。选择另一实例目录不会改动原实例数据。
+实例所有者可以在“平台管理 → 实例设置”配置 OIDC、Turnstile 和邮件服务，见[登录与人机验证](server-authentication.md)。
 
 长期运行交由 systemd 或你的服务管理器，使用独立的服务账号和相同配置路径。服务监听及公开 URL 分别由 `--listen`／`TERNILO_SERVER_LISTEN`、`--public-url`／`TERNILO_SERVER_PUBLIC_URL` 设置。可选 OIDC 和托管执行配置保留独立参数；更完整的软件分层见[架构说明](architecture.md)。
 
