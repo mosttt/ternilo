@@ -4,7 +4,7 @@ The workflows separate checking, packaging and publishing. Ternilo is checked ou
 
 ## Workflows and artifacts
 
-**Checks** runs on pull requests, main pushes and manual dispatch, and is reused by Release. It covers Web, documentation, Rust, deployment scripts, dependencies, real browsers, native Linux desktop checks and SQLite/PostgreSQL behavior. Linux ARM64, Windows and both macOS architectures run compile and persistence checks. Successful main/manual checks call packaging; pull requests do not publish binaries.
+**Checks** runs on pull requests, main pushes and manual dispatch, and is reused by Release. It covers Web, documentation, Rust, deployment scripts, dependencies, real browsers, native Linux desktop checks and SQLite/PostgreSQL behavior. Linux ARM64, Windows and both macOS architectures run compile and persistence checks. Main pushes, pull requests and manual checks do not automatically package binaries. Run Build packages separately when candidate programs are needed.
 
 **Build packages** creates optimized binaries, desktop installers and checksums for Actions artifacts. Manual runs can select one Rust target or all targets and produce a candidate, not a GitHub Release. **Release** verifies the version, then runs Checks, platform packaging and Server image validation in parallel. Image publication waits for all checks and builds; assets become public only for a matching version tag. Dispatching Release against a branch validates candidates without publishing.
 

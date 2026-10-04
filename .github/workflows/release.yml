@@ -32,8 +32,6 @@ jobs:
   checks:
     needs: version
     uses: ./.github/workflows/ci.yml
-    with:
-      skip-packages: true
   packages:
     needs: version
     uses: ./.github/workflows/packages.yml

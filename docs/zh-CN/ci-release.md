@@ -6,7 +6,7 @@
 
 | 工作流 | 触发 | 内容与产物 |
 |---|---|---|
-| `Checks` | PR、main 推送、手动；发行时复用 | Web、文档、Rust、部署脚本、依赖门禁；真实浏览器、Linux 原生桌面、SQLite／PostgreSQL 恢复；Linux ARM64／Windows／两种 macOS 架构编译检查。main 推送和手动检查成功后调用打包；PR 只保留截图，不发布二进制 |
+| `Checks` | PR、main 推送、手动；发行时复用 | Web、文档、Rust、部署脚本、依赖门禁；真实浏览器、Linux 原生桌面、SQLite／PostgreSQL 恢复；Linux ARM64／Windows／两种 macOS 架构编译检查。main 推送、PR 和手动检查不自动打包；需要候选程序时单独运行 `Build packages` |
 | `Build packages` | 手动；发行时复用 | 各平台 release 二进制、桌面安装器与 SHA256；仅上传 Actions artifacts，不创建 Release 或推送镜像 |
 | `Release` | `v*` 标签、手动 | 版本检查后并行执行 `Checks`、`Build packages` 与 Server 镜像构建／验收；全部通过后，只有匹配版本标签才推送 GHCR、上传全部附件并公开 GitHub Release |
 
@@ -18,7 +18,7 @@ Rust 缓存包含依赖的编译结果，按工具链、构建环境、目标平
 
 检查按工作流、分支／PR、事件及具体作业控制并发；同一范围的新提交会取消过时的检查。六个目标打包分别排队，已经开始的构建继续完成，后续保留最新候选。新提交的检查无需等待旧提交的安装器构建。Release 标签流程仍按标签串行，发布权限和门禁不变。
 
-`Release` 复用检查时显式跳过其末尾打包，由发行工作流统一调用一次 `Build packages`。检查、六个目标包和镜像构建可以并行；镜像推送与 Release 公开仍等待全部检查和构建成功。候选构建作业没有发布权限。
+`Checks` 只负责校验；`Release` 统一调用一次 `Build packages`，普通源码推送不会再额外启动六个发行构建。检查、六个目标包和镜像构建可以并行；镜像推送与 Release 公开仍等待全部检查和构建成功。候选构建作业没有发布权限。
 
 二进制及安装器矩阵：
 

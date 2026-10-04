@@ -5,10 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
   workflow_call:
-    inputs:
-      skip-packages:
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -189,8 +185,3 @@ jobs:
           cargo test --locked --target "$RUST_TARGET" -p ternilo-extension --lib registry
         env:
           RUST_TARGET: ${{ matrix.target }}
-
-  packages:
-    if: ${{ !inputs.skip-packages && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/') }}
-    needs: [client-server, dependencies, platforms]
-    uses: ./.github/workflows/packages.yml
