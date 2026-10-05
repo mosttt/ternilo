@@ -463,6 +463,7 @@ async function verifySharedSessionUse(owner, member, origin, entry, node, localS
   revocationStarted = Date.now()
   await requestAs(owner, origin, sharingPath, undefined, 'DELETE')
   await member.locator(`[data-sidebar-session-row][data-session-id="${sessionId}"]`).waitFor({ state: 'detached' })
+  await member.waitForFunction(() => document.querySelectorAll('article[data-role="user"]').length === 0, null, { timeout: 5000 })
   assert.equal(await member.locator('article[data-role="user"]').count(), 0)
   const afterRevocation = receivedEvents
   await new Promise(resolve => setTimeout(resolve, 650))
