@@ -5,6 +5,8 @@ interface BrowserTokens {
   access_token: string
   expires_in: number
   refresh_token?: string
+  email?: string
+  username?: string
 }
 
 const failureKeys = {
@@ -43,6 +45,8 @@ const keys = {
   provider: 'ternilo.oidc.provider',
   attemptProvider: 'ternilo.oidc.attempt-provider',
   invitation: 'ternilo.oidc.invitation',
+  email: 'ternilo.oidc.email',
+  username: 'ternilo.oidc.username',
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -72,6 +76,10 @@ function storeTokens(tokens: BrowserTokens, fallbackRefresh = '') {
   if (refresh) sessionStorage.setItem(keys.refresh, refresh)
   else sessionStorage.removeItem(keys.refresh)
   sessionStorage.setItem(keys.expires, String(Date.now() + tokens.expires_in * 1_000))
+  if (tokens.email) sessionStorage.setItem(keys.email, tokens.email)
+  else sessionStorage.removeItem(keys.email)
+  if (tokens.username) sessionStorage.setItem(keys.username, tokens.username)
+  else sessionStorage.removeItem(keys.username)
 }
 
 const returnPaths = new Set(['/auth/verify-email', '/', '/admin', '/admin/accounts', '/admin/workers', '/admin/instance', '/admin/models', '/models', '/spaces/current', '/files'])
@@ -266,3 +274,5 @@ export function readOidcToken() {
 
 export function readOidcInvitation() { return sessionStorage.getItem(keys.invitation) ?? '' }
 export function clearOidcInvitation() { sessionStorage.removeItem(keys.invitation) }
+export function readOidcEmail() { return sessionStorage.getItem(keys.email)?.trim() ?? '' }
+export function readOidcUsername() { return sessionStorage.getItem(keys.username) ?? '' }

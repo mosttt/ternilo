@@ -1,6 +1,6 @@
 import { readNativeToken } from './server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { beginOidcLogin, clearOidcSession, completeOidcLink, initializeOidcSession, refreshOidcSession } from './oidc'
+import { beginOidcLogin, clearOidcSession, completeOidcLink, initializeOidcSession, refreshOidcSession, readOidcEmail, readOidcUsername } from './oidc'
 
 beforeEach(() => {
   const values = new Map<string, string>()
@@ -13,6 +13,23 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('OIDC session lifecycle', () => {
+  it('replaces the provider email on refresh and removes it when it is absent or the account signs out', async () => {
+    sessionStorage.setItem('ternilo.oidc.provider', 'organization')
+    sessionStorage.setItem('ternilo.oidc.refresh', 'refresh-token')
+    sessionStorage.setItem('ternilo.oidc.email', 'previous@example.test')
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'new-token', expires_in: 3600, email: 'provider@example.test', username: 'upstream-user' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'next-token', expires_in: 3600 }))))
+    await refreshOidcSession()
+    expect(readOidcEmail()).toBe('provider@example.test')
+    expect(readOidcUsername()).toBe('upstream-user')
+    await refreshOidcSession()
+    expect(readOidcEmail()).toBe('')
+    expect(readOidcUsername()).toBe('')
+    sessionStorage.setItem('ternilo.oidc.email', 'provider@example.test')
+    clearOidcSession()
+    expect(readOidcEmail()).toBe('')
+  })
   it('keeps token refresh on the existing root endpoint', async () => {
     sessionStorage.setItem('ternilo.oidc.provider', 'organization')
     sessionStorage.setItem('ternilo.oidc.refresh', 'refresh-token')

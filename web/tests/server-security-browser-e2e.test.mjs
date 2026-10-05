@@ -84,7 +84,7 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
       render(container, options) {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Test verification';
         button.onclick = () => options.callback('browser-widget-token');
-        container.append(button); window.testTurnstileOptions = options; return 'test-widget';
+        container.append(button); window.testTurnstileOptions = options; (window.testTurnstileHistory ??= []).push(options); return 'test-widget-' + window.testTurnstileHistory.length;
       }, remove() { document.querySelectorAll('button').forEach(button => { if (button.textContent === 'Test verification') button.remove(); }); }
     };` }))
     await anonymous.goto(origin)
@@ -103,6 +103,24 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     await anonymous.getByRole('button', { name: 'Test verification', exact: true }).waitFor()
     await anonymous.evaluate(() => document.documentElement.classList.add('dark'))
     await anonymous.waitForFunction(() => window.testTurnstileOptions.theme === 'dark')
+    await anonymous.setViewportSize({ width: 430, height: 900 })
+    await anonymous.waitForFunction(() => window.testTurnstileOptions.size === 'flexible')
+    assert.equal(await anonymous.getByRole('button', { name: 'Test verification', exact: true }).count(), 1)
+    await anonymous.evaluate(() => {
+      const current = window.testTurnstileOptions
+      const retired = window.testTurnstileHistory[0]
+      current.callback('fresh-widget-token')
+      retired['error-callback']('600010')
+      retired['expired-callback']()
+      retired.callback('retired-token')
+    })
+    await anonymous.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === '登录' && !button.disabled))
+    assert.equal(await login.isEnabled(), true, 'Retired compact widget callbacks cannot invalidate the current flexible widget')
+    await anonymous.evaluate(() => window.testTurnstileOptions['error-callback']('600010'))
+    await anonymous.getByRole('alert').filter({ hasText: '600010' }).waitFor()
+    assert.equal(await login.isDisabled(), true)
+    await anonymous.getByRole('button', { name: '重新验证', exact: true }).click()
+    await anonymous.getByRole('button', { name: 'Test verification', exact: true }).waitFor()
     const bypass = await anonymous.request.post(`${origin}/api/v1/auth/login`, { data: { username: application.owner.username, password: application.owner.password } })
     assert.equal(bypass.status(), 403)
     await anonymous.screenshot({ path: path.join(artifacts, 'turnstile-login-mobile.png') })

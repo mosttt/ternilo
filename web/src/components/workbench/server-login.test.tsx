@@ -261,6 +261,42 @@ it('asks a verified OIDC user for their platform username and contact email, kee
   expect(workbench.login).not.toHaveBeenCalled()
 })
 
+it('uses the provider email without an editable contact field', async () => {
+  workbench.oidcRegistrationRequired = true
+  sessionStorage.setItem('ternilo.oidc.email', 'provider@example.test')
+  await mount()
+  expect(document.getElementById('server-email')).toBeNull()
+  expect(document.querySelector('[data-oidc-email]')?.textContent).toContain('provider@example.test')
+  await settle(() => fill('server-username', 'chosen-user'))
+  await settle(submit)
+  expect(workbench.registerOidcUsername).toHaveBeenCalledWith('chosen-user', '', undefined, undefined)
+})
+
+it('automatically registers once using a supplied email and usable upstream username', async () => {
+  workbench.oidcRegistrationRequired = true
+  workbench.serverAuthConfig.mode = 'multi_user'
+  workbench.serverAuthConfig.registration.mode = 'open'
+  sessionStorage.setItem('ternilo.oidc.access', 'oidc-session')
+  sessionStorage.setItem('ternilo.oidc.email', 'provider@example.test')
+  sessionStorage.setItem('ternilo.oidc.username', 'upstream-user')
+  await mount()
+  expect(workbench.registerOidcUsername).toHaveBeenCalledExactlyOnceWith('upstream-user', '', undefined, undefined)
+  await mount()
+  expect(workbench.registerOidcUsername).toHaveBeenCalledOnce()
+})
+
+it('waits for required human verification before registering a complete upstream profile', async () => {
+  workbench.oidcRegistrationRequired = true
+  workbench.serverAuthConfig.mode = 'multi_user'
+  workbench.serverAuthConfig.registration.mode = 'open'
+  ;(workbench.serverAuthConfig as ServerAuthConfig).turnstile = { site_key: 'fixture-site' }
+  sessionStorage.setItem('ternilo.oidc.access', 'oidc-session')
+  sessionStorage.setItem('ternilo.oidc.email', 'provider@example.test')
+  sessionStorage.setItem('ternilo.oidc.username', 'upstream-user')
+  await mount()
+  expect(workbench.registerOidcUsername).not.toHaveBeenCalled()
+})
+
 it('explains that pending OIDC applicants return with the same organization account', async () => {
   workbench.oidcRegistrationRequired = true
   workbench.serverAuthConfig.registration.require_approval = true

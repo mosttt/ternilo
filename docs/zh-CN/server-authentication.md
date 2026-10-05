@@ -8,7 +8,7 @@
 
 ## OAuth 2.0／OIDC
 
-先填写 Server 公网 HTTPS 根地址，再点击“添加登录方式”。每项填写名称、Issuer、Client ID 和 Scopes，并分别启用或停用。登录页按名称显示按钮，用户可选择账号所属的提供方；已登录的密码账号绑定时同样可以选择。提供方 ID 由界面生成并保持固定，修改名称不改变现有会话。Scopes 必须包含 `openid`。在身份提供方登记页面显示的回调地址，例如 `https://ternilo.example.com/auth/callback`。网页登录不需要填写 Audience；“高级兼容设置”中的 Audience 只用于仍直接携带上游 JWT access token 的旧 API 客户端，一般留空。
+先填写 Server 公网 HTTPS 根地址，再点击“添加登录方式”。每项填写名称、Issuer、Client ID 和 Scopes，并分别启用或停用。登录页按名称显示按钮，用户可选择账号所属的提供方；已登录的密码账号绑定时同样可以选择。提供方 ID 由界面生成并保持固定，修改名称不改变现有会话。首次注册自动使用校验后的上游用户名和邮箱；缺少资料或用户名冲突时，才补充需要的信息。Scopes 必须包含 `openid`。在身份提供方登记页面显示的回调地址，例如 `https://ternilo.example.com/auth/callback`。网页登录不需要填写 Audience；“高级兼容设置”中的 Audience 只用于仍直接携带上游 JWT access token 的旧 API 客户端，一般留空。
 
 公网地址必须是浏览器实际访问的地址。`0.0.0.0` 和 `::` 只用于监听，不能作为公网或回调地址。将 Server 放在提供有效证书的 HTTPS 反向代理后，填写代理对外的地址；只在设置中将 `http` 改成 `https` 不会启用 TLS。浏览器地址、Server 公网地址和已登记的回调地址必须使用相同协议、主机及端口。
 
@@ -34,7 +34,7 @@ LINUX DO 的[公开 discovery](https://connect.linux.do/.well-known/openid-confi
 
 多用户模式下，在“平台管理 → 账号”选择开放注册或管理员邀请，并可勾选“仅限 OAuth2 方式注册”。需要至少一个已启用且可用的 OIDC 登录提供方才能保存该条件。开放注册可同时要求审核；邀请注册无需重复审核。
 
-勾选后，新账号通过登录提供方验证身份，再填写平台用户名和联系邮箱。密码注册接口和通过密码创建邀请账号的接口都会拒绝请求；已有账号的密码登录、首次实例所有者设置及账号密码修改保持可用。只有单独更改网页入口不能绕过后端限制。
+勾选后，新账号通过登录提供方验证身份。登录方式返回有效的 `preferred_username` 或 `username` 及邮箱时，自动使用它们完成注册；用户名已存在或不符合格式时，才要求选择平台用户名。上游提供的邮箱直接使用，不显示可修改的邮箱输入框，后端也不接受用请求参数替换它；没有返回邮箱时，再补填联系邮箱。邀请令牌、审核和 Turnstile 校验仍按实例策略执行。密码注册接口和通过密码创建邀请账号的接口都会拒绝请求；已有账号的密码登录、首次实例所有者设置及账号密码修改保持可用。只有单独更改网页入口不能绕过后端限制。
 
 邀请链接在 OAuth 跳转前保存邀请令牌，验证返回后仍需完成账号信息；Server 在同一事务内核对、消费邀请并创建账号。过期、无效或已使用的邀请不能注册。团队邀请仍要求已有账号，不替代账号注册邀请。
 
@@ -44,7 +44,7 @@ LINUX DO 的[公开 discovery](https://connect.linux.do/.well-known/openid-confi
 
 启用后，密码登录、新用户注册（包括首次 OIDC 注册）和邀请注册必须提交有效验证令牌。已有组织账号登录及绑定流程由身份提供方验证，不在 OAuth 跳转和刷新令牌时重复弹出验证码；已登录账号接受团队邀请、API Key 和 Node 凭据也不使用网页验证码。
 
-Server 实际调用 Cloudflare Siteverify，并核对成功状态、`action` 和配置的域名；不接受其他域名或其他表单签发的令牌。网络故障、失效或重复令牌都会拒绝本次请求，不会降级绕过。提交失败、令牌过期或切换表单后，网页重新获取验证码。组件支持深浅主题及窄屏紧凑布局。
+Server 实际调用 Cloudflare Siteverify，并核对成功状态、`action` 和配置的域名；不接受其他域名或其他表单签发的令牌。网络故障、失效或重复令牌都会拒绝本次请求，不会降级绕过。提交失败、令牌过期或切换表单后，网页重新获取验证码。组件支持深浅主题及窄屏紧凑布局。尺寸或主题切换后，只接受当前验证组件的回调；旧组件的成功、过期或失败回调不能更改新组件的验证状态。失败和过期由“重新验证”发起重试，页面显示 Cloudflare 返回的错误码，不绕过服务端校验。
 
 仅启用 Turnstile 时，Server 的 CSP 才允许 `https://challenges.cloudflare.com` 的脚本与 iframe，未开放任意第三方来源。部署入口不要覆盖这些 CSP 指令；外层反向代理的策略也需要允许相同来源。规则依据 Cloudflare 的[服务端校验](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)和[CSP 文档](https://developers.cloudflare.com/turnstile/reference/content-security-policy/)。
 
@@ -71,3 +71,5 @@ docker compose -f compose.server.yml exec --user 10001:10001 server ternilo-serv
 命令必须使用该实例实际的配置、数据库连接和主密钥；如果运行进程临时覆盖了数据库地址，应先确认配置指向同一实例。保留原 `config.json` 与数据卷：重新生成主密钥可能导致现有加密凭据无法读取，修改数据库地址会连接另一个数据库。登录设置保存在 Server 数据库，清除浏览器 Cookie 无法修复这类配置错误。
 
 管理 API 为 `GET/PUT /api/v1/admin/instance/authentication`，其中 `oidc_providers` 是含固定 `id`、显示 `name`、`enabled` 及独立凭据的列表。`POST /auth/token`、`/auth/refresh` 和 `/auth/mfa` 必须传入所选 `provider_id`。管理 API 仅接受实例所有者的有效登录；`GET /auth/config` 只公开可用提供方的 `id`、`name`、公开授权参数及 Turnstile Site Key。受保护的注册／登录 JSON 请求使用 `turnstile_token` 传递本次表单的验证令牌。
+
+Cloudflare 的 `600*` 属于挑战失败，不能仅凭错误码断定是应用、浏览器或网络的唯一原因。若真实手机持续失败，可将页面显示的错误码和浏览器信息交给实例所有者排查。错误回调、手动重试与尺寸选项依据[官方组件配置](https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/widget-configurations/)和[错误码说明](https://developers.cloudflare.com/turnstile/troubleshooting/client-side-errors/error-codes/)。

@@ -53,6 +53,7 @@ export const zh = {
   challenge: '人机验证',
   challengeLoading: '正在加载人机验证…',
   challengeError: '人机验证未完成或已失效，请重试。',
+  challengeCodeError: 'Cloudflare 验证失败（错误码：{code}），请重新验证。',
   challengeUnavailable: '无法加载人机验证，请检查网络后重试。',
   retry: '重新验证',
 } satisfies Record<string, string>
@@ -112,6 +113,7 @@ export const en: Record<keyof typeof zh, string> = {
   challenge: 'Human verification',
   challengeLoading: 'Loading verification…',
   challengeError: 'Verification is incomplete or expired. Please try again.',
+  challengeCodeError: 'Cloudflare verification failed (code: {code}). Please retry verification.',
   challengeUnavailable: 'Could not load verification. Check your connection and retry.',
   retry: 'Retry verification',
 }

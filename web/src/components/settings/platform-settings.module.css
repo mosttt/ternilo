@@ -181,6 +181,8 @@
   .quotaGrid, .auditFacts { grid-template-columns: minmax(0, 1fr); }
   .actions { justify-content: stretch; }
   .actions > button { flex: 1; }
+  .computerRow > .actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .computerRow > .actions > button { min-width: 0; min-height: 40px; height: auto; white-space: normal; }
   .row select { width: 100%; }
   .auditPrimary time { width: 100%; margin-left: 0; }
   .usageHeader { display: grid; }

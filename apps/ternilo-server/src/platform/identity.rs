@@ -367,7 +367,7 @@ async fn register(
 #[serde(deny_unknown_fields)]
 struct OidcRegistrationRequest {
     invitation_token: Option<String>,
-    email: String,
+    email: Option<String>,
     username: String,
     turnstile_token: Option<String>,
 }
@@ -396,7 +396,12 @@ async fn register_oidc(
         .register_oidc(
             &principal,
             &body.username,
-            &body.email,
+            principal
+                .email
+                .as_deref()
+                .filter(|email| !email.trim().is_empty())
+                .or(body.email.as_deref())
+                .unwrap_or(""),
             body.invitation_token.as_deref(),
             now_ms()?,
         )

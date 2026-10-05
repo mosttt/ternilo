@@ -112,7 +112,7 @@ export function registerNative(input: Extract<NativeLoginInput, { action: 'regis
 }
 
 export function registerOidcAccount(username: string, email: string, bearer: string, turnstileToken?: string, invitationToken?: string) {
-  return publicRequest<Pick<RegistrationResult, 'status' | 'user_id'>>('/api/v1/auth/oidc/register', { username, email, ...(turnstileToken ? { turnstile_token: turnstileToken } : {}), ...(invitationToken ? { invitation_token: invitationToken } : {}) }, bearer)
+  return publicRequest<Pick<RegistrationResult, 'status' | 'user_id'>>('/api/v1/auth/oidc/register', { username, ...(email ? { email } : {}), ...(turnstileToken ? { turnstile_token: turnstileToken } : {}), ...(invitationToken ? { invitation_token: invitationToken } : {}) }, bearer)
 }
 
 export function loadServerIdentity() {

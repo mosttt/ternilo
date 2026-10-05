@@ -79,6 +79,7 @@ struct OidcClaims {
     email: Option<String>,
     name: Option<String>,
     preferred_username: Option<String>,
+    username: Option<String>,
 }
 
 impl OidcAuthenticator {

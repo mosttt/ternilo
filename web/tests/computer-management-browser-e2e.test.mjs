@@ -100,7 +100,15 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     await page.getByRole('button', { name: '我的机器', exact: true }).click()
     await card.waitFor()
     await page.setViewportSize({ width: 390, height: 844 })
+    await card.scrollIntoViewIfNeeded()
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'mobile computer actions must fit')
+    const actionBoxes = await card.getByRole('button').evaluateAll(buttons => buttons.map(button => {
+      const box = button.getBoundingClientRect()
+      return { top: box.top, left: box.left, right: box.right, height: box.height }
+    }))
+    assert.equal(actionBoxes.length, 4)
+    assert.ok(actionBoxes.every((box, index) => box.height >= 40 && (!index || box.top > actionBoxes[index - 1].top)))
+    assert.ok(actionBoxes.every(box => box.left >= 0 && box.right <= 390), 'Each mobile computer action occupies its own visible row')
     const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
     if (artifacts) { await mkdir(artifacts, { recursive: true }); await page.screenshot({ path: path.join(artifacts, 'computer-management-mobile.png'), fullPage: true }) }
     const before = await serverRequest(origin, `/sessions/${sessionId}/history?limit=1000`, scope)

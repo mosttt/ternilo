@@ -7,6 +7,7 @@ use super::{Algorithm, HarnessError, OidcAuthenticator, OidcClaims, OidcPrincipa
 pub struct VerifiedOidcIdentity {
     pub principal: OidcPrincipal,
     pub expires_at: u64,
+    pub username: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -51,6 +52,10 @@ impl OidcAuthenticator {
         }
         Ok(VerifiedOidcIdentity {
             expires_at: claims.exp,
+            username: claims
+                .preferred_username
+                .clone()
+                .or(claims.username.clone()),
             principal: claims.principal()?,
         })
     }
@@ -59,9 +64,10 @@ impl OidcAuthenticator {
         &self,
         access_token: &str,
         mut principal: OidcPrincipal,
-    ) -> Result<OidcPrincipal, HarnessError> {
+        username: Option<String>,
+    ) -> Result<(OidcPrincipal, Option<String>), HarnessError> {
         let Some(endpoint) = &self.userinfo_endpoint else {
-            return Ok(principal);
+            return Ok((principal, username));
         };
         let response = self
             .client
@@ -80,11 +86,16 @@ impl OidcAuthenticator {
         if info.email.is_some() {
             principal.email = info.email;
         }
+        let username = info
+            .preferred_username
+            .clone()
+            .or(info.username.clone())
+            .or(username);
         if let Some(name) = info.name.or(info.preferred_username).or(info.username) {
             principal.display_name = Some(name);
         }
         principal.validate()?;
-        Ok(principal)
+        Ok((principal, username))
     }
 }
 

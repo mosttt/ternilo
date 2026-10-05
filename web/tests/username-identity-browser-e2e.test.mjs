@@ -24,7 +24,7 @@ async function chooseUsername(page, username, review = false) {
   await form.waitFor()
   assert.equal(await page.locator('#server-password, #server-display-name, #server-account-token').count(), 0)
   await form.getByLabel('用户名', { exact: true }).fill(username)
-  await form.getByLabel('邮箱', { exact: true }).fill(`${username}-oidc@example.test`)
+  assert.equal(await form.getByLabel('邮箱', { exact: true }).count(), 0)
   const response = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/oidc/register')
   await form.getByRole('button', { name: review ? '提交注册申请' : '完成注册并继续', exact: true }).click()
   return response
@@ -72,7 +72,7 @@ test('platform usernames remain canonical through native setup, OIDC registratio
     const ownerRequest = (resource, options = {}) => serverRequest(origin, resource, { token, ...options })
     const setPolicy = async (mode, require_approval = false) => {
       const policy = await ownerRequest('/admin/registration')
-      await ownerRequest('/admin/registration', { method: 'PATCH', body: { mode, require_approval, revision: policy.revision } })
+      await ownerRequest('/admin/registration', { method: 'PATCH', body: { mode, require_approval, oidc_only: false, revision: policy.revision } })
     }
     await setPolicy('open')
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
@@ -117,7 +117,7 @@ test('platform usernames remain canonical through native setup, OIDC registratio
     await account.getByText('chosen-user', { exact: true }).waitFor()
     assert.equal(await account.locator('[data-account-id]').textContent(), active.user_id)
     assert.equal((await account.textContent()).includes('External display name'), false)
-    assert.equal((await account.textContent()).includes('provider-first@example.test'), false)
+    assert.equal(identity.email, 'provider-first@example.test')
     await account.getByRole('button', { name: '复制账号 ID', exact: true }).click()
     assert.equal(await page.evaluate(() => navigator.clipboard.readText()), active.user_id)
     await noOverflow(page)
@@ -155,10 +155,22 @@ test('platform usernames remain canonical through native setup, OIDC registratio
     await page.evaluate(() => sessionStorage.clear())
     expectFailure('GET', 403, '/api/v1/auth/session', origin)
     await organizationLogin(page, origin)
-    await page.getByRole('alert').filter({ hasText: '当前平台仅接受管理员邀请' }).waitFor()
-    assert.equal(await page.locator('[data-oidc-registration]').count(), 0)
+    await page.locator('[data-oidc-registration]').waitFor()
+    await page.getByLabel('邀请令牌', { exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: '注册新账号', exact: true }).count(), 0)
-    assert.equal(await page.evaluate(() => sessionStorage.getItem('ternilo.oidc.access')), null)
+    assert.equal(await page.getByRole('button', { name: '完成注册并继续', exact: true }).isEnabled(), false)
+    expectFailure('POST', 403, '/api/v1/auth/oidc/register', origin)
+    const withoutInvitation = await page.evaluate(async () => {
+      const response = await fetch('/api/v1/auth/oidc/register', {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${sessionStorage.getItem('ternilo.oidc.access')}` },
+        body: JSON.stringify({ username: 'not-invited-user' }),
+      })
+      return { status: response.status, body: await response.json() }
+    })
+    assert.equal(withoutInvitation.status, 403)
+    assert.equal(withoutInvitation.body.error.message, 'registration requires an administrator invitation')
+    assert.equal((await ownerRequest('/admin/accounts?query=not-invited-user')).accounts.length, 0)
+    await page.getByRole('button', { name: '使用其他账号', exact: true }).click()
     oidc.selectIdentity('first')
     await existingOrganizationLogin(page, origin)
     assert.deepEqual((await currentIdentity(page, origin)).user, identity.user)

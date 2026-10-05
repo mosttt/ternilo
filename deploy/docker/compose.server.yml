@@ -2,7 +2,7 @@ name: ${TERNILO_DEPLOY_PROJECT:-ternilo-server}
 
 services:
   server:
-    image: ${TERNILO_IMAGE:-ghcr.io/mosttt/ternilo-server:0.2.6}
+    image: ${TERNILO_IMAGE:-ghcr.io/mosttt/ternilo-server:0.2.7}
     command: [server, serve, --config-dir, /var/lib/ternilo]
     restart: unless-stopped
     stop_grace_period: 30s

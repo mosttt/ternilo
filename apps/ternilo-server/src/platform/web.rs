@@ -175,6 +175,10 @@ struct BrowserTokenResponse {
     expires_in: u64,
     refresh_token: Option<String>,
     scope: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
 }
 
 #[handler]

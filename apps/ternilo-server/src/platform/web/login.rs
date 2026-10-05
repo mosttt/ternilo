@@ -16,12 +16,16 @@ fn browser_tokens(
     grant: OidcSessionGrant,
     scope: Option<String>,
     now: u64,
+    email: Option<String>,
+    username: Option<String>,
 ) -> BrowserTokenResponse {
     BrowserTokenResponse {
         access_token: grant.access_token,
         expires_in: grant.expires_at_ms.saturating_sub(now) / 1000,
         refresh_token: grant.refresh_token,
         scope,
+        email,
+        username,
     }
 }
 
@@ -75,7 +79,7 @@ pub(super) async fn complete_mfa(
         .store
         .complete_oidc_mfa(&body.challenge, &body.code, &web.binding, now)
         .await?;
-    Ok(Json(browser_tokens(grant, None, now)))
+    Ok(Json(browser_tokens(grant, None, now, None, None)))
 }
 
 #[handler]
@@ -133,8 +137,8 @@ pub(super) async fn exchange_code(
         )
         .await
         .map_err(authentication_error)?;
-    let principal = validator
-        .userinfo(&token.access_token, identity.principal)
+    let (principal, username) = validator
+        .userinfo(&token.access_token, identity.principal, identity.username)
         .await
         .map_err(authentication_error)?;
     let expires_at_ms = expiry(&token, Some(identity.expires_at), now)?;
@@ -159,6 +163,8 @@ pub(super) async fn exchange_code(
         grant,
         token.scope,
         now,
+        identity.principal.email,
+        username,
     ))))
 }
 
@@ -203,7 +209,7 @@ pub(super) async fn refresh_token(
     .await?;
     let now = now_ms()?;
     let mut id_expiry = None;
-    let principal = if let Some(id_token) = &token.id_token {
+    let (principal, username) = if let Some(id_token) = &token.id_token {
         let verified = validator
             .authenticate_id_token(
                 id_token,
@@ -223,15 +229,16 @@ pub(super) async fn refresh_token(
             )));
         }
         id_expiry = Some(verified.expires_at);
-        verified.principal
+        (verified.principal, verified.username)
     } else {
-        previous.identity.principal
+        (previous.identity.principal, None)
     };
-    let principal = validator
-        .userinfo(&token.access_token, principal)
+    let (principal, username) = validator
+        .userinfo(&token.access_token, principal, username)
         .await
         .map_err(authentication_error)?;
     let expires_at_ms = expiry(&token, id_expiry, now)?.min(previous.expires_at_ms);
+    let email = principal.email.clone();
     let grant = state
         .store
         .replace_oidc_session(
@@ -249,5 +256,11 @@ pub(super) async fn refresh_token(
         )
         .await
         .map_err(authentication_error)?;
-    Ok(Json(browser_tokens(grant, token.scope, now)))
+    Ok(Json(browser_tokens(
+        grant,
+        token.scope,
+        now,
+        email,
+        username,
+    )))
 }

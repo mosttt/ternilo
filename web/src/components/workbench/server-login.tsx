@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { navigate } from '@/app/navigation'
 import { api } from '@/api/client'
-import { OidcFlowError, readPendingOidcMfa, completeOidcMfa, clearOidcSession, beginOidcLogin, readOidcInvitation } from '@/auth/oidc'
+import { OidcFlowError, readPendingOidcMfa, completeOidcMfa, clearOidcSession, beginOidcLogin, readOidcInvitation, readOidcEmail, readOidcUsername, readOidcToken } from '@/auth/oidc'
 import type { TenantSummary } from '@/types'
 import { LoaderCircle } from 'lucide-react'
 import { clearAccountLink, readAccountLink, type NativeLoginInput } from '@/auth/server'
@@ -31,7 +31,13 @@ export function ServerLogin() {
   const [choice, setChoice] = React.useState<'login' | 'register' | 'accept'>(link.invitationToken ? 'accept' : 'login')
   const [token, setToken] = React.useState(link.setupToken || link.invitationToken || readOidcInvitation())
   const [username, setUsername] = React.useState('')
+  const [usernameConflict, setUsernameConflict] = React.useState(false)
   const [email, setEmail] = React.useState('')
+  const automaticRegistration = React.useRef('')
+  const providerEmail = oidcRegistrationRequired ? readOidcEmail() : ''
+  const providerUsername = oidcRegistrationRequired ? readOidcUsername().trim() : ''
+  const usableProviderUsername = /^[A-Za-z0-9._-]{3,64}$/.test(providerUsername) ? providerUsername : ''
+  React.useEffect(() => { setEmail(''); if (oidcRegistrationRequired) { setUsername(usableProviderUsername); setUsernameConflict(false) } }, [oidcRegistrationRequired, usableProviderUsername])
   const [password, setPassword] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState('')
@@ -64,7 +70,7 @@ export function ServerLogin() {
       case 'account registration is pending approval': return t('server.pendingLogin')
       case 'account registration was rejected': return t('server.rejectedLogin')
       case 'registration requires an administrator invitation': return t('server.invitationRequired')
-      case 'email is already registered': return t('server.emailTaken')
+      case 'email is already registered': return t(providerEmail ? 'server.oidcEmailTaken' : 'server.emailTaken')
       case 'email must be a valid address such as name@example.com': return t('server.emailInvalid')
       case 'account is banned': return t('server.bannedLogin')
       case 'account was removed': return t('server.removedLogin')
@@ -98,14 +104,14 @@ export function ServerLogin() {
     return () => window.removeEventListener('hashchange', acceptLink)
   }, [])
 
-  const submit = async (providerId?: string) => {
+  const submit = async (providerId?: string, automaticUsername?: string) => {
     if (busy) return
     setBusy(true)
     setError('')
     try {
       if (providerId) await beginOidcLogin(providerId, action === 'accept' ? token.trim() : undefined)
       else if (oidcRegistrationRequired) {
-        const status = await registerOidcUsername(username.trim(), email.trim(), turnstileToken || undefined, token.trim() || undefined)
+        const status = await registerOidcUsername(automaticUsername ?? username.trim(), providerEmail ? '' : email.trim(), turnstileToken || undefined, token.trim() || undefined)
         setEmail('')
         if (status === 'pending') { setPendingOidc(true); setPending(true) }
       } else {
@@ -126,6 +132,7 @@ export function ServerLogin() {
       }
     } catch (cause) {
       if (cause instanceof Error && cause.message === 'multi-factor verification is required') setMfaRequired(true)
+      if (oidcRegistrationRequired && cause instanceof Error && cause.message === 'username is already registered') setUsernameConflict(true)
       setMfaCode('')
       setError(cause instanceof OidcFlowError
         ? t(cause.translationKey)
@@ -154,6 +161,14 @@ export function ServerLogin() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { setBusy(false) }
   }
+
+  React.useEffect(() => {
+    if (!oidcRegistrationRequired) { automaticRegistration.current = ''; return }
+    const session = readOidcToken()
+    if (!session || !providerEmail || !usableProviderUsername || (turnstile && !turnstileToken) || (inviteSignup && !token.trim()) || automaticRegistration.current === session) return
+    automaticRegistration.current = session
+    void submit(undefined, usableProviderUsername)
+  }, [oidcRegistrationRequired, providerEmail, usableProviderUsername, turnstile, turnstileToken, inviteSignup, token])
 
   if (!authRequired && link.teamInvitationToken) return <Dialog open>
     <DialogContent showClose={false} className="max-w-md overflow-y-auto">
@@ -187,18 +202,18 @@ export function ServerLogin() {
         onKeyDown={event => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault() }}
         onSubmit={event => { event.preventDefault(); void submit() }}>
         {inviteSignup && <Field><Label htmlFor="oidc-invitation-token">{t('server.invitationToken')}</Label><Input id="oidc-invitation-token" type="password" autoComplete="off" required disabled={busy} value={token} onChange={event => setToken(event.target.value)} /></Field>}
-        <Field>
+        {usableProviderUsername && !usernameConflict ? <p className="break-words text-sm text-muted-foreground" data-oidc-username="">{t('server.oidcUsernameProvided', { username: usableProviderUsername })}</p> : <Field>
           <Label htmlFor="server-username">{t('server.username')}</Label>
           <Input id="server-username" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={64} disabled={busy} value={username} onChange={event => { setUsername(event.target.value); setMfaRequired(false); setMfaCode('') }} />
           <p className="text-xs leading-relaxed text-muted-foreground">{t('server.usernameHint')}</p>
-        </Field>
-        <Field>
+        </Field>}
+        {providerEmail ? <p className="break-words text-sm text-muted-foreground" data-oidc-email="">{t('server.oidcEmailProvided', { email: providerEmail })}</p> : <Field>
           <Label htmlFor="server-email">{t('server.email')}</Label>
           <Input id="server-email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required maxLength={254} disabled={busy} value={email} onChange={event => setEmail(event.target.value)} />
-          <p className="text-xs leading-relaxed text-muted-foreground">{t('server.emailDescription')}</p>
-        </Field>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('server.oidcEmailMissing')}</p>
+        </Field>}
         {challenge}
-        <Button disabled={busy || !username.trim() || !email.trim() || Boolean(turnstile && !turnstileToken)}>{busy && <LoaderCircle className="animate-spin" />}{t(config?.registration.require_approval ? 'server.submitRegistration' : 'server.oidcUsernameContinue')}</Button>
+        <Button disabled={busy || !username.trim() || (!providerEmail && !email.trim()) || Boolean(turnstile && !turnstileToken)}>{busy && <LoaderCircle className="animate-spin" />}{t(config?.registration.require_approval ? 'server.submitRegistration' : 'server.oidcUsernameContinue')}</Button>
         <Button type="button" variant="ghost" disabled={busy} onClick={logout}>{t('server.switchAccount')}</Button>
       </form> : config ? <form className="grid gap-4"
         onKeyDown={event => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault() }}

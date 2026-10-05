@@ -35,7 +35,7 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
       parts[2] = (parts[2][0] === 'A' ? 'B' : 'A') + parts[2].slice(1)
       return parts.join('.')
     },
-    userInfoClaims: claims => fault === 'userinfo' ? { ...claims, sub: 'different-subject' } : claims,
+    userInfoClaims: claims => fault === 'userinfo' ? { ...claims, sub: 'different-subject' } : fault === 'duplicate-email' ? { ...claims, email: 'browser-owner@example.test' } : claims,
   })
   try {
     const origin = `http://127.0.0.1:${await freePort()}`
@@ -67,17 +67,19 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const visitor = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 850 }, hasTouch: true, isMobile: true, serviceWorkers: 'block' })
     visitor.on('pageerror', error => errors.push(error.message))
+    fault = 'duplicate-email'
     await visitor.goto(origin)
     await visitor.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
     await visitor.locator('[data-oidc-registration]').waitFor()
     await visitor.getByLabel('用户名', { exact: true }).fill('duplicate-email-user')
-    await visitor.getByLabel('邮箱', { exact: true }).fill(application.owner.email)
+    assert.equal(await visitor.getByLabel('邮箱', { exact: true }).count(), 0)
     const [duplicate] = await Promise.all([
       visitor.waitForResponse(response => response.url().endsWith('/auth/oidc/register')),
       visitor.getByRole('button', { name: '完成注册并继续', exact: true }).click(),
     ])
     assert.equal(duplicate.status(), 409)
-    assert.match(await visitor.getByRole('alert').innerText(), /邮箱/)
+    assert.match(await visitor.getByRole('alert').innerText(), /登录原账号/)
+    fault = ''
     ownerPage = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 950 }, serviceWorkers: 'block' })
     ownerPage.on('pageerror', error => errors.push(error.message))
     ownerPage.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -135,6 +137,111 @@ test('Standard OIDC uses ID Token and UserInfo with opaque access tokens and sta
   } catch (error) {
     await ownerPage?.screenshot({ path: path.join(artifacts, 'oidc-contract-failure.png') }).catch(() => {})
     throw new Error(`${error.stack}\n${application?.diagnostics() ?? ''}`)
+  } finally {
+    await browser?.close()
+    await stopProcess(application)
+    await provider.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+
+test('OIDC uses immutable provider email and automatically registers usable upstream usernames with explicit fallbacks', { timeout: 120000 }, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-oidc-profile-'))
+  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ?? directory
+  await mkdir(artifacts, { recursive: true })
+  const usernames = { supplied: 'upstream-user', collision: 'browser-owner', invalid: 'not a valid username', missing: 'email-missing-user', review: 'reviewed-upstream-user' }
+  const provider = await startOidcServer({
+    identities: {
+      supplied: { subject: 'supplied', email: 'userinfo@example.test' },
+      collision: { subject: 'collision', email: 'collision@example.test' },
+      invalid: { subject: 'invalid', email: 'invalid-name@example.test' },
+      missing: { subject: 'missing' },
+      review: { subject: 'review', email: 'review@example.test' },
+    },
+    initialIdentity: 'supplied', opaqueAccessTokens: true,
+    idTokenClaims: claims => ({ ...claims, email: undefined }),
+    userInfoClaims: claims => ({ ...claims, preferred_username: usernames[claims.sub] }),
+  })
+  let application, browser
+  const errors = []
+  try {
+    const origin = `http://127.0.0.1:${await freePort()}`
+    application = await initializeServer({ directory, origin, oidc: { issuer: provider.issuer, audience: '', client_id: 'profile-client' } })
+    const ownerToken = application.owner.session.access_token
+    await serverRequest(origin, '/admin/registration', { token: ownerToken, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: true, revision: 1 } })
+    browser = await chromium.launch({ headless: true })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 390, height: 850 }, serviceWorkers: 'block' })
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('response', response => { if (response.status() >= 500) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })
+    const signIn = async identity => {
+      provider.selectIdentity(identity)
+      await page.goto(origin)
+      const exchange = page.waitForResponse(response => response.url().endsWith('/auth/token'))
+      await page.getByRole('button', { name: '使用 Organization 登录', exact: true }).click()
+      return (await exchange).json()
+    }
+    const identity = async () => serverRequest(origin, '/auth/session', { token: await page.evaluate(() => sessionStorage.getItem('ternilo.oidc.access')) })
+    const logout = async () => {
+      await page.getByRole('button', { name: '打开侧边栏', exact: true }).click()
+      await page.getByRole('button', { name: '退出登录', exact: true }).click()
+      await page.getByRole('button', { name: '使用 Organization 登录', exact: true }).waitFor()
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('ternilo.oidc.email')), null)
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('ternilo.oidc.username')), null)
+    }
+    const supplied = await signIn('supplied')
+    assert.equal(supplied.email, 'userinfo@example.test')
+    assert.equal(supplied.username, 'upstream-user')
+    await page.getByRole('button', { name: '退出登录', exact: true }).waitFor()
+    assert.equal((await identity()).user.username, 'upstream-user')
+    assert.equal((await identity()).email, 'userinfo@example.test')
+    await page.reload()
+    await page.getByRole('button', { name: '退出登录', exact: true }).waitFor()
+    assert.equal(await page.locator('[data-oidc-registration]').count(), 0)
+    await logout()
+
+    await signIn('collision')
+    await page.getByRole('alert').filter({ hasText: '这个用户名已被使用' }).waitFor()
+    assert.equal(await page.getByLabel('邮箱', { exact: true }).count(), 0)
+    assert.match(await page.locator('[data-oidc-email]').innerText(), /collision@example.test/)
+    await page.getByLabel('用户名', { exact: true }).fill('chosen-after-collision')
+    await page.route('**/api/v1/auth/oidc/register', route => route.continue({ postData: JSON.stringify({ ...route.request().postDataJSON(), email: 'forged-contact@example.test' }) }))
+    await page.getByRole('button', { name: '完成注册并继续', exact: true }).click()
+    await page.getByRole('button', { name: '退出登录', exact: true }).waitFor()
+    assert.equal((await identity()).email, 'collision@example.test', 'Client request edits cannot replace the authenticated provider email')
+    await page.unroute('**/api/v1/auth/oidc/register')
+    await logout()
+
+    await signIn('invalid')
+    await page.locator('[data-oidc-registration]').waitFor()
+    assert.equal(await page.getByLabel('用户名', { exact: true }).inputValue(), '')
+    assert.equal(await page.getByLabel('邮箱', { exact: true }).count(), 0)
+    await page.screenshot({ path: path.join(artifacts, 'oidc-username-fallback-mobile.png') })
+    await page.getByLabel('用户名', { exact: true }).fill('chosen-valid-user')
+    await page.getByRole('button', { name: '完成注册并继续', exact: true }).click()
+    await page.getByRole('button', { name: '退出登录', exact: true }).waitFor()
+    assert.equal((await identity()).email, 'invalid-name@example.test')
+    await logout()
+
+    await signIn('missing')
+    await page.locator('[data-oidc-registration]').waitFor()
+    await page.locator('[data-oidc-username]').filter({ hasText: 'email-missing-user' }).waitFor()
+    assert.equal(await page.getByLabel('邮箱', { exact: true }).inputValue(), '')
+    assert.equal(await page.getByRole('button', { name: '完成注册并继续', exact: true }).isEnabled(), false)
+    await page.getByLabel('邮箱', { exact: true }).fill('manual-contact@example.test')
+    await page.getByRole('button', { name: '完成注册并继续', exact: true }).click()
+    await page.getByRole('button', { name: '退出登录', exact: true }).waitFor()
+    assert.equal((await identity()).email, 'manual-contact@example.test')
+    await logout()
+
+    const policy = await serverRequest(origin, '/admin/registration', { token: ownerToken })
+    await serverRequest(origin, '/admin/registration', { token: ownerToken, method: 'PATCH', body: { ...policy, require_approval: true } })
+    await signIn('review')
+    await page.locator('[data-registration-pending]').waitFor()
+    assert.match(await page.locator('[data-registration-pending]').innerText(), /reviewed-upstream-user/)
+    const accounts = await serverRequest(origin, '/admin/accounts?limit=50', { token: ownerToken })
+    assert.equal(accounts.accounts.find(account => account.username === 'reviewed-upstream-user').status, 'pending')
+    assert.deepEqual(errors, [])
   } finally {
     await browser?.close()
     await stopProcess(application)
