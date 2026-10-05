@@ -1,6 +1,8 @@
 # 发行反馈与交付状态
 
-最新 [v0.2.3](https://github.com/mosttt/ternilo/releases/tag/v0.2.3) 已公开，42 项附件、六个目标程序／桌面安装器和双架构 Server 镜像交付完成。完整 CI、12 个实际程序归档、匿名镜像及 SQLite／PostgreSQL 公开 Compose 的真实浏览器验收通过，见[本版验收](release-0.2.3-acceptance.md)。Server 网页设置、浏览器语言默认、会话历史优化和重整的双语文档均包含在本版。
+最新 [v0.2.6](https://github.com/mosttt/ternilo/releases/tag/v0.2.6) 已公开，包含多提供方 OAuth2／OIDC、OAuth-only 注册限制、账号状态标签、Rustls WSS 修复与 GHCR `latest`。完整 CI 和发行流程通过，42 项附件、12 个归档、九个安装器、匿名双架构镜像及 SQLite／PostgreSQL 公开 Compose 的真实浏览器验收完成，见[本版验收](release-0.2.6-acceptance.md)。`latest` 与版本标签指向同一份已发布镜像索引。
+
+此前 [v0.2.3](https://github.com/mosttt/ternilo/releases/tag/v0.2.3) 已公开，42 项附件、六个目标程序／桌面安装器和双架构 Server 镜像交付完成。完整 CI、12 个实际程序归档、匿名镜像及 SQLite／PostgreSQL 公开 Compose 的真实浏览器验收通过，见[本版验收](release-0.2.3-acceptance.md)。Server 网页设置、浏览器语言默认、会话历史优化和重整的双语文档均包含在本版。
 
 此前 [v0.2.0](https://github.com/mosttt/ternilo/releases/tag/v0.2.0) 的交付结果见[验收记录](release-0.2.0-acceptance.md)。
 

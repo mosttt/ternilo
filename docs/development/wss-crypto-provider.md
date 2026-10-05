@@ -7,3 +7,5 @@
 实际回归使用独立 Node 进程和本机临时 CA：HTTPS 清理成功后进入 WSS 握手，WebSocket 必须拒绝其未信任的证书，服务必须保持运行。真实 v0.2.3 发行程序在该用例中复现同一 CryptoProvider panic；修复版通过。CLI 构建及客户端／公共本地库全目标 Clippy 通过。回归用例加入 Linux 检查流程。
 
 验证没有使用用户的 Node 凭据，没有连接或改动生产实例。
+
+2026-10-05：修复已随 [v0.2.6](https://github.com/mosttt/ternilo/releases/tag/v0.2.6) 公开。实际发行 `ternilo 0.2.6` 通过上述握手回归，公开归档 SHA256 与已测程序完全一致；完整发行门禁也通过该合同。公开 Server 双架构镜像及 `latest` 已验证，见[发行验收](release-0.2.6-acceptance.md)。
