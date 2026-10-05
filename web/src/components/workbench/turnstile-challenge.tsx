@@ -110,7 +110,7 @@ export function TurnstileChallenge({ siteKey, action, attempt, onToken }: {
   }, [siteKey, action, attempt, retry])
 
   return <div className="grid min-w-0 gap-2" aria-label={t('challenge')}>
-    <div ref={container} />
+    <div ref={container} className="min-w-0 w-full" />
     {status === 'loading' && <p className="text-xs text-muted-foreground" role="status">{t('challengeLoading')}</p>}
     {status === 'error' && <>
       <p className="text-xs text-destructive" role="alert">{errorCode ? t('challengeCodeError', { code: errorCode }) : t('challengeError')}</p>

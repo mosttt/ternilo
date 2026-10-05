@@ -83,6 +83,8 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     await anonymous.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', route => route.fulfill({ contentType: 'application/javascript', body: `window.turnstile = {
       render(container, options) {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Test verification';
+        button.style.minWidth = options.size === 'flexible' ? '300px' : '150px';
+        button.style.width = options.size === 'flexible' ? '100%' : '150px';
         button.onclick = () => options.callback('browser-widget-token');
         container.append(button); window.testTurnstileOptions = options; (window.testTurnstileHistory ??= []).push(options); return 'test-widget-' + window.testTurnstileHistory.length;
       }, remove() { document.querySelectorAll('button').forEach(button => { if (button.textContent === 'Test verification') button.remove(); }); }
@@ -103,6 +105,11 @@ test('Owner configures live OAuth and Turnstile, with responsive UI, persisted s
     await anonymous.getByRole('button', { name: 'Test verification', exact: true }).waitFor()
     await anonymous.evaluate(() => document.documentElement.classList.add('dark'))
     await anonymous.waitForFunction(() => window.testTurnstileOptions.theme === 'dark')
+    await anonymous.setViewportSize({ width: 430, height: 900 })
+    await anonymous.waitForFunction(() => window.testTurnstileOptions.size === 'flexible')
+    await anonymous.setViewportSize({ width: 320, height: 800 })
+    await anonymous.waitForFunction(() => window.testTurnstileOptions.size === 'compact')
+    assert.ok((await anonymous.getByRole('button', { name: 'Test verification', exact: true }).boundingBox()).width < 300)
     await anonymous.setViewportSize({ width: 430, height: 900 })
     await anonymous.waitForFunction(() => window.testTurnstileOptions.size === 'flexible')
     assert.equal(await anonymous.getByRole('button', { name: 'Test verification', exact: true }).count(), 1)
