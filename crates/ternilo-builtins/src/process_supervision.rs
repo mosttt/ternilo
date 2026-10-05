@@ -109,7 +109,12 @@ async fn group_has_live_processes(id: u32) -> Result<bool, HarnessError> {
             }
             let stat = match std::fs::read_to_string(entry.path().join("stat")) {
                 Ok(stat) => stat,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::NotFound
+                        || error.raw_os_error() == Some(nix::libc::ESRCH) =>
+                {
+                    continue;
+                }
                 Err(error) => {
                     return Err(HarnessError::execution(format!(
                         "observe process state: {error}"
@@ -130,6 +135,29 @@ async fn group_has_live_processes(id: u32) -> Result<bool, HarnessError> {
     })
     .await
     .map_err(|error| HarnessError::execution(format!("observe process tree: {error}")))?
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn short_lived_process_groups_finish_cleanup_under_process_churn() {
+        let mut runs = tokio::task::JoinSet::new();
+        for _ in 0..4 {
+            runs.spawn(async {
+                for _ in 0..8 {
+                    let (mut child, group) =
+                        spawn(Command::new("sh").args(["-c", "exit 0"])).unwrap();
+                    assert!(child.wait().await.unwrap().success());
+                    group.wait_quiescent().await.unwrap();
+                }
+            });
+        }
+        while let Some(result) = runs.join_next().await {
+            result.unwrap();
+        }
+    }
 }
 
 #[cfg(all(unix, not(target_os = "linux")))]

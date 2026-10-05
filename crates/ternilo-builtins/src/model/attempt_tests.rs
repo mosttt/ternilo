@@ -9,6 +9,7 @@ use ternilo_protocol::ModelRetryFailure;
 #[derive(Default)]
 struct Recorder {
     trace: Mutex<Vec<String>>,
+    text_emitted: tokio::sync::Notify,
     reports: Mutex<Vec<ModelAttemptReport>>,
     deny_attempt: Option<u32>,
     cancel_on_text: Option<RunCancellation>,
@@ -52,6 +53,7 @@ impl ModelOutput for Recorder {
     ) -> Pin<Box<dyn Future<Output = Result<(), HarnessError>> + Send + 'a>> {
         Box::pin(async move {
             self.trace.lock().unwrap().push(format!("text:{text}"));
+            self.text_emitted.notify_one();
             if let Some(cancellation) = &self.cancel_on_text {
                 cancellation.cancel();
             }
@@ -454,6 +456,12 @@ async fn zero_timeout_keeps_a_stream_open_until_cancelled() {
         Some(recorder.clone()),
     );
     tokio::pin!(running);
+    // Observe the idle stream after its first output, independent of startup scheduling.
+    tokio::select! {
+        result = &mut running => panic!("stream completed before its first output: {result:?}"),
+        () = recorder.text_emitted.notified() => {},
+        () = tokio::time::sleep(Duration::from_secs(5)) => panic!("stream did not produce its first output"),
+    }
     assert!(
         tokio::time::timeout(Duration::from_millis(250), &mut running)
             .await
