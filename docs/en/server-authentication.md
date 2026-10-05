@@ -38,6 +38,14 @@ Back up the database with its matching master key. PostgreSQL initialization use
 ternilo-server admin reset-authentication --config-dir /path/to
 ```
 
-This clears saved authentication settings, disables Turnstile and restores deployment OIDC defaults while retaining accounts/resources and writing audit history. Confirm the configuration points to the intended instance. For password recovery see [native account recovery](account-recovery.md). Browser session details and revocation are described in [settings](settings.md).
+With the published Compose file, run this from the deployment directory:
+
+```bash
+docker compose -f compose.server.yml exec --user 10001:10001 server ternilo-server admin reset-authentication --config-dir /var/lib/ternilo
+```
+
+This clears web-saved OAuth/OIDC, Turnstile and mail settings, disables web-configured Turnstile and mail, and restores deployment OIDC defaults. It retains accounts, passwords, MFA, models, computers, workspaces and sessions, and writes audit history. Refresh the page, sign in with the existing password and configure these services again. There is no need to regenerate Server configuration or create another administrator.
+
+Use the instance's actual configuration, database connection and master key. If the running process overrides the database address, first confirm that the maintenance command targets the same instance. Keep the original `config.json` and data volume: changing the master key can make encrypted credentials unreadable, and changing the database address selects a different database. Clearing browser cookies cannot repair settings stored in the Server database. For password recovery see [native account recovery](account-recovery.md). Browser session details and revocation are described in [settings](settings.md).
 
 The owner-only authentication management API uses an `oidc_providers` array with fixed `id`, display `name`, `enabled` and independent credentials. `/auth/config` exposes available provider metadata and public authorization parameters. Code exchange, refresh and MFA requests must include the chosen `provider_id`. Empty secret inputs keep the matching saved secret; changing issuer/client ID requires a new one. Disabling a provider keeps its settings; removing it clears that entry.

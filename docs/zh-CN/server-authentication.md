@@ -54,12 +54,20 @@ Client Secret 和 Turnstile Secret Key 与登录设置一起使用实例主密�
 
 备份必须同时保存数据库和匹配的 `secret_master_key`；主密钥轮换包含登录设置及上游刷新凭据。认证配置、OIDC 会话及 OAuth2 注册条件分别使用独立的 `authentication`、`oidc_sessions`、`registration_policy` 组件，不改变既有账号身份和资源。首次安装这些组件时，PostgreSQL 需要提供 schema-owner 连接进行初始化，此后受限 runtime 使用固定授权访问。
 
-如果错误的 Turnstile 配置导致无法登录，在受信任的 Server 主机上执行：
+如果保存的登录设置无效，或错误的 Turnstile 配置导致无法登录，在受信任的 Server 主机上执行：
 
 ```bash
 ternilo-server admin reset-authentication --config-dir /path/to
 ```
 
-此操作清除网页保存的登录配置，关闭 Turnstile，并让 OIDC 恢复到部署配置；保留账号、密码和所有资源，同时写入操作审计。命令必须使用该实例实际的配置、数据库连接和主密钥；如果运行进程临时覆盖了数据库地址，应先确认配置指向同一实例。刷新网页后重新登录并正确配置。
+使用发布的 Compose 时，在部署目录执行：
+
+```bash
+docker compose -f compose.server.yml exec --user 10001:10001 server ternilo-server admin reset-authentication --config-dir /var/lib/ternilo
+```
+
+此操作清除网页保存的 OAuth／OIDC、Turnstile 和邮件服务设置，关闭网页配置的 Turnstile 与邮件服务，并让 OIDC 恢复到部署配置；保留账号、密码、MFA、模型、电脑、工作区和会话，同时写入操作审计。刷新网页后，用原账号密码登录，再重新配置这些服务。无需重新生成 Server 配置或重新创建管理员。
+
+命令必须使用该实例实际的配置、数据库连接和主密钥；如果运行进程临时覆盖了数据库地址，应先确认配置指向同一实例。保留原 `config.json` 与数据卷：重新生成主密钥可能导致现有加密凭据无法读取，修改数据库地址会连接另一个数据库。登录设置保存在 Server 数据库，清除浏览器 Cookie 无法修复这类配置错误。
 
 管理 API 为 `GET/PUT /api/v1/admin/instance/authentication`，其中 `oidc_providers` 是含固定 `id`、显示 `name`、`enabled` 及独立凭据的列表。`POST /auth/token`、`/auth/refresh` 和 `/auth/mfa` 必须传入所选 `provider_id`。管理 API 仅接受实例所有者的有效登录；`GET /auth/config` 只公开可用提供方的 `id`、`name`、公开授权参数及 Turnstile Site Key。受保护的注册／登录 JSON 请求使用 `turnstile_token` 传递本次表单的验证令牌。
