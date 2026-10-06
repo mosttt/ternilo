@@ -82,3 +82,7 @@ Ternilo 提供工作区和会话、流式回答、文件与命令工具、持久
 ## 许可证
 
 [Apache-2.0](LICENSE)。第三方组件保留自己的许可证，见 [第三方声明](THIRD_PARTY_NOTICES.md)。
+
+## 友链
+
+[LINUX DO](https://linux.do/)

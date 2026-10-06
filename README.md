@@ -82,3 +82,7 @@ Source builds require the Rust toolchain in `rust-toolchain.toml`, Node.js and t
 ## License
 
 [Apache-2.0](LICENSE). Third-party components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+
+## Friends
+
+[LINUX DO](https://linux.do/)
