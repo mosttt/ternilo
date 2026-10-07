@@ -76,6 +76,7 @@ export interface SessionControllerSnapshot {
   effectiveProfile: Profile | null
   agentTeam: AgentTeamSnapshot | null
   loading: boolean
+  loadingHistory: boolean
   busy: boolean
   activeRunId: string | null
   error: string
@@ -121,6 +122,7 @@ function initialSnapshot(pendingSubmissions: PendingSubmissionEcho[] = []): Sess
     effectiveProfile: null,
     agentTeam: null,
     loading: false,
+    loadingHistory: false,
     busy: false,
     activeRunId: null,
     error: '',
@@ -262,7 +264,6 @@ export class SessionController implements SessionRuntimeActions {
   private inboxFlight: InboxFlight | null = null
   private inboxRevision = 0
   private historyRevision = 0
-  private initialHistoryLoading = false
   private readonly cachedSessions = new Map<string, CachedSession>()
   private streamEvents: SessionEvent[] = []
   private streamTimer: ReturnType<typeof setTimeout> | null = null
@@ -297,7 +298,7 @@ export class SessionController implements SessionRuntimeActions {
     if (cached && sessionId) {
       this.cachedSessions.delete(sessionId)
       this.eventBuffer = cached.buffer
-      this.replaceSnapshot({ ...cached.snapshot, liveStatus, pendingSubmissions: pending, loading: false, loadingOlder: false, olderHistoryError: '', historyError: '', error: '' })
+      this.replaceSnapshot({ ...cached.snapshot, liveStatus, pendingSubmissions: pending, loading: false, loadingHistory: false, loadingOlder: false, olderHistoryError: '', historyError: '', error: '' })
       this.reconcilePending(sessionId, cached.buffer.events, cached.snapshot.inbox)
       this.abortController = new AbortController()
       this.dependencies.live.setSession(sessionId, { afterSeq: cached.buffer.events.at(-1)?.seq ?? null })
@@ -321,7 +322,7 @@ export class SessionController implements SessionRuntimeActions {
 
   private rememberTarget() {
     const snapshot = this.getSnapshot()
-    if (!this.sessionId || !this.enabled || this.initialHistoryLoading || this.historyEvents !== null
+    if (!this.sessionId || !this.enabled || snapshot.loadingHistory || this.historyEvents !== null
       || snapshot.loadedSessionId !== this.sessionId || snapshot.historyError) return
     // Keep recent conversations in memory only; cap both large events and session count.
     const bytes = JSON.stringify(this.eventBuffer.events).length * 2
@@ -378,14 +379,12 @@ export class SessionController implements SessionRuntimeActions {
     this.abortController = null
     this.metadataFlight = null
     this.inboxFlight = null
-    this.initialHistoryLoading = false
   }
 
   private startTarget(sessionId: string) {
     const controller = new AbortController()
     this.abortController = controller
-    this.initialHistoryLoading = true
-    this.updateSnapshot({ loading: true })
+    this.updateSnapshot({ loading: true, loadingHistory: true })
     void this.loadInitialHistory(sessionId, this.generation, controller.signal)
   }
 
@@ -437,7 +436,9 @@ export class SessionController implements SessionRuntimeActions {
           : { historyError: errorMessage(cause) }),
       })
     } finally {
-      if (this.isCurrent(sessionId, generation, signal)) this.initialHistoryLoading = false
+      if (this.isCurrent(sessionId, generation, signal) && revision === this.historyRevision) {
+        this.updateSnapshot({ loadingHistory: false })
+      }
     }
   }
 
@@ -491,7 +492,6 @@ export class SessionController implements SessionRuntimeActions {
       if (frame.code === 'policy_denied' || frame.code === 'invalid_input') {
         this.historyRevision += 1
         this.abortController?.abort()
-        this.initialHistoryLoading = false
         this.cachedSessions.delete(sessionId)
         this.eventBuffer = createSessionEventBuffer(sessionId)
         this.historyEvents = null
@@ -504,6 +504,7 @@ export class SessionController implements SessionRuntimeActions {
       this.updateSnapshot({
         loadedSessionId: sessionId,
         loading: false,
+        loadingHistory: false,
         historyError: frame.message,
       })
       return
@@ -512,7 +513,7 @@ export class SessionController implements SessionRuntimeActions {
       if (frame.session_id !== sessionId) return
       if (frame.reset) {
         this.historyRevision += 1
-        this.updateSnapshot({ nextBeforeSeq: null, loadingOlder: false, olderHistoryError: '' })
+        this.updateSnapshot({ nextBeforeSeq: null, loadingHistory: false, loadingOlder: false, olderHistoryError: '' })
         this.eventBuffer = createSessionEventBuffer(sessionId)
         this.historyEvents = []
         this.updateSnapshot({ events: [], loading: true, historyError: '' })

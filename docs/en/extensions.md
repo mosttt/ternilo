@@ -2,7 +2,11 @@
 
 Profiles compose enabled plugin entries, each with an ID, kind and configuration. Edit the target computer/session or cloud target deliberately; configuration ownership follows that target. Saving validates configuration and dependencies. Host permissions and ceilings cannot be expanded by a plugin setting.
 
+The Agent preset editor provides a read-only complete Profile preview, including inherited base plugins, and editable preset overrides JSON. A copy of the standard preset may contain only `code-mode` in its overrides; the other base plugins still apply. Removing an override restores inheritance, while disabling an inherited plugin saves a disabled override for that entry.
+
 ## MCP and LSP
+
+To add MCP for the first time, open **User settings → Agent presets**, copy the current preset and edit it. Under **Plugin Profile (advanced) → Preset overrides JSON (editable)**, append the configuration below to the existing `plugins` array. Save the preset and click **Use** on its card to apply it to the current idle Session. Subsequent field changes are available under **Plugins → Plugin configuration**. Install the MCP program on the execution computer or environment; the current integration uses stdio and does not accept HTTP/SSE URLs.
 
 MCP stdio starts a configured server and exposes its declared tools through the shared tool pipeline. For example:
 

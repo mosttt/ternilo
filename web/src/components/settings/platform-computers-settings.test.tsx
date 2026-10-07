@@ -42,6 +42,7 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   host = document.createElement('div')
   document.body.append(host)
@@ -66,6 +67,7 @@ afterEach(() => {
   host.remove()
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  vi.unstubAllGlobals()
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
 })
 

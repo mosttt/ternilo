@@ -9,6 +9,20 @@ import { chromium } from 'playwright'
 import { freePort, repository, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
 import { localApi, until } from './model-device-fixture.mjs'
 
+function historyGate() {
+  let releaseFirst, releaseOlder
+  const first = new Promise(resolve => { releaseFirst = resolve })
+  const older = new Promise(resolve => { releaseOlder = resolve })
+  return { first, older, releaseFirst, releaseOlder }
+}
+
+async function assertLoadingAnimation(page, state) {
+  const indicator = page.locator(`[data-history-state="${state}"]`)
+  await indicator.waitFor({ state: 'visible' })
+  assert.equal(await indicator.getAttribute('aria-busy'), 'true')
+  assert.equal(await indicator.locator('svg').evaluate(element =>
+    element.getAnimations().some(animation => animation.playState === 'running')), true)
+}
 
 test('a long thinking round loads completely, switches from cache and resumes Live on desktop and mobile', { timeout: 120_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-history-'))
@@ -19,6 +33,7 @@ test('a long thinking round loads completely, switches from cache and resumes Li
   const data = path.join(directory, 'data')
   const args = ['serve', '--listen', new URL(origin).host, '--data-dir', data]
   let app, browser, page
+  let gate = historyGate()
   const errors = [], subscriptions = [], streamed = [], historyRequests = []
   try {
     app = startProcess(binary, args)
@@ -38,6 +53,11 @@ test('a long thinking round loads completely, switches from cache and resumes Li
     api = await localApi(origin)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+    await page.route(`**/sessions/${sessionId}/history?*`, async route => {
+      const url = new URL(route.request().url())
+      await (url.searchParams.has('before_seq') ? gate.older : gate.first)
+      await route.continue()
+    })
     page.on('websocket', socket => {
       socket.on('framesent', ({ payload }) => { const frame = JSON.parse(String(payload)); if (frame.type === 'subscribe') subscriptions.push(frame) })
       socket.on('framereceived', ({ payload }) => { const frame = JSON.parse(String(payload)); if (frame.type === 'event_batch' && frame.session_id === sessionId) streamed.push(...frame.events) })
@@ -51,7 +71,14 @@ test('a long thinking round loads completely, switches from cache and resumes Li
     page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`) })
     const started = Date.now()
     await page.goto(origin)
+    await assertLoadingAnimation(page, 'loading')
+    await page.screenshot({ path: path.join(artifacts, 'history-desktop-loading.png') })
+    gate.releaseFirst()
+    await assertLoadingAnimation(page, 'backfilling')
     await page.getByText('History preserved.', { exact: true }).waitFor()
+    await page.screenshot({ path: path.join(artifacts, 'history-desktop-backfilling.png') })
+    gate.releaseOlder()
+    await page.locator('[data-history-state="backfilling"]').waitFor({ state: 'detached' })
     console.log(`Long history visible in ${Date.now() - started} ms (${expected.length} events)`)
     for (const asset of ['app.js', 'app.css']) {
       const served = await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer()
@@ -73,6 +100,7 @@ test('a long thinking round loads completely, switches from cache and resumes Li
     const switchStarted = Date.now()
     await page.locator(`[data-session-id="${sessionId}"] [data-sidebar-session-button]`).click()
     await page.getByText('History preserved.', { exact: true }).waitFor({ timeout: 2_000 })
+    assert.equal(await page.locator('[data-history-state="loading"], [data-history-state="backfilling"]').count(), 0)
     await until(async () => subscriptions.at(-1), frame => frame?.session_id === sessionId, 'cached session resumes Live')
     assert.equal(historyRequests.length, beforeSwitch, 'switching back must not reread long history')
     console.log(`Cached long conversation visible in ${Date.now() - switchStarted} ms without REST history`)
@@ -92,8 +120,17 @@ test('a long thinking round loads completely, switches from cache and resumes Li
     await page.locator('[data-trajectory-state="ready"]').waitFor()
     await page.getByRole('tab', { name: '对话', exact: true }).click()
     await page.setViewportSize({ width: 390, height: 844 })
+    gate = historyGate()
     await page.reload()
+    await assertLoadingAnimation(page, 'loading')
+    await page.screenshot({ path: path.join(artifacts, 'history-mobile-loading.png') })
+    gate.releaseFirst()
+    await assertLoadingAnimation(page, 'backfilling')
     await page.getByText('History preserved.', { exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    await page.screenshot({ path: path.join(artifacts, 'history-mobile-backfilling.png') })
+    gate.releaseOlder()
+    await page.locator('[data-history-state="backfilling"]').waitFor({ state: 'detached' })
     if (await turnProcess.count() && await turnProcess.getAttribute('aria-expanded') === 'false') await turnProcess.tap()
     await row.getByRole('button').tap()
     await until(() => row.locator('[data-reasoning-body]').textContent(), value => value === text, 'complete mobile thinking round')
@@ -108,6 +145,8 @@ test('a long thinking round loads completely, switches from cache and resumes Li
     error.message += `\n${app?.diagnostics() ?? ''}`
     throw error
   } finally {
+    gate.releaseFirst()
+    gate.releaseOlder()
     await browser?.close()
     if (app) await stopProcess(app)
     await rm(directory, { recursive: true, force: true })

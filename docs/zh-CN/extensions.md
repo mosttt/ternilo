@@ -16,7 +16,7 @@ Ternilo 的产品行为通过可信 catalog 中的插件组合。Profile row 使
 
 静态 `PluginFactory` 从真实 Rust 配置类型发布 JSON Schema。当前 Session 的插件配置卡据此生成 object、string、number、boolean、enum 和嵌套字段；数组或开放 object 使用局部 JSON 编辑。保存会写入 Session 的整行 `profile_plugins` 覆盖，恢复默认会移除该行。浏览器 Schema 不是安全边界，后端仍会解析候选 Profile 并验证依赖图。
 
-Agent 预设编辑器对已有插件 row 复用同一份 Catalog JSON Schema；Extension mount 使用已安装签名 manifest 的 `config_schema` 编辑其 `settings`。完整 Profile JSON 默认折叠，只在新增 row 或调整组合结构时使用。普通用户不需要直接编辑 Node 数据目录中的配置文件。
+Agent 预设编辑器对已有插件 row 复用同一份 Catalog JSON Schema；Extension mount 使用已安装签名 manifest 的 `config_schema` 编辑其 `settings`。高级编辑区同时显示“完整 Profile JSON（只读）”和“预设覆盖 JSON（可编辑）”：完整预览包含继承的基础插件，覆盖配置只保存新增或修改的插件。复制标准预设后，覆盖 JSON 可能只有 `code-mode`，其余基础插件仍生效。删除覆盖项会恢复继承，关闭继承插件则保存该项的禁用覆盖。普通用户不需要直接编辑 Node 数据目录中的配置文件。
 
 Session override 中的典型 row：
 
@@ -53,6 +53,8 @@ Extension 卡片的开关显示 composed effective Profile，而不是只查看 
 启用插件只登记服务配置。MCP 在任务开始执行后建立连接并发现工具，LSP 在首次使用时启动；打开服务状态页不会启动它们。成功调用后保留进程与服务状态，Local 下会持续占用当前声明的工作目录。会话顶部的“更多 → 后台服务”可以查看、启动或停止，具体行为见[使用指南](agents.md#查看和控制后台服务)。手动停止仅抑制当前运行实例的自动启动；需要长期禁用时关闭插件。
 
 ### MCP stdio
+
+首次添加时，进入“用户设置 → Agent 预设”，复制当前预设并编辑，在“插件 Profile（高级）→ 预设覆盖 JSON（可编辑）”的 `plugins` 数组中追加下面的配置，保留原有项。保存后点击预设卡片的“使用”，应用到当前空闲会话。随后可在“用户设置 → 插件 → 插件配置”通过字段表单调整 MCP。程序需要安装在执行任务的电脑或环境中；当前接入为 stdio，不接受 HTTP／SSE 地址。
 
 ```json
 {

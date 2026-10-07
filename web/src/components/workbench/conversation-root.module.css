@@ -287,6 +287,17 @@
 .historyState > :global(svg) { width: 20px; height: 20px; color: var(--label-tertiary); }
 .historyState p { max-width: 460px; color: var(--label-tertiary); line-height: 20px; }
 .historyState[data-history-state='error'] > :global(svg) { color: var(--destructive); }
+.historyProgress {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  color: var(--label-secondary);
+  font-size: 13px;
+}
+.historyProgress > :global(svg) { width: 16px; height: 16px; color: var(--primary); }
 .spin { animation: spin 1s linear infinite; }
 
 .modelNotice {

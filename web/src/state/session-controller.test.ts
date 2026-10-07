@@ -760,11 +760,15 @@ it('shows the first page before slower earlier pages and completes one long thin
   controller.start()
   controller.setTarget('thinking', true)
   await flush()
-  expect(controller.getSnapshot()).toMatchObject({ loadedSessionId: 'thinking', loading: false, nextBeforeSeq: null })
+  expect(controller.getSnapshot()).toMatchObject({ loadedSessionId: 'thinking', loading: false, loadingHistory: true, nextBeforeSeq: null })
   expect(controller.getSnapshot().events).toHaveLength(1_000)
   expect(live.targets.at(-1)?.options?.afterSeq).toBe(12_999)
+  live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'thinking', reset: false,
+    complete: true, events: [], next_seq: 13_000 })
+  expect(controller.getSnapshot().loadingHistory).toBe(true)
   release()
-  await vi.waitFor(() => expect(controller.getSnapshot().events).toHaveLength(13_000))
+  await vi.waitFor(() => expect(controller.getSnapshot().loadingHistory).toBe(false))
+  expect(controller.getSnapshot().events).toHaveLength(13_000)
   expect(controller.getSnapshot().nextBeforeSeq).toBe(null)
   expect(api.calls).toHaveLength(13)
   controller.dispose()
@@ -791,7 +795,7 @@ it('keeps the last accepted history cursor retryable when background backfill fa
     complete: true, events: [event(6_000)], next_seq: 6_001 })
   rejectBackfill(new Error('backfill disconnected'))
   await vi.waitFor(() => expect(controller.getSnapshot().olderHistoryError).toBe('backfill disconnected'))
-  expect(controller.getSnapshot()).toMatchObject({ loading: false, historyError: '', nextBeforeSeq: 5_000 })
+  expect(controller.getSnapshot()).toMatchObject({ loading: false, loadingHistory: false, historyError: '', nextBeforeSeq: 5_000 })
   live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
     complete: true, events: [event(6_001)], next_seq: 6_002 })
   expect(controller.getSnapshot().olderHistoryError).toBe('backfill disconnected')
@@ -815,9 +819,10 @@ it('ignores a failed obsolete backfill after Live resets the history baseline', 
   await flush()
   live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: true,
     complete: true, events: [event(0)], next_seq: 1 })
+  expect(controller.getSnapshot().loadingHistory).toBe(false)
   rejectBackfill(new Error('obsolete read failed'))
   await flush()
-  expect(controller.getSnapshot()).toMatchObject({ events: [event(0)], loading: false,
+  expect(controller.getSnapshot()).toMatchObject({ events: [event(0)], loading: false, loadingHistory: false,
     nextBeforeSeq: null, historyError: '', olderHistoryError: '' })
   controller.dispose()
 })

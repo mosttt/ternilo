@@ -12,6 +12,8 @@ Names are required and unique for the same account in the same space's registrat
 
 Details include registration ID, owner, project, connection and enrollment state, enrollment time, last contact, credential issue and last-use times, registered workspace count and associated session count. Previously connected computers also have expandable connection diagnostics. Last contact uses the latest heartbeat or authentication observed by Server. Unrecorded information is identified explicitly; hostnames and IP addresses are not inferred.
 
+On mobile, swipe within the details area when its content exceeds the dialog height to view and edit the name, notes and connection diagnostics. Cancel and save actions remain at the bottom. When the available window height shrinks, the focused input scrolls into view.
+
 Updates use the observed management version. If another page changed the same computer, refresh before retrying rather than overwriting newer information.
 
 ## Suspending and resuming access

@@ -177,7 +177,7 @@ export function PluginConfigCard({
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-2">
               <strong className="text-sm">{title ?? entry.id}</strong>
-              <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{entry.kind}</code>
+              <code className="max-w-full break-all rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{entry.kind}</code>
               {dirty ? <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning">{t('plugins.unsaved')}</span> : null}
               {overridden ? <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">{t('plugins.overridden')}</span> : null}
             </span>

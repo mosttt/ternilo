@@ -26,6 +26,17 @@ export function ComputerDetailsDialog({ tenantId, executorId, scope, onClose, on
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState('')
   const [reload, setReload] = React.useState(0)
+  const scrollRef = React.useCallback((scroll: HTMLDivElement | null) => {
+    if (!scroll) return
+    const observer = new ResizeObserver(() => {
+      const focused = document.activeElement
+      if (focused instanceof HTMLElement && scroll.contains(focused) && focused.matches('input, textarea')) {
+        focused.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
+    })
+    observer.observe(scroll)
+    return () => observer.disconnect()
+  }, [])
   React.useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
@@ -71,8 +82,9 @@ export function ComputerDetailsDialog({ tenantId, executorId, scope, onClose, on
     [t('computers.sessionCount'), details.session_count],
   ] : []
   return <Dialog open onOpenChange={open => { if (!open && !saving) onClose() }}>
-    <DialogContent className="max-w-2xl" data-computer-details="">
-      <DialogHeader><DialogTitle>{t('computers.details')}</DialogTitle><DialogDescription>{t('computers.detailsDescription')}</DialogDescription></DialogHeader>
+    <DialogContent className="flex min-h-0 max-w-2xl flex-col" data-computer-details="">
+      <DialogHeader className="shrink-0"><DialogTitle>{t('computers.details')}</DialogTitle><DialogDescription>{t('computers.detailsDescription')}</DialogDescription></DialogHeader>
+      <div ref={scrollRef} className="grid min-h-0 min-w-0 gap-4 overflow-y-auto overscroll-contain touch-pan-y" data-computer-details-scroll="">
       {loading ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" />{t('platform.loading')}</p> : details && <>
         <dl className="grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           {fields.map(([label, value]) => <React.Fragment key={label}><dt className="text-muted-foreground">{label}</dt><dd className="min-w-0 break-all">{value}</dd></React.Fragment>)}
@@ -84,7 +96,8 @@ export function ComputerDetailsDialog({ tenantId, executorId, scope, onClose, on
         </dl></details>}
       </>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <DialogFooter>
+      </div>
+      <DialogFooter className="shrink-0">
         <Button variant="outline" disabled={saving} onClick={onClose}>{common('cancel')}</Button>
         {!loading && error && <Button variant="outline" disabled={saving} onClick={() => setReload(value => value + 1)}>{t('platform.refresh')}</Button>}
         {details && details.management.removed_at_ms == null && <Button disabled={loading || saving || !name.trim()} onClick={() => void save()}>{saving ? <LoaderCircle className="animate-spin" /> : <Save />}{t('computers.save')}</Button>}

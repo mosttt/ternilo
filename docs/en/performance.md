@@ -6,6 +6,8 @@
 
 Local/Node history reads the latest page from the journal tail and locates older pages by sequence and byte offset, without an additional disk index. Cached switching, page sizes and Live continuation address separate reading costs.
 
+Opening a conversation shows a loading animation until its first history page arrives. Loaded content appears immediately, with a loading indicator above the conversation while automatic paging or manual older-history reads continue. The animation stops when reading finishes or fails. Switching back to a cached conversation shows it directly without rereading history or waiting for an animation.
+
 Build matching programs and run:
 
 ```bash

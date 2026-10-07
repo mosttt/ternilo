@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, Input, Label, Textarea } from '@/components/ui/field'
+import { Field, FieldDescription, Input, Label, Textarea } from '@/components/ui/field'
 import { localizeAgentPreset, localizePluginMetadata } from '@/i18n/builtin-metadata'
 import { useTranslate } from '@/i18n/provider'
 import { useWorkbench } from '@/state/workbench'
@@ -361,7 +361,7 @@ export function PresetsSettings() {
             <DialogTitle>{t('presets.editTitle', { name: document?.display_name ?? '' })}</DialogTitle>
             <DialogDescription>{t('presets.editDescription')}</DialogDescription>
           </DialogHeader>
-          <div className="grid max-h-[58dvh] gap-4 overflow-y-auto pr-1">
+          <div className="grid min-w-0 max-h-[58dvh] grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto pr-1" data-preset-editor-scroll="">
             <Field><Label htmlFor="preset-edit-name">{t('presets.name')}</Label><Input id="preset-edit-name" value={name} onChange={(event) => setName(event.target.value)} /></Field>
             <Field><Label htmlFor="preset-edit-description">{t('presets.descriptionLabel')}</Label><Textarea id="preset-edit-description" value={description} onChange={(event) => setDescription(event.target.value)} /></Field>
             <section className="grid gap-3" data-preset-plugin-editor="">
@@ -408,7 +408,18 @@ export function PresetsSettings() {
             <details className="rounded-xl border bg-muted/15 p-3">
               <summary className="cursor-pointer text-sm font-medium">{t('presets.profile')}</summary>
               <Field className="mt-3">
+                <Label htmlFor="preset-effective-profile">{t('presets.effectiveProfile')}</Label>
+                <FieldDescription>{t('presets.effectiveProfileDescription')}</FieldDescription>
+                <Textarea
+                  id="preset-effective-profile"
+                  className="min-h-60 font-mono text-xs"
+                  readOnly
+                  value={displayedProfile ? JSON.stringify(displayedProfile, null, 2) : ''}
+                />
+              </Field>
+              <Field className="mt-3">
                 <Label htmlFor="preset-edit-profile">{t('presets.advancedProfile')}</Label>
+                <FieldDescription>{t('presets.advancedProfileDescription')}</FieldDescription>
                 <Textarea
                   id="preset-edit-profile"
                   className="min-h-60 font-mono text-xs"

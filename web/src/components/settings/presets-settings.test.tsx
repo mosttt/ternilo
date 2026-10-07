@@ -289,6 +289,9 @@ describe('system preset localization', () => {
     await settle(() => buttonWithLabel('Edit: 我的 Agent').click())
     expect(document.querySelectorAll('[data-preset-plugin-editor] [data-plugin-id]')).toHaveLength(3)
     expect(JSON.parse(document.querySelector<HTMLTextAreaElement>('#preset-edit-profile')!.value)).toEqual(overlay)
+    const preview = document.querySelector<HTMLTextAreaElement>('#preset-effective-profile')!
+    expect(preview.readOnly).toBe(true)
+    expect(JSON.parse(preview.value)).toEqual({ plugins: [base.plugins[0], base.plugins[1], overlay.plugins[0]] })
     await settle(() => buttonWithLabel('Expand: inherited-runner').click())
     const input = document.querySelector<HTMLInputElement>('#plugin-inherited-runner-max_tool_calls')!
     expect(input.value).toBe('512')
@@ -296,6 +299,7 @@ describe('system preset localization', () => {
     await settle(() => buttonWithText('Apply to draft').click())
     const expectedProfile = { plugins: [overlay.plugins[0], { ...base.plugins[0], config: { max_steps: 12, max_tool_calls: 0 } }] }
     expect(JSON.parse(document.querySelector<HTMLTextAreaElement>('#preset-edit-profile')!.value)).toEqual(expectedProfile)
+    expect(JSON.parse(preview.value)).toEqual({ plugins: [expectedProfile.plugins[1], base.plugins[1], overlay.plugins[0]] })
     await settle(() => buttonWithText('Save preset').click())
     expect(api.request).toHaveBeenCalledWith('/agent-presets/mine', { method: 'PUT', body: {
       display_name: '我的 Agent', description: '作者原文', profile: expectedProfile,
@@ -322,6 +326,7 @@ describe('system preset localization', () => {
     })
     expect(document.querySelector<HTMLInputElement>('#plugin-runner-max_tool_calls')!.value).toBe('100')
     expect(document.querySelector<HTMLInputElement>('#plugin-runner-max_steps')!.value).toBe('8')
+    expect(JSON.parse(document.querySelector<HTMLTextAreaElement>('#preset-effective-profile')!.value)).toEqual(base)
     await settle(() => buttonWithText('Save preset').click())
     expect(api.request).toHaveBeenCalledWith('/agent-presets/mine', { method: 'PUT', body: {
       display_name: '我的 Agent', description: '作者原文', profile: { plugins: [] },

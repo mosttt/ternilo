@@ -854,6 +854,13 @@ export function ConversationColumn({
             : undefined}
         />
       )}
+      {currentSession && !runtime.loading && runtime.loadedSessionId === currentSessionId
+        && !runtime.historyError && (runtime.loadingHistory || runtime.loadingOlder) && (
+        <div className={css.historyProgress} data-history-state="backfilling" role="status" aria-live="polite" aria-busy="true">
+          <LoaderCircle className={css.spin} aria-hidden="true" />
+          <span>{chatT('chat.loadingHistory')}</span>
+        </div>
+      )}
       {(!currentSession || blankSession) && (
         <Button
           type="button"
@@ -934,7 +941,7 @@ export function ConversationColumn({
             <p>{t('session.forkingDescription')}</p>
           </div>
         ) : runtime.loading || runtime.loadedSessionId !== currentSessionId ? (
-          <div className={css.historyState} data-history-state="loading" role="status" aria-live="polite">
+          <div className={css.historyState} data-history-state="loading" role="status" aria-live="polite" aria-busy="true">
             <LoaderCircle className={css.spin} aria-hidden="true" />
             <strong>{chatT(forkHydratingCurrent ? 'chat.loadingForkHistory' : 'chat.loadingHistory')}</strong>
             <p>{chatT(forkHydratingCurrent

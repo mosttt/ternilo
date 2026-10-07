@@ -112,34 +112,6 @@ summary:focus-visible {
 
   [role="dialog"] [data-slot="dialog-footer"] { align-items: stretch; }
   [role="dialog"] [data-slot="dialog-footer"] > button { min-height: 40px; }
-
-  /* Preserve the compact 36x20 visual switch while giving its Radix root a
-     real 40x40 pointer and focus target. */
-  [data-slot="switch"] {
-    position: relative;
-    box-sizing: border-box;
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    min-height: 40px;
-    background: transparent;
-    box-shadow: none;
-  }
-
-  [data-slot="switch"]::before {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    width: 36px;
-    height: 20px;
-    border-radius: 999px;
-    background: var(--input);
-    content: '';
-    transform: translateY(-50%);
-  }
-
-  [data-slot="switch"][data-state="checked"]::before { background: var(--primary); }
-  [data-slot="switch"] > * { position: relative; z-index: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
