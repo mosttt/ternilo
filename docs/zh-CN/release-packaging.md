@@ -11,19 +11,19 @@ Ternilo 可以从本地源码生成二进制交付包和 Docker 镜像。本指�
 先选择本次交付的组件。当前电脑上的网页、CLI 和可选远程连接使用 `local`，不需要同时构建 Server 或 Worker：
 
 ```bash
-scripts/package-release.sh --component local --version 0.2.7 \
+scripts/package-release.sh --component local --version 0.2.8 \
   --output-dir /path/to/releases
 ```
 
-它只构建并打包 `ternilo` 与 `ternilo-plugin`，产物为 `ternilo-0.2.7-<系统>-<架构>.tar.gz`。`server` 只提供 `ternilo-server`，`worker` 只提供 `ternilo-worker`；不指定组件时默认 `all`，完整包以 `ternilo-all-` 命名，与客户端包区分。Windows 使用 `--binary-suffix .exe` 时生成 `.zip`，可直接由资源管理器解压；Linux／macOS 使用 `.tar.gz` 保留 Unix 文件权限。各模式只要求对应程序存在，归档内 `RELEASE` 记录组件和程序清单。
+它只构建并打包 `ternilo` 与 `ternilo-plugin`，产物为 `ternilo-0.2.8-<系统>-<架构>.tar.gz`。`server` 只提供 `ternilo-server`，`worker` 只提供 `ternilo-worker`；不指定组件时默认 `all`，完整包以 `ternilo-all-` 命名，与客户端包区分。Windows 使用 `--binary-suffix .exe` 时生成 `.zip`，可直接由资源管理器解压；Linux／macOS 使用 `.tar.gz` 保留 Unix 文件权限。各模式只要求对应程序存在，归档内 `RELEASE` 记录组件和程序清单。
 
 需要包含全部程序时，在 Ternilo 源码根目录执行：
 
 ```bash
-scripts/package-release.sh --version 0.2.7 --output-dir /path/to/releases
+scripts/package-release.sh --version 0.2.8 --output-dir /path/to/releases
 ```
 
-脚本先安装前端依赖、构建 Web 和 release binaries，再生成 `ternilo-all-0.2.7-<系统>-<架构>.tar.gz` 与 `.sha256`。已存在的同名产物会拒绝覆盖。包内包含：
+脚本先安装前端依赖、构建 Web 和 release binaries，再生成 `ternilo-all-0.2.8-<系统>-<架构>.tar.gz` 与 `.sha256`。已存在的同名产物会拒绝覆盖。包内包含：
 
 - `bin/ternilo`：电脑上的本地使用、远程连接和程序化入口。
 - `bin/ternilo-server`：服务器的 setup／serve／admin 子命令。
@@ -44,7 +44,7 @@ scripts/package-release.sh --version 0.2.7 --output-dir /path/to/releases
 已有经过验证的本机 release binaries 时，可以只打包：
 
 ```bash
-scripts/package-release.sh --component local --version 0.2.7 \
+scripts/package-release.sh --component local --version 0.2.8 \
   --no-build --bin-dir /path/to/verified-binaries \
   --target-name linux-x86_64 --output-dir /path/to/releases
 ```
@@ -65,15 +65,15 @@ scripts/package-release.sh --component local --version 0.2.7 \
 
 ## Docker 镜像
 
-生产 Compose 默认使用 `ghcr.io/mosttt/ternilo-server:0.2.7`，直接拉取即可，[部署流程](docker-compose.md)不包含构建步骤。仅开发自定义镜像时使用源码构建 override，并显式选择自己的镜像名：
+生产 Compose 默认使用 `ghcr.io/mosttt/ternilo-server:0.2.8`，直接拉取即可，[部署流程](docker-compose.md)不包含构建步骤。仅开发自定义镜像时使用源码构建 override，并显式选择自己的镜像名：
 
 ```bash
-TERNILO_IMAGE=ternilo-server:custom-0.2.7 docker compose --env-file deploy/docker/.env.server.example \
+TERNILO_IMAGE=ternilo-server:custom-0.2.8 docker compose --env-file deploy/docker/.env.server.example \
   -f deploy/docker/compose.server.yml \
   -f deploy/docker/compose.server.build.yml build server
 ```
 
-上述命令产出本机的 `ternilo-server:custom-0.2.7`，只包含 Server。Worker 使用独立镜像：
+上述命令产出本机的 `ternilo-server:custom-0.2.8`，只包含 Server。Worker 使用独立镜像：
 
 ```bash
 docker compose --env-file deploy/docker/.env.worker.example \
@@ -81,22 +81,22 @@ docker compose --env-file deploy/docker/.env.worker.example \
   -f deploy/docker/compose.worker.build.yml build worker
 ```
 
-默认产出 `ternilo-worker:0.2.7`。Worker 镜像不构建或携带网页，部署时只接收 Server 地址和独立凭据。修改版本可通过 `TERNILO_IMAGE` 显式提供。Linorun 不在同级目录时用 `TERNILO_LINORUN_SOURCE` 指定绝对目录。上述 build override 用于源码检出；Server 二进制交付包直接拉取公开镜像；自定义和 Worker 镜像使用自己构建或加载的版本。
+默认产出 `ternilo-worker:0.2.8`。Worker 镜像不构建或携带网页，部署时只接收 Server 地址和独立凭据。修改版本可通过 `TERNILO_IMAGE` 显式提供。Linorun 不在同级目录时用 `TERNILO_LINORUN_SOURCE` 指定绝对目录。上述 build override 用于源码检出；Server 二进制交付包直接拉取公开镜像；自定义和 Worker 镜像使用自己构建或加载的版本。
 
 Rust 构建并行度可通过 `build --build-arg CARGO_BUILD_JOBS=<数量>` 按构建机资源指定。依赖下载连接数可通过 `--build-arg NPM_CONFIG_MAXSOCKETS=<数量>` 按构建网络调整；两项均无项目固定默认值，未设置时沿用工具默认值。npm 与 Cargo 下载使用构建缓存，发行包目录不进入 Docker 源码上下文。
 
 没有 registry 时，在构建机导出：
 
 ```bash
-docker image save --output /path/to/releases/ternilo-server-0.2.7-image.tar ternilo-server:0.2.7
-docker image save --output /path/to/releases/ternilo-worker-0.2.7-image.tar ternilo-worker:0.2.7
+docker image save --output /path/to/releases/ternilo-server-0.2.8-image.tar ternilo-server:0.2.8
+docker image save --output /path/to/releases/ternilo-worker-0.2.8-image.tar ternilo-worker:0.2.8
 ```
 
 将镜像文件和二进制交付包复制到服务器，加载镜像：
 
 ```bash
-docker image load --input /path/to/releases/ternilo-server-0.2.7-image.tar
-docker image load --input /path/to/releases/ternilo-worker-0.2.7-image.tar
+docker image load --input /path/to/releases/ternilo-server-0.2.8-image.tar
+docker image load --input /path/to/releases/ternilo-worker-0.2.8-image.tar
 ```
 
 然后按[Docker 部署](deployment.md)初始化 Server，按[Worker 部署](worker.md)初始化 Worker，分别指定对应镜像。也可以推送到自己管理的 registry，并在部署配置中固定版本或 digest；不要把 `latest` 当作可复现的发行版本。

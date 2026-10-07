@@ -99,21 +99,22 @@ test('project rules require workspace owner opt-in and revoke live, fork and arc
       return page
     }))
     let batches = 0, revoking = false
+    const denialChecks = []
     readerPage.on('websocket', socket => socket.on('framereceived', frame => {
       try { const value = JSON.parse(String(frame.payload)); if (value.type === 'event_batch' && value.session_id === publicId) batches++ } catch {}
     }))
-    await readerPage.route(url => url.origin === origin && (
-      ['queue', 'commands', 'history', 'stats', 'projection', 'plugins'].some(resource => url.pathname === `/api/v1/sessions/${publicId}/${resource}`)
-      || ['/api/v1/catalog', '/api/v1/model-options'].includes(url.pathname) && url.searchParams.get('session_id') === publicId), async route => {
-      if (route.request().method() !== 'GET') { await route.continue(); return }
-      const response = await route.fetch()
-      if (revoking && [400, 403].includes(response.status())) {
+    readerPage.on('response', response => {
+      const url = new URL(response.url())
+      const sessionRead = ['queue', 'commands', 'history', 'stats', 'projection', 'plugins'].some(resource => url.pathname === `/api/v1/sessions/${publicId}/${resource}`)
+        || ['/api/v1/catalog', '/api/v1/model-options'].includes(url.pathname) && url.searchParams.get('session_id') === publicId
+      if (revoking && url.origin === origin && sessionRead && response.request().method() === 'GET' && [400, 403].includes(response.status())) {
         const expected = response.status() === 400 ? { code: 'invalid_input', message: 'session does not exist' }
           : { code: 'policy_denied', message: 'this resource has not been shared with the requested permission' }
-        try { assert.deepEqual(await response.json(), { error: expected }); denials.push({ url: route.request().url(), status: response.status() }) }
-        catch (error) { errors.push(error.message) }
+        denialChecks.push(response.json().then(body => {
+          assert.deepEqual(body, { error: expected })
+          denials.push({ url: response.url(), status: response.status() })
+        }).catch(error => { errors.push(error.message) }))
       }
-      await route.fulfill({ response })
     })
     await login(adminPage, origin, server.owner, tenantId, '/spaces/current?tab=projects')
     await adminPage.locator(`[data-project-id="${project.project_id}"]`).getByRole('button', { name: '项目共享规则', exact: true }).click()
@@ -193,7 +194,7 @@ test('project rules require workspace owner opt-in and revoke live, fork and arc
     await inherit(true)
     await until(() => reader.request('/state'), value => value.sessions.some(value => value.identity.session_id === publicId), 'explicit re-enrollment follows current project rules')
     assert.equal((await reader.request(`/sessions/${publicId}/sharing`)).access.permissions.submit, false)
-    await readerPage.unrouteAll({ behavior: 'wait' })
+    await Promise.all(denialChecks)
     for (const error of networkErrors) assert.ok(denials.some(value => value.url === error.url && value.status === error.status), JSON.stringify(error))
     for (const error of consoleErrors) assert.ok(denials.some(value => value.url === error.url && error.text === `Failed to load resource: the server responded with a status of ${value.status} (${value.status === 400 ? 'Bad Request' : 'Forbidden'})`), JSON.stringify(error))
     assert.deepEqual(errors, [])

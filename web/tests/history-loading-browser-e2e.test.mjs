@@ -86,6 +86,9 @@ test('a long thinking round loads completely, switches from cache and resumes Li
       assert.equal(createHash('sha256').update(Buffer.from(served)).digest('hex'), createHash('sha256').update(built).digest('hex'))
     }
     assert.equal((await api(`/sessions/${sessionId}/events`)).length, expected.length)
+    const turnProcess = page.locator('[data-turn-process]')
+    await turnProcess.waitFor()
+    if (await turnProcess.getAttribute('aria-expanded') === 'false') await turnProcess.click()
     const row = page.locator('[data-reasoning-row]')
     await row.getByRole('button').click()
     const text = expected.filter(event => event.type === 'assistant_reasoning_delta').map(event => event.delta).join('')
@@ -113,7 +116,6 @@ test('a long thinking round loads completely, switches from cache and resumes Li
       before = result.next_before_seq
     } while (before !== null)
     assert.deepEqual(seen, expected.map(event => event.seq))
-    const turnProcess = page.locator('[data-turn-process]')
     if (await turnProcess.getAttribute('aria-expanded') === 'false') await turnProcess.click()
     await row.getByRole('button').click()
     await page.getByRole('tab', { name: '轨迹', exact: true }).click()
