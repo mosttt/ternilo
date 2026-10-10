@@ -1,0 +1,12 @@
+{
+  "image": "ghcr.io/mosttt/ternilo-server:0.2.9",
+  "anonymous": true,
+  "index_digest": "sha256:dfea59cdefcb0390b74ce9eeddc4a4824fc8565e26477fbecdf91ed81a1164f3",
+  "latest_digest": "sha256:dfea59cdefcb0390b74ce9eeddc4a4824fc8565e26477fbecdf91ed81a1164f3",
+  "platform_digests": {
+    "amd64": "sha256:ede03a0867a1e4657b62f72abb5ed53e24fda8d8e58343414ad6ca238e8aa849",
+    "arm64": "sha256:118f7239a491c7b3bc2cf4a03d37dc9ee65c146f3c245cf734abdc7a4078556b"
+  },
+  "source_commit": "60903462f9db2cb25ffbe6dc423b144fb8d9d12d",
+  "user": "10001"
+}

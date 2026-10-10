@@ -1,3 +1,4 @@
+mod access;
 mod history;
 mod read;
 pub(crate) mod repair;
@@ -16,7 +17,7 @@ use ternilo_protocol::{
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    sync::Mutex,
+    sync::RwLock,
 };
 
 use crate::{
@@ -90,7 +91,7 @@ pub(crate) struct EventLogTail {
 
 pub struct JsonlEventStore {
     path: PathBuf,
-    writer: Mutex<()>,
+    access: Arc<RwLock<()>>,
     index: Option<(Arc<LocalSearchIndex>, String, String)>,
     execution_activity: Option<(Arc<ExecutionActivityCache>, String)>,
     notifications: Option<(
@@ -101,9 +102,10 @@ pub struct JsonlEventStore {
 
 impl JsonlEventStore {
     pub fn new(directory: &Path, session_id: &SessionId) -> Self {
+        let path = directory.join(format!("{}.jsonl", encode_id(session_id.as_str())));
         Self {
-            path: directory.join(format!("{}.jsonl", encode_id(session_id.as_str()))),
-            writer: Mutex::new(()),
+            access: access::for_path(&path),
+            path,
             index: None,
             execution_activity: None,
             notifications: None,
@@ -146,6 +148,7 @@ impl JsonlEventStore {
         &self,
         query: ternilo_protocol::SessionHistoryQuery,
     ) -> Result<ternilo_protocol::SessionEventPage, HarnessError> {
+        let _reader = self.access.read().await;
         history::load(self.path.clone(), query).await
     }
 
@@ -155,6 +158,7 @@ impl JsonlEventStore {
 
     /// Read one immutable event without loading the rest of its transcript.
     pub(crate) async fn event_at(&self, seq: u64) -> Result<Option<SessionEvent>, HarnessError> {
+        let _reader = self.access.read().await;
         let file = match tokio::fs::File::open(&self.path).await {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -187,7 +191,7 @@ impl JsonlEventStore {
     }
 
     pub(crate) async fn seed_events(&self, events: &[SessionEvent]) -> Result<(), HarnessError> {
-        let _writer = self.writer.lock().await;
+        let _writer = self.access.write().await;
         let mut bytes = Vec::new();
         for (expected, event) in events.iter().enumerate() {
             let expected = u64::try_from(expected)
@@ -250,10 +254,12 @@ impl JsonlEventStore {
     /// the whole file. Projection checkpoints use the count to detect a cache
     /// row that has moved ahead of a repaired or truncated log.
     pub(crate) async fn load_from(&self, start_seq: u64) -> Result<EventLogTail, HarnessError> {
+        let _reader = self.access.read().await;
         read::load(self.path.clone(), start_seq).await
     }
 
     pub async fn remove(&self) -> Result<(), HarnessError> {
+        let _writer = self.access.write().await;
         match tokio::fs::remove_file(&self.path).await {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -280,7 +286,7 @@ impl SessionEventStore for JsonlEventStore {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), HarnessError>> + Send + 'a>>
     {
         Box::pin(async move {
-            let _writer = self.writer.lock().await;
+            let _writer = self.access.write().await;
             if let Some(parent) = self.path.parent() {
                 tokio::fs::create_dir_all(parent).await.map_err(|error| {
                     HarnessError::execution(format!(
@@ -364,6 +370,83 @@ mod tests {
     use super::*;
 
     const CRASH_TEST_DIRECTORY: &str = "TERNILO_CHECKPOINT_CRASH_TEST_DIRECTORY";
+
+    #[tokio::test]
+    async fn independent_readers_wait_for_a_complete_append() {
+        let directory = TempDir::new().unwrap();
+        let session = SessionId::new("concurrent-append");
+        let writer = JsonlEventStore::new(directory.path(), &session);
+        let first = SessionEvent {
+            seq: 0,
+            occurred_at_ms: 1,
+            run_id: RunId::new("stream"),
+            kind: SessionEventKind::TurnStarted,
+        };
+        writer.append(first.clone()).await.unwrap();
+        let next = SessionEvent {
+            seq: 1,
+            occurred_at_ms: 2,
+            run_id: first.run_id.clone(),
+            kind: SessionEventKind::AssistantMessageDelta {
+                step: 1,
+                delta: "streaming record 🙂".repeat(12_000),
+            },
+        };
+        let mut bytes = serde_json::to_vec(&next).unwrap();
+        bytes.push(b'\n');
+        let pending = writer.access.write().await;
+        let mut file = tokio::fs::OpenOptions::new()
+            .append(true)
+            .open(&writer.path)
+            .await
+            .unwrap();
+        let split = bytes.len() / 2;
+        file.write_all(&bytes[..split]).await.unwrap();
+        file.flush().await.unwrap();
+        let reader = Arc::new(JsonlEventStore::new(directory.path(), &session));
+        let (ready, mut started) = tokio::sync::mpsc::channel(4);
+        let mut tasks = tokio::task::JoinSet::new();
+        for method in 0..4 {
+            let reader = Arc::clone(&reader);
+            let ready = ready.clone();
+            tasks.spawn(async move {
+                ready.send(()).await.unwrap();
+                let events = match method {
+                    0 => reader.load().await?,
+                    1 => reader.load_from(1).await?.events,
+                    2 => {
+                        reader
+                            .history(ternilo_protocol::SessionHistoryQuery::default())
+                            .await?
+                            .events
+                    }
+                    _ => reader.event_at(1).await?.into_iter().collect(),
+                };
+                Ok::<_, HarnessError>((method, events))
+            });
+        }
+        for _ in 0..4 {
+            started.recv().await.unwrap();
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), tasks.join_next())
+                .await
+                .is_err(),
+            "a reader observed an append before its record was complete"
+        );
+        file.write_all(&bytes[split..]).await.unwrap();
+        file.sync_data().await.unwrap();
+        drop(pending);
+        while let Some(result) = tasks.join_next().await {
+            let (method, events) = result.unwrap().unwrap();
+            let expected = if method == 1 || method == 3 {
+                vec![next.clone()]
+            } else {
+                vec![first.clone(), next.clone()]
+            };
+            assert_eq!(events, expected);
+        }
+    }
 
     #[tokio::test]
     async fn execution_cache_changes_only_after_a_successful_event_append() {
