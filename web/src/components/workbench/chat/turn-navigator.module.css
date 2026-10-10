@@ -1,4 +1,8 @@
-.slot { position: absolute; z-index: 7; right: 12px; top: 50%; height: 0; pointer-events: none; }
+/* The navigator queries the column width from its own overlay, a sibling of the conversation scroller. WebKit lays out
+   a size container before it styles newly inserted descendants, so a container around the transcript would clamp the
+   scroller to a half-built page whenever streamed Markdown or a finished turn is re-rendered. */
+.layer { position: absolute; z-index: 7; inset: 0; container-type: inline-size; pointer-events: none; }
+.slot { position: absolute; right: 12px; top: 50%; height: 0; pointer-events: none; }
 .rail { position: relative; width: 28px; transform: translateY(-50%); cursor: pointer; pointer-events: auto; }
 .scroller { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .scroller::-webkit-scrollbar { display: none; }

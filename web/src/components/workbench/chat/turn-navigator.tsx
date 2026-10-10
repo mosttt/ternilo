@@ -96,7 +96,7 @@ export function TurnNavigator({ turns, rootRef, onReaderNavigate, t }: {
   const preview = turns.find(turn => turn.number === previewTurn)
   const position = (turn: ChatTurn) => turns.length <= 1 ? 0 : turns.indexOf(turn) / (turns.length - 1) * 100
   const height = Math.min(naturalHeight, 420, Math.max(0, (frame?.height ?? 484) - 64))
-  const content = <div className={css.slot} data-turn-navigator="" style={{ top: frame ? frame.top + frame.height / 2 : undefined }}>
+  const content = <div className={css.layer} data-turn-navigator=""><div className={css.slot} style={{ top: frame ? frame.top + frame.height / 2 : undefined }}>
     <nav
       className={css.rail}
       style={{ height }}
@@ -131,6 +131,6 @@ export function TurnNavigator({ turns, rootRef, onReaderNavigate, t }: {
         {preview.response && <span>{preview.response}</span>}
       </div>}
     </nav>
-  </div>
+  </div></div>
   return frame ? createPortal(content, frame.host) : content
 }
