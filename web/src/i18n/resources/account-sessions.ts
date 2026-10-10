@@ -74,5 +74,43 @@ export const en: Record<keyof typeof zh, string> = {
   revoked: 'Revoked {count} sign-in sessions.',
 }
 
+export const ko = {
+  title: '브라우저 로그인 세션',
+  description: '이 계정의 만료되지 않은 비밀번호 로그인 및 로컬에서 발급된 OIDC 세션을 확인합니다. 활동 시간은 인증된 HTTP 요청을 기준으로 하며 보통 1분에 한 번 갱신됩니다. 세션을 해지하면 해당 세션의 접근이 종료됩니다.',
+  oidcNotice: '현재 자격 증명은 ID 공급자가 직접 발급했습니다. 이 페이지에서는 서버에 저장된 로컬 세션을 관리하며, 외부 자격 증명을 해지하거나 ID 공급자의 세션을 종료하지는 않습니다.',
+  session: '로그인 세션 {id}',
+  current: '현재 세션',
+  nativeLogin: '비밀번호 로그인',
+  oidcLogin: 'OIDC 로그인',
+  issuer: 'ID 공급자: {issuer}',
+  accessExpires: '접근 자격 증명 만료: {time}',
+  unknownDevice: '알 수 없는 기기 / 브라우저',
+  hostnameUnavailable: '호스트 이름: 브라우저에서 제공하지 않음',
+  firstIp: '최초 접속 IP: {ip}',
+  lastIp: '최근 접속 IP: {ip}',
+  lastActive: '마지막 활동: {time}',
+  notRecorded: '기록 없음',
+  technicalDetails: '브라우저 식별자 및 세션 ID',
+
+  created: '로그인 시각: {time}',
+  expires: '만료: {time}',
+  loading: '로그인 세션을 불러오는 중…',
+  empty: '활성 상태의 로컬 로그인 세션이 없습니다.',
+  refresh: '새로고침',
+  loadError: '로그인 세션을 불러오지 못했습니다: {message}',
+  revoke: '세션 해지',
+  revokeCurrent: '현재 세션 해지',
+  revokeOthers: '다른 세션 해지',
+  revokeAll: '모든 로컬 세션 해지',
+  confirmCurrent: '즉시 로그아웃됩니다. 계속하려면 다시 로그인해야 합니다.',
+  confirmSession: '{time}에 로그인한 세션을 해지하시겠습니까? 해당 세션은 접근 권한을 잃습니다.',
+  confirmOthers: '현재 로그인을 제외한 이 계정의 다른 비밀번호 세션과 로컬에서 발급된 OIDC 세션을 해지합니다. 외부 ID 공급자의 세션은 영향을 받지 않습니다.',
+  confirmAll: '이 계정의 활성 로컬 로그인 세션을 모두 해지합니다. 현재 외부 자격 증명과 ID 공급자의 세션은 영향을 받지 않습니다.',
+  cancel: '취소',
+  revoking: '해지 중…',
+  revokeError: '세션을 해지하지 못했습니다: {message}',
+  revoked: '로그인 세션 {count}개를 해지했습니다.',
+} satisfies Record<AccountSessionsKey, string>
+
 type AccountSessionsKey = keyof typeof zh
 declare module '../runtime' { interface LocaleNamespaceMap { accountSessions: AccountSessionsKey } }

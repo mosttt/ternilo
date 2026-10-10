@@ -16,6 +16,7 @@ import { readDefaultPermission, writeDefaultPermission } from '@/domain/default-
 import { localizeAgentPreset } from '@/i18n/builtin-metadata'
 import { executionTargetPath, type ExecutionTarget } from '@/domain/execution-target'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { isLocaleId } from '@/i18n/runtime'
 import { storage, useWorkbench } from '@/state/workbench'
 import type { PermissionPreset } from '@/types'
 import { ActionDialog, SectionHeader, SettingRow } from './settings-ui'
@@ -87,10 +88,11 @@ export function GeneralSettings() {
             aria-label={t('general.language')}
             className="w-40"
             value={locale}
-            onValueChange={(nextValue) => setLocale(nextValue === 'en' ? 'en' : 'zh')}
+            onValueChange={(nextValue) => { if (isLocaleId(nextValue)) setLocale(nextValue) }}
           >
             <option value="zh">中文</option>
             <option value="en">English</option>
+            <option value="ko">한국어</option>
           </Select>
         </SettingRow>
         <SettingRow title={t('general.theme')} description={t('general.themeDescription')}>

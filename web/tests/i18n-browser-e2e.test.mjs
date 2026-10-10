@@ -37,10 +37,12 @@ function startTernilo(dataDirectory) {
 async function stopProcess(child) {
   if (child.exitCode !== null) return
   child.kill('SIGINT')
+  let timer
   await Promise.race([
     new Promise(resolve => child.once('exit', resolve)),
-    new Promise(resolve => setTimeout(resolve, 5_000)).then(() => child.kill('SIGKILL')),
+    new Promise(resolve => { timer = setTimeout(() => { child.kill('SIGKILL'); resolve() }, 5_000) }),
   ])
+  clearTimeout(timer)
 }
 
 async function api(page, endpoint, init = {}) {
@@ -67,7 +69,7 @@ test('language preference switches the core workbench, persists across reload, a
   let browser
   try {
     const origin = await ternilo.origin
-    browser = await chromium.launch({ headless: true })
+    browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const context = await browser.newContext({ locale: 'zh-CN',
       viewport: { width: 1280, height: 800 },
       serviceWorkers: 'block',
@@ -183,13 +185,33 @@ test('language preference switches the core workbench, persists across reload, a
 
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
     dialog = page.getByRole('dialog', { name: 'Settings' })
-    await selectChoice(dialog.locator('[role="combobox"][aria-label="Language"]'), 'zh')
+    await selectChoice(dialog.locator('[role="combobox"][aria-label="Language"]'), 'ko')
+    dialog = page.getByRole('dialog', { name: '설정' })
+    for (const label of ['일반', '모델', '플러그인', '에이전트 프리셋', '자격 증명 및 로그인', '정보 및 진단']) {
+      assert.equal(await dialog.getByRole('button', { name: label, exact: true }).isVisible(), true)
+    }
+    await dialog.getByRole('button', { name: '설정 닫기' }).click()
+    await dialog.waitFor({ state: 'detached' })
+    await page.getByText('아이디어를 실행에 옮기세요', { exact: true }).waitFor()
+    await page.setViewportSize({ width: 390, height: 430 })
+    const koreanInput = page.getByRole('textbox', { name: '작업 입력' })
+    await koreanInput.waitFor()
+    assert.equal(await koreanInput.getAttribute('placeholder'), '만들고 싶은 것을 설명하세요')
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 390)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await koreanInput.waitFor()
+    assert.equal(await page.locator('html').getAttribute('lang'), 'ko')
+    assert.equal(await page.evaluate(() => localStorage.getItem('ternilo.locale')), 'ko')
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.getByRole('button', { name: '설정', exact: true }).click()
+    dialog = page.getByRole('dialog', { name: '설정' })
+    await selectChoice(dialog.locator('[role="combobox"][aria-label="언어"]'), 'zh')
     dialog = page.getByRole('dialog', { name: '设置' })
     await dialog.getByRole('button', { name: '关闭设置' }).click()
     assert.equal(await page.locator('html').getAttribute('lang'), 'zh-CN')
     assert.equal(await page.getByText('让想法，动起来', { exact: true }).isVisible(), true)
     assert.deepEqual(errors, [])
-    console.log('i18n browser acceptance: zh → en → reload → zh passed')
+    console.log('i18n browser acceptance: zh → en → reload → ko → mobile reload → zh passed')
     await context.close()
   } finally {
     if (browser) await browser.close()
@@ -204,16 +226,17 @@ test('Fresh local workbenches follow browser language and saved choices override
   let browser
   try {
     const origin = await ternilo.origin
-    browser = await chromium.launch({ headless: true })
-    for (const [locale, saved, language] of [['zh-CN', null, 'zh'], ['en-US', null, 'en'], ['en-US', 'zh', 'zh'], ['zh-CN', 'en', 'en']]) {
+    browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
+    const languages = { zh: { settings: '设置', tag: 'zh-CN' }, en: { settings: 'Settings', tag: 'en' }, ko: { settings: '설정', tag: 'ko' } }
+    for (const [locale, saved, language] of [['zh-CN', null, 'zh'], ['en-US', null, 'en'], ['ko-KR', null, 'ko'], ['en-US', 'zh', 'zh'], ['zh-CN', 'en', 'en'], ['en-US', 'ko', 'ko'], ['ko-KR', 'en', 'en']]) {
       const context = await browser.newContext({ locale, viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' })
       if (saved) await context.addInitScript(value => localStorage.setItem('ternilo.locale', value), saved)
       const page = await context.newPage()
       const errors = []
       page.on('pageerror', error => errors.push(error.message))
       await page.goto(origin, { waitUntil: 'networkidle' })
-      await page.getByRole('button', { name: language === 'zh' ? '设置' : 'Settings', exact: true }).waitFor()
-      assert.equal(await page.evaluate(() => document.documentElement.lang), language === 'zh' ? 'zh-CN' : 'en')
+      await page.getByRole('button', { name: languages[language].settings, exact: true }).waitFor()
+      assert.equal(await page.evaluate(() => document.documentElement.lang), languages[language].tag)
       assert.equal(await page.evaluate(() => localStorage.getItem('ternilo.locale')), saved)
       assert.deepEqual(errors, [])
       await context.close()

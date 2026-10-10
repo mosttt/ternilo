@@ -4,6 +4,7 @@ import { ApiError } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/field'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import type { Translate } from '@/i18n/runtime'
 import type {
   ModelUsageAnomalyKind,
@@ -92,9 +93,9 @@ export function PlatformUsageSettings({ tenantId }: { tenantId: string }) {
     return () => { requestGeneration.current += 1 }
   }, [load])
 
-  const number = React.useMemo(() => new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en'), [locale])
+  const number = React.useMemo(() => new Intl.NumberFormat(localeTag(locale)), [locale])
   const time = React.useMemo(() => new Intl.DateTimeFormat(
-    locale === 'zh' ? 'zh-CN' : 'en',
+    localeTag(locale),
     { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' },
   ), [locale])
   const format = (value: number | null | undefined) => value == null ? '—' : number.format(value)

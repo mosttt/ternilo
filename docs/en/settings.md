@@ -1,6 +1,6 @@
 # Settings, presets and execution limits
 
-The initial UI language follows the browser’s preferred supported language: Chinese or English. If none matches, it uses English. A manual choice is saved in the current browser and overrides its defaults. Server setup, login and the workbench share this rule.
+The initial UI language follows the browser’s preferred supported language: Chinese, English or Korean. If none matches, it uses English. A manual choice is saved in the current browser and overrides its defaults. Server setup, login and the workbench share this rule.
 
 The theme defaults to **System** and responds to operating-system appearance changes while the page is open. An explicit Light or Dark selection remains your preference. Settings also control language, conversation text size, completed-turn display and the default behavior of future conversations.
 

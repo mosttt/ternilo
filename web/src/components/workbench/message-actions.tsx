@@ -4,6 +4,7 @@ import { Check, Copy, GitBranch, LoaderCircle, Pencil, RotateCcw, ThumbsDown, Th
 import { Popover } from 'radix-ui'
 import { api, ApiError } from '@/api/client'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import { useWorkbench } from '@/state/workbench'
 import type { SessionEvent, SessionProjection } from '@/types'
 import { asRecord, cn } from '@/lib/utils'
@@ -11,10 +12,10 @@ import css from './message-actions.module.css'
 
 function MessageTimestamp({ occurredAt }: { occurredAt: number }) {
   const { locale } = useLocale()
-  const time = new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', {
+  const time = new Intl.DateTimeFormat(localeTag(locale), {
     hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(new Date(occurredAt))
-  const timestamp = new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', {
+  const timestamp = new Intl.DateTimeFormat(localeTag(locale), {
     dateStyle: 'medium', timeStyle: 'medium', hour12: false,
   }).format(new Date(occurredAt))
   return <time className={css.time} dateTime={new Date(occurredAt).toISOString()} title={timestamp}>{time}</time>

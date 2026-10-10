@@ -8,6 +8,7 @@ import { Field, Input, Label } from '@/components/ui/field'
 import { DirectoryPagination } from '@/components/settings/directory-pagination'
 import { pageQuery } from '@/components/settings/platform-admin-api'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import type { ModelQuota } from './model-service-api'
 import type { ProviderProtocol } from '@/types'
 import css from './model-service.module.css'
@@ -107,7 +108,7 @@ export function QuotaFacts({ quota }: { quota: ModelQuota }) {
 
 export function useModelDate() {
   const { locale } = useLocale()
-  return (value: number) => new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  return (value: number) => new Intl.DateTimeFormat(localeTag(locale), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
 export function useModelProtocol() {

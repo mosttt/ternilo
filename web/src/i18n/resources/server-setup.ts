@@ -64,5 +64,38 @@ export const en: Record<keyof typeof zh, string> = {
   language: 'Language',
 }
 
+export const ko = {
+  title: 'Ternilo 서버 설정',
+  description: '데이터베이스를 선택하고 관리자를 생성하세요. 재시작할 때는 저장된 구성을 사용합니다.',
+  key: '초기화 키',
+  keyHint: '서버 시작 로그에서 복사하세요. 외부에 공개하지 마세요. 설정이 완료되면 만료됩니다.',
+  database: '데이터베이스',
+  sqlite: 'SQLite · 인스턴스 데이터 디렉터리에 저장',
+  postgres: 'PostgreSQL',
+  preset: '시작 옵션에 지정된 데이터베이스 사용',
+  sqliteHint: '별도의 데이터베이스 서비스가 필요 없습니다. 구성과 데이터는 인스턴스 디렉터리 또는 영구 Docker 볼륨에 보관됩니다.',
+  postgresHint: '서버에서 접근할 수 있는 주소를 사용하세요. Docker 내부에서 localhost는 컨테이너 자신을 가리키므로, 같은 Compose 프로젝트의 데이터베이스는 서비스 이름을 사용하세요.',
+  databaseUrl: 'PostgreSQL 연결 URL',
+  migrationUrl: '스키마 소유자 연결 URL (선택 사항)',
+  migrationHint: '런타임 계정이 테이블을 생성할 수 없는 경우에 입력하세요. 두 URL은 같은 데이터베이스를 가리켜야 합니다. 연결 비밀번호의 특수 문자는 URL 인코딩하세요.',
+  publicUrl: '서버 공개 URL (선택 사항)',
+  publicHint: '로그인 콜백과 이메일 링크에 사용할 실제 브라우저 origin(예: https://ternilo.example.com)을 입력하세요. 나중에 인스턴스 설정에서 변경할 수 있습니다.',
+  owner: '관리자 계정',
+  username: '사용자 이름',
+  usernameHint: '영문 ASCII 문자, 숫자, 마침표, 하이픈, 밑줄 3~64자.',
+  email: '이메일',
+  password: '비밀번호',
+  confirmPassword: '비밀번호 확인',
+  passwordHint: '8자 이상. 관리자는 한 번만 생성되며, 이후 시작할 때는 계정 자격 증명이 필요하지 않습니다.',
+  submit: '구성 저장 및 관리자 생성',
+  saving: '데이터베이스에 연결하고 설정을 완료하는 중…',
+  passwordMismatch: '비밀번호가 일치하지 않습니다.',
+  invalidKey: '초기화 키가 올바르지 않습니다. 서버 시작 로그를 확인하세요.',
+  databaseError: '데이터베이스에 연결하거나 스키마를 초기화하지 못했습니다. 주소, 자격 증명, 스키마 권한을 확인하세요.',
+  requestError: '설정에 실패했습니다: {message}',
+  reload: '페이지 새로고침',
+  language: '언어',
+} satisfies Record<ServerSetupKey, string>
+
 type ServerSetupKey = keyof typeof zh
 declare module '../runtime' { interface LocaleNamespaceMap { serverSetup: ServerSetupKey } }
