@@ -75,7 +75,8 @@
 .markdown-body th,
 .markdown-body td { border: 1px solid var(--border); padding: 6px 10px; }
 .markdown-body img { max-width: 100%; border-radius: 9px; }
-.markdown-streaming { white-space: pre-wrap; }
+/* Only literal streaming text keeps source line breaks; rendered Markdown keeps its settled layout. */
+.markdown-literal { white-space: pre-wrap; }
 
 @media (max-width: 760px) {
   .markdown-copy { min-width: 40px; min-height: 40px; }

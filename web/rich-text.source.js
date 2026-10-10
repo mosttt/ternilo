@@ -101,5 +101,5 @@ export function renderStreamingMarkdown(source, labels) {
   if (/^ {0,3}(?:`{3,}|~{3,})[^\n]*$/m.test(String(source))) {
     return renderMarkdown(source, labels).replace('class="markdown-body"', 'class="markdown-body markdown-streaming"')
   }
-  return `<div class="markdown-body markdown-streaming">${escapeHtml(source)}</div>`
+  return `<div class="markdown-body markdown-streaming markdown-literal">${escapeHtml(source)}</div>`
 }
