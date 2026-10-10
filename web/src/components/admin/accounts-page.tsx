@@ -7,6 +7,7 @@ import { Field, Input, Label, Select } from '@/components/ui/field'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ActionDialog, SectionHeader } from '@/components/settings/settings-ui'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import { useWorkbench } from '@/state/workbench'
 import { listAccounts, reviewAccount, setAccountRole, setAccountStatus, type AccountPage, type AccountStatus, type AccountStatusAction, type PlatformAccount } from './admin-api'
 import { RegistrationPanel } from './registration-panel'
@@ -166,7 +167,7 @@ export function AccountsPage() {
                   </div>
                   <span data-account-email="">{account.email ?? t('accounts.emailMissing')}</span>
                   <code>{account.user_id}</code>
-                  <small>{t('accounts.created', { date: new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', { dateStyle: 'medium' }).format(account.created_at_ms) })}</small>
+                  <small>{t('accounts.created', { date: new Intl.DateTimeFormat(localeTag(locale), { dateStyle: 'medium' }).format(account.created_at_ms) })}</small>
                   {(account.status === 'banned' || account.status === 'removed' || account.status === 'active') && account.platform_role !== 'owner' && <NodeCleanupPanel userId={account.user_id} statusRevision={account.status_revision} />}
                 </div>
                 <div className={css.accountRole}>

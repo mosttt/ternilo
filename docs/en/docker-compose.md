@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/docker-compose.md)
 
-Setup and the regular workbench initially follow the browser’s preferred Chinese/English language. A saved manual choice overrides that default.
+Setup and the regular workbench initially follow the browser’s preferred Chinese/English/Korean language. A saved manual choice overrides that default.
 
 Requires Docker Engine and the Compose plugin. The public image `ghcr.io/mosttt/ternilo-server:0.2.8` supports `linux/amd64` and `linux/arm64`; Docker selects the host architecture. Rust, Node.js, Python and local builds are unnecessary.
 

@@ -2,7 +2,7 @@
 
 [English](../en/docker-compose.md)
 
-设置页和正常工作台首次按浏览器首选语言显示中文或英文；手动选择会保存并覆盖浏览器默认值。
+设置页和正常工作台首次按浏览器首选语言显示中文、英文或韩文；手动选择会保存并覆盖浏览器默认值。
 
 需要 Docker Engine 和 Compose 插件。公开镜像 `ghcr.io/mosttt/ternilo-server:0.2.8` 支持 `linux/amd64` 和 `linux/arm64`，Docker 自动选择架构，不需要 Rust、Node.js、Python 或本地构建。
 

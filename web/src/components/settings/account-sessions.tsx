@@ -2,6 +2,7 @@ import * as React from 'react'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import { useWorkbench } from '@/state/workbench'
 import { ActionDialog, GroupHeader } from './settings-ui'
 
@@ -106,7 +107,7 @@ export function AccountSessions() {
     }
   }
 
-  const formatTime = (timestamp: number | null | undefined) => timestamp == null ? translate('notRecorded') : new Date(timestamp).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')
+  const formatTime = (timestamp: number | null | undefined) => timestamp == null ? translate('notRecorded') : new Date(timestamp).toLocaleString(localeTag(locale))
   const unmanaged = data?.current_login === 'oidc' && data.current_session_managed === false
   const bulkLabel = translate(unmanaged ? 'revokeAll' : 'revokeOthers')
   const dialogTitle = target === 'others' ? bulkLabel : translate(target?.is_current ? 'revokeCurrent' : 'revoke')

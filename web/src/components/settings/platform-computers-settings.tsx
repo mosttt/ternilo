@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, Input, Label, Select } from '@/components/ui/field'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import type { ManagedExecutionTarget, ProjectRecord } from '@/types'
 import { ActionDialog, GroupHeader, SectionHeader } from './settings-ui'
 import { ComputerDetailsDialog } from './computer-details-dialog'
@@ -84,7 +85,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
         : 'empty'
 
   const formatTime = React.useCallback((value: number) => new Intl.DateTimeFormat(
-    locale === 'zh' ? 'zh-CN' : 'en',
+    localeTag(locale),
     { dateStyle: 'medium', timeStyle: 'short' },
   ).format(new Date(value)), [locale])
 

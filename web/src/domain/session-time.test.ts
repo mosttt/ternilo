@@ -13,6 +13,12 @@ describe('session time labels', () => {
     expect(sessionRelativeTime(now - 800 * 86_400_000, now)).toBe('2年')
   })
 
+  it('localizes relative time buckets for Korean', () => {
+    expect(sessionRelativeTime(now - 15_000, now, 'ko')).toBe('방금')
+    expect(sessionRelativeTime(now - 5 * 60_000, now, 'ko')).toBe('5분')
+    expect(sessionRelativeTime(now - 62 * 86_400_000, now, 'ko')).toBe('2개월')
+  })
+
   it('retains a complete absolute timestamp for hover and assistive copy', () => {
     expect(sessionAbsoluteTime(now)).toMatch(/2026/)
     expect(sessionAbsoluteTime(now)).toMatch(/08/)

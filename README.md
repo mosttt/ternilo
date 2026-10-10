@@ -37,7 +37,7 @@ ternilo serve --open-browser
 
 Choose a working folder, add your model connection under **Settings → Models**, and send a task. Ternilo shows the response and tool activity as work progresses. The [local quickstart](docs/en/getting-started.md) covers installation, the first model connection and stopping the service.
 
-Local use needs only `ternilo`. The desktop app and browser connect to the same local service. Interface language follows your browser's Chinese/English preference until you save a manual choice.
+Local use needs only `ternilo`. The desktop app and browser connect to the same local service. Interface language follows your browser's Chinese/English/Korean preference until you save a manual choice.
 
 ## Use your computers remotely
 

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Field, Input, Label } from '@/components/ui/field'
 import { fileBlob, fileBytes, fileImage, textFile } from '@/domain/file-content'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import { useWorkbench } from '@/state/workbench'
 import { fileFilters, fileKey, filesLocation, listFiles, readFileContent, type FileFilters, type FilePage, type SessionFile, type SessionFileContent } from './files-api'
 import css from './files-page.module.css'
@@ -159,7 +160,7 @@ function FileList({ filters }: { filters: FileFilters }) {
     if (canOpenSession(file)) { selectSession(file.session_id); navigate('/') }
     else navigate(filesLocation({ session_id: file.session_id }))
   }
-  const dates = React.useMemo(() => new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', { dateStyle: 'medium', timeStyle: 'medium' }), [locale])
+  const dates = React.useMemo(() => new Intl.DateTimeFormat(localeTag(locale), { dateStyle: 'medium', timeStyle: 'medium' }), [locale])
   const offlineNames = [...new Set(page.offline_sources.map(source => snapshot.workspaces.find(workspace => workspace.workspace_id === source.workspace_id)?.title || source.workspace_id))]
   return <div className={css.results} data-file-results="">
     {page.offline_sources.length > 0 && <div className={css.offlineNotice} role="status" data-files-offline=""><CloudOff /><div><p>{t('offlineNotice')}</p><p>{t('offlineWorkspaces', { names: offlineNames.join('、') })}</p></div></div>}

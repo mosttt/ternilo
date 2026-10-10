@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, Input, Label } from '@/components/ui/field'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import { useWorkbench } from '@/state/workbench'
 import { ActionDialog, GroupHeader, SectionHeader } from './settings-ui'
 import { createWorker, listWorkers, revokeWorker, workerSetupCommand, type WorkerGrant, type WorkerRecord } from './workers-api'
@@ -99,7 +100,7 @@ function WorkersPanel({ editable }: { editable: boolean }) {
       setCopied(kind)
     } catch { setCopyError(t('command.copyFailed')) }
   }
-  const formatTime = (value: number) => new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', {
+  const formatTime = (value: number) => new Intl.DateTimeFormat(localeTag(locale), {
     dateStyle: 'medium', timeStyle: 'short',
   }).format(new Date(value))
 

@@ -1,7 +1,18 @@
 
-export const LOCALE_IDS = ['zh', 'en'] as const
+export const LOCALE_IDS = ['zh', 'en', 'ko'] as const
 export type BuiltInLocaleId = typeof LOCALE_IDS[number]
 export type LocaleDict = Record<string, string>
+
+/** BCP 47 tags used for `<html lang>` and `Intl` formatters. */
+const LOCALE_TAGS: Record<BuiltInLocaleId, string> = { zh: 'zh-CN', en: 'en', ko: 'ko' }
+
+export function localeTag(id: BuiltInLocaleId) {
+  return LOCALE_TAGS[id]
+}
+
+export function isLocaleId(value: unknown): value is BuiltInLocaleId {
+  return typeof value === 'string' && (LOCALE_IDS as readonly string[]).includes(value)
+}
 
 /** Resource modules merge their key unions into this map. */
 export interface LocaleNamespaceMap {}
@@ -47,10 +58,7 @@ export class LocaleRuntime {
     dictionaries: Record<BuiltInLocaleId, Record<LocaleKey<N>, string>>,
   ) {
     if (this.dicts.has(namespace)) throw new Error(`locale namespace "${namespace}" is already registered`)
-    this.dicts.set(namespace, new Map([
-      ['zh', dictionaries.zh],
-      ['en', dictionaries.en],
-    ]))
+    this.dicts.set(namespace, new Map(LOCALE_IDS.map(id => [id, dictionaries[id]])))
     this.publish(this.snapshot.active)
   }
 
@@ -87,10 +95,10 @@ export function storedLocale(
     : navigator.languages.length ? navigator.languages : [navigator.language],
 ): BuiltInLocaleId {
   const saved = storage?.getItem(LOCALE_STORAGE_KEY)
-  if (saved === 'zh' || saved === 'en') return saved
+  if (isLocaleId(saved)) return saved
   for (const language of languages) {
     const base = language.toLowerCase().split('-')[0]
-    if (base === 'zh' || base === 'en') return base
+    if (isLocaleId(base)) return base
   }
   return 'en'
 }

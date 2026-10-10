@@ -5,6 +5,7 @@ import type { AgentTeamSnapshot } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Field, Label, Select, Textarea } from '@/components/ui/field'
 import { useLocale } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import css from './agent-team-panel.module.css'
 
 export function AgentTeamMailbox({
@@ -29,7 +30,7 @@ export function AgentTeamMailbox({
   const [recipient, setRecipient] = React.useState(() => initialRecipient ?? recipients[0]?.id ?? '')
   const [content, setContent] = React.useState('')
   const names = React.useMemo(() => new Map(snapshot.members.map(member => [member.id, member.label])), [snapshot.members])
-  const formatter = React.useMemo(() => new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', {
+  const formatter = React.useMemo(() => new Intl.DateTimeFormat(localeTag(locale), {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   }), [locale])
 

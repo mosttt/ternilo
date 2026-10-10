@@ -1,12 +1,13 @@
 import { Bot, CalendarClock, ChevronRight, ExternalLink, UsersRound } from 'lucide-react'
 import { addressableSubagentSession, deriveSubagents, scheduleEventView } from '@/domain/observability'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { type BuiltInLocaleId, localeTag } from '@/i18n/runtime'
 import type { LocalSession, SessionEvent } from '@/types'
 import { useOpenAgentTeam } from '../agent-team-panel'
 import css from './observability-event-rows.module.css'
 
-function dateTime(value: number, locale: 'zh' | 'en') {
-  return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', {
+function dateTime(value: number, locale: BuiltInLocaleId) {
+  return new Intl.DateTimeFormat(localeTag(locale), {
     dateStyle: 'medium', timeStyle: 'short',
   }).format(new Date(value))
 }

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ownsResource } from '@/domain/resource-access'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import type { LocalSession, Workspace } from '@/types'
 import { SessionArchivePreview } from './session-archive-preview'
 import css from './session-archive-dialog.module.css'
@@ -71,7 +72,7 @@ export function SessionArchiveDialog({ tenantId, platform, readOnly, workspaces,
       if (mounted.current) setPending(null)
     }
   }
-  const time = (timestamp: number) => new Date(timestamp).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')
+  const time = (timestamp: number) => new Date(timestamp).toLocaleString(localeTag(locale))
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
     <DialogContent className={css.dialog} data-session-archive="">
       <DialogHeader>
