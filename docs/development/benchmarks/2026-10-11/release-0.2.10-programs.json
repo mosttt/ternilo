@@ -1,0 +1,43 @@
+{
+  "version": "0.2.10",
+  "source": "595dc4230516126782d2756aa3876f359599cfce",
+  "stage": "candidate",
+  "package_sha256": {
+    "ternilo-0.2.10-x86_64-unknown-linux-gnu.tar.gz": "ed22c8e4f65287e677248617fe299ecc252c52d547085b17593b2fc8c1fdddf9",
+    "ternilo-server-0.2.10-x86_64-unknown-linux-gnu.tar.gz": "3ef71810bf5b08d84fe815825700d036eff63d6e44e4dc8e0c394bdf6da79f52"
+  },
+  "groups": [
+    {
+      "name": "scroll-and-agent",
+      "seconds": 35.34,
+      "exit_code": 0
+    },
+    {
+      "name": "setup-and-languages",
+      "seconds": 68.01,
+      "exit_code": 0
+    },
+    {
+      "name": "history-repair-and-sdk",
+      "seconds": 19.75,
+      "exit_code": 0
+    }
+  ],
+  "matches_published_archives": true,
+  "public_recheck": {
+    "version": "0.2.10",
+    "source": "595dc4230516126782d2756aa3876f359599cfce",
+    "stage": "public",
+    "package_sha256": {
+      "ternilo-0.2.10-x86_64-unknown-linux-gnu.tar.gz": "ed22c8e4f65287e677248617fe299ecc252c52d547085b17593b2fc8c1fdddf9",
+      "ternilo-server-0.2.10-x86_64-unknown-linux-gnu.tar.gz": "3ef71810bf5b08d84fe815825700d036eff63d6e44e4dc8e0c394bdf6da79f52"
+    },
+    "groups": [
+      {
+        "name": "scroll",
+        "seconds": 21.13,
+        "exit_code": 0
+      }
+    ]
+  }
+}

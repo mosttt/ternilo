@@ -1,0 +1,128 @@
+{
+  "version": "0.2.10",
+  "source": {
+    "version": "0.2.10",
+    "commit": "595dc4230516126782d2756aa3876f359599cfce",
+    "linorun": "46cca18d63d1bef1c5475ac6912f18f5426a115b"
+  },
+  "asset_count": 42,
+  "all_sizes_and_digests_match": true,
+  "archives": [
+    {
+      "file": "ternilo-0.2.10-aarch64-apple-darwin.tar.gz",
+      "target": "aarch64-apple-darwin",
+      "programs": [
+        "ternilo",
+        "ternilo-plugin"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-0.2.10-aarch64-pc-windows-msvc.zip",
+      "target": "aarch64-pc-windows-msvc",
+      "programs": [
+        "ternilo-plugin.exe",
+        "ternilo-sandbox-windows.exe",
+        "ternilo.exe"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-0.2.10-aarch64-unknown-linux-gnu.tar.gz",
+      "target": "aarch64-unknown-linux-gnu",
+      "programs": [
+        "ternilo",
+        "ternilo-plugin"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-0.2.10-x86_64-apple-darwin.tar.gz",
+      "target": "x86_64-apple-darwin",
+      "programs": [
+        "ternilo",
+        "ternilo-plugin"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-0.2.10-x86_64-pc-windows-msvc.zip",
+      "target": "x86_64-pc-windows-msvc",
+      "programs": [
+        "ternilo-plugin.exe",
+        "ternilo-sandbox-windows.exe",
+        "ternilo.exe"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-0.2.10-x86_64-unknown-linux-gnu.tar.gz",
+      "target": "x86_64-unknown-linux-gnu",
+      "programs": [
+        "ternilo",
+        "ternilo-plugin"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-server-0.2.10-aarch64-apple-darwin.tar.gz",
+      "target": "aarch64-apple-darwin",
+      "programs": [
+        "ternilo-server"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-server-0.2.10-aarch64-pc-windows-msvc.zip",
+      "target": "aarch64-pc-windows-msvc",
+      "programs": [
+        "ternilo-server.exe"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-server-0.2.10-aarch64-unknown-linux-gnu.tar.gz",
+      "target": "aarch64-unknown-linux-gnu",
+      "programs": [
+        "ternilo-server"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-server-0.2.10-x86_64-apple-darwin.tar.gz",
+      "target": "x86_64-apple-darwin",
+      "programs": [
+        "ternilo-server"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-server-0.2.10-x86_64-pc-windows-msvc.zip",
+      "target": "x86_64-pc-windows-msvc",
+      "programs": [
+        "ternilo-server.exe"
+      ],
+      "documentation_files": 103
+    },
+    {
+      "file": "ternilo-server-0.2.10-x86_64-unknown-linux-gnu.tar.gz",
+      "target": "x86_64-unknown-linux-gnu",
+      "programs": [
+        "ternilo-server"
+      ],
+      "documentation_files": 103
+    }
+  ],
+  "installers_format_checked": [
+    "aarch64-apple-darwin-Ternilo_0.2.10_aarch64.dmg",
+    "aarch64-pc-windows-msvc-Ternilo_0.2.10_arm64-setup.exe",
+    "aarch64-unknown-linux-gnu-Ternilo_0.2.10_aarch64.AppImage",
+    "aarch64-unknown-linux-gnu-Ternilo_0.2.10_arm64.deb",
+    "x86_64-apple-darwin-Ternilo_0.2.10_x64.dmg",
+    "x86_64-pc-windows-msvc-Ternilo_0.2.10_x64-setup.exe",
+    "x86_64-pc-windows-msvc-Ternilo_0.2.10_x64_en-US.msi",
+    "x86_64-unknown-linux-gnu-Ternilo_0.2.10_amd64.AppImage",
+    "x86_64-unknown-linux-gnu-Ternilo_0.2.10_amd64.deb"
+  ],
+  "limitations": "Installer format and archive architecture validation do not replace physical installation on every platform."
+}

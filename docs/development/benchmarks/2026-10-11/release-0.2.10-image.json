@@ -1,0 +1,22 @@
+{
+  "image": "ghcr.io/mosttt/ternilo-server:0.2.10",
+  "anonymous": true,
+  "index_digest": "sha256:92665b252728462fdab79e52464010b8adf1e818c9846f2d6d3eb815227e467d",
+  "latest_digest": "sha256:92665b252728462fdab79e52464010b8adf1e818c9846f2d6d3eb815227e467d",
+  "platform_digests": {
+    "amd64": "sha256:74a7f86476abb194d98080453b4586c0212020808aa58cbcf60b461cb84f4e25",
+    "arm64": "sha256:0bc0b9a575599385edd584570065220234efd4d120bebe7cf3f53e79deac938d"
+  },
+  "source_commit": "595dc4230516126782d2756aa3876f359599cfce",
+  "user": "10001",
+  "docker_pull_anonymous": true,
+  "actual_image_smoke_checks_passed": [
+    "non-root process",
+    "read-only root",
+    "initialization",
+    "login",
+    "settings",
+    "embedded Web",
+    "persistent restart"
+  ]
+}
