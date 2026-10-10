@@ -133,7 +133,7 @@ async function configureProvider(page, baseUrl) {
   await api(page, '/default-model', { method: 'PUT', body: selection })
   await page.reload({ waitUntil: 'domcontentloaded' })
   const picker = page.locator('[data-input-bar] [data-model-picker]')
-  await picker.waitFor()
+  await picker.filter({ hasText: 'Mode Model' }).waitFor()
   assert.match(await picker.textContent(), /Mode Model/)
 }
 
