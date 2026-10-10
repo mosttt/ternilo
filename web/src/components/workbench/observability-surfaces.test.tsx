@@ -12,6 +12,7 @@ import { SubagentEventRow } from './chat/observability-event-rows'
 
 let host: HTMLDivElement
 let root: Root
+const savedValues = new Map<string, string>()
 
 function event(seq: number, type: string, values: Record<string, unknown> = {}): SessionEvent {
   return { seq, type, run_id: 'run-1', occurred_at_ms: seq * 1_000, ...values }
@@ -29,6 +30,10 @@ function session(id: string, parent?: string, subagentId?: string): LocalSession
 }
 
 beforeEach(() => {
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => savedValues.get(key) ?? null,
+    setItem: (key: string, value: string) => savedValues.set(key, value),
+  })
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   host = document.createElement('div')
   document.body.append(host)
@@ -38,7 +43,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
-  localStorage.clear()
+  savedValues.clear()
+  vi.unstubAllGlobals()
   vi.restoreAllMocks()
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
 })
