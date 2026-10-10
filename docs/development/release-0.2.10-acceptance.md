@@ -7,3 +7,9 @@
 Local 全 target／feature 严格 Clippy 通过，1 分 53 秒；匹配 CLI／Server 构建通过，4 分 16 秒。175 篇文档检查、23 项部署工具、5 项发行门禁与部署操作 CLI／环境检查通过。前端产物没有变化，Cargo、21 项 workspace lock、Tauri、部署入口与双语说明已同步 0.2.10。
 
 实际浏览器：两份独立临时实例的桌面／触摸流式滚动均通过，22.82／23.46 秒；30005 条历史的电脑／手机加载、缓存切换和 Live 恢复通过，13.11 秒；离线损坏备份／修复和继续写入通过，2.93 秒。补齐旧测试前置条件后的临时分叉验证通过，5.12 秒，核对父关系和复制日志；没有将本机临时脚本固化到标准流程。公开产物验收另补。
+
+发行来源 `3590f36d29e1d9ce5db3f002c79b662cfd2cec85`，新标签 `v0.2.10`，完整作业 [38076714374](https://github.com/mosttt/ternilo/actions/runs/38076714374)。v0.2.9 标签仍为原来源 `60903462f9db2cb25ffbe6dc423b144fb8d9d12d`；不以新补丁替换旧公开资产。
+
+首次候选的 Rust、四组平台、独立 Python／TypeScript SDK 单元测试通过；完整 SDK 集成在主动 Server 重启时遇到 `InvalidMessage`，其直接原因是读取 HTTP 状态行前 TCP EOF。Python Live watch 只重试 `OSError`／断连，未处理库包装的 EOF，因此没有进入后续数据库／浏览器门禁。该次未公开，保留失败来源和日志；停止旧候选并修正后重新验收。
+
+新增真实 TCP 回归：首条 HTTP Upgrade 连接收到请求后立即关闭，之后同端口正常提供 WebSocket；旧 SDK 失败，新 SDK 重连且使用原事件游标。仅当 `InvalidMessage` 的直接原因为 EOF 才重试；错误的完整 HTTP 响应仍立即报错，现有认证／撤权／重连窗口／总超时检查不放宽。专用 5 项和完整 Python SDK 6 项通过，1.16／1.89 秒；匹配 CLI／Server 的 Python／TypeScript 文件执行、Server 重启恢复、撤权及清洁退出完整集成通过，8.75 秒。

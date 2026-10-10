@@ -96,7 +96,7 @@ class ServerClient:
               timeout: float | None = None, reconnect_timeout: float = 30.0) -> Iterator[dict[str, Any]]:
         """Yield event batches, including reset/complete markers, resuming after disconnects."""
         try:
-            from websockets.exceptions import ConnectionClosed, InvalidStatus
+            from websockets.exceptions import ConnectionClosed, InvalidMessage, InvalidStatus
             from websockets.sync.client import connect
         except ImportError as error:
             raise ImportError('Live access requires pip install "ternilo-sdk[remote]"') from error
@@ -149,6 +149,10 @@ class ServerClient:
             except InvalidStatus as error:
                 if error.response.status_code < 500:
                     raise ServerError("http_error", "Server Live handshake rejected", error.response.status_code) from error
+            except InvalidMessage as error:
+                # A restart can close TCP before the HTTP upgrade response is complete.
+                if not isinstance(error.__cause__, EOFError):
+                    raise
             except (ConnectionClosed, OSError):
                 pass
             if self._closed.is_set():

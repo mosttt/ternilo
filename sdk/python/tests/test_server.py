@@ -1,4 +1,5 @@
 import json
+import socket
 from http.client import RemoteDisconnected
 import threading
 import time
@@ -14,6 +15,73 @@ except ImportError:
 
 
 class ServerClientTest(unittest.TestCase):
+    @unittest.skipIf(serve is None, 'install ternilo-sdk[remote] for Live tests')
+    def test_malformed_http_upgrade_is_not_retried(self):
+        from websockets.exceptions import InvalidMessage
+
+        with socket.create_server(('127.0.0.1', 0)) as listener:
+            port = listener.getsockname()[1]
+
+            def malformed_server():
+                connection, _ = listener.accept()
+                with connection:
+                    connection.recv(16 * 1024)
+                    connection.sendall(b'Not an HTTP response\r\n\r\n')
+
+            thread = threading.Thread(target=malformed_server, daemon=True); thread.start()
+            try:
+                with ServerClient(f'http://127.0.0.1:{port}', access_token='token', tenant_id='team') as client:
+                    with self.assertRaises(InvalidMessage):
+                        next(client.watch('shared', timeout=0.5, reconnect_timeout=0.5))
+            finally:
+                thread.join(2)
+                self.assertFalse(thread.is_alive())
+
+    @unittest.skipIf(serve is None, 'install ternilo-sdk[remote] for Live tests')
+    def test_reconnects_when_restart_closes_the_http_upgrade(self):
+        ready = threading.Event()
+        servers, receipts, failures = [], [], []
+
+        def handler(connection):
+            try:
+                receipts.append(json.loads(connection.recv()))
+                connection.send(json.dumps({'type': 'ready', 'protocol_version': 1}))
+                receipts.append(json.loads(connection.recv()))
+                connection.send(json.dumps({'type': 'event_batch', 'session_id': 'shared', 'subscription_id': 1,
+                                           'reset': False, 'complete': True, 'next_seq': 9,
+                                           'events': [{'seq': 8, 'run_id': 'run', 'type': 'turn_started'}]}))
+            except Exception as error:
+                failures.append(str(error))
+
+        with socket.create_server(('127.0.0.1', 0)) as listener:
+            port = listener.getsockname()[1]
+
+            def restarting_server():
+                first, _ = listener.accept()
+                with first:
+                    first.recv(16 * 1024)
+                with serve(handler, sock=listener) as server:
+                    servers.append(server)
+                    ready.set()
+                    server.serve_forever()
+
+            thread = threading.Thread(target=restarting_server, daemon=True); thread.start()
+            try:
+                with ServerClient(f'http://127.0.0.1:{port}', access_token='private-token', tenant_id='team') as client:
+                    stream = client.watch('shared', after_seq=7, timeout=3, reconnect_timeout=2)
+                    try:
+                        self.assertEqual([event['seq'] for event in next(stream)['events']], [8])
+                        self.assertEqual(receipts[-1]['after_seq'], 7)
+                        self.assertEqual(failures, [])
+                    finally:
+                        stream.close()
+            finally:
+                ready.wait(2)
+                for server in servers:
+                    server.shutdown()
+                thread.join(2)
+                self.assertFalse(thread.is_alive())
+
     @unittest.skipIf(serve is None, 'install ternilo-sdk[remote] for Live tests')
     def test_timeout_closes_a_silent_handshake(self):
         from websockets.exceptions import ConnectionClosed
