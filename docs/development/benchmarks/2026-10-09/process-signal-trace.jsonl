@@ -1,0 +1,6 @@
+{"at":"2026-10-09T12:39:50.342Z","observer":73371,"kind":"spawn","child":73412,"command":"ternilo-server"}
+{"at":"2026-10-09T12:39:50.670Z","observer":73371,"kind":"spawn","child":73429,"command":"ternilo-server"}
+{"at":"2026-10-09T12:45:25.882Z","observer":73371,"kind":"child_kill","child":73429,"signal":"SIGINT","stack":["    at file:///home/move/Desktop/ternilo/web/tests/platform-e2e-fixture.mjs:252:19","    at new Promise (<anonymous>)","    at stopProcess (file:///home/move/Desktop/ternilo/web/tests/platform-e2e-fixture.mjs:249:9)"]}
+{"at":"2026-10-09T12:45:25.897Z","observer":73371,"kind":"exit","child":73429,"code":0,"signal":null}
+{"at":"2026-10-09T12:45:25.897Z","observer":73371,"kind":"child_kill","child":73412,"signal":"SIGINT","stack":["    at file:///home/move/Desktop/ternilo/web/tests/platform-e2e-fixture.mjs:252:19","    at new Promise (<anonymous>)","    at stopProcess (file:///home/move/Desktop/ternilo/web/tests/platform-e2e-fixture.mjs:249:9)"]}
+{"at":"2026-10-09T12:45:25.917Z","observer":73371,"kind":"exit","child":73412,"code":0,"signal":null}

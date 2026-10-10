@@ -2,6 +2,7 @@ import { selectChoice } from './browser-select-fixture.mjs'
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { connect, createServer as createTcpServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -32,6 +33,32 @@ const nodeBinary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 
 
 function sse(payload) {
   return `data: ${JSON.stringify(payload)}\n\n`
+}
+
+async function startGatewayProxy(origin) {
+  const destination = new URL(origin)
+  const sockets = new Set()
+  let available = true
+  const proxy = createTcpServer(client => {
+    if (!available) { client.destroy(); return }
+    const upstream = connect(Number(destination.port), destination.hostname)
+    sockets.add(client).add(upstream)
+    client.on('error', () => upstream.destroy())
+    upstream.on('error', () => client.destroy())
+    client.on('close', () => { sockets.delete(client); upstream.destroy() })
+    upstream.on('close', () => { sockets.delete(upstream); client.destroy() })
+    client.pipe(upstream).pipe(client)
+  })
+  await new Promise(resolve => proxy.listen(0, '127.0.0.1', resolve))
+  const setAvailable = value => {
+    available = value
+    if (!value) for (const socket of sockets) socket.destroy()
+  }
+  return {
+    url: `ws://127.0.0.1:${proxy.address().port}/api/v1/executors/connect`,
+    setAvailable,
+    close: () => { setAvailable(false); return new Promise(resolve => proxy.close(resolve)) },
+  }
 }
 
 async function startNodeModelFixture() {
@@ -89,11 +116,11 @@ async function startNodeModelFixture() {
   }
 }
 
-async function configureNodeProviderThroughUi(page, baseUrl, workspaceName) {
+async function configureNodeProviderThroughUi(page, baseUrl, executorId) {
   const tenantId = await page.evaluate(() => localStorage.getItem('ternilo.current-tenant'))
   await modelSettings(page)
-  const settings = await computerModels(page, tenantId)
-  assert.match(await page.locator('[data-model-source-target]').textContent(), new RegExp(workspaceName))
+  const settings = await computerModels(page, tenantId, executorId)
+  await page.locator(`[data-model-computer="${executorId}"]`).waitFor()
   await settings.getByRole('button', { name: '添加 Provider' }).first().click()
   const editor = settings.locator('[data-provider-editor="new"]')
   await editor.getByLabel('Provider ID').fill('node-browser')
@@ -107,12 +134,17 @@ async function configureNodeProviderThroughUi(page, baseUrl, workspaceName) {
   await editor.getByLabel('high实际推理值', { exact: true }).fill('ultra')
   await editor.getByLabel('模型 ID 1').fill('node-browser-model')
   await editor.getByLabel('显示名称（可选） 1').fill('Node Browser Model')
+  const stored = page.waitForResponse(response => response.request().method() === 'POST'
+    && new URL(response.url()).pathname.endsWith('/providers'))
   await editor.getByRole('button', { name: '添加 Provider', exact: true }).click()
+  const response = await stored
+  assert.equal(response.status(), 200)
+  assert.ok(decodeURIComponent(response.url()).includes(executorId))
   await settings.getByText('Node Browser Provider', { exact: true }).waitFor()
   await closeSettings(page)
   await settings.waitFor({ state: 'detached' })
   await choose(page, 'node', 'node-browser', 'Node Browser Model')
-  await page.getByRole('button', { name: /Node Browser Model · high/ }).waitFor()
+  await page.locator('[data-input-bar] [data-model-picker]').filter({ hasText: /Node Browser Model · 设备本地 · high/ }).waitFor()
 }
 
 async function waitForFile(file, expected) {
@@ -124,6 +156,24 @@ async function waitForFile(file, expected) {
     await new Promise(resolve => setTimeout(resolve, 100))
   }
   throw new Error(`file did not reach expected contents: ${file}`)
+}
+
+function writeCommand(file, content) {
+  return `/write ${file} ${content}`
+}
+
+async function createSessionThroughUi(page) {
+  const created = page.waitForResponse(response => response.request().method() === 'POST'
+    && new URL(response.url()).pathname === '/api/v1/sessions')
+  await page.locator('[data-sidebar-new-session]').click()
+  const response = await created
+  assert.equal(response.status(), 201)
+  const session = await response.json()
+  const id = session.identity.session_id
+  const row = page.locator(`[data-sidebar-session-row][data-session-id="${id}"]`)
+  await row.waitFor()
+  await row.locator('[data-sidebar-session-button]').click()
+  return id
 }
 
 async function snapshotNodeSessionFiles(dataDirectory) {
@@ -169,7 +219,22 @@ async function revealWriteTool(
   expectedContent = 'control-node-chain-ready',
 ) {
   const branch = page.locator('[data-tool-call-id]').filter({ hasText: '写入文件' }).last()
-  await branch.waitFor({ state: 'visible', timeout: 30_000 })
+  await branch.waitFor({ state: 'visible', timeout: 30_000 }).catch(async error => {
+    if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+      await captureArtifact(page, 'write-tool-failure.png')
+      const events = await page.evaluate(async () => {
+        const session = localStorage.getItem('ternilo.current-session')
+        const response = await fetch(`/api/v1/sessions/${encodeURIComponent(session)}/events`, { headers: {
+          authorization: `Bearer ${window.__TERNILO_BOOT__?.apiToken || sessionStorage.getItem('ternilo.oidc.access') || ''}`,
+          'x-ternilo-tenant': localStorage.getItem('ternilo.current-tenant') ?? '',
+        } })
+        return { status: response.status, body: await response.json() }
+      })
+      await writeFile(path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'write-tool-failure.json'), JSON.stringify(events, null, 2))
+      await writeFile(path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'write-tool-failure.txt'), await page.locator('body').innerText())
+    }
+    throw error
+  })
   const expand = branch.getByRole('button', { name: '展开 写入文件 结果' })
   if (await expand.isVisible()) await expand.click()
   const diff = branch.locator('[data-tool-view="diff"]')
@@ -206,6 +271,9 @@ async function createProjectThroughUi(page) {
 }
 
 async function openSpaceManagement(page, language = 'zh') {
+  if (page.viewportSize().width <= 760 && !await page.locator('[data-app-frame][data-mobile-sidebar-open]').count()) {
+    await page.getByRole('button', { name: language === 'en' ? 'Open sidebar' : '打开侧边栏', exact: true }).click()
+  }
   await page.getByRole('button', { name: language === 'en' ? 'Space management' : '空间管理', exact: true }).click()
   const management = page.locator('[data-space-management]')
   await management.locator('[data-platform-settings]').waitFor()
@@ -298,7 +366,8 @@ async function registerMemberThroughOidc(browser, origin, oidc) {
     await page.getByRole('button', { name: '使用 Organization 登录' }).click()
     await page.getByRole('dialog', { name: '完善账号信息', exact: true }).waitFor()
     await page.getByLabel('用户名', { exact: true }).fill('control-node-member')
-    await page.getByLabel('邮箱', { exact: true }).fill('control-node-member@example.test')
+    await page.locator('[data-oidc-email]').getByText(/member@example\.com/).waitFor()
+    assert.equal(await page.getByLabel('邮箱', { exact: true }).count(), 0)
     await page.getByRole('button', { name: '完成注册并继续', exact: true }).click()
     const spaces = page.getByRole('combobox', { name: '切换空间' })
     await spaces.waitFor({ timeout: 30_000 })
@@ -310,7 +379,7 @@ async function registerMemberThroughOidc(browser, origin, oidc) {
     assert.equal(response.status(), 200)
     const identity = await response.json()
     assert.equal(identity.platform_role, 'user')
-    assert.equal(await spaces.inputValue(), identity.personal_tenant_id)
+    assert.equal(await spaces.getAttribute('data-space-id'), identity.personal_tenant_id)
     const userId = identity.user.user_id
     assert.match(userId, /^usr_/)
     assert.deepEqual(pageErrors, [])
@@ -336,9 +405,9 @@ async function manageMemberThroughUi(page, userId) {
   await settings.getByText('成员角色已保存', { exact: true }).waitFor()
 
   let row = settings.locator(`[data-platform-member="${userId}"]`)
-  await row.getByText('member@example.com', { exact: true }).waitFor()
-  const role = row.getByRole('combobox', { name: 'Control Platform Member · 角色' })
-  assert.equal(await role.inputValue(), 'member')
+  await row.getByText('control-node-member', { exact: true }).waitFor()
+  const role = row.getByRole('combobox', { name: 'control-node-member · 角色' })
+  assert.equal(await role.getAttribute('data-choice-value'), 'member')
   await selectChoice(role, 'admin')
   const updated = waitForMutation('PUT')
   await row.getByRole('button', { name: '保存角色' }).click()
@@ -350,9 +419,9 @@ async function manageMemberThroughUi(page, userId) {
   settings = await openSpaceManagement(page)
   row = settings.locator(`[data-platform-member="${userId}"]`)
   await row.waitFor({ timeout: 30_000 })
-  assert.equal(await row.getByRole('combobox', { name: 'Control Platform Member · 角色' }).inputValue(), 'admin')
+  assert.equal(await row.getByRole('combobox', { name: 'control-node-member · 角色' }).getAttribute('data-choice-value'), 'admin')
 
-  await row.getByRole('button', { name: '删除成员 · Control Platform Member' }).click()
+  await row.getByRole('button', { name: '删除成员 · control-node-member' }).click()
   const removeDialog = page.getByRole('dialog', { name: '删除该成员？' })
   const removed = waitForMutation('DELETE')
   await removeDialog.getByRole('button', { name: '删除成员', exact: true }).click()
@@ -394,16 +463,22 @@ async function setMemberRoleThroughUi(page, userId, roleName) {
 }
 
 async function waitForExecutionTarget(page, nodeId, connected = true) {
-  await page.waitForFunction(async ({ executorId, expected }) => {
-    const accessToken = sessionStorage.getItem('ternilo.oidc.access') ?? ''
-    const tenantId = localStorage.getItem('ternilo.current-tenant') ?? ''
-    const response = await fetch('/api/v1/execution-targets', {
-      headers: { authorization: `Bearer ${accessToken}`, 'x-ternilo-tenant': tenantId },
-    })
-    if (!response.ok) return false
-    const payload = await response.json()
-    return payload.executors?.some(executor => executor.executor_id === executorId && executor.connected === expected)
-  }, { executorId: nodeId, expected: connected }, { polling: 250, timeout: 30_000 })
+  const deadline = Date.now() + 30_000
+  while (Date.now() < deadline) {
+    const ready = await page.evaluate(async ({ executorId, expected }) => {
+      const accessToken = sessionStorage.getItem('ternilo.oidc.access') ?? ''
+      const tenantId = localStorage.getItem('ternilo.current-tenant') ?? ''
+      const response = await fetch('/api/v1/execution-targets', {
+        headers: { authorization: `Bearer ${accessToken}`, 'x-ternilo-tenant': tenantId },
+      })
+      if (!response.ok) return false
+      const payload = await response.json()
+      return payload.executors?.some(executor => executor.executor_id === executorId && executor.connected === expected)
+    }, { executorId: nodeId, expected: connected })
+    if (ready) return
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+  throw new Error(`Execution target ${nodeId} did not become ${connected ? 'connected' : 'offline'}`)
 }
 
 async function chooseNodeWorkspace(page, {
@@ -424,9 +499,18 @@ async function chooseNodeWorkspace(page, {
   await selectChoice(placementDialog.getByLabel('运行电脑'), nodeId)
   await placementDialog.getByLabel('工作区名称').fill(workspaceName)
   const chooseDirectory = placementDialog.getByRole('button', { name: '选择文件夹' })
-  assert.match(await placementDialog.getByLabel('运行电脑').locator('option:checked').textContent() ?? '', /离线/)
+  const computer = placementDialog.getByLabel('运行电脑')
+  assert.equal(await computer.getAttribute('data-choice-value'), nodeId)
+  assert.match(await computer.textContent() ?? '', /离线/)
   assert.equal(await chooseDirectory.isDisabled(), true)
   await connectNode()
+  const refreshed = page.waitForRequest(request => request.method() === 'GET'
+    && new URL(request.url()).pathname === '/api/v1/execution-targets')
+  await placementDialog.getByRole('button', { name: /刷新/ }).click()
+  const refreshResponse = await (await refreshed).response()
+  assert.equal(refreshResponse.status(), 200)
+  const refreshTargets = await refreshResponse.json()
+  assert.equal(refreshTargets.executors?.find(executor => executor.executor_id === nodeId)?.connected, true, JSON.stringify(refreshTargets))
   const deadline = Date.now() + 10_000
   while (await chooseDirectory.isDisabled() && Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 250))
@@ -449,7 +533,8 @@ async function chooseNodeWorkspace(page, {
     })
     throw new Error(`Node directory action remained disabled: ${JSON.stringify(diagnostic)}`)
   }
-  assert.match(await placementDialog.getByLabel('运行电脑').locator('option:checked').textContent() ?? '', /在线/)
+  assert.equal(await computer.getAttribute('data-choice-value'), nodeId)
+  assert.match(await computer.textContent() ?? '', /在线/)
   await chooseDirectory.click()
 
   const directoryDialog = page.getByRole('dialog', { name: `选择 ${nodeName} 上的工作文件夹` })
@@ -577,7 +662,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     TERNILO_MIGRATION_DATABASE_URL: postgres.url,
     TERNILO_SECRET_MASTER_KEY: Buffer.alloc(32, 19).toString('base64'),
   }
-  let control
+  let control, gatewayProxy
   const nodeName = 'home-e2e', memberNodeName = 'member-home-e2e'
   let nodeId, memberNodeId
   let node
@@ -585,6 +670,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
   let memberCredentialToken
   const nodeRuns = []
   let browser
+  let page
   try {
     control = await initializeServer({
       directory: path.join(temporary, 'server'),
@@ -611,7 +697,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
       executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined,
     })
     const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
-    const page = await context.newPage()
+    page = await context.newPage()
     const pageErrors = []
     const consoleMessages = []
     const browserOrigins = new Set()
@@ -690,15 +776,14 @@ test('Control browser drives an enrolled local Node workspace without connecting
         await waitForExecutionTarget(memberPage, memberNodeId)
       },
     })
-    await memberPage.locator('[data-sidebar-new-session]').click()
+    const memberSessionId = await createSessionThroughUi(memberPage)
     const memberPrompt = memberPage.getByRole('textbox', { name: '输入任务' })
-    await memberPrompt.fill('/')
-    await memberPage.getByRole('option', { name: /\/write/ }).waitFor({ timeout: 30_000 })
-    await memberPrompt.fill('/write member-proof.txt member-owned-node-ready')
+    await memberPrompt.fill('.write')
+    await memberPage.getByRole('option', { name: /\.write/ }).waitFor({ timeout: 30_000 })
+    await memberPrompt.fill(writeCommand('member-proof.txt', 'member-owned-node-ready').replace(/^\//, '.'))
     await memberPage.getByRole('button', { name: '发送' }).click()
-    await revealWriteTool(memberPage, 'member-proof.txt', 'member-owned-node-ready')
     await waitForFile(path.join(memberSelectedWorkspace, 'member-proof.txt'), 'member-owned-node-ready')
-    const memberSessionId = await memberPage.evaluate(() => localStorage.getItem('ternilo.current-session'))
+    await revealWriteTool(memberPage, 'member-proof.txt', 'member-owned-node-ready')
     assert.ok(memberSessionId)
 
     await setMemberRoleThroughUi(page, memberUserId, 'viewer')
@@ -722,7 +807,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     await viewerSettings.getByRole('button', { name: '返回工作台' }).click()
     const viewerNodeStateBefore = await readFile(path.join(memberNodeData, 'data', 'state.json'), 'utf8')
     const viewerNodeSessionsBefore = await snapshotNodeSessionFiles(memberNodeData)
-    const viewerMutationAudit = await memberPage.evaluate(async ({ sessionId, nodeId, directory }) => {
+    const viewerMutationAudit = await memberPage.evaluate(async ({ sessionId, nodeId, directory, turnInput, queueInput }) => {
       const token = sessionStorage.getItem('ternilo.oidc.access') ?? ''
       const tenant = localStorage.getItem('ternilo.current-tenant') ?? ''
       const headers = {
@@ -746,14 +831,14 @@ test('Control browser drives an enrolled local Node workspace without connecting
       const beforeQueue = await request(`${sessionPath}/queue`)
       const mutations = await Promise.all([
         request(`${sessionPath}/turns`, 'POST', {
-          input: '/write viewer-turn-bypass.txt forbidden',
+          input: turnInput,
           run_id: 'viewer-turn-bypass',
           attachments: [],
         }),
         request(`${sessionPath}/queue`, 'POST', {
           delivery: 'queue',
           run_id: 'viewer-queue-bypass',
-          content: { kind: 'prompt', input: '/write viewer-queue-bypass.txt forbidden' },
+          content: { kind: 'prompt', input: queueInput },
           references: [],
           attachments: [],
         }),
@@ -771,6 +856,8 @@ test('Control browser drives an enrolled local Node workspace without connecting
       sessionId: memberSessionId,
       nodeId: memberNodeId,
       directory: memberSelectedWorkspace,
+      turnInput: writeCommand('viewer-turn-bypass.txt', 'forbidden'),
+      queueInput: writeCommand('viewer-queue-bypass.txt', 'forbidden'),
     })
     assert.equal(viewerMutationAudit.beforeState.status, 200)
     assert.equal(viewerMutationAudit.beforeQueue.status, 200)
@@ -795,9 +882,10 @@ test('Control browser drives an enrolled local Node workspace without connecting
     const enrollment = await createEnrollmentThroughUi(page, nodeName, projectId)
     nodeId = enrollment.id
     const credentialToken = enrollment.credential
-    const startNode = gatewayUrl => {
+    gatewayProxy = await startGatewayProxy(origin)
+    const startNode = () => {
       node = startProcess(nodeBinary, ['serve',
-        '--gateway-url', gatewayUrl,
+        '--gateway-url', gatewayProxy.url,
         '--allow-insecure-gateway',
         '--node-id', nodeId,
         '--data-dir', nodeData,
@@ -816,28 +904,27 @@ test('Control browser drives an enrolled local Node workspace without connecting
       baseDirectory: workspaceRoot,
       selectedDirectory: selectedWorkspace,
       connectNode: async () => {
-        startNode(`${origin.replace('http://', 'ws://')}/api/v1/executors/connect`)
+        startNode()
         await waitForHttp(nodeLocalOrigin, node)
         await waitForExecutionTarget(page, nodeId)
       },
     })
     assert.equal((await stat(selectedWorkspace)).isDirectory(), true)
 
-    await page.locator('[data-sidebar-new-session]').click()
+    const sessionId = await createSessionThroughUi(page)
     const prompt = page.getByRole('textbox', { name: '输入任务' })
     await prompt.waitFor()
-    await prompt.fill('/')
-    await page.getByRole('option', { name: /\/write/ }).waitFor({ timeout: 30_000 })
-    await prompt.fill('/write control-node-proof.txt control-node-chain-ready')
+    await prompt.fill('.write')
+    await page.getByRole('option', { name: /\.write/ }).waitFor({ timeout: 30_000 })
+    await prompt.fill(writeCommand('control-node-proof.txt', 'control-node-chain-ready').replace(/^\//, '.'))
     await page.getByRole('button', { name: '发送' }).click()
     assert.equal(await prompt.inputValue(), '')
     await revealWriteTool(page)
     await page.getByRole('button', { name: '发送' }).waitFor({ timeout: 30_000 })
     await waitForFile(path.join(selectedWorkspace, 'control-node-proof.txt'), 'control-node-chain-ready')
-    const sessionId = await page.evaluate(() => localStorage.getItem('ternilo.current-session'))
     assert.ok(sessionId)
 
-    await configureNodeProviderThroughUi(page, model.baseUrl, 'Home Workspace')
+    await configureNodeProviderThroughUi(page, model.baseUrl, nodeId)
     const providerScopes = await page.evaluate(async selectedSessionId => {
       const token = sessionStorage.getItem('ternilo.oidc.access') ?? ''
       const tenant = localStorage.getItem('ternilo.current-tenant') ?? ''
@@ -894,7 +981,12 @@ test('Control browser drives an enrolled local Node workspace without connecting
     const localContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 800 } })
     const localPage = await localContext.newPage()
     await localPage.goto(nodeLocalOrigin, { waitUntil: 'domcontentloaded' })
-    await localPage.getByRole('button', { name: selectedWorkspace, exact: true }).waitFor({ timeout: 30_000 })
+    const storedWorkspace = JSON.parse(localStateText).workspaces.find(workspace => workspace.path === selectedWorkspace)
+    assert.ok(storedWorkspace)
+    const localRow = localPage.locator('[data-sidebar-workspace-row]').filter({ has: localPage.getByText(storedWorkspace.title, { exact: true }) })
+    await localRow.waitFor({ timeout: 30_000 })
+    await localRow.hover()
+    await localPage.locator('[data-workspace-location]').getByRole('button', { name: `复制工作区完整路径：${selectedWorkspace}`, exact: true }).waitFor()
     assert.equal((await localPage.locator('html').textContent() ?? '').includes('<local-workspace>'), false)
 
     const offlineSearchTitle = 'Offline edge search proof'
@@ -984,8 +1076,8 @@ test('Control browser drives an enrolled local Node workspace without connecting
     ))
     assert.ok(offlineLiveSocket, JSON.stringify(offlineLiveSockets))
 
-    const disconnectedGatewayPort = await freePort()
-    startNode(`ws://127.0.0.1:${disconnectedGatewayPort}/api/v1/executors/connect`)
+    gatewayProxy.setAvailable(false)
+    startNode()
     await waitForHttp(nodeLocalOrigin, node)
     await waitForExecutionTarget(page, nodeId, false)
     await localPage.reload({ waitUntil: 'domcontentloaded' })
@@ -993,25 +1085,27 @@ test('Control browser drives an enrolled local Node workspace without connecting
     await localSession.waitFor({ timeout: 30_000 })
     await localSession.click()
     const localPrompt = localPage.getByRole('textbox', { name: '输入任务' })
-    await localPrompt.fill('/')
-    await localPage.getByRole('option', { name: /\/write/ }).waitFor({ timeout: 30_000 })
-    await localPrompt.fill('/write control-node-reconnect.txt replayed-after-reconnect')
+    await localPrompt.fill('.write')
+    await localPage.getByRole('option', { name: /\.write/ }).waitFor({ timeout: 30_000 })
+    const reconnectInput = writeCommand('control-node-reconnect.txt', 'replayed-after-reconnect')
+    await localPrompt.fill(reconnectInput.replace(/^\//, '.'))
     await localPage.getByRole('button', { name: '发送' }).click()
     await waitForFile(path.join(selectedWorkspace, 'control-node-reconnect.txt'), 'replayed-after-reconnect')
     assert.equal(
-      await localPage.locator('article[data-role="user"]').filter({ hasText: '/write control-node-reconnect.txt replayed-after-reconnect' }).count(),
+      await localPage.locator('article[data-role="user"]').filter({ hasText: reconnectInput }).count(),
       1,
     )
     assert.equal(
-      await page.locator('article[data-role="user"]').filter({ hasText: '/write control-node-reconnect.txt replayed-after-reconnect' }).count(),
+      await page.locator('article[data-role="user"]').filter({ hasText: reconnectInput }).count(),
       0,
     )
 
     await stopProcess(node)
-    startNode(`${origin.replace('http://', 'ws://')}/api/v1/executors/connect`)
+    gatewayProxy.setAvailable(true)
+    startNode()
     await waitForHttp(nodeLocalOrigin, node)
     await waitForExecutionTarget(page, nodeId)
-    const replayedUser = page.locator('article[data-role="user"]').filter({ hasText: '/write control-node-reconnect.txt replayed-after-reconnect' })
+    const replayedUser = page.locator('article[data-role="user"]').filter({ hasText: reconnectInput })
     await replayedUser.waitFor({ timeout: 30_000 })
     assert.equal(await replayedUser.count(), 1)
     const replayFrames = offlineLiveSocket.received
@@ -1051,14 +1145,14 @@ test('Control browser drives an enrolled local Node workspace without connecting
     await page.getByRole('button', { name: '打开侧边栏' }).click()
     let mobileSettings = await openSpaceManagement(page)
     assert.equal(await mobileSettings.evaluate(element => element.scrollWidth <= element.clientWidth), true)
-    await mobileSettings.getByText('control-node@example.com', { exact: true }).waitFor()
+    await mobileSettings.locator('[data-platform-member]').getByText('owner', { exact: true }).waitFor()
     await mobileSettings.getByRole('tab', { name: '电脑', exact: true }).click()
     const computerRow = mobileSettings.locator(`[data-platform-computer="${nodeId}"]`)
     await computerRow.getByText('在线', { exact: true }).waitFor()
     assert.equal(await mobileSettings.locator('[data-platform-settings]').evaluate(element => element.scrollWidth <= element.clientWidth), true)
 
     await closeSpaceManagement(page)
-    if (!await page.getByRole('button', { name: '用户设置', exact: true }).isVisible()) {
+    if (!await page.locator('[data-app-frame][data-mobile-sidebar-open]').count()) {
       await page.getByRole('button', { name: '打开侧边栏' }).click()
     }
     await page.getByRole('button', { name: '用户设置', exact: true }).click()
@@ -1067,14 +1161,14 @@ test('Control browser drives an enrolled local Node workspace without connecting
     await selectChoice(preferences.getByLabel('语言'), 'en')
     await page.locator('[data-user-settings]').getByRole('button', { name: 'Back to workbench' }).click()
     mobileSettings = await openSpaceManagement(page, 'en')
-    await mobileSettings.getByRole('heading', { name: 'Space management', exact: true }).waitFor()
+    await mobileSettings.getByRole('tab', { name: 'Members', exact: true }).waitFor()
     await mobileSettings.getByRole('tab', { name: 'Computers', exact: true }).click()
     await mobileSettings.locator(`[data-platform-computer="${nodeId}"]`).getByText('Online', { exact: true }).waitFor()
     await captureArtifact(page, 'control-node-computers-mobile.png')
     assert.equal(await mobileSettings.evaluate(element => element.scrollWidth <= element.clientWidth), true)
     await closeSpaceManagement(page, 'en')
     const mobileSidebarClose = page.locator('[data-mobile-sidebar-close]')
-    if (await mobileSidebarClose.isVisible()) await mobileSidebarClose.click()
+    if (await page.locator('[data-app-frame][data-mobile-sidebar-open]').count()) await mobileSidebarClose.click()
     await page.locator('[data-app-frame][data-mobile-sidebar-open]').waitFor({ state: 'detached' })
 
     const clientState = await page.evaluate(() => ({
@@ -1085,8 +1179,9 @@ test('Control browser drives an enrolled local Node workspace without connecting
     const nodeDiagnostics = nodeRuns.map(process => process.diagnostics()).join('\n')
     const accessToken = clientState.session['ternilo.oidc.access']
     assert.ok(accessToken)
-    assert.equal(JSON.stringify(clientState).includes(selectedWorkspace), false)
-    assert.equal(JSON.stringify(clientState).includes(workspaceRoot), false)
+    const persistedClientState = JSON.stringify({ local: clientState.local, session: clientState.session })
+    assert.equal(persistedClientState.includes(selectedWorkspace), false)
+    assert.equal(persistedClientState.includes(workspaceRoot), false)
     const exported = await page.evaluate(async exportedSessionId => {
       const token = sessionStorage.getItem('ternilo.oidc.access') ?? ''
       const tenant = localStorage.getItem('ternilo.current-tenant') ?? ''
@@ -1116,7 +1211,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     assert.deepEqual(mobileDownload.response, exported)
     assert.deepEqual(mobileDownload.value, exported)
     const downloadedExports = JSON.stringify([desktopDownload.value, mobileDownload.value])
-    for (const secret of [credentialToken, 'control-node-model-fixture', accessToken]) {
+    for (const secret of [credentialToken, 'node-browser-secret', accessToken]) {
       assert.equal(downloadedExports.includes(secret), false)
     }
     const audit = await page.evaluate(async tenantId => {
@@ -1139,7 +1234,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
     assert.equal(controlDatabaseDump.includes(sessionId), true)
     assert.equal(control.diagnostics().includes(selectedWorkspace), false)
     assert.equal(control.diagnostics().includes(workspaceRoot), false)
-    for (const secret of [credentialToken, memberCredentialToken]) {
+    for (const secret of [credentialToken, memberCredentialToken, 'node-browser-secret']) {
       assert.equal(JSON.stringify(clientState).includes(secret), false)
       assert.equal(exportedText.includes(secret), false)
       assert.equal(auditText.includes(secret), false)
@@ -1173,10 +1268,15 @@ test('Control browser drives an enrolled local Node workspace without connecting
     assert.equal(browserWebSockets.every(record => new URL(record.url).origin === origin.replace('http://', 'ws://')), true)
     assert.deepEqual(pageErrors, [])
   } catch (error) {
+    if (page && process.env.TERNILO_E2E_ARTIFACT_DIR) {
+      await captureArtifact(page, 'control-node-failure.png')
+      await writeFile(path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'control-node-failure.txt'), await page.locator('body').innerText())
+    }
     throw new Error(`${error instanceof Error ? error.message : String(error)}\ncontrol diagnostics: ${control?.diagnostics() ?? 'not started'}${nodeRuns.length ? `\nnode diagnostics: ${nodeRuns.map(process => process.diagnostics()).join('\n--- node restart ---\n')}` : ''}`, { cause: error })
   } finally {
     await browser?.close()
     for (const process of nodeRuns) await stopProcess(process)
+    await gatewayProxy?.close()
     await stopProcess(control)
     await oidc.close()
     await postgres.stop()

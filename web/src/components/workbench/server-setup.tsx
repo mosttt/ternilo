@@ -61,7 +61,7 @@ function SetupForm() {
     finally { setBusy(false) }
   }
 
-  return <main className="min-h-dvh bg-background p-4 text-foreground sm:p-8" data-server-setup="">
+  return <main className="h-full overflow-y-auto overscroll-contain bg-background p-4 text-foreground sm:p-8" data-server-setup="">
     <div className="mx-auto max-w-xl">
       <header className="mb-8 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 text-xl font-semibold"><BrandMark className="size-7 text-primary" />Ternilo</div>

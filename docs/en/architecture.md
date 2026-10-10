@@ -10,6 +10,8 @@ The protocol crate defines product identities, commands, events and validation. 
 
 Durable session events are the history source. Search indexes and projection checkpoints accelerate reads without replacing the events. History reads are bounded and support backward pagination; live cursors are independent from historical pagination. Forks copy a completed history prefix and preserve their own identity. Queue submissions and results are persisted so reconnects do not replay completed external actions.
 
+Cloud session statistics use a database checkpoint and the same statistics projection. The first read replays events, later reads consume only appended events, and unchanged reads return the cached result. History regeneration, checkpoint version changes or invalid state rebuild from the event journal. Cached reads still check current view permissions. Full plugin projections continue to replay history; a Live request combining statistics and full projections shares one history read to keep both at the same data cut.
+
 ## Execution and models
 
 Profiles compose plugin configuration. A host policy defines permissions and maximum limits that a plugin cannot loosen. Workspace access, process sandboxing, approvals and model authorization are distinct checks. Large outputs and attachments are stored as artifacts rather than forced into every model context.

@@ -5,43 +5,19 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawn } from 'node:child_process'
 import test from 'node:test'
 import { chromium } from 'playwright'
+import { freePort, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
 
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const repository = path.resolve(webRoot, '..')
-const binary = path.join(repository, 'target', 'debug', 'ternilo')
+const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target', 'debug', 'ternilo')
 
-function startTernilo(dataDirectory) {
-  const child = spawn(binary, ['serve', '--listen', '127.0.0.1:0', '--data-dir', dataDirectory], {
-    cwd: repository,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  let diagnostics = ''
-  child.stderr.setEncoding('utf8')
-  child.stderr.on('data', chunk => { diagnostics += chunk })
-  const origin = new Promise((resolve, reject) => {
-    let output = ''
-    child.stdout.setEncoding('utf8')
-    child.stdout.on('data', chunk => {
-      output += chunk
-      const match = output.match(/Ternilo local web: (http:\/\/[^\s]+)/)
-      if (match) resolve(match[1])
-    })
-    child.once('exit', code => reject(new Error(`Ternilo web exited with ${code}: ${diagnostics}`)))
-    child.once('error', reject)
-  })
-  return { child, origin, diagnostics: () => diagnostics }
-}
-
-async function stopProcess(child) {
-  if (child.exitCode !== null) return
-  child.kill('SIGINT')
-  await Promise.race([
-    new Promise(resolve => child.once('exit', resolve)),
-    new Promise(resolve => setTimeout(resolve, 5_000)).then(() => child.kill('SIGKILL')),
-  ])
+async function startTernilo(dataDirectory) {
+  const origin = `http://127.0.0.1:${await freePort()}`
+  const application = startProcess(binary, ['serve', '--listen', new URL(origin).host, '--data-dir', dataDirectory])
+  await waitForHttp(origin, application)
+  return { ...application, origin }
 }
 
 function sse(payload) {
@@ -156,7 +132,9 @@ async function configureProvider(page, baseUrl) {
   await api(page, `/sessions/${encodeURIComponent(sessionId)}`, { method: 'PATCH', body: { model: selection } })
   await api(page, '/default-model', { method: 'PUT', body: selection })
   await page.reload({ waitUntil: 'domcontentloaded' })
-  await page.getByRole('button', { name: /Mode Model/ }).waitFor()
+  const picker = page.locator('[data-input-bar] [data-model-picker]')
+  await picker.waitFor()
+  assert.match(await picker.textContent(), /Mode Model/)
 }
 
 async function selectHeroPreset(page, label) {
@@ -166,11 +144,10 @@ async function selectHeroPreset(page, label) {
   await page.getByRole('button', { name: `新会话 Agent：${label}` }).waitFor()
 }
 
-async function selectHeaderPreset(page, label) {
-  const actions = page.locator('.session-header-actions')
-  await actions.getByRole('button', { name: /Agent (?:预设|preset):/ }).click()
-  await page.getByRole('menuitem').filter({ has: page.getByText(label, { exact: true }) }).click()
-  await actions.getByRole('button', { name: `Agent 预设: ${label}` }).waitFor()
+async function startModeSession(page, label) {
+  await page.locator('[data-sidebar-new-session]').click()
+  await page.getByRole('textbox', { name: '输入任务' }).waitFor()
+  await selectHeroPreset(page, label)
 }
 
 async function runMode(page, model, requestIndex, task) {
@@ -191,11 +168,11 @@ test('the four shared Agent modes are bilingual and change the real model surfac
   const workspace = path.join(dataDirectory, 'workspace')
   await mkdir(workspace, { recursive: true })
   const model = await startModelFixture()
-  const ternilo = startTernilo(dataDirectory)
+  const ternilo = await startTernilo(dataDirectory)
   let browser
   try {
     const origin = await ternilo.origin
-    browser = await chromium.launch({ headless: true })
+    browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })
     const pageErrors = []
     const consoleErrors = []
@@ -269,6 +246,7 @@ test('the four shared Agent modes are bilingual and change the real model surfac
 
     const englishDocumentBefore = await api(page, '/agent-presets/localized-en-preset')
     const codeModeEntryBefore = englishDocumentBefore.profile.plugins.find(entry => entry.kind === 'ternilo.tools.code_mode')
+      ?? englishDocumentBefore.base_profile.plugins.find(entry => entry.kind === 'ternilo.tools.code_mode')
     assert.ok(codeModeEntryBefore, 'the copied standard preset must contain the Code Mode plugin')
     await englishCustom.getByRole('button', { name: 'Edit: Standard Mode · Custom' }).click()
     const editor = page.getByRole('dialog', { name: 'Edit Standard Mode · Custom' })
@@ -342,7 +320,7 @@ test('the four shared Agent modes are bilingual and change the real model surfac
     assert.match(ptc.instructions, /# Code Mode \(Rhai\)/)
     assert.match(ptc.instructions, /`run_code` is the only tool callable directly/)
 
-    await selectHeaderPreset(page, '极简模式')
+    await startModeSession(page, '极简模式')
     const minimal = await runMode(page, model, 1, '验证极简模式')
     const minimalTools = toolNames(minimal)
     assert.equal(minimalTools.includes('run_code'), false)
@@ -352,7 +330,7 @@ test('the four shared Agent modes are bilingual and change the real model surfac
     assert.equal(minimalTools.includes('shell'), true)
     assert.doesNotMatch(minimal.instructions, /# Code Mode \(Rhai\)/)
 
-    await selectHeaderPreset(page, '创意模式')
+    await startModeSession(page, '创意模式')
     const creative = await runMode(page, model, 2, '验证创意模式')
     const creativeTools = toolNames(creative)
     assert.equal(creativeTools.includes('run_code'), true)
@@ -360,7 +338,7 @@ test('the four shared Agent modes are bilingual and change the real model surfac
     assert.match(creative.instructions, /# Code Mode \(Rhai\)/)
     assert.match(creative.instructions, /Creative mode is active/)
 
-    await selectHeaderPreset(page, '标准模式')
+    await startModeSession(page, '标准模式')
     const standard = await runMode(page, model, 3, '验证标准模式')
     const standardTools = toolNames(standard)
     assert.equal(standardTools.includes('run_code'), true)
@@ -376,7 +354,7 @@ test('the four shared Agent modes are bilingual and change the real model surfac
     throw new Error(`Agent preset browser acceptance failed: ${ternilo.diagnostics()}`, { cause: error })
   } finally {
     await browser?.close()
-    await stopProcess(ternilo.child)
+    await stopProcess(ternilo)
     await model.close()
     await rm(dataDirectory, { recursive: true, force: true })
   }

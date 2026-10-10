@@ -220,9 +220,11 @@ pub(super) async fn read_metadata(
         metadata.inbox = Some(adapter.inbox(&session).await?);
     }
     if read.stats {
-        metadata.stats = Some(CloudAdapter::stats_from_events(
-            events.as_deref().expect("metadata plan loads stats events"),
-        )?);
+        metadata.stats = Some(if let Some(events) = events.as_deref() {
+            CloudAdapter::stats_from_events(events)?
+        } else {
+            adapter.stats(&session).await?
+        });
     }
     if read.projection {
         metadata.projection = Some(
@@ -274,7 +276,7 @@ pub(super) struct MetadataReadPlan {
 
 pub(super) const fn metadata_read_plan(read: SessionLiveReadMask) -> MetadataReadPlan {
     MetadataReadPlan {
-        event_reads: if read.stats || read.projection { 1 } else { 0 },
+        event_reads: if read.projection { 1 } else { 0 },
         profile_reads: if read.projection || read.profile {
             1
         } else {

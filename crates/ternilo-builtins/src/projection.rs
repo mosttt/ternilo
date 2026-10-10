@@ -17,7 +17,8 @@ struct StatsState {
     tool_started_at: BTreeMap<String, u64>,
 }
 
-pub(crate) fn stats_unit() -> Arc<dyn SessionProjectionUnit> {
+#[must_use]
+pub fn stats_unit() -> Arc<dyn SessionProjectionUnit> {
     Arc::new(StatsUnit)
 }
 

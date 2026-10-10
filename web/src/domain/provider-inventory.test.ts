@@ -78,6 +78,29 @@ describe('provider inventory cache', () => {
     expect(request).toHaveBeenCalledTimes(4)
   })
 
+  it('refreshes session and workspace aliases after editing a computer without invalidating another space', async () => {
+    const session = { tenantId: 'team', sessionId: 'session-node' }
+    const workspace = { tenantId: 'team', workspaceId: 'workspace-node' }
+    const otherSpace = { tenantId: 'other', sessionId: 'other-session' }
+    await loadProviderInventory(false, session)
+    await loadProviderInventory(false, workspace)
+    const unrelated = await loadProviderInventory(false, otherSpace)
+    const fresh: ProviderProfile = {
+      id: 'fresh', source: 'user', display_name: 'Fresh', base_url: 'https://node.test/v1',
+      protocol: 'openai-responses', api_key_ref: null,
+      defaults: { context_window: 128_000, max_output_tokens: 16_000 },
+      models: [{ id: 'node-model', settings: { mode: 'inherit' } }],
+      timeout_ms: 30_000, max_attempts: 1, retry_base_delay_ms: 100,
+    }
+    request.mockImplementation(async (path: string) => path.startsWith('/providers') ? [fresh] : credentials)
+    invalidateProviderInventory({ tenantId: 'team', executorId: 'computer-node' })
+    expect(peekProviderInventory(session)).toBeNull()
+    expect(peekProviderInventory(workspace)).toBeNull()
+    expect(peekProviderInventory(otherSpace)).toBe(unrelated)
+    expect((await loadProviderInventory(false, session)).providers).toEqual([fresh])
+    expect((await loadProviderInventory(false, workspace)).providers).toEqual([fresh])
+  })
+
   it('publishes invalidation and the refreshed inventory to mounted consumers', async () => {
     const observed: Array<ProviderProfile[] | null> = []
     const unsubscribe = subscribeProviderInventory(snapshot => observed.push(snapshot?.providers ?? null))

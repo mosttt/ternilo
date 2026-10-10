@@ -570,7 +570,10 @@ impl<'a> CloudAdapter<'a> {
         &self,
         session: &CloudSessionRecord,
     ) -> Result<SessionStats, HarnessError> {
-        Self::stats_from_events(&self.events(&session.session_id).await?)
+        self.state
+            .cloud
+            .session_stats_as(self.tenant_id, &self.actor.user_id, &session.session_id)
+            .await
     }
 
     pub(crate) fn stats_from_events(events: &[SessionEvent]) -> Result<SessionStats, HarnessError> {

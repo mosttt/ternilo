@@ -1,6 +1,6 @@
 # SQLite 写事务排队与持续模型压力
 
-状态：原故障已复现并修正；存储合同、业务回归和 SQLite 同规模持续压测通过。PostgreSQL 双实例压力复测因进程收到 SIGKILL 中断，尚未形成通过结论；尚未发行。
+状态：SQLite 写锁故障已复现并修正，修正已发行；存储合同、业务回归和 SQLite 同规模持续压测通过。2026-10-09 使用公开 v0.2.8 发布构建的受限 PostgreSQL 双实例持续复测通过；此前 SIGKILL 的发送者仍未确定，不把本次通过当作其根因已修复。
 
 2026-10-03 在实际 Server、合成回环上游与独立 SQLite 上运行模型负载。32 个并发客户端持续执行模型请求时，先出现数秒级长尾，随后 HTTP 500。第二次独立空库复现，Server 明确记录 `server database error: (code: 5) database is locked`，不是上游模型错误。修正前证据在 [sqlite-model-before.json](benchmarks/2026-10-03/sqlite-model-before.json)：持续阶段 176.73 秒内验证 3668 个正常响应后因一次 500 停止新增请求；不能将这次失败写成 300 秒通过。
 
@@ -21,3 +21,7 @@ PostgreSQL 双实例复测多次出现一个 Server 被 SIGKILL、另一个仍�
 2026-10-04：增加仅用于本机诊断的 Node 子进程信号跟踪后，双实例复测的准入／限流／取消阶段通过，持续阶段在 91.06 秒、2219 次正确响应后因一个 Server 收到 SIGKILL 中断。原始报告见 [postgres-model-signal.json](benchmarks/2026-10-04/postgres-model-signal.json)，信号顺序见 [process-signal-trace.jsonl](benchmarks/2026-10-04/process-signal-trace.jsonl)。Server 1651071 在 04:38:56.366 UTC 退出，跟踪中此前没有 Node 的 child.kill／process.kill 调用；另一个实例 1651109 的 SIGINT 清理在 04:38:56.654 才发生。所在 cgroup OOM 计数与全局 /proc/vmstat oom_kill 均为 0；来源仍不能确定，不再盲目重跑相同压力场景。
 
 另修正公共测试辅助 stopProcess：在发送停止信号前订阅退出事件，正常退出时清除强制停止定时器，超时发送 SIGKILL 后也等待实际退出。避免已退出进程的多余信号及测试进程等待未清理定时器。修改后两个实际本机／Server 长历史浏览器流程再次通过，包含多次停止／启动和 Node 离线读取。诊断用信号跟踪没有固化为项目 CI 或标准部署。
+
+2026-10-09：公开 v0.2.8 Server 在独立 PostgreSQL 容器中使用无建表权限的 runtime，另用建表连接初始化。两个实际 Server、1／8／32 并发短阶段、限流、取消及 32 并发 300 秒持续阶段全部正常退出。持续阶段实际 301.07 秒、12703 次正常响应，无 HTTP 错误；JSON／流式 p95 分别约 2759／814 毫秒。全部阶段 14199 次实际调用逐项匹配请求账本，14123 条已知用量、76 条未知用量，实际 token 593166、保留预留 395884，活跃请求为零，无重复结算。报告见 [postgres-model-release.json](benchmarks/2026-10-09/postgres-model-release.json)。
+
+临时 Node 信号观察只有正常创建及 SIGINT 收尾，没有 SIGKILL；cgroup OOM 计数前后均为零，见 [process-signal-trace.jsonl](benchmarks/2026-10-09/process-signal-trace.jsonl) 与 [pressure-observation.json](benchmarks/2026-10-09/pressure-observation.json)。当前主机没有可用的内核信号跟踪入口，Node 观察只能证明本测试发出的信号，不能识别过去的外部发送者。本次使用已公开程序并保留其摘要和实际来源提交；驱动仓库 HEAD 另行记录，不能混为二进制来源。负载端、两个 Server 和数据库共享同一台主机，测试期间有独立浏览器验收，本次属于诊断复测，不是生产容量或最大吞吐承诺。

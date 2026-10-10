@@ -31,6 +31,94 @@ function request(origin, body) {
   return fetch(`${origin}/api/v1/setup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 }
 
+async function submitInViewport(page) {
+  return page.locator('[data-server-setup] button[type="submit"]').evaluate(button => {
+    const bounds = button.getBoundingClientRect()
+    return bounds.top >= 0 && bounds.bottom <= innerHeight && bounds.left >= 0 && bounds.right <= innerWidth
+  })
+}
+
+async function swipeUp(page) {
+  const { width, height } = page.viewportSize()
+  const cdp = await page.context().newCDPSession(page)
+  const x = width - 25, y = height - 35
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+  for (let step = 1; step <= 8; step++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - (height - 100) * step / 8 }] })
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+}
+
+test('Setup fields and submit remain reachable by wheel, keyboard and touch across viewport sizes', { timeout: 90_000 }, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-setup-scroll-'))
+  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ?? directory
+  await mkdir(artifacts, { recursive: true })
+  const origin = `http://127.0.0.1:${await freePort()}`
+  let server, browser
+  const errors = []
+  try {
+    server = startProcess(binary, ['serve', '--config-dir', directory, '--listen', new URL(origin).host], clean)
+    await waitForHttp(`${origin}/readyz`, server)
+    browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
+    for (const touch of [false, true]) {
+      const page = await browser.newPage({ locale: 'zh-CN', isMobile: touch, hasTouch: touch, colorScheme: touch ? 'light' : 'dark', serviceWorkers: 'block' })
+      page.on('pageerror', error => errors.push(error.message))
+      page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+      page.on('requestfailed', request => errors.push(`${request.method()} ${new URL(request.url()).pathname}: ${request.failure()?.errorText}`))
+      page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`) })
+      const sizes = touch ? [[390, 844], [320, 568], [844, 390], [390, 360]] : [[1895, 842], [1366, 768], [1280, 480], [960, 420]]
+      for (const [width, height] of sizes) {
+        await page.setViewportSize({ width, height })
+        await page.goto(origin)
+        await page.locator('[data-server-setup]').waitFor()
+        await page.getByRole('combobox', { name: '数据库', exact: true }).click()
+        await page.getByRole('option', { name: 'PostgreSQL', exact: true }).click()
+        await page.mouse.move(width - 25, height / 2)
+        if (touch) {
+          for (let attempt = 0; attempt < 12 && !await submitInViewport(page); attempt++) {
+            await swipeUp(page)
+          }
+        } else {
+          await page.mouse.wheel(0, 10_000)
+        }
+        await page.waitForFunction(() => {
+          const button = document.querySelector('[data-server-setup] button[type="submit"]')
+          const bounds = button?.getBoundingClientRect()
+          return bounds && bounds.top >= 0 && bounds.bottom <= innerHeight
+        }, null, { timeout: 3_000 })
+        assert.equal(await submitInViewport(page), true, `the submit button is reachable by ${touch ? 'touch' : 'wheel'} at ${width}x${height}`)
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector('[data-server-setup]').scrollWidth <= innerWidth), true, 'no horizontal clipping')
+        await page.screenshot({ path: path.join(artifacts, `setup-scroll-${touch ? 'touch' : 'wheel'}-${width}x${height}.png`) })
+        await page.getByLabel('初始化 Key', { exact: true }).focus()
+        for (let step = 0; step < 10; step++) {
+          await page.keyboard.press('Tab')
+          if (await page.locator('[data-server-setup] button[type="submit"]').evaluate(button => button === document.activeElement)) break
+        }
+        assert.equal(await page.locator('[data-server-setup] button[type="submit"]').evaluate(button => button === document.activeElement), true, 'Tab reaches submit after the database and administrator fields')
+        assert.equal(await submitInViewport(page), true, 'keyboard focus brings submit into the viewport')
+      }
+      if (touch) {
+        await page.setViewportSize({ width: 390, height: 844 })
+        await page.getByLabel('确认密码', { exact: true }).fill('resize-focus-password')
+        await page.setViewportSize({ width: 390, height: 360 })
+        for (let attempt = 0; attempt < 4 && !await submitInViewport(page); attempt++) await swipeUp(page)
+        await page.waitForFunction(() => {
+          const bounds = document.querySelector('[data-server-setup] button[type="submit"]')?.getBoundingClientRect()
+          return bounds && bounds.top >= 0 && bounds.bottom <= innerHeight
+        }, null, { timeout: 3_000 })
+        assert.equal(await submitInViewport(page), true, 'submit remains reachable after resizing while an input is focused')
+        await page.screenshot({ path: path.join(artifacts, 'setup-scroll-focused-resize.png') })
+      }
+      await page.close()
+    }
+    assert.deepEqual(errors, [], 'responsive setup has no browser or network errors')
+  } finally {
+    await browser?.close()
+    await stopProcess(server)
+  }
+})
+
 for (const kind of ['sqlite', 'postgres']) {
   test(`Fresh serve supports protected ${kind} web setup, database retry and stable restart`, { timeout: 150_000 }, async () => {
     const directory = await mkdtemp(path.join(tmpdir(), `ternilo-web-setup-${kind}-`))
@@ -71,6 +159,11 @@ for (const kind of ['sqlite', 'postgres']) {
         await page.getByLabel('PostgreSQL 连接地址', { exact: true }).fill(runtime.toString())
         await page.getByLabel('建表账号连接地址（可选）', { exact: true }).fill(postgres.url)
       }
+      await page.getByLabel('确认密码', { exact: true }).fill('different-password')
+      await page.getByRole('button', { name: '保存配置并创建管理员', exact: true }).click()
+      await page.getByRole('alert').getByText('两次输入的密码不一致。', { exact: true }).waitFor()
+      assert.equal(await stat(configPath).then(() => true, () => false), false, 'client validation does not initialize the instance')
+      await page.getByLabel('确认密码', { exact: true }).fill(owner.password)
       await page.screenshot({ path: path.join(artifacts, `setup-${kind}-mobile.png`), fullPage: true })
       await page.getByRole('button', { name: '保存配置并创建管理员', exact: true }).click()
       await page.waitForFunction(() => !window.__TERNILO_BOOT__?.setup, { timeout: 35_000 })

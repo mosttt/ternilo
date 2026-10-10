@@ -36,6 +36,13 @@ function publish(store: ProviderInventoryStore) {
   for (const listener of store.listeners) listener(store.cached)
 }
 
+function invalidate(store: ProviderInventoryStore) {
+  store.generation += 1
+  store.cached = null
+  store.inFlight = null
+  publish(store)
+}
+
 export function peekProviderInventory(target: ExecutionTarget = {}) {
   return storeFor(target).cached
 }
@@ -43,21 +50,17 @@ export function peekProviderInventory(target: ExecutionTarget = {}) {
 export function invalidateProviderInventory(target: ExecutionTarget = {}) {
   if (!target.sessionId && !target.workspaceId) invalidateAllCloudModelInventories()
   else invalidateCloudModelInventory(target)
-  const store = storeFor(target)
-  store.generation += 1
-  store.cached = null
-  store.inFlight = null
-  publish(store)
+  if (target.executorId) {
+    // Session and workspace routes can refer to the same computer inventory.
+    for (const [key, store] of stores) {
+      if (!target.tenantId || key.startsWith(`space:${target.tenantId}:`)) invalidate(store)
+    }
+  } else invalidate(storeFor(target))
 }
 
 export function invalidateAllProviderInventories() {
   invalidateAllCloudModelInventories()
-  for (const store of stores.values()) {
-    store.generation += 1
-    store.cached = null
-    store.inFlight = null
-    publish(store)
-  }
+  for (const store of stores.values()) invalidate(store)
 }
 
 export function subscribeProviderInventory(

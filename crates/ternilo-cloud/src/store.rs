@@ -1296,6 +1296,14 @@ async fn initialize_database(database: &Database) -> Result<(), HarnessError> {
             "",
         )
         .await?;
+    database
+        .initialize(
+            "cloud_session_stats",
+            1,
+            include_str!("schema/session_stats.sql"),
+            include_str!("schema/session_stats_postgres.sql"),
+        )
+        .await?;
     crate::maintenance::initialize_database(database).await
 }
 

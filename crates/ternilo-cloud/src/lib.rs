@@ -26,6 +26,7 @@ mod outer_sandbox;
 mod resource_settings;
 mod run_lineage;
 mod session_search;
+mod session_stats;
 mod shared_attachments;
 mod sharing;
 mod steering;

@@ -1,0 +1,15 @@
+{
+  "before": {
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 692\n",
+    "memory.current": "7597502464\n",
+    "memory.peak": "9601277952\n"
+  },
+  "start": "2026-10-09T12:39:49.487Z",
+  "completed": true,
+  "end": "2026-10-09T12:45:25.959Z",
+  "after": {
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 692\n",
+    "memory.current": "8061603840\n",
+    "memory.peak": "9601277952\n"
+  }
+}

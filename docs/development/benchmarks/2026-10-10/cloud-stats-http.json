@@ -1,0 +1,50 @@
+{
+  "build": "debug",
+  "dirty": true,
+  "events": 30005,
+  "environment": "isolated SQLite, loopback synthetic history; cold and warm reads of the same binary",
+  "comparisons": [
+    {
+      "cold_ms": 1985.525416,
+      "warm_p50_ms": 4.792637000000013,
+      "warm_p95_ms": 6.745128000000022,
+      "warm_reads": 30
+    },
+    {
+      "cold_ms": 1980.0599020000004,
+      "warm_p50_ms": 5.013726000000133,
+      "warm_p95_ms": 6.745579999999791,
+      "warm_reads": 30
+    },
+    {
+      "cold_ms": 1973.1290929999996,
+      "warm_p50_ms": 4.624507000000449,
+      "warm_p95_ms": 5.149967000000288,
+      "warm_reads": 30
+    }
+  ],
+  "errors": [],
+  "upgrade_from_0_2_8": true,
+  "concurrency_8": {
+    "responses": 8,
+    "total_ms": 85.94536299999982
+  },
+  "concurrency_32": {
+    "responses": 32,
+    "total_ms": 147.49747000000025
+  },
+  "tail_ms": 6.586851000000024,
+  "tail_events": 3,
+  "projection_matches": true,
+  "stats_only_live_matches": true,
+  "binary_sha256": "4f8a9413c9bd19c0b56963ae27f1a62d2afbba21f5229bc3b05fa7b906e0b5e8",
+  "binary_version": "ternilo-server 0.2.9",
+  "source_commit": "3e67fb7368629a7a3e0af3418991d59536342375",
+  "source_files_sha256": {
+    "crates/ternilo-cloud/src/session_stats.rs": "9992c84c5a925df90bba75e4cc236d8f820637d88feaf3e35331662b7443d90c",
+    "apps/ternilo-server/src/platform/workbench/cloud_adapter.rs": "b83044e55c2f7bc67384cbe30895feac2d557119bd1b20551d5b1a4bcb383634",
+    "apps/ternilo-server/src/platform/live/session_data.rs": "df5e44f095f19ef5f930af0926fe342a1558f5c464c4f993086c9880ce7932bf",
+    "web/dist/assets/app.js": "91db00ea4dcb52b316057c2aac5cb6d65a42f93de7e470c40e4f120693bde730"
+  },
+  "measured_at": "2026-10-10"
+}

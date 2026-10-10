@@ -6583,7 +6583,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "clap",
  "futures-util",
@@ -6612,7 +6612,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-acp"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "agent-client-protocol",
  "base64 0.23.1",
@@ -6624,7 +6624,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-authorization"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde_json",
  "ternilo-protocol",
@@ -6633,7 +6633,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-automation"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde",
  "serde_json",
@@ -6646,7 +6646,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-builtins"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "agent-client-protocol",
  "chrono",
@@ -6678,7 +6678,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-cloud"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -6706,7 +6706,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-code-runtime"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "linorun-core",
  "linorun-macros",
@@ -6724,7 +6724,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-control"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -6750,7 +6750,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-desktop"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "clap",
  "serde_json",
@@ -6768,7 +6768,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-extension"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64 0.23.1",
  "ed25519-dalek",
@@ -6792,7 +6792,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-kernel"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "linorun-core",
  "linorun-macros",
@@ -6804,7 +6804,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-local"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64 0.23.1",
  "cap-fs-ext",
@@ -6834,7 +6834,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-plugin-cli"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64 0.23.1",
  "clap",
@@ -6851,7 +6851,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-protocol"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "schemars 1.2.2",
  "serde",
@@ -6860,7 +6860,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-rhai"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "rhai",
  "schemars 1.2.2",
@@ -6870,7 +6870,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-sandbox-windows"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "clap",
  "zagens-windows-sandbox",
@@ -6878,7 +6878,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-server"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64 0.23.1",
  "clap",
@@ -6912,7 +6912,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-storage"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde",
  "serde_json",
@@ -6924,7 +6924,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-transport"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde",
  "serde_json",
@@ -6933,7 +6933,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-transport-store"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde",
  "serde_json",
@@ -6946,7 +6946,7 @@ dependencies = [
 
 [[package]]
 name = "ternilo-worker"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64 0.23.1",
  "clap",
