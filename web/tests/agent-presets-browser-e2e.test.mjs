@@ -110,7 +110,16 @@ async function chooseWorkspace(page, workspace) {
   await dialog.getByRole('list', { name: `目录 ${workspace}`, exact: true }).waitFor()
   await dialog.getByRole('button', { name: '打开所选文件夹' }).click()
   await dialog.waitFor({ state: 'detached' })
+  await newSession(page)
+}
+
+async function newSession(page) {
+  const created = page.waitForResponse(response => response.request().method() === 'POST'
+    && new URL(response.url()).pathname === '/api/v1/sessions' && response.status() === 201)
   await page.locator('[data-sidebar-new-session]').click()
+  const session = await (await created).json()
+  // The previous composer's textbox stays visible while the new session is created.
+  await page.waitForFunction(id => localStorage.getItem('ternilo.current-session') === id, session.identity.session_id)
   await page.getByRole('textbox', { name: '输入任务' }).waitFor()
 }
 
@@ -145,8 +154,7 @@ async function selectHeroPreset(page, label) {
 }
 
 async function startModeSession(page, label) {
-  await page.locator('[data-sidebar-new-session]').click()
-  await page.getByRole('textbox', { name: '输入任务' }).waitFor()
+  await newSession(page)
   await selectHeroPreset(page, label)
 }
 

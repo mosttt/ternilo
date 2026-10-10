@@ -91,7 +91,7 @@ jobs:
           node --test --test-concurrency=1 web/tests/computer-management-browser-e2e.test.mjs web/tests/computer-details-scroll-browser-e2e.test.mjs web/tests/preset-profile-browser-e2e.test.mjs web/tests/registration-mode-browser-e2e.test.mjs web/tests/sidebar-folding-browser-e2e.test.mjs web/tests/service-accounts-browser-e2e.test.mjs web/tests/service-workspace-access-browser-e2e.test.mjs
           node --test --test-concurrency=1 web/tests/computer-model-forwarding-browser-e2e.test.mjs web/tests/model-traffic-browser-e2e.test.mjs web/tests/claude-discovery-browser-e2e.test.mjs web/tests/managed-model-delegation-browser-e2e.test.mjs web/tests/cloud-model-bindings-browser-e2e.test.mjs
           node --test --test-concurrency=1 web/tests/search-services-browser-e2e.test.mjs web/tests/acp-adapters-browser-e2e.test.mjs web/tests/hosted-web-tools-browser-e2e.test.mjs
-          node --test --test-concurrency=1 web/tests/server-web-setup-browser-e2e.test.mjs web/tests/agent-presets-browser-e2e.test.mjs web/tests/control-node-browser-e2e.test.mjs
+          node --test --test-concurrency=1 web/tests/server-web-setup-browser-e2e.test.mjs web/tests/browser-locale-browser-e2e.test.mjs web/tests/agent-presets-browser-e2e.test.mjs web/tests/control-node-browser-e2e.test.mjs
           node --test web/tests/resource-notifications-browser-e2e.test.mjs
           node --test web/tests/tls-transport-e2e.test.mjs
           node --test web/tests/multiple-login-providers-browser-e2e.test.mjs
