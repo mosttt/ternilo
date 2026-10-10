@@ -16,7 +16,7 @@ The service opens the system browser once its local web interface is ready, norm
 
 Keep the launching terminal open. Ctrl-C stops the service; closing the browser does not stop tasks. If the desktop app already started it, use `ternilo status` to find its address and reuse it.
 
-The interface follows your browser's Chinese/English preference until you save a manual choice under Settings → General. The local page obtains its connection credentials automatically and needs no account registration.
+The interface follows your browser's Chinese/English/Korean preference until you save a manual choice under Settings → General. The local page obtains its connection credentials automatically and needs no account registration.
 
 Prebuilt applications require no Rust or Node.js. File search needs `ripgrep` (`rg`); Linux commands, terminals and background tasks also need `bubblewrap`. On Windows, keep `ternilo-sandbox-windows.exe` beside the main program; see [package programs](binaries.md). The local management port is for this computer; other devices use Server.
 

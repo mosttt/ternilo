@@ -2,6 +2,7 @@ import * as React from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import type { LocaleKey } from '@/i18n/runtime'
 import { getAccountNodeCleanup, type AccountNodeCleanup } from './admin-api'
 import css from './admin.module.css'
@@ -33,7 +34,7 @@ export function NodeCleanupPanel({ userId, statusRevision }: { userId: string; s
     }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [userId, statusRevision, open, revision])
-  const date = (timestamp: number) => new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', { dateStyle: 'medium', timeStyle: 'medium' }).format(timestamp)
+  const date = (timestamp: number) => new Intl.DateTimeFormat(localeTag(locale), { dateStyle: 'medium', timeStyle: 'medium' }).format(timestamp)
   return <details className={css.nodeCleanup} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>{t('accounts.nodeCleanup')}</summary>
     {open && <div>

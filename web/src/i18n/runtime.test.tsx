@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { LocaleProvider, useLocale, useTranslate } from './provider'
-import { en as commonEn, zh as commonZh } from './resources/common'
+import { en as commonEn, ko as commonKo, zh as commonZh } from './resources/common'
 import { LOCALE_STORAGE_KEY, LocaleRuntime, storedLocale } from './runtime'
 
 const values = new Map<string, string>()
@@ -30,15 +30,18 @@ describe('locale runtime', () => {
     expect(storedLocale(memoryStorage, ['fr-FR', 'zh-CN'])).toBe('zh')
     expect(storedLocale(memoryStorage, ['fr-FR'])).toBe('en')
     expect(storedLocale(undefined, [])).toBe('en')
+    expect(storedLocale(memoryStorage, ['ko-KR', 'en-US'])).toBe('ko')
     localStorage.setItem(LOCALE_STORAGE_KEY, 'zh')
     expect(storedLocale(memoryStorage, ['en-US'])).toBe('zh')
     localStorage.setItem(LOCALE_STORAGE_KEY, 'en')
     expect(storedLocale(memoryStorage, ['zh-CN'])).toBe('en')
+    localStorage.setItem(LOCALE_STORAGE_KEY, 'ko')
+    expect(storedLocale(memoryStorage, ['en-US'])).toBe('ko')
   })
 
   it('keeps bound translators stable and resolves the active dictionary', () => {
     const runtime = new LocaleRuntime('zh')
-    runtime.register('common', { zh: commonZh, en: commonEn })
+    runtime.register('common', { zh: commonZh, en: commonEn, ko: commonKo })
     const first = runtime.bind('common')
     expect(runtime.bind('common')).toBe(first)
     expect(first('save')).toBe('保存')

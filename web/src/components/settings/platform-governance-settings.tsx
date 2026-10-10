@@ -4,6 +4,7 @@ import { ApiError } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, Input, Label } from '@/components/ui/field'
 import { useLocale, useTranslate } from '@/i18n/provider'
+import { localeTag } from '@/i18n/runtime'
 import type { AuditEntry, TenantQuota } from '@/types'
 import { getTenantQuota, listTenantAudit, updateTenantQuota } from './platform-admin-api'
 import { GroupHeader } from './settings-ui'
@@ -164,7 +165,7 @@ export function PlatformAuditSettings({ tenantId }: { tenantId: string }) {
   React.useEffect(() => { void load() }, [load])
 
   const formatTime = React.useCallback((value: number) => new Intl.DateTimeFormat(
-    locale === 'zh' ? 'zh-CN' : 'en',
+    localeTag(locale),
     { dateStyle: 'medium', timeStyle: 'medium' },
   ).format(new Date(value)), [locale])
   const listState = loading && !entries.length

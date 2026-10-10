@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { LocaleProvider, useLocale, useTranslate } from '@/i18n/provider'
+import { isLocaleId } from '@/i18n/runtime'
 import { readAccountLink, clearAccountLink } from '@/auth/server'
 import { applyThemePreference, type ThemePreference } from '@/domain/theme'
 import { BrandMark } from '@/components/ui/brand-mark'
@@ -65,8 +66,8 @@ function SetupForm() {
     <div className="mx-auto max-w-xl">
       <header className="mb-8 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 text-xl font-semibold"><BrandMark className="size-7 text-primary" />Ternilo</div>
-        <Select aria-label={t('language')} value={locale} onValueChange={value => setLocale(value as 'zh' | 'en')} className="w-28">
-          <option value="zh">zh-CN</option><option value="en">English</option>
+        <Select aria-label={t('language')} value={locale} onValueChange={value => { if (isLocaleId(value)) setLocale(value) }} className="w-28">
+          <option value="zh">zh-CN</option><option value="en">English</option><option value="ko">한국어</option>
         </Select>
       </header>
       <h1 className="text-2xl font-semibold">{t('title')}</h1>

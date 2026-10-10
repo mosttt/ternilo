@@ -36,6 +36,23 @@ export const en = {
   expand: 'Expand',
 } satisfies Record<CommonKey, string>
 
+export const ko = {
+  cancel: '취소',
+  close: '닫기',
+  copy: '복사',
+  copied: '복사됨',
+  retry: '다시 시도',
+  loading: '불러오는 중…',
+  submit: '제출',
+  delete: '삭제',
+  edit: '편집',
+  save: '저장',
+  saving: '저장 중…',
+  search: '검색',
+  collapse: '접기',
+  expand: '펼치기',
+} satisfies Record<CommonKey, string>
+
 declare module '../runtime' {
   interface LocaleNamespaceMap {
     common: CommonKey

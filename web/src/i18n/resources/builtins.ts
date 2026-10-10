@@ -136,6 +136,77 @@ export const en: Record<BuiltinsKey, string> = {
     'Keeps every Standard capability and adds guidance for preset, plugin, and runtime experiments.',
 }
 
+export const ko = {
+  'plugin.sessionLog': '추가 전용 세션 이벤트를 저장하고 이를 바탕으로 모델 기록을 구성합니다.',
+  'plugin.sessionTitle': '첫 번째 실행이 성공하면 현재 세션 모델로 간결한 제목을 생성합니다.',
+  'plugin.sessionQuery': '현재 노드의 영구 세션을 검색하고, 읽고, 추적합니다.',
+  'plugin.promptRegistry': '다른 플러그인이 제공한 시스템 프롬프트를 정해진 순서로 구성합니다.',
+  'plugin.toolRegistry':
+    '도구를 등록하고 권한, 승인, 타임아웃, 효과 검사를 일관되게 적용합니다.',
+  'plugin.agentTeam': '현재 에이전트 팀의 공유 작업과 멤버 메일함을 관리합니다.',
+  'plugin.hookRegistry': '세션, 프롬프트, 도구, 중지 경계에서 순서가 지정된 훅을 실행합니다.',
+  'plugin.claudeCodeHooks': 'Claude Code 설정의 동기 명령 훅을 실행합니다.',
+  'plugin.codexHooks': 'Codex 설정의 동기 명령 훅을 실행합니다.',
+  'plugin.systemPrompt': '에이전트의 기본 시스템 프롬프트를 제공합니다.',
+  'plugin.identityPrompt': '현재 사용자, 세션, 작업 공간 ID를 모델에 설명합니다.',
+  'plugin.promptSection': '시스템 프롬프트에 정렬 가능한 사용자 지정 섹션을 추가합니다.',
+  'plugin.workspaceInstructions': '작업 공간 수준의 지침 파일을 찾아 주입합니다.',
+  'plugin.runtimeExtensions': '설치된 서명된 런타임 확장을 승인 절차를 거쳐 점검하고 관리합니다.',
+  'plugin.schedule': '영구 예약 작업을 만들고, 나열하고, 취소합니다.',
+  'plugin.contextCompaction': '컨텍스트 한도에 가까워지면 오래된 세션 기록을 압축합니다.',
+  'plugin.workspaceFiles': '작업 공간 파일 읽기, 쓰기, 바꾸기, glob, grep 도구를 모델에 제공합니다.',
+  'plugin.shellTool': '호스트 샌드박스를 통해 일회성 셸 명령을 실행합니다.',
+  'plugin.askUser': '실행을 일시 중지하고 재개 가능한 질문이나 승인 요청을 사용자에게 보냅니다.',
+  'plugin.plan': '계획, 할 일, 목표와 계획 모드의 검토된 종료 절차를 관리합니다.',
+  'plugin.skillRegistry': '여러 스킬 프로바이더의 요약과 온디맨드 로딩을 통합합니다.',
+  'plugin.filesystemSkills': '프로젝트, 사용자, 사용자 지정 디렉터리에서 SKILL.md 파일을 찾습니다.',
+  'plugin.skillTools': '모델이 사용 가능한 스킬을 필요할 때 나열하고 불러올 수 있게 합니다.',
+  'plugin.subagent': '기본 제공 백그라운드 서브에이전트와 프로바이더 레지스트리를 제공합니다.',
+  'plugin.acpSubagent': '외부 ACP v1 프로세스를 서브에이전트 프로바이더로 등록합니다.',
+  'plugin.terminalTools': '영구 터미널을 만들고, 입력하고, 읽고, 닫는 도구를 제공합니다.',
+  'plugin.telemetry': '명시적으로 지정한 모드에서 민감 정보를 제거한 세션 이벤트를 OTLP 수집기로 복사합니다.',
+  'plugin.mcp': 'MCP stdio 서버를 시작하고 해당 원격 도구를 공유 툴체인에 등록합니다.',
+  'plugin.jobsTool': '백그라운드 셸 작업을 시작하고, 점검하고, 취소합니다.',
+  'plugin.lsp': '언어 서버를 시작하고 승인이 필요한 JSON-RPC 도구를 제공합니다.',
+  'plugin.webFetch': '공개 HTTP(S) 페이지에서 제한된 분량의 콘텐츠를 가져옵니다.',
+  'plugin.webSearch': '설정된 SearXNG 엔드포인트를 통해 웹을 검색합니다.',
+  'plugin.braveSearch': '실행 컴퓨터의 자격 증명을 사용해 Brave Search로 웹을 검색합니다.',
+  'plugin.tavilySearch': '실행 컴퓨터의 자격 증명을 사용해 Tavily Search로 웹을 검색합니다.',
+  'plugin.workflowRuntime': '제한된 Rhai 런타임에서 병렬 및 파이프라인 서브에이전트를 조율합니다.',
+  'plugin.workflowTools': '승인이 필요한 워크플로 도구를 모델에 노출합니다.',
+  'plugin.ruleModel': '하네스 파이프라인 검증을 위한 결정적 오프라인 규칙 모델입니다.',
+  'plugin.openAiModel': 'OpenAI 호환 SSE 모델 엔드포인트를 호출합니다.',
+  'plugin.replayModel': '기록된 모델 상호작용의 결정적 응답을 재생합니다.',
+  'plugin.agentLoop': '완료되거나 설정된 한도에 도달할 때까지 모델 및 도구 호출에 걸쳐 각 작업을 실행합니다.',
+  'field.agentToolCalls.title': '턴당 도구 호출 수',
+  'field.agentToolCalls.description': '기본값은 512입니다. 0으로 설정하면 이 플러그인의 호출 한도를 해제합니다. 실행 위치의 한도는 계속 적용됩니다.',
+  'field.agentSteps.title': '턴당 실행 단계 수',
+  'field.agentSteps.description': '0으로 설정하면 이 플러그인의 단계 한도를 해제합니다. 실행 위치의 한도는 계속 적용됩니다.',
+  'plugin.codeRuntime': '파일, 네트워크, 프로세스에 직접 접근할 수 없는 제한된 Rhai 런타임을 제공합니다.',
+  'plugin.codeMode': '현재 도구를 Rhai SDK로 노출하고 하위 호출을 공유 정책 체인을 통해 라우팅합니다.',
+  'plugin.extensionPackage': '검증된 확장 패키지의 기여 항목을 명시적인 기능 권한 부여와 함께 마운트합니다.',
+  'plugin.localSandbox':
+    '현재 플랫폼에 맞춰 bubblewrap, Seatbelt 또는 제한된 Windows 프로세스 샌드박스를 제공합니다.',
+  'plugin.localFiles': '작업 공간 경계로 제한된 로컬 파일 기능을 제공합니다.',
+  'plugin.localShell': '깨끗한 환경과 신뢰할 수 있는 샌드박스에서 로컬 셸 실행을 제공합니다.',
+  'plugin.localTerminals': '도구 호출 간에 재사용할 수 있는 영구 로컬 터미널을 관리합니다.',
+  'plugin.localJobs': '로컬 백그라운드 프로세스 상태를 유지하고 셸 샌드박스와 프로세스 트리 정리를 재사용합니다.',
+  'plugin.cloudSandbox':
+    '워커가 설정한 외부 네임공간 격리 안에서 작업 공간 셸 명령을 실행합니다.',
+  'plugin.hostGatewayModel':
+    '네트워크가 격리된 클라우드 하위 프로세스가 신뢰할 수 있는 상위 프로세스를 통해 허용 목록의 모델 경로를 호출할 수 있게 합니다.',
+  'preset.standard.name': '표준 모드',
+  'preset.standard.description': '기본 도구와 Rhai 코드 모드 SDK를 모두 갖춘 완전한 소프트웨어 에이전트입니다.',
+  'preset.ptc.name': 'PTC 모드',
+  'preset.ptc.description':
+    '표준 모드의 모든 기능을 유지하면서 모델에는 Rhai 코드 모드 SDK만 제공합니다.',
+  'preset.minimal.name': '최소 모드',
+  'preset.minimal.description': '작업 공간 파일과 셸 중심의 간소화된 소프트웨어 에이전트입니다.',
+  'preset.creative.name': '크리에이티브 모드',
+  'preset.creative.description':
+    '표준 모드의 모든 기능을 유지하고 프리셋, 플러그인, 런타임 실험을 위한 안내를 추가합니다.',
+} satisfies Record<BuiltinsKey, string>
+
 declare module '../runtime' {
   interface LocaleNamespaceMap {
     builtins: BuiltinsKey
