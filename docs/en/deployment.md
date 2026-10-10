@@ -2,7 +2,7 @@
 
 Deploy `ternilo-server` for accounts, connected computers and shared workspaces. SQLite is the default; PostgreSQL is optional. The owner switches single-user/multi-user mode in Platform administration → Instance settings without recreating accounts or resources. Personal computers run `ternilo serve`, retaining their own files, models, extensions and sessions. OIDC and managed Workers are optional.
 
-Choose [native binaries](#native-deployment) or [Docker Compose](docker-compose.md). They run the same Server. Docker pulls `ghcr.io/mosttt/ternilo-server:0.2.8` without a local build; native deployment needs no Docker, Python, Rust or Node.js. For multiple Servers, see the explicit shared-database/master-key and routing configuration in [Server clustering](server-cluster.md). Cross-host storage takeover and transparent failover remain separate capabilities.
+Choose [native binaries](#native-deployment) or [Docker Compose](docker-compose.md). They run the same Server. Docker pulls `ghcr.io/mosttt/ternilo-server:0.2.9` without a local build; native deployment needs no Docker, Python, Rust or Node.js. For multiple Servers, see the explicit shared-database/master-key and routing configuration in [Server clustering](server-cluster.md). Cross-host storage takeover and transparent failover remain separate capabilities.
 
 ## Native deployment
 
