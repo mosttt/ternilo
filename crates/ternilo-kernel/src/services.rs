@@ -852,6 +852,8 @@ pub trait ToolGuard: Send + Sync + 'static {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ToolPresentation {
     pub tools: Vec<ToolSpec>,
+    /// Omitted schemas remain available to explicit user commands.
+    pub deferred_tools: std::collections::BTreeSet<String>,
     pub system_prompt: Option<String>,
     pub code_only: bool,
 }
@@ -863,6 +865,7 @@ impl ToolPresentation {
             tools,
             system_prompt: None,
             code_only: false,
+            deferred_tools: std::collections::BTreeSet::new(),
         }
     }
 }

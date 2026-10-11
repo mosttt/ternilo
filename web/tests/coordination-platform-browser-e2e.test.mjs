@@ -4,7 +4,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { chromium } from 'playwright'
-import { modelFixture } from './coordination-fixture.mjs'
+import { modelFixture, verifyToolDiscovery } from './coordination-fixture.mjs'
 import { localApi, until } from './model-device-fixture.mjs'
 import { execute, freePort, initializeServer, repository, serverRequest, startProcess, stopProcess, waitForHttp, selectSpace } from './platform-e2e-fixture.mjs'
 
@@ -107,6 +107,13 @@ test('Server role models execute through Node and Worker with independent reason
     await until(() => worker.diagnostics(), output => /Ternilo cloud worker .* ready/.test(output), 'Worker ready')
     await configureRole(page, request, cloud.identity.session_id, model, 'Managed coordination')
     const cloudChild = await runRole(request, cloud.identity.session_id, upstream)
+    for (const sessionId of [nodeId, cloud.identity.session_id]) {
+      const current = (await request('/state')).sessions.find(item => item.identity.session_id === sessionId)
+      const plugins = current.profile_plugins.filter(entry => entry.id !== 'tool-registry')
+      plugins.push({ id: 'tool-registry', kind: 'ternilo.tools.registry', enabled: true, config: { schema_loading: { enabled: true, max_loaded: 4 } } })
+      await request(`/sessions/${sessionId}`, { method: 'PATCH', body: { profile_plugins: plugins } })
+      await verifyToolDiscovery(request, sessionId, upstream)
+    }
     assert.deepEqual(errors, [])
     console.log(JSON.stringify({ nodeChild: nodeChild.subagent.role, workerChild: cloudChild.subagent.role, roleReasoning: 'low', errors }))
   } catch (error) {

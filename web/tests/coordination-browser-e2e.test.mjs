@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { modelFixture } from './coordination-fixture.mjs'
+import { modelFixture, verifyToolDiscovery } from './coordination-fixture.mjs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -112,6 +112,13 @@ test('coordination settings persist in all locales and a real delegated call use
         await mode.scrollIntoViewIfNeeded()
         await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `coordination-${locale}.png`) })
       }
+      const registry = dialog.locator('[data-plugin-id="tool-registry"]')
+      await registry.locator('button[aria-expanded][aria-label]').click()
+      const enabled = registry.locator('#plugin-tool-registry-schemas-enabled')
+      if (await enabled.getAttribute('aria-checked') === 'false') await enabled.click()
+      await registry.locator('#plugin-tool-registry-schemas-loaded').fill(String(3 + Object.keys(locales).indexOf(locale)))
+      await registry.getByRole('button', { name: labels.save, exact: true }).click()
+      await until(() => registry.locator('button[aria-expanded][aria-label]').getAttribute('aria-expanded'), value => value === 'false', 'saved schema loading')
       await context.close()
     }
     await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: 'Investigate using the configured role' } } })
@@ -122,6 +129,7 @@ test('coordination settings persist in all locales and a real delegated call use
     const child = state.sessions.find(item => item.parent_session_id === session.identity.session_id && item.subagent?.role === 'investigator')
     assert.ok(child); assert.equal(child.model.model, 'role-model'); assert.equal(child.permissions, 'read_only')
     assert.ok(upstream.requests.some(body => body.model === 'role-model' && body.messages.some(message => String(message.content).includes('Evidence in ko'))))
+    await verifyToolDiscovery(request, session.identity.session_id, upstream)
     assert.deepEqual(errors, { page: [], console: [], http: [] })
     console.log(JSON.stringify({ locales: Object.keys(locales), roleModel: child.model.model, childReadOnly: true, errors }))
   } catch (error) {

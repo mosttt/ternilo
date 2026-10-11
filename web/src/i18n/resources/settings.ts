@@ -1,4 +1,9 @@
 export const zh = {
+  "toolSchemas.enabled": "按需加载工具定义",
+  "toolSchemas.description": "常用工具保持可用，其他工具按任务搜索并加载定义，以减少上下文占用。",
+  "toolSchemas.loaded": "保留的附加工具数",
+  "toolSchemas.loadedDescription": "达到上限后，较早加载的定义会被移出，需要时可再次查找。工具权限仍由宿主检查。",
+  "toolSchemas.invalid": "保留的工具数量必须在 1 到 128 之间。",
   "coordination.mode": "协作模式",
   "coordination.mode.independent": "独行",
   "coordination.mode.assisted": "协行",
@@ -810,6 +815,11 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  "toolSchemas.enabled": "Load tool definitions on demand",
+  "toolSchemas.description": "Keep common tools available and load other tool definitions as needed to reduce context usage.",
+  "toolSchemas.loaded": "Additional tool definitions to retain",
+  "toolSchemas.loadedDescription": "Older definitions are removed when the limit is reached and can be loaded again. The host continues to enforce tool permissions.",
+  "toolSchemas.invalid": "The retained tool count must be between 1 and 128.",
   "coordination.mode": "Coordination mode",
   "coordination.mode.independent": "Independent",
   "coordination.mode.assisted": "Assisted",
@@ -1665,6 +1675,11 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  "toolSchemas.enabled": "필요할 때 도구 정의 불러오기",
+  "toolSchemas.description": "자주 쓰는 도구는 유지하고 다른 도구 정의는 작업에 따라 검색하여 불러와 컨텍스트 사용량을 줄입니다.",
+  "toolSchemas.loaded": "유지할 추가 도구 정의 수",
+  "toolSchemas.loadedDescription": "한도에 도달하면 먼저 불러온 정의가 제거되며 필요할 때 다시 불러올 수 있습니다. 도구 권한은 계속 호스트가 검사합니다.",
+  "toolSchemas.invalid": "유지할 도구 수는 1에서 128 사이여야 합니다.",
   "coordination.mode": "협업 모드",
   "coordination.mode.independent": "독립 실행",
   "coordination.mode.assisted": "보조 협업",

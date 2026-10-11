@@ -52,6 +52,12 @@ impl HarnessPlugin for CaptureTools {
 }
 
 async fn harness() -> (HarnessSession, ToolsClient, CommandsClient) {
+    harness_with_registry_config(json!({})).await
+}
+
+pub(super) async fn harness_with_registry_config(
+    config: Value,
+) -> (HarnessSession, ToolsClient, CommandsClient) {
     let clients = Arc::new(Mutex::new(None));
     let captured = Arc::clone(&clients);
     let mut catalog = crate::catalog().unwrap();
@@ -66,6 +72,12 @@ async fn harness() -> (HarnessSession, ToolsClient, CommandsClient) {
         ))
         .unwrap();
     let mut profile = crate::local_profile();
+    profile
+        .plugins
+        .iter_mut()
+        .find(|entry| entry.kind == super::KIND)
+        .unwrap()
+        .config = config;
     profile.plugins.push(PluginEntry {
         id: "capture".to_owned(),
         kind: "test.capture-tools".to_owned(),

@@ -663,6 +663,7 @@ impl ToolPresenter for CodeModePresenter {
             };
             Ok(ToolPresentation {
                 tools: presented,
+                deferred_tools: BTreeSet::new(),
                 system_prompt: Some(render_code_mode_prompt(&native, code_only, &info.isolation)),
                 code_only,
             })

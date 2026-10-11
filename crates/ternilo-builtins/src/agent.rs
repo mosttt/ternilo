@@ -766,7 +766,8 @@ impl ReactAgent {
             SessionEventKind::ToolCallStarted { call: call.clone() },
         )
         .await?;
-        let visible = presentation.tools.iter().any(|tool| tool.name == call.name);
+        let visible = presentation.tools.iter().any(|tool| tool.name == call.name)
+            || (!presentation.code_only && presentation.deferred_tools.contains(&call.name));
         if !visible {
             let content = if presentation.code_only {
                 format!(

@@ -1,3 +1,4 @@
+import { ToolSchemaFields } from './tool-schema-fields'
 import * as React from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -124,7 +125,7 @@ export function PluginConfigCard({
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause)
       const localized = entry.kind === 'ternilo.subagents.in_process' ? coordinationErrorKey(message) : null
-      setError(localized ? t(localized) : message)
+      setError(localized ? t(localized) : entry.kind === 'ternilo.tools.registry' && message.includes('tool schema') ? t('toolSchemas.invalid') : message)
     } finally {
       setBusy(false)
     }
@@ -214,6 +215,10 @@ export function PluginConfigCard({
           {fields.length ? (
             <div className="grid gap-5">
               {fields.map((field) => {
+                if (entry.kind === 'ternilo.tools.registry' && field.key === 'schema_loading') {
+                  return <ToolSchemaFields key={field.key} id={`plugin-${entry.id}-schemas`} value={draft.schema_loading} disabled={busy}
+                    onChange={schema_loading => setDraft(current => ({ ...current, schema_loading }))} />
+                }
                 if (entry.kind === 'ternilo.subagents.in_process' && field.key === 'coordination') {
                   return <CoordinationFields key={field.key} id={`plugin-${entry.id}-coordination`} target={target}
                     value={draft.coordination} disabled={busy}
