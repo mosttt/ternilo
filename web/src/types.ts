@@ -43,6 +43,7 @@ export interface Workspace {
   node_name?: string | null
   status?: 'online' | 'offline' | 'ready' | 'provisioning' | 'error'
   project_id?: string
+  management_project_id?: string
   owner_user_id?: string
 }
 

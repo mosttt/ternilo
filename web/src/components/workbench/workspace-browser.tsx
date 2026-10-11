@@ -27,6 +27,7 @@ import { useSessionActivityRoster } from './session-activity-roster'
 import { SessionRenameDialog } from './session-rename-dialog'
 import { SessionArchiveDialog } from './session-archive-dialog'
 import { WorkspaceRenameDialog, WorkspaceUnregisterDialog } from './workspace-lifecycle-dialogs'
+import { WorkspaceProjectDialog } from './workspace-project-dialog'
 import {
   type DropMarker, type RowDragHandlers, type RowOrderActions, SessionRow,
   UngroupedWorkspaceRow, WorkspaceRow,
@@ -119,6 +120,8 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   const [renameTarget, setRenameTarget] = React.useState<LocalSession | null>(null)
   const [workspaceRenameTarget, setWorkspaceRenameTarget] = React.useState<Workspace | null>(null)
   const [workspaceRemoveTarget, setWorkspaceRemoveTarget] = React.useState<Workspace | null>(null)
+  const [workspaceMoveTarget, setWorkspaceMoveTarget] = React.useState<Workspace | null>(null)
+  React.useEffect(() => setWorkspaceMoveTarget(null), [accountScope, currentTenantId])
   const [ungroupedDeleteTarget, setUngroupedDeleteTarget] = React.useState<LocalSession[] | null>(null)
   const [deletingUngrouped, setDeletingUngrouped] = React.useState(false)
   const [ungroupedDeleteError, setUngroupedDeleteError] = React.useState('')
@@ -626,6 +629,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
               void startSession(workspace.workspace_id)
             }}
             onRename={() => setWorkspaceRenameTarget(workspace)}
+            onMoveProject={platform && !readOnly ? () => setWorkspaceMoveTarget(workspace) : undefined}
             onUnregister={() => setWorkspaceRemoveTarget(workspace)}
             onShare={sharingEnabled && (workspace.access?.permissions.view ?? ownsResource(workspace.access, !readOnly && workspace.owner_user_id === serverIdentity?.user.user_id)) ? () => setSharingTarget({ kind: 'workspace', id: workspace.workspace_id, title: workspace.title }) : undefined}
           />
@@ -860,6 +864,10 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
 
       {openArchiveScope === archiveScope && !authRequired && <SessionArchiveDialog key={`${archiveScope}:${view.groupBy}:${view.onlineComputersOnly}`} tenantId={currentTenantId} platform={platform} readOnly={readOnly} workspaces={workspaces} onlineComputersOnly={view.groupBy === 'computer' && view.onlineComputersOnly} onClose={() => setOpenArchiveScope(null)} onRestored={refresh} />}
       {sharingTarget && <ResourceSharingDialog key={`${sharingTarget.kind}:${sharingTarget.id}`} target={sharingTarget} onClose={() => setSharingTarget(null)} onChanged={refresh} />}
+      {workspaceMoveTarget && platform && !readOnly && currentTenantId && <WorkspaceProjectDialog
+        key={`${accountScope}:${currentTenantId}:${workspaceMoveTarget.workspace_id}`}
+        workspace={workspaceMoveTarget} tenantId={currentTenantId} onClose={() => setWorkspaceMoveTarget(null)}
+        onChanged={refresh} />}
       {!readOnly && <SessionRenameDialog session={renameTarget} onOpenChange={open => { if (!open) setRenameTarget(null) }} onRename={confirmSessionRename} />}
       {!readOnly && <WorkspaceRenameDialog
         workspace={workspaceRenameTarget}

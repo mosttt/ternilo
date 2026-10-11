@@ -26,3 +26,24 @@ API 提供 `GET .../sharing/ownership` 读取管理者与版本、`GET .../shari
 ```
 
 资源的 `access.owner_user_id` 表示当前管理者，`access.storage_user_id` 表示原存储／执行身份，`access.ownership_revision` 表示管理版本。`is_owner` 与 `is_execution_owner` 分别描述当前用户是否具备这两种身份，不可互相替代。
+
+## 工作区移动到项目
+
+Server 中的工作区可移动到同一空间内的其他管理项目，个人空间和团队空间都支持。当前可写管理者打开工作区操作菜单，选择“移动到项目…”，选定目标项目并确认。项目管理员不会因此获得他人工作区的迁移权限。
+
+移动保留工作区／会话标识、历史、文件、电脑绑定和管理者。执行项目及任务用量归属保持原值；这是整理管理项目的操作，文件搬迁、执行身份变更和个人资源转团队仍属独立能力。目标项目内该管理者已有同名工作区时，需要先重命名。项目仍被工作区的执行或管理归属引用时不能删除。
+
+移动默认关闭项目共享继承：原项目继承的访问取消，工作区及会话的直接共享保留。勾选“采用目标项目的共享规则”才会启用目标项目当前及后续规则；可先查看项目规则。改变目标项目或共享选项后需要重新确认。各 Server 在事务提交后刷新工作台和当前订阅权限；共享同一数据库的实例应先统一版本，再使用迁移功能。
+
+`GET /api/v1/workspaces/{workspace_id}/project` 返回当前管理项目、执行项目、迁移版本和权限；`PUT` 到同一路径提交：
+
+```json
+{
+  "project_id": "目标项目的 project_id",
+  "expected_project_id": "当前管理项目的 project_id",
+  "expected_revision": 0,
+  "inherit_project_sharing": false
+}
+```
+
+过期版本返回 409，包括工作区在项目间往返后的旧请求。工作台 `/state` 的 `management_project_id` 表示当前管理项目，原 `project_id` 保留执行项目；读取上述 `/project` 接口可获得明确的 `execution_project_id`。

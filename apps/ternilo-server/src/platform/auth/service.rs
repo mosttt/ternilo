@@ -48,7 +48,7 @@ fn route_scope(request: &Request) -> Option<ServiceScope> {
             "GET",
             ["me" | "state" | "projects" | "workspaces" | "sessions" | "runs"]
             | ["workspaces" | "runs", _]
-            | ["workspaces", _, "location"]
+            | ["workspaces", _, "location" | "project"]
             | [
                 "sessions",
                 _,
@@ -80,6 +80,7 @@ mod tests {
         for route in [
             "projects",
             "workspaces/w/location",
+            "workspaces/w/project",
             "sessions/s/history",
             "sessions/s/queue",
             "tenants/tenant/runs/run",
@@ -124,5 +125,9 @@ mod tests {
                 None
             );
         }
+        assert_eq!(
+            route_scope(&TestClient::put("http://server.test/api/v1/workspaces/w/project").build()),
+            None
+        );
     }
 }

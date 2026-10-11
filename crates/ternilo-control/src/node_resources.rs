@@ -87,8 +87,9 @@ impl ControlStore {
         let mut names = sqlx::query_scalar::<_, String>(
             "SELECT w.name FROM control_workspaces w LEFT JOIN control_resource_ownership o
              ON o.tenant_id=w.tenant_id AND o.resource_kind='workspace' AND o.resource_id=w.workspace_id
+             LEFT JOIN control_workspace_projects m ON m.tenant_id=w.tenant_id AND m.workspace_id=w.workspace_id
              WHERE w.tenant_id=$1 AND (w.owner_user_id=$2 OR COALESCE(o.owner_user_id,w.owner_user_id)=$2)
-             AND w.project_id=$3 AND w.unregistered_at_ms IS NULL",
+             AND COALESCE(m.project_id,w.project_id)=$3 AND w.unregistered_at_ms IS NULL",
         )
         .bind(tenant_id.as_str())
         .bind(actor.user_id.as_str())

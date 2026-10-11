@@ -135,6 +135,7 @@ async fn ensure_project_deletable(
             WHEN (SELECT COUNT(*) FROM control_projects WHERE tenant_id = $1) <= 1
                 THEN 'the last project in a space cannot be deleted'
             WHEN EXISTS (SELECT 1 FROM control_workspaces WHERE tenant_id = $1 AND project_id = $2)
+                OR EXISTS (SELECT 1 FROM control_workspace_projects WHERE tenant_id = $1 AND project_id = $2)
                 OR EXISTS (SELECT 1 FROM control_executor_enrollments WHERE tenant_id = $1 AND project_id = $2)
                 OR EXISTS (SELECT 1 FROM control_executors WHERE tenant_id = $1 AND project_id = $2)
                 OR EXISTS (SELECT 1 FROM control_secrets WHERE tenant_id = $1 AND project_id = $2)

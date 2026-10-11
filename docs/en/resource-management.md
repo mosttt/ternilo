@@ -26,3 +26,24 @@ The API supports `GET .../sharing/ownership` for the manager and revision, `GET 
 ```
 
 `access.owner_user_id` identifies the current manager, `access.storage_user_id` identifies the original storage/execution identity, and `access.ownership_revision` records the management revision. `is_owner` and `is_execution_owner` report the current user's respective identities and must not be used interchangeably.
+
+## Moving a workspace to a project
+
+Server workspaces can move to another management project in the same personal or team space. The current manager with write access opens the workspace menu, selects “Move to project…”, chooses a destination and confirms. Project administrators do not gain permission to move another user's workspace.
+
+The move retains workspace and session identifiers, history, files, computer bindings and managers. The execution project and task usage attribution remain unchanged. This operation organizes management projects; file relocation, execution identity changes and moving personal resources into a team are separate capabilities. A workspace with the same name and manager in the destination must be renamed first. Projects referenced by execution or management assignments cannot be deleted.
+
+Project sharing inheritance is disabled by default: access inherited from the previous project ends, while direct workspace and session grants remain. Explicitly select “Apply the target project’s sharing rules” to apply its current and future rules; these can be inspected before confirmation. Changing the destination or sharing choice requires a new confirmation. Servers refresh workbenches and subscription permissions after the transaction commits. Instances sharing a database must use the same version before using project moves.
+
+`GET /api/v1/workspaces/{workspace_id}/project` returns the management project, execution project, move revision and permission. Send a `PUT` to the same path:
+
+```json
+{
+  "project_id": "target project_id",
+  "expected_project_id": "current management project_id",
+  "expected_revision": 0,
+  "inherit_project_sharing": false
+}
+```
+
+Stale revisions return 409, including requests from before a round trip between projects. Workspace `management_project_id` in `/state` identifies the management project, while the original `project_id` retains the execution project. The `/project` endpoint also returns an explicit `execution_project_id`.

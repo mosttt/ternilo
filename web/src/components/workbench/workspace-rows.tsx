@@ -2,7 +2,7 @@ import { useSidebarHover } from './use-sidebar-hover'
 import * as React from 'react'
 import {
   Archive, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Cloud, Ellipsis,
-  Folder, GitFork, Laptop, MapPin, Pencil, Plus, Share2, Trash2,
+  Folder, FolderInput, GitFork, Laptop, MapPin, Pencil, Plus, Share2, Trash2,
 } from 'lucide-react'
 import { HoverCard } from 'radix-ui'
 import type { LocalSession, SessionSearchHit, Workspace } from '@/types'
@@ -79,7 +79,7 @@ function ManualOrderMenu({ order }: { order: RowOrderActions }) {
   )
 }
 
-export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnly = false, platform = false, showPlacement = false, computerGrouped = false, onToggle, onNewSession, onRename, onUnregister, onShare }: {
+export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnly = false, platform = false, showPlacement = false, computerGrouped = false, onToggle, onNewSession, onRename, onUnregister, onShare, onMoveProject }: {
   workspace: Workspace
   platform?: boolean
   showPlacement?: boolean
@@ -94,6 +94,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
   onRename(): void
   onUnregister(): void
   onShare?(): void
+  onMoveProject?(): void
 }) {
   const t = useTranslate('workspace')
   const [menuOpen, setMenuOpen] = React.useState(false)
@@ -156,6 +157,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
           <DropdownMenuContent align="start">
             <DropdownMenuItem onSelect={openLocation}><MapPin />{t('location.view')}</DropdownMenuItem>
             <DropdownMenuItem disabled={!permissions.configure} onSelect={onRename}><Pencil />{t('rename')}</DropdownMenuItem>
+            {onMoveProject && isOwner && permissions.configure && <DropdownMenuItem onSelect={onMoveProject}><FolderInput />{t('move.action')}</DropdownMenuItem>}
             <DropdownMenuItem disabled={!isOwner} className="text-destructive focus:text-destructive" onSelect={onUnregister}><Trash2 />{t('delete.workspace')}</DropdownMenuItem>
             {onShare && <DropdownMenuItem onSelect={onShare}><Share2 />{t(isOwner && permissions.configure ? 'sharing.action' : 'sharing.viewAccess')}</DropdownMenuItem>}
             {order && <ManualOrderMenu order={order} />}

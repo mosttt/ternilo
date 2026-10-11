@@ -12,6 +12,7 @@ mod settings;
 pub(super) mod sharing;
 mod types;
 mod workspace;
+mod workspace_project;
 
 pub(crate) use cloud_adapter::CloudAdapter;
 pub(crate) use edge_adapter::{EdgeAdapter, authorize_edge_mutation};
@@ -119,6 +120,11 @@ pub(crate) fn router() -> Router {
                         .patch(workspace::rename_workspace)
                         .delete(workspace::unregister_workspace)
                         .push(Router::with_path("location").get(workspace::workspace_location))
+                        .push(
+                            Router::with_path("project")
+                                .get(workspace_project::get)
+                                .put(workspace_project::move_to),
+                        )
                         .push(
                             Router::with_path("project-sharing")
                                 .put(sharing::set_project_inheritance),

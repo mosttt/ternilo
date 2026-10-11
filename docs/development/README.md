@@ -4,6 +4,8 @@
 
 - [2026-10-09 后续推进记录](continuation-2026-10-09.md)：用户确认的发行验收、文档与测试同步、稳定性、性能、桌面交付和资源迁移实施顺序；排除 Work。
 - [2026-10-11 GitHub PR 审查](pr-review-2026-10-11.md)：两项 PR 的审查、测试修正、生成资源冲突处理与合并结果。
+- [工作区管理项目迁移](workspace-project-move.md)：同空间跨项目管理、显式共享继承和原执行身份保留的实施与验收。
+- [v0.2.11 发行与验收](release-0.2.11-acceptance.md)：工作区管理项目迁移的完整发行门禁与公开产物验证。
 - [v0.2.10 发行与验收](release-0.2.10-acceptance.md)：日志并发读取和 Python SDK 重启重连补丁的发行程序／公开产物验收。
 - [JSONL 并发读取修复](jsonl-concurrent-read.md)：触摸对话验收发现的读写竞态、完整记录保护及真实分段写入回归。
 - [Cloud 会话统计检查点](cloud-session-stats.md)：双库、历史重建、权限、HTTP／Live／浏览器及冷读／热读性能验证。

@@ -66,15 +66,7 @@ impl ControlStore {
         .require(ResourceAction::ManageSharing)?;
         crate::account_store::require_team_in(&mut tx, tenant).await?;
         let mut inheritance = inheritance_in(&mut tx, tenant, workspace).await?;
-        if enabled {
-            super::grants::require_multi_user(&mut tx).await?;
-            sqlx::query("INSERT INTO control_workspace_project_sharing (tenant_id,workspace_id,enabled_by,enabled_at_ms) VALUES ($1,$2,$3,$4) ON CONFLICT (tenant_id,workspace_id) DO NOTHING")
-                .bind(tenant.as_str()).bind(workspace.as_str()).bind(actor.user_id.as_str()).bind(to_i64(now,"sharing timestamp")?)
-                .execute(&mut *tx).await.map_err(database_error)?;
-        } else {
-            sqlx::query("DELETE FROM control_workspace_project_sharing WHERE tenant_id=$1 AND workspace_id=$2")
-                .bind(tenant.as_str()).bind(workspace.as_str()).execute(&mut *tx).await.map_err(database_error)?;
-        }
+        set_inheritance_in(&mut tx, actor, tenant, workspace, enabled, now).await?;
         append_audit(
             &mut tx,
             tenant,
@@ -95,13 +87,42 @@ impl ControlStore {
     }
 }
 
+pub(crate) async fn set_inheritance_in(
+    tx: &mut Transaction,
+    actor: &ControlUser,
+    tenant: &TenantId,
+    workspace: &WorkspaceId,
+    enabled: bool,
+    now: u64,
+) -> Result<(), HarnessError> {
+    if enabled {
+        crate::account_store::require_team_in(tx, tenant).await?;
+        super::grants::require_multi_user(tx).await?;
+        sqlx::query("INSERT INTO control_workspace_project_sharing (tenant_id,workspace_id,enabled_by,enabled_at_ms) VALUES ($1,$2,$3,$4) ON CONFLICT (tenant_id,workspace_id) DO NOTHING")
+            .bind(tenant.as_str()).bind(workspace.as_str()).bind(actor.user_id.as_str()).bind(to_i64(now,"sharing timestamp")?)
+            .execute(&mut **tx).await.map_err(database_error)?;
+    } else {
+        sqlx::query(
+            "DELETE FROM control_workspace_project_sharing WHERE tenant_id=$1 AND workspace_id=$2",
+        )
+        .bind(tenant.as_str())
+        .bind(workspace.as_str())
+        .execute(&mut **tx)
+        .await
+        .map_err(database_error)?;
+    }
+    Ok(())
+}
+
 async fn inheritance_in(
     tx: &mut Transaction,
     tenant: &TenantId,
     workspace: &WorkspaceId,
 ) -> Result<ProjectSharingInheritance, HarnessError> {
-    let row = sqlx::query("SELECT w.project_id,p.name,t.kind AS space_kind,CAST(EXISTS(SELECT 1 FROM control_workspace_project_sharing i WHERE i.tenant_id=w.tenant_id AND i.workspace_id=w.workspace_id) AS INTEGER) AS enabled
-        FROM control_workspaces w JOIN control_projects p ON p.tenant_id=w.tenant_id AND p.project_id=w.project_id
+    let row = sqlx::query("SELECT COALESCE(m.project_id,w.project_id) AS project_id,p.name,t.kind AS space_kind,CAST(EXISTS(SELECT 1 FROM control_workspace_project_sharing i WHERE i.tenant_id=w.tenant_id AND i.workspace_id=w.workspace_id) AS INTEGER) AS enabled
+        FROM control_workspaces w
+        LEFT JOIN control_workspace_projects m ON m.tenant_id=w.tenant_id AND m.workspace_id=w.workspace_id
+        JOIN control_projects p ON p.tenant_id=w.tenant_id AND p.project_id=COALESCE(m.project_id,w.project_id)
         JOIN control_tenants t ON t.tenant_id=w.tenant_id
         WHERE w.tenant_id=$1 AND w.workspace_id=$2")
         .bind(tenant.as_str()).bind(workspace.as_str()).fetch_optional(&mut **tx).await.map_err(database_error)?
@@ -126,14 +147,16 @@ pub(crate) async fn sources_in(
     let rows = sqlx::query("SELECT 'direct_user' AS source_kind,p.project_id,p.name AS project_name,CAST(NULL AS TEXT) AS group_id,CAST(NULL AS TEXT) AS group_name,s.permissions_json
         FROM control_workspace_project_sharing i
         JOIN control_workspaces w ON w.tenant_id=i.tenant_id AND w.workspace_id=i.workspace_id
-        JOIN control_projects p ON p.tenant_id=w.tenant_id AND p.project_id=w.project_id
+        LEFT JOIN control_workspace_projects x ON x.tenant_id=w.tenant_id AND x.workspace_id=w.workspace_id
+        JOIN control_projects p ON p.tenant_id=w.tenant_id AND p.project_id=COALESCE(x.project_id,w.project_id)
         JOIN control_project_user_shares s ON s.tenant_id=p.tenant_id AND s.project_id=p.project_id AND s.grantee_user_id=$2
         WHERE i.tenant_id=$1 AND i.workspace_id=$3
         UNION ALL
         SELECT 'group',p.project_id,p.name,g.group_id,g.name,s.permissions_json
         FROM control_workspace_project_sharing i
         JOIN control_workspaces w ON w.tenant_id=i.tenant_id AND w.workspace_id=i.workspace_id
-        JOIN control_projects p ON p.tenant_id=w.tenant_id AND p.project_id=w.project_id
+        LEFT JOIN control_workspace_projects x ON x.tenant_id=w.tenant_id AND x.workspace_id=w.workspace_id
+        JOIN control_projects p ON p.tenant_id=w.tenant_id AND p.project_id=COALESCE(x.project_id,w.project_id)
         JOIN control_project_group_shares s ON s.tenant_id=p.tenant_id AND s.project_id=p.project_id
         JOIN control_permission_groups g ON g.tenant_id=s.tenant_id AND g.group_id=s.group_id
         JOIN control_permission_group_members m ON m.tenant_id=s.tenant_id AND m.group_id=s.group_id AND m.user_id=$2

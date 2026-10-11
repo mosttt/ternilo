@@ -169,6 +169,7 @@ pub(crate) struct WorkbenchWorkspace {
     pub(crate) node_name: Option<String>,
     pub(crate) status: String,
     pub(crate) project_id: String,
+    pub(crate) management_project_id: String,
     pub(crate) owner_user_id: UserId,
 }
 
@@ -201,6 +202,7 @@ impl WorkbenchWorkspace {
             node_id: record.executor_id,
             node_name: None,
             status,
+            management_project_id: record.project_id.clone(),
             project_id: record.project_id,
             owner_user_id: record.owner_user_id,
         }

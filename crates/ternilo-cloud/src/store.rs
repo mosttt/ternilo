@@ -1206,6 +1206,10 @@ impl CloudStore {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep component initialization in dependency order."
+)]
 async fn initialize_database(database: &Database) -> Result<(), HarnessError> {
     database
         .initialize(
@@ -1302,6 +1306,21 @@ async fn initialize_database(database: &Database) -> Result<(), HarnessError> {
             1,
             include_str!("schema/session_stats.sql"),
             include_str!("schema/session_stats_postgres.sql"),
+        )
+        .await?;
+    database
+        .initialize(
+            "workspace_projects_live",
+            1,
+            match database.backend() {
+                ternilo_storage::Backend::Sqlite => {
+                    include_str!("schema/workspace_projects_live_sqlite.sql")
+                }
+                ternilo_storage::Backend::Postgres => {
+                    include_str!("schema/workspace_projects_live_postgres.sql")
+                }
+            },
+            "",
         )
         .await?;
     crate::maintenance::initialize_database(database).await

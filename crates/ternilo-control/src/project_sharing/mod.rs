@@ -10,6 +10,7 @@ use crate::{
 mod grants;
 mod inheritance;
 pub use inheritance::ProjectSharingInheritance;
+pub(crate) use inheritance::set_inheritance_in;
 pub(crate) use inheritance::sources_in;
 
 #[cfg(test)]

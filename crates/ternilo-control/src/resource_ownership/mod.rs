@@ -108,7 +108,8 @@ pub(crate) async fn require_workspace_name_in(
         "SELECT CAST(EXISTS(SELECT 1 FROM control_workspaces w
          LEFT JOIN control_resource_ownership o ON o.tenant_id=w.tenant_id
            AND o.resource_kind='workspace' AND o.resource_id=w.workspace_id
-         WHERE w.tenant_id=$1 AND w.project_id=$2 AND w.name=$3
+         LEFT JOIN control_workspace_projects m ON m.tenant_id=w.tenant_id AND m.workspace_id=w.workspace_id
+         WHERE w.tenant_id=$1 AND COALESCE(m.project_id,w.project_id)=$2 AND w.name=$3
            AND w.unregistered_at_ms IS NULL AND COALESCE(o.owner_user_id,w.owner_user_id)=$4
            AND (CAST($5 AS TEXT) IS NULL OR w.workspace_id<>$5)) AS INTEGER)",
     )
@@ -264,7 +265,9 @@ impl ControlStore {
             ));
         }
         if kind == ResourceKind::Workspace {
-            let workspace = sqlx::query("SELECT project_id,name FROM control_workspaces WHERE tenant_id=$1 AND workspace_id=$2 AND unregistered_at_ms IS NULL")
+            let workspace = sqlx::query("SELECT COALESCE(m.project_id,w.project_id) AS project_id,w.name FROM control_workspaces w
+                LEFT JOIN control_workspace_projects m ON m.tenant_id=w.tenant_id AND m.workspace_id=w.workspace_id
+                WHERE w.tenant_id=$1 AND w.workspace_id=$2 AND w.unregistered_at_ms IS NULL")
                 .bind(tenant.as_str()).bind(id).fetch_optional(&mut *tx).await.map_err(database_error)?
                 .ok_or_else(|| HarnessError::conflict("workspace is no longer registered"))?;
             require_workspace_name_in(

@@ -12,7 +12,9 @@ export function workspaceRenameIssue(
   const title = draft.trim()
   if (!title) return 'blank'
   if (title === target.title) return 'unchanged'
-  return workspaces.some(workspace => workspace.workspace_id !== target.workspace_id && workspace.title === title)
+  return workspaces.some(workspace => workspace.workspace_id !== target.workspace_id && workspace.title === title
+    && (workspace.management_project_id ?? workspace.project_id) === (target.management_project_id ?? target.project_id)
+    && workspace.owner_user_id === target.owner_user_id)
     ? 'duplicate'
     : null
 }

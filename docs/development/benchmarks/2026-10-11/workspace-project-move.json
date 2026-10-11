@@ -1,0 +1,176 @@
+{
+  "version": "0.2.11",
+  "local_programs": {
+    "ternilo": {
+      "version": "ternilo 0.2.11",
+      "sha256": "61a4ff778889a42415b67428932ad94430168f8dd38cff31ad005f3437e96358"
+    },
+    "ternilo-server": {
+      "version": "ternilo-server 0.2.11",
+      "sha256": "d7a7b9724652dc19dcea7047e913ed87723c7528d0ccb6e3475e69e422ec1839"
+    }
+  },
+  "browser": {
+    "source": "prj_bwv-DaYUX_RPmLWHlupIRA",
+    "destination": "prj_mRZGs1O-aGato-vGyCHTWw",
+    "revision": 2,
+    "filesPreserved": true,
+    "historyPreserved": true,
+    "observations": {
+      "pageErrors": [],
+      "consoleErrors": [
+        {
+          "url": "http://127.0.0.1:41163/api/v1/sessions/ses_3KzvC856e55V85WJQw63yw/commands",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:41163/api/v1/sessions/ses_3KzvC856e55V85WJQw63yw/queue",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:41163/api/v1/sessions/ses_3KzvC856e55V85WJQw63yw/workspace",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:41163/api/v1/sessions/ses_3KzvC856e55V85WJQw63yw/commands",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        }
+      ],
+      "httpErrors": [
+        {
+          "url": "http://127.0.0.1:41163/api/v1/sessions/ses_3KzvC856e55V85WJQw63yw/commands",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:41163/api/v1/sessions/ses_3KzvC856e55V85WJQw63yw/queue",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:41163/api/v1/sessions/ses_3KzvC856e55V85WJQw63yw/workspace",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:41163/api/v1/sessions/ses_3KzvC856e55V85WJQw63yw/commands",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        }
+      ]
+    },
+    "duration_seconds": 11.65
+  },
+  "public_0_2_10_upgrade": {
+    "source": "prj_7QA38Do-hiG1-qPS63ierw",
+    "destination": "prj_jnSx0OXXeWJk56fS5zPEIg",
+    "revision": 2,
+    "filesPreserved": true,
+    "historyPreserved": true,
+    "observations": {
+      "pageErrors": [],
+      "consoleErrors": [
+        {
+          "url": "http://127.0.0.1:38865/api/v1/sessions/ses__brybyTEKwIn-511HWhWzQ/commands",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:38865/api/v1/sessions/ses__brybyTEKwIn-511HWhWzQ/queue",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:38865/api/v1/sessions/ses__brybyTEKwIn-511HWhWzQ/workspace",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:38865/api/v1/sessions/ses__brybyTEKwIn-511HWhWzQ/commands",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        }
+      ],
+      "httpErrors": [
+        {
+          "url": "http://127.0.0.1:38865/api/v1/sessions/ses__brybyTEKwIn-511HWhWzQ/commands",
+          "status": 503,
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:38865/api/v1/sessions/ses__brybyTEKwIn-511HWhWzQ/queue",
+          "status": 503,
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:38865/api/v1/sessions/ses__brybyTEKwIn-511HWhWzQ/workspace",
+          "status": 503,
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:38865/api/v1/sessions/ses__brybyTEKwIn-511HWhWzQ/commands",
+          "status": 503,
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        }
+      ]
+    },
+    "duration_seconds": 14.67
+  },
+  "scope": "Same-space management project moves; execution project, storage identity and usage attribution remain unchanged."
+}

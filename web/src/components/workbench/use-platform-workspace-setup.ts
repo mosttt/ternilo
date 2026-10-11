@@ -68,7 +68,7 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
           ? projectResponse.projects.filter(item => item.project_id === target.project_id) : projectResponse.projects
         setPlacement(nextPlacement)
         setExecutorId(target?.executor_id ?? '')
-        setProjectId(permitted.find(item => item.project_id === current?.project_id)?.project_id
+        setProjectId(permitted.find(item => item.project_id === (current?.management_project_id ?? current?.project_id))?.project_id
           ?? permitted[0]?.project_id ?? (canCreateProject && !target?.project_id ? NEW_PROJECT : ''))
       }
     } catch (cause) {
@@ -106,7 +106,7 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
   }
   const choosePath = async (value: string) => {
     const folder = folderName(value)
-    const names = new Set(snapshot.workspaces.filter(workspace => workspace.project_id === projectId
+    const names = new Set(snapshot.workspaces.filter(workspace => (workspace.management_project_id ?? workspace.project_id) === projectId
       && workspace.access?.is_owner !== false && workspace.node_id !== executorId).map(workspace => workspace.title))
     let suggested = folder
     if (names.has(suggested)) {

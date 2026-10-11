@@ -47,6 +47,8 @@ mod shared_resources;
 mod sharing_store;
 mod store;
 mod types;
+mod workspace_projects;
+pub use workspace_projects::{WorkspaceProject, WorkspaceProjectMove};
 
 #[cfg(test)]
 #[path = "../tests/support/postgres.rs"]

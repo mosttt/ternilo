@@ -105,14 +105,12 @@ impl ControlStore {
         )
         .await?;
         access.require(ResourceAction::Delete)?;
-        let project: String = sqlx::query_scalar(
-            "SELECT project_id FROM control_workspaces WHERE tenant_id=$1 AND workspace_id=$2",
+        let project = crate::workspace_projects::project_in(
+            &mut transaction,
+            tenant_id,
+            workspace_id.as_str(),
         )
-        .bind(tenant_id.as_str())
-        .bind(workspace_id.as_str())
-        .fetch_one(&mut *transaction)
-        .await
-        .map_err(database_error)?;
+        .await?;
         crate::resource_ownership::require_workspace_name_in(
             &mut transaction,
             tenant_id,

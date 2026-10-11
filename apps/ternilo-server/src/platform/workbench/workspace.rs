@@ -291,6 +291,7 @@ async fn load_state_by_archive(
         .computer_display_names(user, tenant_id, &executor_ids)
         .await?;
     let mut paths = BTreeMap::new();
+    let management_projects = state.store.workspace_management_projects(tenant_id).await?;
     for record in records {
         let connected = if let Some(executor_id) = &record.executor_id {
             state.edge.is_connected(tenant_id, executor_id).await
@@ -307,6 +308,9 @@ async fn load_state_by_archive(
             )
             .await?;
         let mut workspace = WorkbenchWorkspace::from_record(record, connected).with_access(access);
+        if let Some(project) = management_projects.get(&workspace.workspace_id) {
+            workspace.management_project_id.clone_from(project);
+        }
         workspace.node_name = workspace
             .node_id
             .as_ref()
@@ -446,7 +450,12 @@ pub(crate) async fn rename_workspace(
             record.workspace_id.as_str(),
         )
         .await?;
-    let workspace = WorkbenchWorkspace::from_record(record, connected).with_access(access);
+    let management_project = state
+        .store
+        .workspace_project(actor(depot), &tenant_id, &workspace_id)
+        .await?;
+    let mut workspace = WorkbenchWorkspace::from_record(record, connected).with_access(access);
+    workspace.management_project_id = management_project.project_id;
     Ok(Json(workspace))
 }
 

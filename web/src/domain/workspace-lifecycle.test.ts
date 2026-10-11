@@ -50,4 +50,12 @@ describe('workspace lifecycle view contract', () => {
     expect(abbreviateHomePath('/home/username/project', '/home/user')).toBe('/home/username/project')
     expect(abbreviateHomePath('C:\\Users\\Ada\\code', 'C:\\Users\\Ada')).toBe('~\\code')
   })
+
+  it('checks names within the current management project and manager after a move', () => {
+    const target = { ...workspace('moving', 'Alpha'), project_id: 'execution', management_project_id: 'destination', owner_user_id: 'owner' }
+    const other = { ...workspace('other', 'Beta'), project_id: 'execution', management_project_id: 'source', owner_user_id: 'owner' }
+    expect(workspaceRenameIssue('Beta', target, [target, other])).toBeNull()
+    expect(workspaceRenameIssue('Beta', target, [target, { ...other, management_project_id: 'destination' }])).toBe('duplicate')
+    expect(workspaceRenameIssue('Beta', target, [target, { ...other, management_project_id: 'destination', owner_user_id: 'other-owner' }])).toBeNull()
+  })
 })

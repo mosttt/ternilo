@@ -12,6 +12,8 @@ export function useWorkspaceDisplay() {
   const { currentWorkspace: workspace, currentSession: session, platform, accountScope, currentTenantId, currentTenantRole } = useWorkbench()
   const t = useTranslate('workspace')
   const key = JSON.stringify([accountScope, currentTenantId, workspace?.workspace_id])
+  const projectId = workspace?.management_project_id ?? workspace?.project_id
+  const projectKey = JSON.stringify([key, projectId])
   const remote = platform && workspace?.placement === 'local_node'
   const readable = remote && workspace.access?.is_owner !== false && workspace.status !== 'offline' && workspace.status !== 'error'
   const [resolved, setResolved] = React.useState<{ key: string; path: string | null; status: string } | null>(null)
@@ -26,13 +28,13 @@ export function useWorkspaceDisplay() {
     return () => controller.abort()
   }, [readable, key, workspace?.workspace_id, currentTenantId])
   React.useEffect(() => {
-    if (!platform || !workspace?.project_id || (currentTenantRole !== 'owner' && currentTenantRole !== 'admin')) return
+    if (!platform || !projectId || (currentTenantRole !== 'owner' && currentTenantRole !== 'admin')) return
     const controller = new AbortController()
     void api.request<{ projects: ProjectRecord[] }>('/projects', { signal: controller.signal, ...(currentTenantId ? { headers: { 'x-ternilo-tenant': currentTenantId } } : {}) })
-      .then(value => { if (!controller.signal.aborted) setProject({ key, name: value.projects.find(item => item.project_id === workspace.project_id)?.name ?? '' }) })
+      .then(value => { if (!controller.signal.aborted) setProject({ key: projectKey, name: value.projects.find(item => item.project_id === projectId)?.name ?? '' }) })
       .catch(() => { if (!controller.signal.aborted) setProject(null) })
     return () => controller.abort()
-  }, [platform, key, workspace?.project_id, currentTenantId, currentTenantRole])
+  }, [platform, projectKey, projectId, currentTenantId, currentTenantRole])
   const location = readable && resolved?.key === key ? resolved : null
   const path = !platform ? workspace?.path ?? session?.workspace_path ?? '' : location?.status === 'available' ? location.path ?? '' : ''
   const identity = workspace ? [workspacePlacementLabel(workspace, t), workspace.title].join(' · ') : workspaceDisplayPath(workspace, session, t)
@@ -41,7 +43,7 @@ export function useWorkspaceDisplay() {
     label: identity,
     path,
     hint,
-    project: project?.key === key ? project.name : '',
+    project: project?.key === projectKey ? project.name : '',
     replacement: platform && session?.placement === 'local_node' ? path || t('location.currentWorkspace', { name: workspace?.title || t('group.ungrouped') }) : null,
   }
 }

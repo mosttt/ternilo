@@ -88,7 +88,7 @@ export function PlatformProjectsSettings({ tenantId }: { tenantId: string }) {
     <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void create() }}><Field className="min-w-0 flex-1"><Label htmlFor="project-create-name">{translate('picker.project.placeholder')}</Label><Input id="project-create-name" value={name} maxLength={256} onChange={event => setName(event.target.value)} disabled={saving || loading} /></Field><Button disabled={saving || loading || !name.trim()}><Plus />{translate('picker.project.new')}</Button></form>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {loading ? <p role="status" className="text-sm text-muted-foreground">{translate('picker.loading')}</p> : projects.map(project => {
-      const workspaces = snapshot.workspaces.filter(workspace => workspace.project_id === project.project_id)
+      const workspaces = snapshot.workspaces.filter(workspace => (workspace.management_project_id ?? workspace.project_id) === project.project_id)
       return <article key={project.project_id} className="min-w-0 rounded-xl border bg-card p-4" data-project-id={project.project_id}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <h3 className="flex min-w-0 items-start gap-2 font-medium"><Folder className="mt-1 size-4 shrink-0" /><span className="min-w-0 break-words [overflow-wrap:anywhere]">{project.name}</span></h3>

@@ -217,6 +217,7 @@ impl ControlStore {
         crate::account_email::initialize(database).await?;
         crate::project_sharing::initialize(database).await?;
         crate::resource_ownership::initialize(database).await?;
+        crate::workspace_projects::initialize(database).await?;
         crate::identity_session_details::initialize(database).await?;
         crate::oidc_sessions::initialize(database).await?;
         crate::mfa::initialize(database).await?;
@@ -717,11 +718,27 @@ impl ControlStore {
                 let id: String = existing
                     .try_get("workspace_id")
                     .map_err(workspace_write_error)?;
+                ternilo_storage::lock(
+                    &mut transaction,
+                    &format!("resource-shares:{tenant_id}:workspace:{id}"),
+                )
+                .await?;
+                let project =
+                    crate::workspace_projects::project_in(&mut transaction, tenant_id, &id).await?;
+                let (manager, _) = crate::resource_ownership::owner_in(
+                    &mut transaction,
+                    tenant_id,
+                    crate::ResourceKind::Workspace,
+                    &id,
+                    &actor.user_id,
+                    None,
+                )
+                .await?;
                 crate::resource_ownership::require_workspace_name_in(
                     &mut transaction,
                     tenant_id,
-                    &actor.user_id,
-                    spec.project_id,
+                    &manager,
+                    &project,
                     spec.name,
                     Some(&id),
                 )
