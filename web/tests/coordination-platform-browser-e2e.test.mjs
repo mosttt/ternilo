@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { verifyTeamUsage } from './team-usage-fixture.mjs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
@@ -113,6 +114,10 @@ test('Server role models execute through Node and Worker with independent reason
       plugins.push({ id: 'tool-registry', kind: 'ternilo.tools.registry', enabled: true, config: { schema_loading: { enabled: true, max_loaded: 4 } } })
       await request(`/sessions/${sessionId}`, { method: 'PATCH', body: { profile_plugins: plugins } })
       await verifyToolDiscovery(request, sessionId, upstream)
+      await page.reload()
+      await page.locator(`[data-sidebar-session-row][data-session-id="${sessionId}"]`).click()
+      await page.evaluate(() => localStorage.removeItem('ternilo.usage-estimate-prices.v1'))
+      await verifyTeamUsage(page, request, sessionId, 'zh', sessionId === nodeId ? 'node' : 'worker')
     }
     assert.deepEqual(errors, [])
     console.log(JSON.stringify({ nodeChild: nodeChild.subagent.role, workerChild: cloudChild.subagent.role, roleReasoning: 'low', errors }))

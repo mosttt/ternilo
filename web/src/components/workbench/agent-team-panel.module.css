@@ -16,6 +16,7 @@
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   min-width: 0;
   gap: 4px;
   border-top: 1px solid var(--border-subtle);

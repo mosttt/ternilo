@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { verifyTeamUsage } from './team-usage-fixture.mjs'
 import { modelFixture, verifyToolDiscovery } from './coordination-fixture.mjs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -130,6 +131,19 @@ test('coordination settings persist in all locales and a real delegated call use
     assert.ok(child); assert.equal(child.model.model, 'role-model'); assert.equal(child.permissions, 'read_only')
     assert.ok(upstream.requests.some(body => body.model === 'role-model' && body.messages.some(message => String(message.content).includes('Evidence in ko'))))
     await verifyToolDiscovery(request, session.identity.session_id, upstream)
+    for (const locale of Object.keys(locales)) {
+      const context = await browser.newContext({ viewport: locale === 'ko' ? { width: 320, height: 560 } : { width: 1280, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+      await context.addInitScript(({ locale, sessionId, workspaceId }) => {
+        localStorage.setItem('ternilo.locale', locale); localStorage.setItem('ternilo.current-session', sessionId); localStorage.setItem('ternilo.current-workspace', workspaceId)
+      }, { locale, sessionId: session.identity.session_id, workspaceId: workspace.workspace_id })
+      const page = await context.newPage(); activePage = page
+      page.on('pageerror', error => errors.page.push(error.message))
+      page.on('console', message => { if (message.type() === 'error') errors.console.push(message.text()) })
+      page.on('response', response => { if (response.status() >= 400) errors.http.push(`${response.status()} ${response.url()}`) })
+      await page.goto(origin)
+      await verifyTeamUsage(page, request, session.identity.session_id, locale)
+      await context.close()
+    }
     assert.deepEqual(errors, { page: [], console: [], http: [] })
     console.log(JSON.stringify({ locales: Object.keys(locales), roleModel: child.model.model, childReadOnly: true, errors }))
   } catch (error) {

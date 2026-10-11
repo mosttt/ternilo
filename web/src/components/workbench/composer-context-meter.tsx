@@ -28,7 +28,7 @@ function useContextWindow(selection: ModelSelection, target: ExecutionTarget): n
   ), [targetKey])
   const getSnapshot = React.useCallback(() => peekProviderInventory(target), [targetKey])
   const inventory = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-  const cloudEnabled = target.placement === 'cloud' && (providerKind === 'platform_model' || providerKind === 'named_provider')
+  const cloudEnabled = providerKind === 'platform_model' || providerKind === 'account_provider' || providerKind === 'computer_provider' || (target.placement === 'cloud' && providerKind === 'named_provider')
   const subscribeCloud = React.useCallback((listener: () => void) => cloudEnabled
     ? subscribeCloudModelInventory(listener, target) : () => {}, [cloudEnabled, targetKey])
   const getCloudSnapshot = React.useCallback(() => cloudEnabled ? peekCloudModelInventory(target) : null, [cloudEnabled, targetKey])
@@ -46,12 +46,12 @@ function useContextWindow(selection: ModelSelection, target: ExecutionTarget): n
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
 }
 
-function latestMeasuredUsage(events: readonly SessionEvent[]): { input: number; output: number } | null {
+function latestMeasuredUsage(events: readonly SessionEvent[]): { input: number; output: number; cached: number; reasoning: number } | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const usage = events[index]?.response?.usage
     if (!usage) continue
     if (!Number.isFinite(usage.input_tokens) || !Number.isFinite(usage.output_tokens)) continue
-    return { input: usage.input_tokens, output: usage.output_tokens }
+    return { input: usage.input_tokens, output: usage.output_tokens, cached: usage.cached_input_tokens ?? 0, reasoning: usage.reasoning_tokens ?? 0 }
   }
   return null
 }
@@ -114,8 +114,11 @@ export function ComposerContextMeter({
           <dl>
             <div><dt>{t('context.input')}</dt><dd>{compact(usage.input)}</dd></div>
             <div><dt>{t('context.output')}</dt><dd>{compact(usage.output)}</dd></div>
+            <div><dt>{t('context.cached')}</dt><dd>{compact(usage.cached)}</dd></div>
+            <div><dt>{t('context.reasoning')}</dt><dd>{compact(usage.reasoning)}</dd></div>
             <div><dt>{t('context.window')}</dt><dd>{compact(contextWindow)}</dd></div>
           </dl>
+          <p>{t('context.measurement')}</p>
           {percent >= 80 && <p>{t('context.warning')}</p>}
         </div>
       )}

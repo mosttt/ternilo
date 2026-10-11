@@ -1,4 +1,8 @@
 export const zh = {
+  'context.cached': "缓存读取（输入内）",
+  'context.reasoning': "推理（输出内）",
+  'context.measurement': "根据最近一次已报告响应估算；后续请求及压缩会改变上下文占用。",
+
   "services.title": "后台服务",
   "services.description": "MCP 和语言服务可能在任务结束后继续使用工作目录。不再需要时，可以在这里停止。",
   "services.cloudDescription": "查看和控制当前任务的 MCP 和语言服务。任务结束后，这些服务会一起停止。",
@@ -213,6 +217,10 @@ export const zh = {
 } satisfies Record<string, string>
 export type ConversationKey = keyof typeof zh
 export const en = {
+  'context.cached': "Cache reads (within input)",
+  'context.reasoning': "Reasoning (within output)",
+  'context.measurement': "Based on the latest reported response; later requests and compaction change context usage.",
+
   "services.title": "Background services",
   "services.description": "MCP and language servers can keep using the working directory after a task finishes. Stop them here when no longer needed.",
   "services.cloudDescription": "View and control MCP and language servers for the current task. They stop when the task ends.",
@@ -426,6 +434,10 @@ export const en = {
   'queue.steered': 'Steered into current turn',
 } satisfies Record<ConversationKey, string>
 export const ko = {
+  'context.cached': "캐시 읽기 (입력에 포함)",
+  'context.reasoning': "추론 (출력에 포함)",
+  'context.measurement': "최근 보고된 응답을 기준으로 한 추정치입니다. 이후 요청과 압축에 따라 컨텍스트 사용량이 달라집니다.",
+
   "services.title": "백그라운드 서비스",
   "services.description": "MCP 및 언어 서버는 작업이 끝난 뒤에도 작업 디렉터리를 계속 사용할 수 있습니다. 더 이상 필요하지 않으면 여기에서 중지하세요.",
   "services.cloudDescription": "현재 작업의 MCP 및 언어 서버를 확인하고 제어합니다. 작업이 끝나면 함께 중지됩니다.",
