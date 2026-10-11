@@ -631,11 +631,13 @@ pub(crate) fn derive_model_messages(
     });
     let mut messages = Vec::new();
     let after_seq = if let Some(compaction) = latest_compaction {
+        let summary = ternilo_protocol::ContextHandoff::parse(&compaction.summary)
+            .map_or_else(|| compaction.summary.clone(), |handoff| handoff.render());
         messages.push(ModelMessage {
             role: MessageRole::User,
             content: format!(
                 "<earlier_conversation_summary through_seq={}>\n{}\n</earlier_conversation_summary>",
-                compaction.through_seq, compaction.summary
+                compaction.through_seq, summary
             ),
             reasoning_content: None,
             provider_state: None,

@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod context_handoff;
+pub use context_handoff::ContextHandoff;
 mod provider_usage;
 pub use provider_usage::{ProviderUsageRoute, ReportedModelUsage};
 mod model_gateway;

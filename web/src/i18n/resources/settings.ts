@@ -1,4 +1,6 @@
 export const zh = {
+  "context.structuredSummary": "结构化上下文摘要",
+  "context.structuredSummaryDescription": "压缩历史时分别保留目标、约束、决定、已完成工作、待办、文件与验证结果。",
   "toolSchemas.enabled": "按需加载工具定义",
   "toolSchemas.description": "常用工具保持可用，其他工具按任务搜索并加载定义，以减少上下文占用。",
   "toolSchemas.loaded": "保留的附加工具数",
@@ -815,6 +817,8 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  "context.structuredSummary": "Structured context summaries",
+  "context.structuredSummaryDescription": "Keep goals, constraints, decisions, completed work, pending work, files, and verification results in separate sections when compacting history.",
   "toolSchemas.enabled": "Load tool definitions on demand",
   "toolSchemas.description": "Keep common tools available and load other tool definitions as needed to reduce context usage.",
   "toolSchemas.loaded": "Additional tool definitions to retain",
@@ -1675,6 +1679,8 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  "context.structuredSummary": "구조화된 컨텍스트 요약",
+  "context.structuredSummaryDescription": "기록을 압축할 때 목표, 제약 조건, 결정, 완료한 작업, 남은 작업, 파일과 검증 결과를 구분하여 보존합니다.",
   "toolSchemas.enabled": "필요할 때 도구 정의 불러오기",
   "toolSchemas.description": "자주 쓰는 도구는 유지하고 다른 도구 정의는 작업에 따라 검색하여 불러와 컨텍스트 사용량을 줄입니다.",
   "toolSchemas.loaded": "유지할 추가 도구 정의 수",

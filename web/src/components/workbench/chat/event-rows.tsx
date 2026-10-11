@@ -1,3 +1,5 @@
+import { parseContextHandoff } from '@/domain/context-handoff'
+import { ContextHandoffSummary } from './context-handoff-summary'
 import * as React from 'react'
 import {
   Bot, Check, ChevronRight, CircleAlert, CircleDot, Clock3, Command, ListChecks, PackageCheck,
@@ -98,6 +100,7 @@ function CommandRow({ item, t, onSelect }: { item: Extract<EventItem, { kind: 'c
 }
 
 function CompactionRow({ item, t, onSelect }: { item: Extract<EventItem, { kind: 'compaction' }>; t: ChatTranslate; onSelect(): void }) {
+  const handoff = React.useMemo(() => item.summary ? parseContextHandoff(item.summary) : null, [item.summary])
   const [open, setOpen] = React.useState(false)
   const summary = item.running
     ? t('message.compaction.running')
@@ -113,7 +116,7 @@ function CompactionRow({ item, t, onSelect }: { item: Extract<EventItem, { kind:
       expandable={Boolean(item.summary)}
       onToggle={() => item.summary && setOpen(value => !value)}
     >
-      {item.summary && <div className={css.bodyStack}><JsonBody value={item.summary} /><button type="button" className={css.details} onClick={onSelect}>{t('details.title')}</button></div>}
+      {item.summary && <div className={css.bodyStack}>{handoff ? <ContextHandoffSummary handoff={handoff} t={t} /> : <JsonBody value={item.summary} />}<button type="button" className={css.details} onClick={onSelect}>{t('details.title')}</button></div>}
     </ChatDisclosure>
   </div>
 }

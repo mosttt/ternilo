@@ -150,9 +150,17 @@ async fn session_profile_overlay_drives_automatic_context_compaction() {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = vec![0_u8; 64 * 1024];
             let _ = stream.read(&mut request).await.unwrap();
-            let body = concat!(
-                "data: {\"choices\":[{\"delta\":{\"content\":\"summary\"}}]}\n\n",
-                "data: [DONE]\n\n"
+            let summary = serde_json::json!({
+                "objective":"Continue the implementation",
+                "constraints":["Keep existing files"],
+                "pending":["Verify the final change"],
+                "files":["src/handler.rs"],
+                "verification":["Tests have not been run"]
+            })
+            .to_string();
+            let body = format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                serde_json::json!({"choices":[{"delta":{"content":summary}}]})
             );
             stream
                 .write_all(
@@ -276,6 +284,12 @@ async fn session_profile_overlay_drives_automatic_context_compaction() {
             if compaction_id == &automatic_start.0
                 && compaction.automatic
                 && compaction.estimated_tokens_before >= 80
+                && ternilo_protocol::ContextHandoff::parse(&compaction.summary).is_some_and(|handoff|
+                    handoff.objective == "Continue the implementation"
+                        && handoff.constraints == ["Keep existing files"]
+                        && handoff.pending == ["Verify the final change"]
+                        && handoff.files == ["src/handler.rs"]
+                        && handoff.verification == ["Tests have not been run"])
     )));
 
     application.shutdown().await.unwrap();

@@ -227,7 +227,8 @@ export function PluginConfigCard({
                 const type = schemaType(field.schema)
                 const value = draft[field.key]
                 const hasOverride = value !== undefined || touched.has(field.key)
-                const label = fieldLabel(field.key, field.schema)
+                const structuredSummary = entry.kind === 'ternilo.context.compaction' && field.key === 'structured_summary'
+                const label = structuredSummary ? t('context.structuredSummary') : fieldLabel(field.key, field.schema)
                 const invalid = preview.invalid === field.key
                 const configuredLimit = preview.next[field.key] ?? field.schema.default
                 const effectiveToolLimit = entry.kind === 'ternilo.agent.react' && field.key === 'max_tool_calls' && !invalid
@@ -283,7 +284,7 @@ export function PluginConfigCard({
                       />
                     )}
                     <FieldDescription className={invalid ? 'text-destructive' : undefined}>
-                      {invalid ? t('plugins.invalidField', { name: label }) : field.schema.description || t('plugins.schemaFieldDescription', { key: field.key })}
+                      {invalid ? t('plugins.invalidField', { name: label }) : structuredSummary ? t('context.structuredSummaryDescription') : field.schema.description || t('plugins.schemaFieldDescription', { key: field.key })}
                     </FieldDescription>
                     {effectiveToolLimit !== undefined && <FieldDescription data-tool-call-limit="">
                       {effectiveToolLimit === 0 ? t('plugins.toolLimit.unlimited') : t('plugins.toolLimit.effective', { limit: effectiveToolLimit })}
