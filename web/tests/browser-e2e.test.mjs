@@ -1260,7 +1260,7 @@ test('shared workbench supports provider streaming, trajectory, stable scrolling
     await workspaceRow.getByRole('button', { name: /工作区.*的操作$/ }).click()
     assert.deepEqual(
       (await page.getByRole('menuitem').allTextContents()).map(label => label.trim()),
-      ['查看位置', '重命名', '移除工作区'],
+      ['另建会话', '查看位置', '重命名', '移除工作区'],
     )
     await page.getByRole('menuitem', { name: '重命名' }).click()
     const workspaceRenameDialog = page.getByRole('dialog', { name: '重命名工作区' })
