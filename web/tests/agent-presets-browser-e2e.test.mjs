@@ -110,7 +110,8 @@ async function chooseWorkspace(page, workspace) {
   await dialog.getByRole('list', { name: `目录 ${workspace}`, exact: true }).waitFor()
   await dialog.getByRole('button', { name: '打开所选文件夹' }).click()
   await dialog.waitFor({ state: 'detached' })
-  await newSession(page)
+  await page.getByRole('textbox', { name: '输入任务' }).waitFor()
+  await page.waitForFunction(() => Boolean(localStorage.getItem('ternilo.current-session')))
 }
 
 async function newSession(page) {

@@ -165,7 +165,12 @@ function writeCommand(file, content) {
 async function createSessionThroughUi(page) {
   const created = page.waitForResponse(response => response.request().method() === 'POST'
     && new URL(response.url()).pathname === '/api/v1/sessions')
-  await page.locator('[data-sidebar-new-session]').click()
+  const workspace = page.locator('[data-sidebar-workspace-row]').filter({
+    has: page.locator('[data-sidebar-workspace-button][data-active="true"]'),
+  })
+  await workspace.hover()
+  await workspace.getByRole('button', { name: /的操作$/ }).click()
+  await page.getByRole('menuitem', { name: '另建会话', exact: true }).click()
   const response = await created
   assert.equal(response.status(), 201)
   const session = await response.json()
