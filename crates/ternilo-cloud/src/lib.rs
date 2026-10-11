@@ -58,7 +58,7 @@ pub use outer_sandbox::{OUTER_SANDBOX_KIND, outer_sandbox_factory};
 pub use run_lineage::CloudRunLineage;
 pub use steering::CloudSteeringTicket;
 pub use store::{CloudStore, EncryptedUserProviderCredential, UserProviderRoute, spec_digest};
-pub use subagents::{CloudSubagent, WorkerSubagentRun};
+pub use subagents::{CloudSubagent, WorkerSubagentRun, worker_subagent_profile};
 pub use telemetry::{ClaimedCloudTelemetry, CloudSessionTelemetry};
 pub use ternilo_builtins::{
     BROKERED_MODEL_KIND, BrokeredModelConfig, model_gateway_factory, profile_model_snapshot,

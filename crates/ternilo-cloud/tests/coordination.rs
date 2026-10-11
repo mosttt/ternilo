@@ -220,6 +220,38 @@ async fn contract(control: ControlStore, cloud: CloudStore) {
         .await
         .unwrap();
     let next_parent = fixture.start(&compiled.spec.metadata.run_id).await;
+    // Older child sessions and explicit session overrides can omit inherited plugins.
+    let overrides = child
+        .profile_plugins
+        .iter()
+        .filter(|entry| entry.id != "model")
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut transaction = fixture
+        .cloud
+        .database()
+        .tenant_transaction(&fixture.tenant)
+        .await
+        .unwrap();
+    ternilo_storage::set_user_scope(&mut transaction, &fixture.owner.user_id)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE cloud_sessions SET profile_plugins=$3 WHERE tenant_id=$1 AND session_id=$2",
+    )
+    .bind(fixture.tenant.as_str())
+    .bind(child_id.as_str())
+    .bind(ternilo_storage::Json(&overrides))
+    .execute(&mut *transaction)
+    .await
+    .unwrap();
+    transaction.commit().await.unwrap();
+    let updated_child = fixture
+        .cloud
+        .get_session(&fixture.tenant, &child_id)
+        .await
+        .unwrap();
+    spec.profile = ternilo_cloud::worker_subagent_profile(&next_parent.claim.spec, &updated_child);
     spec.metadata.run_id = RunId::new("role-followup");
     "followup".clone_into(&mut spec.input);
     let mut forged = spec.clone();

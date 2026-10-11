@@ -505,7 +505,7 @@ async fn dispatch(
             } else {
                 child.mode
             };
-            spec.profile.plugins = child.profile_plugins.clone();
+            spec.profile = ternilo_cloud::worker_subagent_profile(&run.claim.spec, &child);
             spec.metadata.session_id = child_session_id.clone();
             spec.metadata.run_id = child_run_id;
             spec.input.clone_from(&input);

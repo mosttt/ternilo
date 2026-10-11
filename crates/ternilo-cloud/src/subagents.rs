@@ -440,6 +440,25 @@ impl CloudStore {
     }
 }
 
+#[must_use]
+pub fn worker_subagent_profile(
+    parent: &RunSpec,
+    child: &CloudSessionRecord,
+) -> ternilo_protocol::Profile {
+    let mut profile = ternilo_kernel::compose_profiles([
+        parent.profile.clone(),
+        ternilo_protocol::Profile {
+            plugins: child.profile_plugins.clone(),
+        },
+    ]);
+    for entry in &mut profile.plugins {
+        if entry.enabled && entry.kind == crate::BROKERED_MODEL_KIND {
+            entry.config = serde_json::json!({"snapshot":child.model});
+        }
+    }
+    profile
+}
+
 fn validate_child_spec(
     child: &CloudSessionRecord,
     parent: &StartedRun,
@@ -466,7 +485,7 @@ fn validate_child_spec(
     if crate::profile_model_snapshot(&spec.profile)? != child.model
         || spec.permissions != permissions
         || spec.mode != mode
-        || spec.profile.plugins != child.profile_plugins
+        || spec.profile != worker_subagent_profile(&parent.claim.spec, child)
     {
         return Err(HarnessError::policy(
             "subagent must retain its accepted model binding and permission ceiling",
