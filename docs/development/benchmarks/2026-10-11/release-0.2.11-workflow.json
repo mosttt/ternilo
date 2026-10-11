@@ -1,0 +1,144 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-11T04:03:44Z",
+  "event": "push",
+  "headSha": "b9e069625634fa5d6945e464bbde68933322a888",
+  "jobs": [
+    {
+      "name": "version",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:46Z",
+      "completedAt": "2026-10-11T04:03:50Z"
+    },
+    {
+      "name": "server-image-build (ubuntu-24.04, amd64)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:53Z",
+      "completedAt": "2026-10-11T04:24:56Z"
+    },
+    {
+      "name": "server-image-build (ubuntu-24.04-arm, arm64)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:55Z",
+      "completedAt": "2026-10-11T04:23:57Z"
+    },
+    {
+      "name": "packages / matrix",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:53Z",
+      "completedAt": "2026-10-11T04:03:58Z"
+    },
+    {
+      "name": "checks / client-server",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:53Z",
+      "completedAt": "2026-10-11T04:57:38Z"
+    },
+    {
+      "name": "checks / dependencies",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:53Z",
+      "completedAt": "2026-10-11T04:06:28Z"
+    },
+    {
+      "name": "checks / platforms (macos-15-intel, x86_64-apple-darwin)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:56Z",
+      "completedAt": "2026-10-11T04:26:49Z"
+    },
+    {
+      "name": "checks / platforms (macos-15, aarch64-apple-darwin)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:58Z",
+      "completedAt": "2026-10-11T04:11:08Z"
+    },
+    {
+      "name": "checks / platforms (windows-2025, x86_64-pc-windows-msvc)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:52Z",
+      "completedAt": "2026-10-11T04:11:15Z"
+    },
+    {
+      "name": "checks / platforms (ubuntu-24.04-arm, aarch64-unknown-linux-gnu)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:03:55Z",
+      "completedAt": "2026-10-11T04:17:43Z"
+    },
+    {
+      "name": "packages / packages (windows-2025, x86_64-pc-windows-msvc, nsis,msi, .exe)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:04:00Z",
+      "completedAt": "2026-10-11T05:16:42Z"
+    },
+    {
+      "name": "packages / packages (ubuntu-24.04-arm, aarch64-unknown-linux-gnu, deb,appimage)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:04:02Z",
+      "completedAt": "2026-10-11T04:44:59Z"
+    },
+    {
+      "name": "packages / packages (windows-11-arm, aarch64-pc-windows-msvc, nsis, .exe)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:04:00Z",
+      "completedAt": "2026-10-11T05:26:27Z"
+    },
+    {
+      "name": "packages / packages (ubuntu-24.04, x86_64-unknown-linux-gnu, deb,appimage)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:04:01Z",
+      "completedAt": "2026-10-11T04:42:40Z"
+    },
+    {
+      "name": "packages / packages (macos-15, aarch64-apple-darwin, dmg)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:04:07Z",
+      "completedAt": "2026-10-11T04:49:19Z"
+    },
+    {
+      "name": "packages / packages (macos-15-intel, x86_64-apple-darwin, dmg)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T04:04:03Z",
+      "completedAt": "2026-10-11T05:48:35Z"
+    },
+    {
+      "name": "server-image",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T05:48:37Z",
+      "completedAt": "2026-10-11T05:49:31Z"
+    },
+    {
+      "name": "publish-release",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T05:49:34Z",
+      "completedAt": "2026-10-11T05:50:08Z"
+    },
+    {
+      "name": "server-image-latest / promote",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-11T05:50:11Z",
+      "completedAt": "2026-10-11T05:50:39Z"
+    }
+  ],
+  "status": "completed",
+  "updatedAt": "2026-10-11T05:50:40Z",
+  "url": "https://github.com/mosttt/ternilo/actions/runs/38110378313"
+}

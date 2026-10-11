@@ -1,0 +1,143 @@
+{
+  "version": "0.2.11",
+  "source": "b9e069625634fa5d6945e464bbde68933322a888",
+  "stage": "candidate",
+  "package_sha256": {
+    "ternilo-0.2.11-x86_64-unknown-linux-gnu.tar.gz": "9357fc888ecabbcb0366ea8b1b05621bccfb46702c73bf2f941e766185d501d1",
+    "ternilo-server-0.2.11-x86_64-unknown-linux-gnu.tar.gz": "118cc6c9c397d8ab19ee35d8ad6d796bfa86c66edbaa66a262608ced6f3a8262"
+  },
+  "groups": [
+    {
+      "name": "workspace-project",
+      "seconds": 14.26,
+      "exit_code": 0
+    },
+    {
+      "name": "project-sharing",
+      "seconds": 19.77,
+      "exit_code": 0
+    }
+  ],
+  "workspace_project_observations": {
+    "source": "prj_Y5UJRd2bsS-SH6A6oSOwFQ",
+    "destination": "prj_Sm9F2UVM707p7XJOEOu5og",
+    "revision": 2,
+    "filesPreserved": true,
+    "historyPreserved": true,
+    "observations": {
+      "pageErrors": [],
+      "consoleErrors": [
+        {
+          "url": "http://127.0.0.1:33735/api/v1/sessions/ses_3HCbBMoszKLLCr9ywX-qgw/workspace",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        }
+      ],
+      "httpErrors": [
+        {
+          "url": "http://127.0.0.1:33735/api/v1/sessions/ses_3HCbBMoszKLLCr9ywX-qgw/workspace",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "screenshots_inspected": [
+    "workspace-project-desktop.png",
+    "workspace-project-mobile.png"
+  ],
+  "matches_published_archives": true,
+  "public_recheck": {
+    "version": "0.2.11",
+    "source": "b9e069625634fa5d6945e464bbde68933322a888",
+    "stage": "public",
+    "package_sha256": {
+      "ternilo-0.2.11-x86_64-unknown-linux-gnu.tar.gz": "9357fc888ecabbcb0366ea8b1b05621bccfb46702c73bf2f941e766185d501d1",
+      "ternilo-server-0.2.11-x86_64-unknown-linux-gnu.tar.gz": "118cc6c9c397d8ab19ee35d8ad6d796bfa86c66edbaa66a262608ced6f3a8262"
+    },
+    "groups": [
+      {
+        "name": "workspace-project",
+        "seconds": 9.31,
+        "exit_code": 0
+      }
+    ],
+    "matches_candidate": true,
+    "workspace_project_observations": {
+      "source": "prj_GoWxWIR_gVYs_TPKi5GVsQ",
+      "destination": "prj__EKCZkd-UY46glwXHgQ8rA",
+      "revision": 2,
+      "filesPreserved": true,
+      "historyPreserved": true,
+      "observations": {
+        "pageErrors": [],
+        "consoleErrors": [
+          {
+            "url": "http://127.0.0.1:36635/api/v1/sessions/ses_aOkn_fmsxBsCneeVG3jvNQ/commands",
+            "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+          },
+          {
+            "url": "http://127.0.0.1:36635/api/v1/sessions/ses_aOkn_fmsxBsCneeVG3jvNQ/queue",
+            "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+          },
+          {
+            "url": "http://127.0.0.1:36635/api/v1/sessions/ses_aOkn_fmsxBsCneeVG3jvNQ/workspace",
+            "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+          }
+        ],
+        "httpErrors": [
+          {
+            "url": "http://127.0.0.1:36635/api/v1/sessions/ses_aOkn_fmsxBsCneeVG3jvNQ/commands",
+            "status": 503,
+            "actor": "owner",
+            "revoking": true,
+            "restarting": true,
+            "body": {
+              "error": {
+                "code": "unavailable",
+                "message": "selected Ternilo node is offline"
+              }
+            }
+          },
+          {
+            "url": "http://127.0.0.1:36635/api/v1/sessions/ses_aOkn_fmsxBsCneeVG3jvNQ/queue",
+            "status": 503,
+            "actor": "owner",
+            "revoking": true,
+            "restarting": true,
+            "body": {
+              "error": {
+                "code": "unavailable",
+                "message": "selected Ternilo node is offline"
+              }
+            }
+          },
+          {
+            "url": "http://127.0.0.1:36635/api/v1/sessions/ses_aOkn_fmsxBsCneeVG3jvNQ/workspace",
+            "status": 503,
+            "actor": "owner",
+            "revoking": true,
+            "restarting": true,
+            "body": {
+              "error": {
+                "code": "unavailable",
+                "message": "selected Ternilo node is offline"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "screenshots_inspected": [
+      "workspace-project-desktop.png",
+      "workspace-project-mobile.png"
+    ]
+  }
+}

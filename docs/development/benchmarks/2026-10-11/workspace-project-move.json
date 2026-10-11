@@ -172,5 +172,156 @@
     },
     "duration_seconds": 14.67
   },
-  "scope": "Same-space management project moves; execution project, storage identity and usage attribution remain unchanged."
+  "scope": "Same-space management project moves; execution project, storage identity and usage attribution remain unchanged.",
+  "target_project_group_probe": {
+    "source": "prj__NXM-XDEqmi1FxYF8SO8pg",
+    "destination": "prj_18zGmfWceBkebXE7BPB2XA",
+    "revision": 3,
+    "groupGrantVerified": true,
+    "filesPreserved": true,
+    "historyPreserved": true,
+    "observations": {
+      "pageErrors": [],
+      "consoleErrors": [
+        {
+          "url": "http://127.0.0.1:45095/api/v1/sessions/ses_fWsEIvnFiK0glLZI_J4cDA/commands",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:45095/api/v1/sessions/ses_fWsEIvnFiK0glLZI_J4cDA/workspace",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:45095/api/v1/sessions/ses_fWsEIvnFiK0glLZI_J4cDA/commands",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        }
+      ],
+      "httpErrors": [
+        {
+          "url": "http://127.0.0.1:45095/api/v1/sessions/ses_fWsEIvnFiK0glLZI_J4cDA/commands",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:45095/api/v1/sessions/ses_fWsEIvnFiK0glLZI_J4cDA/workspace",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:45095/api/v1/sessions/ses_fWsEIvnFiK0glLZI_J4cDA/commands",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        }
+      ]
+    },
+    "duration_seconds": 14.95
+  },
+  "read_only_live_baseline": {
+    "source": "prj_W7yrqn3QH1y9WA7Nw525xw",
+    "destination": "prj_8qKRySXfgUddZxXM2yVFYA",
+    "revision": 2,
+    "readerLiveBaselineVerified": true,
+    "filesPreserved": true,
+    "historyPreserved": true,
+    "observations": {
+      "pageErrors": [],
+      "consoleErrors": [
+        {
+          "url": "http://127.0.0.1:41315/api/v1/sessions/ses_pQLck2OAHn0mR5Rl9_oLVA/commands",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:41315/api/v1/sessions/ses_pQLck2OAHn0mR5Rl9_oLVA/workspace",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:41315/api/v1/sessions/ses_pQLck2OAHn0mR5Rl9_oLVA/queue",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        },
+        {
+          "url": "http://127.0.0.1:41315/api/v1/sessions/ses_pQLck2OAHn0mR5Rl9_oLVA/commands",
+          "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        }
+      ],
+      "httpErrors": [
+        {
+          "url": "http://127.0.0.1:41315/api/v1/sessions/ses_pQLck2OAHn0mR5Rl9_oLVA/commands",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:41315/api/v1/sessions/ses_pQLck2OAHn0mR5Rl9_oLVA/workspace",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:41315/api/v1/sessions/ses_pQLck2OAHn0mR5Rl9_oLVA/queue",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        },
+        {
+          "url": "http://127.0.0.1:41315/api/v1/sessions/ses_pQLck2OAHn0mR5Rl9_oLVA/commands",
+          "status": 503,
+          "actor": "owner",
+          "revoking": true,
+          "restarting": true,
+          "body": {
+            "error": {
+              "code": "unavailable",
+              "message": "selected Ternilo node is offline"
+            }
+          }
+        }
+      ]
+    },
+    "duration_seconds": 14.72
+  }
 }

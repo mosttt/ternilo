@@ -1,0 +1,19 @@
+{
+  "image": "ghcr.io/mosttt/ternilo-server:0.2.11",
+  "anonymous": true,
+  "index_digest": "sha256:f864cecaeca0ccc75ab7f96c8ebab275e921b9ce66a4eaf796f92eccfdc9d536",
+  "latest_digest": "sha256:f864cecaeca0ccc75ab7f96c8ebab275e921b9ce66a4eaf796f92eccfdc9d536",
+  "platform_digests": {
+    "amd64": "sha256:67f301d4f138c6f11de252c38e7c41dfb39ec82c8c1d9090b69bc7b0326f3be8",
+    "arm64": "sha256:9aa1d82dcefd38bf01e2a6f866b7edbed28ba798095e137a1f306da164cca9ee"
+  },
+  "source_commit": "b9e069625634fa5d6945e464bbde68933322a888",
+  "user": "10001",
+  "runtime_smoke": {
+    "image": "ghcr.io/mosttt/ternilo-server:0.2.11",
+    "anonymous_pull": true,
+    "exit_code": 0,
+    "seconds": 188.98,
+    "validation": "Server image passed: non-root process, read-only root, initialization, login, settings, embedded Web and persistent restart"
+  }
+}
