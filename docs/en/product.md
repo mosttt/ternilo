@@ -47,7 +47,7 @@ Desktop connects to the local service. A module boundary does not imply a separa
 
 | Area | Available | Remaining boundary |
 |---|---|---|
-| Multiple computers | Local and connected computers, remote folders, file tasks and cached history | Offline history contains only synchronized events; Cloud projections still replay events |
+| Multiple computers | Local and connected computers, remote folders, file tasks and cached history | Offline history contains only synchronized events; ordinary Cloud statistics are incremental, while full plugin projections still replay history |
 | Models | Account/device/platform sources, remote-computer model forwarding, collaborator-provided managed models, independent client grants, actor-preserving child tasks and schedules | More provider-hosted tools and independent model authorization policies |
 | Protocols | OpenAI Chat, OpenAI Responses, DeepSeek Responses, Gemini and Claude Messages; Claude hosted search/fetch | Other provider-hosted tools, Vertex AI and Bedrock |
 | Accounts | Native accounts, invitation/open/approval registration, bans/removal, OIDC, unified local sign-in session management, Turnstile, self-service passwords, verified email recovery, TOTP/recovery codes, operator recovery and space-scoped service account identity/credentials, workspace grants and Live/SDK access | Passkeys are not available; service accounts use explicitly authorized session models, with separate model-owner checks |

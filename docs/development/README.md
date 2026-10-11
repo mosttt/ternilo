@@ -4,6 +4,7 @@
 
 - [2026-10-09 后续推进记录](continuation-2026-10-09.md)：用户确认的发行验收、文档与测试同步、稳定性、性能、桌面交付和资源迁移实施顺序；排除 Work。
 - [2026-10-11 GitHub PR 审查](pr-review-2026-10-11.md)：两项 PR 的审查、测试修正、生成资源冲突处理与合并结果。
+- [个人资源迁移](personal-resource-migration.md)：用户选定的个人工作区及会话迁入已有团队；当前边界核对与待实现范围。
 - [工作区管理项目迁移](workspace-project-move.md)：同空间跨项目管理、显式共享继承和原执行身份保留的实施与验收。
 - [v0.2.11 发行与验收](release-0.2.11-acceptance.md)：工作区管理项目迁移的完整发行门禁与公开产物验证。
 - [v0.2.10 发行与验收](release-0.2.10-acceptance.md)：日志并发读取和 Python SDK 重启重连补丁的发行程序／公开产物验收。
@@ -26,7 +27,7 @@
 - [Node 账号清理](node-account-cleanup.md)：离线撤销、启动屏障、选择性收尾和实际完成回执。
 - [OIDC 来源与公网地址](oidc-browser-origin.md)：浏览器加密能力、回调来源与错误配置恢复。
 - [跨 Server 共享权限通知](resource-notifications.md)：持久失效提示、双 Server 验收与资源交接约束。
-- [当前剩余任务清单](remaining-task-audit.md)：本阶段收尾、发行、后续产品能力和 Work 预留的完整分类。
+- [当前剩余任务清单](remaining-task-audit.md)：截至 v0.2.11 的 42 项已知剩余事项、状态与已完成项；排除 Work。
 - [电脑管理闭环](computer-management.md)：本轮名称／备注、详情、暂停／恢复及保留历史的移除登记；凭据轮换后移。
 - [本地服务自动打开浏览器](local-browser-launch.md)：本次启动的浏览器开关、就绪检测和失败时继续服务。
 - [资源管理权交接](resource-ownership.md)：当前管理者、原执行身份、版本冲突与共享保留；真实浏览器和受限 PostgreSQL 验收通过。
