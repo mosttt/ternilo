@@ -19,6 +19,11 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { WorkspaceLocationDetails, workspacePlacementLabel } from './workspace-location'
 import css from './workspace-rows.module.css'
 
+function SidebarHoverRow({ onTouchStart: _onTouchStart, ...props }: React.ComponentPropsWithRef<'div'>) {
+  // Radix cancels touchstart for link triggers. These rows contain buttons and must keep native taps.
+  return <div {...props} />
+}
+
 export type DropMarker = 'before' | 'after' | null
 
 export interface RowDragHandlers {
@@ -79,7 +84,7 @@ function ManualOrderMenu({ order }: { order: RowOrderActions }) {
   )
 }
 
-export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnly = false, platform = false, showPlacement = false, computerGrouped = false, onToggle, onNewSession, onRename, onUnregister, onShare, onMoveProject }: {
+export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnly = false, platform = false, showPlacement = false, computerGrouped = false, onToggle, onNewSession, onCreateAnother, onRename, onUnregister, onShare, onMoveProject }: {
   workspace: Workspace
   platform?: boolean
   showPlacement?: boolean
@@ -91,6 +96,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
   readOnly?: boolean
   onToggle(): void
   onNewSession(): void
+  onCreateAnother?(): void
   onRename(): void
   onUnregister(): void
   onShare?(): void
@@ -110,7 +116,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
   const openLocation = () => { setHoverOpen(false); setLocationOpen(true) }
 
   const row = (
-    <div
+    <SidebarHoverRow
       className={cn(
         css.workspaceRow,
         menuOpen && css.menuOpen,
@@ -155,6 +161,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
+            {onCreateAnother && <DropdownMenuItem disabled={!permissions.submit} onSelect={onCreateAnother}><Plus />{t('session.createAnother')}</DropdownMenuItem>}
             <DropdownMenuItem onSelect={openLocation}><MapPin />{t('location.view')}</DropdownMenuItem>
             <DropdownMenuItem disabled={!permissions.configure} onSelect={onRename}><Pencil />{t('rename')}</DropdownMenuItem>
             {onMoveProject && isOwner && permissions.configure && <DropdownMenuItem onSelect={onMoveProject}><FolderInput />{t('move.action')}</DropdownMenuItem>}
@@ -170,7 +177,7 @@ export function WorkspaceRow({ workspace, expanded, active, drag, order, readOnl
       {!(permissions.configure || permissions.submit || isOwner || onShare) && <span className={css.rowActions}>
         <button type="button" className={css.iconButton} aria-label={t('location.view')} onClick={openLocation}><MapPin size={15} /></button>
       </span>}
-    </div>
+    </SidebarHoverRow>
   )
 
   return <>
@@ -252,7 +259,7 @@ function statusLabel(status: SessionStatusView, t: ReturnType<typeof useTranslat
   return t(keys[status.kind])
 }
 
-export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', kind: 'idle' }], now, active, drag, order, readOnly = false, forkLocked = false, depth = 0, levelOffset = 0, childCount = 0, childrenExpanded = true, onToggleChildren, onSelect, onRename, onFork, onArchive, onShare }: {
+export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', kind: 'idle' }], now, active, drag, order, readOnly = false, forkLocked = false, depth = 0, levelOffset = 0, childCount = 0, childrenExpanded = true, onToggleChildren, onSelect, onRename, onFork, onArchive, onDelete, onShare }: {
   session: LocalSession
   searchHit?: SessionSearchHit
   statuses?: readonly SessionStatusView[]
@@ -271,6 +278,7 @@ export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', ki
   onRename(session: LocalSession): void
   onFork(session: LocalSession): Promise<void>
   onArchive(session: LocalSession): Promise<void>
+  onDelete?(session: LocalSession): void
   onShare?(session: LocalSession): void
 }) {
   const t = useTranslate('workspace')
@@ -282,13 +290,13 @@ export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', ki
   const id = session.identity.session_id
   const timestamp = searchHit?.occurred_at_ms ?? session.updated_at_ms
   const primary = statuses[0] ?? { state: 'idle', kind: 'idle' } as const
-  const title = session.blank || session.title === 'New session'
+  const title = session.title === 'New session'
     ? t('session.new')
     : session.title || t('session.new')
   const absoluteTime = sessionAbsoluteTime(timestamp, locale)
   const rowStyle = { '--session-indent': `${depth * 14}px` } as React.CSSProperties
   const row = (
-    <div
+    <SidebarHoverRow
       className={cn(
         css.sessionRow,
         active && css.selected,
@@ -354,7 +362,7 @@ export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', ki
           </time>
         )}
       </button>
-      {(permissions.configure || permissions.submit || onShare) && !session.blank && (
+      {(permissions.configure || permissions.submit || onShare) && (
         <span className={css.rowActions}>
           <DropdownMenu open={menuOpen} onOpenChange={open => { setMenuOpen(open); if (open) setHoverOpen(false) }}>
             <DropdownMenuTrigger asChild>
@@ -362,15 +370,16 @@ export function SessionRow({ session, searchHit, statuses = [{ state: 'idle', ki
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem disabled={!permissions.configure} onSelect={() => onRename(session)}><Pencil />{t('rename')}</DropdownMenuItem>
-              <DropdownMenuItem disabled={forkLocked || !permissions.submit} onSelect={() => void onFork(session)}><GitFork />{t(forkLocked ? 'menu.forking' : 'menu.fork')}</DropdownMenuItem>
+              <DropdownMenuItem disabled={Boolean(session.blank) || forkLocked || !permissions.submit} onSelect={() => void onFork(session)}><GitFork />{t(forkLocked ? 'menu.forking' : 'menu.fork')}</DropdownMenuItem>
               <DropdownMenuItem disabled={!permissions.configure} onSelect={() => void onArchive(session)}><Archive />{t('menu.archiveSession')}</DropdownMenuItem>
+              {session.blank && onDelete && ownsResource(session.access, !readOnly) && <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onDelete(session)}><Trash2 />{t('session.deleteBlank')}</DropdownMenuItem>}
               {onShare && <DropdownMenuItem onSelect={() => onShare(session)}><Share2 />{t(ownsResource(session.access, !readOnly) && permissions.configure ? 'sharing.action' : 'sharing.viewAccess')}</DropdownMenuItem>}
-              {order && <ManualOrderMenu order={order} />}
+              {!session.blank && order && <ManualOrderMenu order={order} />}
             </DropdownMenuContent>
           </DropdownMenu>
         </span>
       )}
-    </div>
+    </SidebarHoverRow>
   )
   return (
     <HoverCard.Root open={menuOpen ? false : hoverOpen} onOpenChange={open => { if (!menuOpen) setHoverOpen(open) }} openDelay={500} closeDelay={200}>

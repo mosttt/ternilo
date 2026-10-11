@@ -17,6 +17,8 @@ import { useTranslate } from '@/i18n/provider'
 import {
   committedComposerDraft,
   readComposerDraft,
+  readComposerExtras,
+  writeComposerExtras,
   restoredFailedDrafts,
   writeComposerDraft,
 } from '@/domain/composer-draft'
@@ -145,8 +147,8 @@ export function InputBar({
   const chatT = useTranslate('chat')
   const [draft, setDraft] = React.useState(() => readComposerDraft(window.localStorage, sessionId, accountScope))
   const [selection, setSelection] = React.useState<ComposerSelection>(() => ({ start: draft.length, end: draft.length }))
-  const [attachments, setAttachments] = React.useState<Attachment[]>([])
-  const [references, setReferences] = React.useState<ComposerReference[]>([])
+  const [attachments, setAttachments] = React.useState<Attachment[]>(() => readComposerExtras(sessionId, accountScope).attachments)
+  const [references, setReferences] = React.useState<ComposerReference[]>(() => readComposerExtras(sessionId, accountScope).references)
   const [composing, setComposing] = React.useState(false)
   const [menuIndex, setMenuIndex] = React.useState(0)
   const [launcherOpen, setLauncherOpen] = React.useState(false)
@@ -288,12 +290,14 @@ export function InputBar({
   const changeAttachments = (update: Attachment[] | ((current: Attachment[]) => Attachment[])) => {
     const next = typeof update === 'function' ? update(attachmentsRef.current) : update
     attachmentsRef.current = next
+    writeComposerExtras(sessionId, { attachments: next, references: referencesRef.current }, accountScope)
     setAttachments(next)
   }
 
   const changeReferences = (update: ComposerReference[] | ((current: ComposerReference[]) => ComposerReference[])) => {
     const next = typeof update === 'function' ? update(referencesRef.current) : update
     referencesRef.current = next
+    writeComposerExtras(sessionId, { attachments: attachmentsRef.current, references: next }, accountScope)
     setReferences(next)
   }
 

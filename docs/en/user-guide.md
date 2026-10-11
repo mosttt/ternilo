@@ -6,6 +6,10 @@ Start locally with [getting started](getting-started.md), or connect computers t
 
 Choose the intended computer or managed location, open a directory, and create a conversation. Select its model, execution permissions and Agent preset before sending the first task. In Server, folder browsing happens on the selected computer. An offline computer can expose retained history but cannot accept file/configuration changes or execute work.
 
+“New Session” reuses a blank session in the same workspace when its configuration matches and it has no draft, attachments, references or pending work. Repeated clicks share one operation. To prepare several tasks, choose “Create another session” from the workspace menu; there is no hard limit. Renamed sessions and sessions with different configuration are preserved.
+
+Blank sessions also have rename and archive actions. Owners can choose “Delete blank session…” and confirm deletion of the session and their draft and unsent attachments in this browser; workspace files remain. Cancelling keeps the prepared content. Draft text is stored in this browser. Unsent attachments and references survive switching sessions within the current page but must be added again after a page reload.
+
 The input area distinguishes sending a new turn, queueing behind current work and injecting supported follow-up input. General settings control Enter behavior while busy. Inspect the queue to edit or remove pending submissions; stopping a running turn and removing a queued submission are different actions. A manual stop preserves completed operations and durable history.
 
 Consecutive queued messages from the same authenticated account can enter one run while keeping separate messages, authors, attachments and references. Different authors form separate batches in FIFO order; later messages never jump over another author. Local input remains separate from platform accounts. Unattributed inputs and automated tasks without a provable common author run individually.

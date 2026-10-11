@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError } from '@/api/client'
 import { REMOTE_TOKEN_STORAGE_KEY } from '@/auth/remote-token'
 import { NATIVE_SESSION_KEY } from '@/auth/server'
+import { clearComposerDraft, hasComposerDraft, writeComposerDraft, writeComposerExtras } from '@/domain/composer-draft'
 import { defaultPermissionStorageKey } from '@/domain/default-permission'
 import type {
   AgentPresetRoster, ApplicationCatalog, ApplicationState, LocalSession, TenantSummary, Workspace,
@@ -505,6 +506,96 @@ describe('WorkbenchProvider request epochs', () => {
     ])
   })
 
+  it('reuses an untouched blank session, coalesces repeated clicks and preserves explicit new sessions', async () => {
+    window.__TERNILO_BOOT__ = {}
+    const blank = { ...session('blank-reuse', 'workspace-a', 2, 'New session'), blank: true, placement: 'local_node' as const, model: { provider: 'named_provider' as const, provider_id: 'fixture', model: 'prepared-model' } }
+    clearComposerDraft(localStorage, 'blank-reuse')
+    const state: ApplicationState = { workspaces: [workspace('workspace-a')], sessions: [blank] }
+    let creates = 0
+    const request = vi.spyOn(api, 'request').mockImplementation(async (path: string, options?: { body?: unknown }) => {
+      if (route(path) === '/catalog') return catalog('initial') as never
+      if (route(path) === '/agent-presets') return presets('standard') as never
+      if (route(path) === '/state') return state as never
+      if (route(path) === '/default-model') return { model: 'prepared-model', provider_id: 'fixture', provider: 'named_provider' } as never
+      if (route(path) === '/agent-presets/standard') return { profile: { plugins: [] } } as never
+      if (path === '/sessions/blank-reuse/queue') return { session_id: 'blank-reuse', items: [] } as never
+      if (path === '/sessions' && options?.body) {
+        const created = { ...blank, identity: { ...blank.identity, session_id: `new-${++creates}` } }
+        state.sessions.push(created)
+        return created as never
+      }
+      throw new Error(`unexpected request ${path}`)
+    })
+    await mount()
+    await act(async () => {
+      const result = await Promise.all([current.createSession('workspace-a'), current.createSession('workspace-a')])
+      expect(result.map(value => value.identity.session_id)).toEqual(['blank-reuse', 'blank-reuse'])
+    })
+    expect(creates).toBe(0)
+    expect(request.mock.calls.filter(([path]) => path === '/sessions/blank-reuse/queue')).toHaveLength(1)
+    await act(async () => { await current.createSession('workspace-a', undefined, { forceNew: true }) })
+    expect(creates).toBe(1)
+    expect(current.currentSessionId).toBe('new-1')
+  })
+
+  it.each(['draft', 'attachment', 'reference', 'renamed', 'permissions', 'mode', 'preset', 'model', 'plugins', 'preset-snapshot', 'queued', 'running', 'paused'])('does not reuse a blank session with %s preparation', async preparation => {
+    window.__TERNILO_BOOT__ = {}
+    const blank = { ...session('prepared-blank', 'workspace-a', 1, 'New session'), blank: true }
+    clearComposerDraft(localStorage, 'prepared-blank')
+    if (preparation === 'draft') writeComposerDraft(localStorage, 'prepared-blank', 'unsent task')
+    if (preparation === 'attachment') writeComposerExtras('prepared-blank', { attachments: [{ name: 'note.txt', media_type: 'text/plain', content: 'unsent' }], references: [] })
+    if (preparation === 'reference') writeComposerExtras('prepared-blank', { attachments: [], references: [{ id: 'file', kind: 'file', label: 'task.txt', detail: '', reference: { kind: 'file', path: 'task.txt', file_kind: 'file' } }] })
+    if (preparation === 'renamed') blank.title = 'Prepared task'
+    if (preparation === 'permissions') blank.permissions = 'read_only'
+    if (preparation === 'mode') blank.mode = 'plan'
+    if (preparation === 'preset') blank.agent_preset = 'custom'
+    if (preparation === 'model') blank.model = { provider: 'named_provider', provider_id: 'fixture', model: 'custom-model' }
+    if (preparation === 'plugins') blank.profile_plugins = [{ id: 'prepared', kind: 'fixture', enabled: true, config: {} }]
+    if (preparation === 'preset-snapshot') blank.preset_plugins = [{ id: 'old-preset', kind: 'fixture', enabled: true, config: {} }]
+    const state: ApplicationState = { workspaces: [workspace('workspace-a')], sessions: [blank] }
+    let creates = 0
+    vi.spyOn(api, 'request').mockImplementation(async (path: string) => {
+      if (route(path) === '/catalog') return catalog('initial') as never
+      if (route(path) === '/agent-presets') return presets('standard') as never
+      if (route(path) === '/state') return state as never
+      if (route(path) === '/default-model') return { provider: 'profile_default' } as never
+      if (route(path) === '/agent-presets/standard') return { profile: { plugins: [] } } as never
+      if (path === '/sessions/prepared-blank/queue') return {
+        session_id: 'prepared-blank', items: preparation === 'queued' ? [{ id: 'queued-task' }] : [],
+        active_run_id: preparation === 'running' ? 'run-one' : null, paused: preparation === 'paused',
+      } as never
+      if (path === '/sessions') { creates += 1; return { ...blank, identity: { ...blank.identity, session_id: 'created' } } as never }
+      throw new Error(`unexpected request ${path}`)
+    })
+    await mount()
+    await act(async () => { await current.createSession('workspace-a') })
+    expect(creates).toBe(1)
+    clearComposerDraft(localStorage, 'prepared-blank')
+  })
+
+  it.each([false, true])('reuses Cloud preset defaults while preserving a separately configured budget (%s)', async configured => {
+    window.__TERNILO_BOOT__ = {}
+    const plugins = [{ id: 'preset-plugin', kind: 'fixture', enabled: true, config: {} }]
+    const blank: LocalSession = { ...session('cloud-blank', 'workspace-a', configured ? 2 : 1, 'New session'),
+      blank: true, placement: 'cloud', profile_plugins: plugins, model_token_limit: configured ? 65_536 : 32_768 }
+    const state: ApplicationState = { workspaces: [{ ...workspace('workspace-a'), placement: 'cloud' }], sessions: [blank] }
+    let creates = 0
+    vi.spyOn(api, 'request').mockImplementation(async (path: string) => {
+      if (route(path) === '/catalog') return catalog('initial') as never
+      if (route(path) === '/agent-presets') return presets('standard') as never
+      if (route(path) === '/state') return state as never
+      if (route(path) === '/default-model') return blank.model as never
+      if (route(path) === '/agent-presets/standard') return { profile: { plugins } } as never
+      if (path === '/sessions/cloud-blank/queue') return { items: [] } as never
+      if (path === '/sessions') { creates += 1; return { ...blank, identity: { ...blank.identity, session_id: 'new-cloud' } } as never }
+      throw new Error(`unexpected request ${path}`)
+    })
+    await mount()
+    await act(async () => { await current.createSession('workspace-a') })
+    expect(creates).toBe(configured ? 1 : 0)
+    expect(blank.model_token_limit).toBe(configured ? 65_536 : 32_768)
+  })
+
   it('publishes one shared creating and hydration lifecycle for every fork entry point', async () => {
     window.__TERNILO_BOOT__ = {}
     const source = session('source', 'workspace-a', 1)
@@ -579,15 +670,19 @@ describe('WorkbenchProvider request epochs', () => {
     await mount()
 
     let deletion!: Promise<void>
+    writeComposerDraft(localStorage, 'session-a', 'prepared task')
+    writeComposerExtras('session-a', { attachments: [{ name: 'task.txt', media_type: 'text/plain', content: 'prepared' }], references: [] })
     act(() => { deletion = current.deleteSession('session-a') })
     expect(current.snapshot.sessions).toEqual([])
     expect(current.currentSessionId).toBeNull()
+    expect(hasComposerDraft(localStorage, 'session-a')).toBe(true)
 
     await act(async () => {
       pendingDelete.resolve(undefined)
       await deletion
     })
     expect(current.snapshot).toEqual(deleted)
+    expect(hasComposerDraft(localStorage, 'session-a')).toBe(false)
   })
 
   it.each(['state', 'catalog'] as const)('preserves live permissions when an older refresh is awaiting %s', async stage => {

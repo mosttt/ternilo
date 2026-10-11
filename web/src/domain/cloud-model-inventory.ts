@@ -47,6 +47,7 @@ function storeFor(target: ExecutionTarget) {
 }
 
 export function modelSelectionKey(selection: ModelSelection) {
+  if (selection.provider === 'open_ai_compatible') return JSON.stringify([selection.provider, selection.base_url, selection.model, selection.api_key_env ?? null, selection.timeout_ms, selection.max_attempts, selection.retry_base_delay_ms])
   if (selection.provider === 'computer_provider') return JSON.stringify([selection.provider, selection.executor_id, selection.provider_id, selection.model, selection.reasoning_effort ?? null])
   if (selection.provider === 'platform_model') return JSON.stringify([selection.provider, selection.grant_id, selection.model_id, selection.reasoning_effort ?? null])
   if (selection.provider === 'account_provider') return JSON.stringify([selection.provider, selection.owner_user_id, selection.provider_id, selection.model, selection.reasoning_effort ?? null])

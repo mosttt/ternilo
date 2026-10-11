@@ -27,6 +27,7 @@ import { useSessionActivityRoster } from './session-activity-roster'
 import { SessionRenameDialog } from './session-rename-dialog'
 import { SessionArchiveDialog } from './session-archive-dialog'
 import { WorkspaceRenameDialog, WorkspaceUnregisterDialog } from './workspace-lifecycle-dialogs'
+import { BlankSessionDeleteDialog } from './blank-session-delete-dialog'
 import { WorkspaceProjectDialog } from './workspace-project-dialog'
 import {
   type DropMarker, type RowDragHandlers, type RowOrderActions, SessionRow,
@@ -117,6 +118,8 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [sharingTarget, setSharingTarget] = React.useState<SharingTarget | null>(null)
   const sharingEnabled = platform && serverIdentity?.instance.mode === 'multi_user'
+  const [blankDeleteTarget, setBlankDeleteTarget] = React.useState<LocalSession | null>(null)
+  React.useEffect(() => setBlankDeleteTarget(null), [accountScope, currentTenantId])
   const [renameTarget, setRenameTarget] = React.useState<LocalSession | null>(null)
   const [workspaceRenameTarget, setWorkspaceRenameTarget] = React.useState<Workspace | null>(null)
   const [workspaceRemoveTarget, setWorkspaceRemoveTarget] = React.useState<Workspace | null>(null)
@@ -342,13 +345,14 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
     selectSession(id)
     onSessionActivated()
   }
-  const startSession = async (workspaceId?: string) => {
+  const startSession = async (workspaceId?: string, forceNew = false) => {
     if (!workspaceId && !currentWorkspaceId) {
       onChooseWorkspace(true)
       return
     }
     try {
-      await createSession(workspaceId)
+      if (forceNew) await createSession(workspaceId, undefined, { forceNew: true })
+      else await createSession(workspaceId)
       onSessionActivated()
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : String(cause), 'error')
@@ -547,6 +551,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
       onFork={fork}
       forkLocked={forkOperation !== null}
       onArchive={archive}
+      onDelete={setBlankDeleteTarget}
       onShare={sharingEnabled && (session.access?.permissions.view ?? ownsResource(session.access, !readOnly && session.identity.user_id === serverIdentity?.user.user_id)) ? session => setSharingTarget({ kind: 'session', id: session.identity.session_id, title: session.title }) : undefined}
     />
   }
@@ -627,6 +632,10 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
             onNewSession={() => {
               setExpanded(workspace.workspace_id, true)
               void startSession(workspace.workspace_id)
+            }}
+            onCreateAnother={() => {
+              setExpanded(workspace.workspace_id, true)
+              void startSession(workspace.workspace_id, true)
             }}
             onRename={() => setWorkspaceRenameTarget(workspace)}
             onMoveProject={platform && !readOnly ? () => setWorkspaceMoveTarget(workspace) : undefined}
@@ -868,6 +877,9 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
         key={`${accountScope}:${currentTenantId}:${workspaceMoveTarget.workspace_id}`}
         workspace={workspaceMoveTarget} tenantId={currentTenantId} onClose={() => setWorkspaceMoveTarget(null)}
         onChanged={refresh} />}
+      {!readOnly && blankDeleteTarget && <BlankSessionDeleteDialog
+        key={`${accountScope}:${currentTenantId}:${blankDeleteTarget.identity.session_id}`}
+        session={blankDeleteTarget} onClose={() => setBlankDeleteTarget(null)} onDelete={deleteSession} />}
       {!readOnly && <SessionRenameDialog session={renameTarget} onOpenChange={open => { if (!open) setRenameTarget(null) }} onRename={confirmSessionRename} />}
       {!readOnly && <WorkspaceRenameDialog
         workspace={workspaceRenameTarget}

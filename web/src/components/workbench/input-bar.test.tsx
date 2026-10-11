@@ -6,6 +6,7 @@ import { zh } from '@/i18n/resources/conversation'
 import type { InputBarProps } from './input-bar'
 import { InputBar } from './input-bar'
 import { BUSY_ENTER_STORAGE_KEY } from '@/domain/composer-preference'
+import { clearComposerDraft } from '@/domain/composer-draft'
 import { ApiError } from '@/api/client'
 
 const t: Translate<'conversation'> = (key, params) => zh[key].replace(/\{(\w+)\}/g, (match, name: string) => (
@@ -43,6 +44,9 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({ matches: false }))
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   Object.defineProperty(window, 'localStorage', { configurable: true, value: memoryStorage() })
+  for (const session of ['session-one', 'session-two']) {
+    for (const scope of [undefined, 'account-one', 'account-two']) clearComposerDraft(window.localStorage, session, scope)
+  }
   fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
     const url = String(input)
     const value = url.includes('/commands')

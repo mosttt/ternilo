@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  committedComposerDraft, composerDraftKey, readComposerDraft, restoredFailedDrafts, writeComposerDraft,
+  clearComposerDraft, committedComposerDraft, composerDraftKey, hasComposerDraft, readComposerDraft,
+  readComposerExtras, restoredFailedDrafts, writeComposerDraft, writeComposerExtras,
 } from './composer-draft'
 
 class MemoryStorage implements Storage {
@@ -38,6 +39,20 @@ describe('composer draft persistence', () => {
     expect(readComposerDraft(storage, 'session/two')).toBe('second draft')
     expect(readComposerDraft(storage, 'session/three')).toBe('')
     expect(composerDraftKey('session/one')).not.toBe(composerDraftKey('session/two'))
+  })
+
+  it('keeps unsent attachments private and clears only the deleted session scope', () => {
+    const alice = '["alice","space"]'
+    const bob = '["bob","space"]'
+    const attachment = { name: 'private.txt', media_type: 'text/plain', content: 'private' }
+    writeComposerExtras('prepared', { attachments: [attachment], references: [] }, alice)
+    writeComposerDraft(storage, 'prepared', 'Bob task', bob)
+    expect(hasComposerDraft(storage, 'prepared', alice)).toBe(true)
+    expect(readComposerExtras('prepared', bob).attachments).toEqual([])
+    expect(hasComposerDraft(storage, 'other-session', alice)).toBe(false)
+    clearComposerDraft(storage, 'prepared', alice)
+    expect(hasComposerDraft(storage, 'prepared', alice)).toBe(false)
+    expect(readComposerDraft(storage, 'prepared', bob)).toBe('Bob task')
   })
 
   it('removes the persisted item when a send clears the draft', () => {

@@ -196,14 +196,7 @@ export function feedbackCommandText(input: string): string | null {
   return match ? match[1] ?? '' : null
 }
 
-export type ComposerReference = {
-  id: string
-  kind: 'file' | 'session'
-  label: string
-  detail: string
-  fileKind?: 'file' | 'directory'
-  reference: SubmissionReference
-}
+export type ComposerReference = import('@/domain/composer-draft').ComposerDraftReference
 
 export function composerReference(candidate: ReferenceCandidate): ComposerReference {
   if (candidate.kind === 'file') {

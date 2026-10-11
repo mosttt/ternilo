@@ -13,6 +13,9 @@ import {
 import { clearRemoteToken, readRemoteToken, storeRemoteToken } from '@/auth/remote-token'
 import { useTranslate } from '@/i18n/provider'
 import { permissionForPlacement, readDefaultPermission } from '@/domain/default-permission'
+import { modelSelectionKey } from '@/domain/cloud-model-inventory'
+import { reusableBlankSession } from '@/domain/blank-session'
+import { clearComposerDraft, hasComposerDraft } from '@/domain/composer-draft'
 import { invalidateAllProviderInventories } from '@/domain/provider-inventory'
 import { invalidateFileInventory, updateFileInventoryWorkbench } from '@/domain/file-inventory'
 import { readSidebarView } from '@/domain/sidebar-view'
@@ -22,10 +25,13 @@ import {
   type ExecutionTarget,
 } from '@/domain/execution-target'
 import type {
+  AgentPresetDocument,
   AgentPresetRoster,
   ApplicationCatalog,
   ApplicationState,
   LocalSession,
+  ModelSelection,
+  SessionInboxSnapshot,
   PlatformWorkspaceCreateInput,
   TenantSummary,
   ToastMessage,
@@ -80,7 +86,7 @@ interface WorkbenchContextValue {
   acceptLiveActivity(activity: SessionLiveActivity): void
   selectWorkspace(id: string): void
   selectSession(id: string): void
-  createSession(workspaceId?: string, agentPreset?: string): Promise<LocalSession>
+  createSession(workspaceId?: string, agentPreset?: string, options?: { forceNew?: boolean }): Promise<LocalSession>
   createWorkspace(input: string | PlatformWorkspaceCreateInput): Promise<Workspace>
   renameWorkspace(id: string, title: string): Promise<Workspace>
   unregisterWorkspace(id: string): Promise<void>
@@ -178,6 +184,9 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   }, [])
   const [snapshot, setSnapshot] = React.useState<ApplicationState>(emptyState)
   React.useLayoutEffect(() => updateFileInventoryWorkbench(snapshot), [snapshot])
+  const snapshotRef = React.useRef(snapshot)
+  snapshotRef.current = snapshot
+  const creatingSessions = React.useRef(new Map<string, Promise<LocalSession>>())
   const [sessionActivity, setSessionActivity] = React.useState<Record<string, SessionLiveActivity>>({})
   const [catalog, setCatalog] = React.useState<ApplicationCatalog | null>(null)
   const [presets, setPresets] = React.useState<AgentPresetRoster>(emptyPresets)
@@ -737,24 +746,64 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     )
   }, [replaceSelection, snapshot.sessions, snapshot.workspaces])
 
-  const createSession = React.useCallback(async (workspaceId = currentWorkspaceId ?? undefined, agentPreset?: string) => {
+  const createSession = React.useCallback(async (workspaceId = currentWorkspaceId ?? undefined, agentPreset?: string, options?: { forceNew?: boolean }) => {
     if (!workspaceId) throw new Error(t('error.workspaceRequired'))
-    const placement = snapshot.workspaces.find(workspace => workspace.workspace_id === workspaceId)?.placement
-    const selectedPreset = agentPreset ?? (
-      await api.request<AgentPresetRoster>(executionTargetPath('/agent-presets', { workspaceId }))
-    ).default_id
-    const created = await api.request<LocalSession>('/sessions', {
-      method: 'POST',
-      body: {
-        workspace_id: workspaceId,
-        agent_preset: selectedPreset,
-        permissions: permissionForPlacement(readDefaultPermission(localStorage), placement),
-      },
-    })
-    await refresh()
-    replaceSelection(workspaceId, created.identity.session_id)
-    return created
-  }, [currentWorkspaceId, refresh, replaceSelection, snapshot.workspaces, t])
+    const epoch = targetEpochRef.current
+    const scope = platform && serverIdentity ? JSON.stringify([serverIdentity.user.user_id, tenantRef.current]) : undefined
+    const key = JSON.stringify([epoch, workspaceId, agentPreset])
+    const existing = !options?.forceNew && creatingSessions.current.get(key)
+    if (existing) return existing
+    const ensureCurrent = () => {
+      if (epoch !== targetEpochRef.current) throw new ApiError('Request belongs to a previous account or space', 409, 'request_scope_changed')
+    }
+    const create = async () => {
+      const placement = snapshotRef.current.workspaces.find(workspace => workspace.workspace_id === workspaceId)?.placement
+      const permissions = permissionForPlacement(readDefaultPermission(localStorage), placement)
+      const selectedPreset = agentPreset ?? (
+        await api.request<AgentPresetRoster>(executionTargetPath('/agent-presets', { workspaceId }))
+      ).default_id
+      ensureCurrent()
+      if (!options?.forceNew) {
+        const available = (session: LocalSession) => reusableBlankSession(session, workspaceId, selectedPreset, permissions, !platform)
+          && !hasComposerDraft(localStorage, session.identity.session_id, scope)
+        if (snapshotRef.current.sessions.some(available)) {
+          const [state, model, preset] = await Promise.all([
+            readWorkbenchState(),
+            api.request<ModelSelection>(executionTargetPath('/default-model', { workspaceId })),
+            api.request<AgentPresetDocument>(executionTargetPath(`/agent-presets/${encodeURIComponent(selectedPreset)}`, { workspaceId })),
+          ])
+          ensureCurrent()
+          const candidates = state.sessions.filter(available).sort((left, right) => right.created_at_ms - left.created_at_ms)
+          for (const fresh of candidates) {
+            const plugins = fresh.placement === 'cloud' ? fresh.profile_plugins : fresh.preset_plugins
+            if (modelSelectionKey(fresh.model) !== modelSelectionKey(model)
+              || JSON.stringify(plugins) !== JSON.stringify(preset.profile.plugins)) continue
+            const id = fresh.identity.session_id
+            const inbox = await api.request<SessionInboxSnapshot>(`/sessions/${encodeURIComponent(id)}/queue`)
+            ensureCurrent()
+            if (available(fresh) && !inbox.active_run_id && !inbox.paused && !inbox.error && inbox.items.length === 0) {
+              setSnapshot(current => ({ ...current, sessions: [...current.sessions.filter(session => session.identity.session_id !== id), fresh] }))
+              replaceSelection(workspaceId, id)
+              return fresh
+            }
+          }
+        }
+      }
+      ensureCurrent()
+      const created = await api.request<LocalSession>('/sessions', {
+        method: 'POST',
+        body: { workspace_id: workspaceId, agent_preset: selectedPreset, permissions },
+      })
+      await refresh()
+      ensureCurrent()
+      replaceSelection(workspaceId, created.identity.session_id)
+      return created
+    }
+    const pending = create()
+    if (!options?.forceNew) creatingSessions.current.set(key, pending)
+    try { return await pending }
+    finally { if (creatingSessions.current.get(key) === pending) creatingSessions.current.delete(key) }
+  }, [currentWorkspaceId, platform, readWorkbenchState, refresh, replaceSelection, serverIdentity, t])
 
   const createWorkspace = React.useCallback(async (input: string | PlatformWorkspaceCreateInput) => {
     const response = await api.request<Workspace | { workspace: { workspace_id: string } }>('/workspaces', {
@@ -868,12 +917,13 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     }))
     try {
       await api.request(`/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      clearComposerDraft(localStorage, id, platform && serverIdentity ? JSON.stringify([serverIdentity.user.user_id, currentTenantId]) : undefined)
       await refresh()
     } catch (cause) {
       await refresh()
       throw cause
     }
-  }, [currentSessionId, currentWorkspaceId, refresh, replaceSelection])
+  }, [currentSessionId, currentWorkspaceId, currentTenantId, platform, refresh, replaceSelection, serverIdentity])
 
   const currentWorkspace = snapshot.workspaces.find(item => item.workspace_id === currentWorkspaceId) ?? null
   const currentSession = snapshot.sessions.find(item => item.identity.session_id === currentSessionId && item.archived_at_ms == null) ?? null

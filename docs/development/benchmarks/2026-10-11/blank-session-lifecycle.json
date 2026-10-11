@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-11",
+  "scope": "blank session lifecycle",
+  "build": "local development worktree, 0.2.11; not a public release",
+  "browser": "Chromium, desktop and touch emulation",
+  "viewports": [{ "width": 1280, "height": 800 }, { "width": 320, "height": 560 }],
+  "cases": [
+    { "placement": "local", "passed": true, "duration_ms": 7788.35 },
+    { "placement": "server-node", "passed": true, "duration_ms": 15329.87 }
+  ],
+  "verified": [
+    "reuse newest eligible legacy blank session without creating another",
+    "coalesce five rapid ordinary new-session clicks",
+    "explicitly create another session",
+    "preserve draft text and attachments across session switches",
+    "cancel deletion without losing prepared content",
+    "delete three existing blank sessions",
+    "create a new session when only prepared sessions remain",
+    "open the mobile sidebar and scroll overflowing rows by touch",
+    "open the session menu and delete by touch without mouse hover",
+    "confirmation and cancellation buttons are visible and unobstructed",
+    "preserve workspace files"
+  ],
+  "page_errors": [],
+  "console_errors": [],
+  "http_errors": [],
+  "screenshots_reviewed": true,
+  "isolation": "temporary directories, random ports, synthetic accounts; daily instances untouched"
+}

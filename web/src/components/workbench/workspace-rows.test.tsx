@@ -125,7 +125,7 @@ describe('Workspace rows', () => {
     expect(document.querySelector('[role="menu"]')?.textContent).toContain('移除工作区')
   })
 
-  it('opens the exact session menu only from ellipsis and gives blank rows no verbs or time', () => {
+  it('opens session menus for blank rows while keeping their timestamp hidden', () => {
     const rename = vi.fn()
     const fork = vi.fn(async () => undefined)
     const archive = vi.fn(async () => undefined)
@@ -152,7 +152,7 @@ describe('Workspace rows', () => {
 
     renderRow({ ...session, blank: true })
     expect(host.querySelector('[data-sidebar-session-time]')).toBeNull()
-    expect(host.querySelector('[aria-label^="会话"][aria-label$="的操作"]')).toBeNull()
+    expect(host.querySelector('[aria-label^="会话"][aria-label$="的操作"]')).not.toBeNull()
   })
 
   it('exposes real one-step manual ordering in row menus and disables the list edge', () => {
@@ -181,12 +181,13 @@ describe('Workspace rows', () => {
     expect(moveDown).toHaveBeenCalledOnce()
   })
 
-  it('keeps a blank session actionless even when manual ordering supplies row actions', () => {
+  it('lets an owner remove a blank session without offering manual ordering', () => {
     window.localStorage.setItem('ternilo.locale', 'en')
+    const remove = vi.fn()
     act(() => root.render(
       <LocaleProvider>
         <SessionRow
-          session={{ ...session, blank: true }}
+          session={{ ...session, title: 'New session', blank: true }}
           now={0}
           active={false}
           drag={{ ...drag, draggable: true }}
@@ -201,12 +202,30 @@ describe('Workspace rows', () => {
           onRename={() => undefined}
           onFork={async () => undefined}
           onArchive={async () => undefined}
+          onDelete={remove}
         />
       </LocaleProvider>,
     ))
     expect(host.querySelector('[data-sidebar-session-time]')).toBeNull()
-    expect(host.querySelector('[aria-label="Session actions for New Session"]')).toBeNull()
-    expect(document.querySelector('[role="menu"]')).toBeNull()
+    pointerDown(host.querySelector('[aria-label="Session actions for New Session"]')!)
+    expect(document.querySelector('[data-sidebar-reorder]')).toBeNull()
+    const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(value => value.textContent === 'Delete blank session…')!
+    expect(item).toBeTruthy()
+    act(() => item.click())
+    expect(remove).toHaveBeenCalledWith(expect.objectContaining({ blank: true }))
+  })
+
+  it('does not offer deletion of another owner’s blank session even with configure permission', () => {
+    const shared = { ...session, blank: true, access: {
+      owner_user_id: 'other', storage_user_id: 'other', ownership_revision: 0,
+      is_execution_owner: false, is_owner: false, sources: [], role_limited: false,
+      permissions: { view: true, submit: true, stop: true, configure: true },
+    } }
+    act(() => root.render(<LocaleProvider><SessionRow session={shared} now={0} active={false} drag={drag}
+      onSelect={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} onDelete={vi.fn()} /></LocaleProvider>))
+    pointerDown(host.querySelector('[aria-label^="会话"][aria-label$="的操作"]')!)
+    expect(document.querySelector('[role="menu"]')?.textContent).toContain('重命名')
+    expect(document.querySelector('[role="menu"]')?.textContent).not.toContain('删除空白会话')
   })
 
   it('localizes the persisted placeholder title after a direct command finishes', () => {
