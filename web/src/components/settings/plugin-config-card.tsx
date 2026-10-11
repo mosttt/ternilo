@@ -39,6 +39,7 @@ export function PluginConfigCard({
   openRequest,
   saveLabel,
   savingLabel,
+  disabledReason,
   hostToolCallLimit,
   onToggle,
   onSave,
@@ -52,6 +53,7 @@ export function PluginConfigCard({
   openRequest?: number
   saveLabel?: string
   savingLabel?: string
+  disabledReason?: string
   hostToolCallLimit?: number
   onToggle?(enabled: boolean): Promise<void>
   onSave(entry: PluginEntry): Promise<void>
@@ -188,7 +190,7 @@ export function PluginConfigCard({
         {showToggle ? (
           <Switch
             checked={entry.enabled}
-            disabled={busy}
+            disabled={busy || Boolean(disabledReason)}
             aria-label={t(entry.enabled ? 'plugins.disable' : 'plugins.enable', { name: title ?? entry.id })}
             onCheckedChange={(checked) => void toggle(checked)}
           />
@@ -300,10 +302,11 @@ export function PluginConfigCard({
           ) : <p className="text-xs text-muted-foreground">{t('plugins.noConfig')}</p>}
 
           {error ? <p className="mt-4 text-xs text-destructive" role="alert">{error}</p> : null}
+          {disabledReason ? <p className="mt-4 text-xs leading-relaxed text-muted-foreground" role="status">{disabledReason}</p> : null}
           <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t pt-4">
-            {overridden && onReset ? <Button type="button" variant="ghost" disabled={busy} onClick={() => void resetOverride()}><RotateCcw />{t('plugins.resetOverride')}</Button> : null}
+            {overridden && onReset ? <Button type="button" variant="ghost" disabled={busy || Boolean(disabledReason)} onClick={() => void resetOverride()}><RotateCcw />{t('plugins.resetOverride')}</Button> : null}
             <Button type="button" variant="outline" disabled={!dirty || busy} onClick={restore}>{t('plugins.discard')}</Button>
-            <Button type="button" disabled={!dirty || busy || Boolean(preview.invalid)} onClick={() => void save()}>
+            <Button type="button" disabled={!dirty || busy || Boolean(preview.invalid) || Boolean(disabledReason)} onClick={() => void save()}>
               {busy ? savingLabel ?? common('saving') : saveLabel ?? common('save')}
             </Button>
           </div>

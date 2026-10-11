@@ -13,7 +13,12 @@ import type {
 } from '@/types'
 import { PluginsSettings } from './plugins-settings'
 
-vi.mock('@/api/client', () => ({ api: { request: vi.fn() } }))
+vi.mock('@/api/client', async importOriginal => ({
+  ...await importOriginal<typeof import('@/api/client')>(), api: { request: vi.fn() },
+}))
+vi.mock('@/api/live', () => ({ live: { status: 'ready', subscriptionId: null,
+  onFrame: vi.fn(() => () => undefined), start: vi.fn(), stop: vi.fn(),
+} }))
 
 const storageValues = new Map<string, string>()
 Object.defineProperty(globalThis, 'localStorage', {
@@ -36,6 +41,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 
 const workbench = vi.hoisted(() => ({
   currentSession: null as LocalSession | null,
+  sessionActivity: {},
   catalog: { revision: 'test', plugin_kinds: [], plugins: [] } as ApplicationCatalog,
   updateSession: vi.fn(),
   notify: vi.fn(),
@@ -43,6 +49,7 @@ const workbench = vi.hoisted(() => ({
 vi.mock('@/state/workbench', () => ({
   useWorkbench: () => ({
     currentSession: workbench.currentSession,
+    sessionActivity: workbench.sessionActivity,
     catalog: workbench.catalog,
     updateSession: workbench.updateSession,
     notify: workbench.notify,

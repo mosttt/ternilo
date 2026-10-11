@@ -229,6 +229,10 @@ impl LocalApplication {
         Ok(child)
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep idle plugin admission, validation and atomic replacement within one lifecycle lock."
+    )]
     pub async fn update_session(
         &self,
         session_id: &str,
@@ -239,9 +243,32 @@ impl LocalApplication {
         }
         let changes_team_label = update.title.is_some();
         let changes_preset = update.agent_preset.is_some();
+        let changes_plugins = update.profile_plugins.is_some();
         let restarts_runtime = update.restarts_runtime();
         let lifecycle = self.session_lifecycle(session_id).await;
-        let _lifecycle = lifecycle.lock().await;
+        let busy_plugins = || {
+            HarnessError::conflict(
+                "Session is busy. Wait for the task to finish, or stop it before saving plugin settings.",
+            )
+        };
+        let _lifecycle = if changes_plugins {
+            lifecycle.try_lock().map_err(|_| busy_plugins())?
+        } else {
+            lifecycle.lock().await
+        };
+        let idle_runtime = if changes_plugins {
+            let managed = self.live.read().await.get(session_id).cloned();
+            match managed {
+                Some(managed) => Some(
+                    Arc::clone(&managed.gate)
+                        .try_lock_owned()
+                        .map_err(|_| busy_plugins())?,
+                ),
+                None => None,
+            }
+        } else {
+            None
+        };
         let mut session = self
             .state
             .session(session_id)
@@ -306,6 +333,8 @@ impl LocalApplication {
             session.mode,
         );
         validate_local_profile(&candidate, &self.catalog, &self.extension_registry)?;
+        // The lifecycle guard prevents a new turn from starting after this idle check.
+        drop(idle_runtime);
         if restarts_runtime {
             self.stop_live_session(session_id).await?;
         }

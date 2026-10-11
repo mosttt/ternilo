@@ -30,6 +30,8 @@ A conversation captures a preset snapshot. Editing or deleting the original does
 
 ## Limits
 
+For a running Local or Server computer session, plugin configuration explains why saving, enabling plugins and removing overrides are temporarily unavailable. You can continue editing and save the same values once the task finishes. If you have stop permission, “Stop current task” lets you stop it without leaving the form; saving becomes available after it actually finishes. Unsaved edits are kept within the current page, so save before reloading or switching sessions. Managed Cloud jobs retain their accepted configuration snapshot.
+
 The Agent defaults to 512 tool calls per turn; zero removes that Agent-level ceiling. Each `wait_agent` call counts once regardless of waiting duration. Steps count model decisions, not tokens or individual tool calls; the default step limit is zero.
 
 Edit `agent-loop` in the current conversation's plugin configuration while idle, or edit a custom preset for future conversations. A host can impose a stricter ceiling using `--max-tool-calls` and `--max-steps`. Positive limits combine by taking the smaller value; zero means no extra limit at that layer. Changing launch options requires restarting the service. Server/Worker host limits come from WorkerPolicy; accepted managed jobs retain their captured configuration. Manual stop remains available independently of limits.

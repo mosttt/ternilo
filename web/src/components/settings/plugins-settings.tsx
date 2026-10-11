@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Ban, Box, ChevronDown, PackagePlus, Search, Trash2 } from 'lucide-react'
-import { api } from '@/api/client'
+import { api, ApiError } from '@/api/client'
+import { live } from '@/api/live'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,9 +25,11 @@ import type {
   Profile,
   ProviderProfile,
   SignedExtensionBundle,
+  SessionInboxSnapshot,
 } from '@/types'
 import { cn } from '@/lib/utils'
 import { executionTargetKey, executionTargetPath, type ExecutionTarget } from '@/domain/execution-target'
+import { resourcePermissions } from '@/domain/resource-access'
 import { invalidateProviderInventory, loadProviderInventory } from '@/domain/provider-inventory'
 import { PluginConfigCard } from './plugin-config-card'
 import { configRecord, pluginConfigDefaults, pluginConfigFields } from './plugin-config'
@@ -323,10 +326,48 @@ function ExtensionRuntimeContributions({
 }
 
 export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
-  const { currentSession, currentWorkspace, catalog, updateSession, notify } = useWorkbench()
+  const { currentSession, currentWorkspace, sessionActivity, acceptLiveActivity, platform, accountScope, loading, authRequired, catalog, updateSession, notify } = useWorkbench()
   const t = useTranslate('settings')
   const builtins = useTranslate('builtins')
   const common = useTranslate('common')
+  const sessionId = currentSession?.identity.session_id
+  React.useEffect(() => {
+    if (!sessionId || currentSession?.placement === 'cloud' || loading || authRequired) return
+    const ownsConnection = (live.status === 'idle' || live.status === 'stopped') && live.subscriptionId === null
+    if (!ownsConnection) return
+    const unsubscribe = live.onFrame(frame => {
+      const activity = frame.type === 'activity' ? frame.activity
+        : frame.type === 'workbench' ? frame.activity.find(item => item.session_id === sessionId) : null
+      if (activity?.session_id === sessionId) acceptLiveActivity(activity)
+    })
+    live.start()
+    return () => {
+      unsubscribe()
+      // Direct settings navigation needs activity, without loading conversation history.
+      // A newly mounted workbench can take over this same connection and subscription.
+      if (live.subscriptionId === null) live.stop()
+    }
+  }, [acceptLiveActivity, accountScope, authRequired, currentSession?.placement, loading, sessionId])
+  const configurationBusy = currentSession?.placement !== 'cloud'
+    && Boolean(sessionId && sessionActivity[sessionId]?.running)
+  const disabledReason = configurationBusy ? t('plugins.waitForTask') : undefined
+  const [stoppingTask, setStoppingTask] = React.useState(false)
+  const [stopRequested, setStopRequested] = React.useState(false)
+  React.useEffect(() => { setStopRequested(false) }, [configurationBusy, currentSession?.identity.session_id])
+  const stopTask = async () => {
+    if (!currentSession || stoppingTask || stopRequested) return
+    setStoppingTask(true)
+    try {
+      const id = encodeURIComponent(currentSession.identity.session_id)
+      const inbox = await api.request<SessionInboxSnapshot>(`/sessions/${id}/queue`)
+      if (inbox.active_run_id) {
+        await api.request(`/sessions/${id}/turns/${encodeURIComponent(inbox.active_run_id)}`, { method: 'DELETE' })
+        setStopRequested(true)
+      }
+      await onChanged()
+    } catch (cause) { notify(cause instanceof Error ? cause.message : String(cause), 'error') }
+    finally { setStoppingTask(false) }
+  }
   const [activeTab, setActiveTab] = React.useState('configuration')
   const [profile, setProfile] = React.useState<Profile | null>(null)
   const [inventory, setInventory] = React.useState<ExtensionInventory | null>(null)
@@ -400,9 +441,13 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
 
   const writeOverrides = async (overrides: PluginEntry[]) => {
     if (!currentSession) throw new Error(t('plugins.noSession'))
-    await updateSession(currentSession.identity.session_id, {
-      profile_plugins: overrides,
-    })
+    if (disabledReason) throw new Error(disabledReason)
+    try {
+      await updateSession(currentSession.identity.session_id, { profile_plugins: overrides })
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.code === 'conflict') throw new Error(t('plugins.waitForTask'))
+      throw cause
+    }
     await Promise.all([loadProfile(), onChanged()])
   }
 
@@ -686,6 +731,11 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
           <strong className="text-sm">{t('plugins.sessionScopeTitle')}</strong>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('plugins.sessionScopeDescription')}</p>
         </div>
+        {disabledReason && <div className="mb-4 rounded-xl border bg-muted/20 px-4 py-3 text-sm leading-relaxed" data-plugin-settings-busy="">
+          <p role="status">{stopRequested ? t('plugins.stopRequested') : disabledReason}</p>
+          {resourcePermissions(currentSession?.access, !platform).stop && <Button type="button" className="mt-3" variant="outline"
+            disabled={stoppingTask || stopRequested} onClick={() => void stopTask()}>{t('plugins.stopTask')}</Button>}
+        </div>}
         {profileError && profile ? (
           <p className="mb-4 text-sm text-destructive" role="alert">
             {profileError}
@@ -718,6 +768,7 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
                   entry={entry}
                   metadata={metadata}
                   hostToolCallLimit={catalog?.host_limits?.max_tool_calls}
+                  disabledReason={disabledReason}
                   overridden={currentSession.profile_plugins.some((item) => item.id === entry.id)}
                   onToggle={(enabled) => toggleEntry(entry, enabled)}
                   onSave={saveEntry}

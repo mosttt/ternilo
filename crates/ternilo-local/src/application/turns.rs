@@ -277,6 +277,15 @@ impl LocalApplication {
             outcome.as_ref().is_err_and(HarnessError::is_cancelled) && !revoked,
         )
         .await?;
+        if outcome.is_err() {
+            // Terminal events can arrive before the agent clears its active run.
+            // Publish again after it returns so stopped/failed tasks cannot leave stale activity.
+            self.invalidate(
+                Some(session_id),
+                crate::LocalInvalidationCategory::Activity,
+                None,
+            );
+        }
         let mut outcome = outcome?;
         let current = self
             .state

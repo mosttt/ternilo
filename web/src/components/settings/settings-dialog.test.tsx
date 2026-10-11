@@ -19,6 +19,9 @@ vi.mock('@/state/workbench', () => ({ useWorkbench: () => workbench }))
 vi.mock('./general-settings', () => ({ GeneralSettings: () => <div data-personal-preferences /> }))
 vi.mock('./models-settings', () => ({ ModelsSettings: () => <div data-personal-models /> }))
 vi.mock('@/api/client', () => ({ api: { request: vi.fn() } }))
+vi.mock('@/api/live', () => ({ live: { status: 'ready', subscriptionId: null,
+  onFrame: vi.fn(() => () => undefined), start: vi.fn(), stop: vi.fn(),
+} }))
 vi.mock('./platform-computers-settings', () => ({ PlatformComputersSettings: ({ scope }: { scope: string }) => <div data-machine-scope={scope} /> }))
 
 let host: HTMLDivElement

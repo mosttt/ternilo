@@ -6,6 +6,7 @@
 - [2026-10-11 GitHub PR 审查](pr-review-2026-10-11.md)：两项 PR 的审查、测试修正、生成资源冲突处理与合并结果。
 - [个人资源迁移](personal-resource-migration.md)：用户选定的个人工作区及会话迁入已有团队；当前边界核对与待实现范围。
 - [空白会话管理](blank-session-lifecycle.md)：用户确认的默认复用、显式另建、删除确认及草稿附件保留。
+- [运行中插件保存](plugin-save-while-running.md)：保存等待原因、保留编辑的等待提示、表单内停止和及时返回的后端检查。
 - [工作区管理项目迁移](workspace-project-move.md)：同空间跨项目管理、显式共享继承和原执行身份保留的实施与验收。
 - [v0.2.11 发行与验收](release-0.2.11-acceptance.md)：工作区管理项目迁移的完整发行门禁与公开产物验证。
 - [v0.2.10 发行与验收](release-0.2.10-acceptance.md)：日志并发读取和 Python SDK 重启重连补丁的发行程序／公开产物验收。

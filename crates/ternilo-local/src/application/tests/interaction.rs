@@ -380,7 +380,7 @@ async fn lifecycle_update_closes_interaction_without_event_reads_booting_another
 }
 
 #[tokio::test]
-async fn plugin_recomposition_cancels_a_pending_interaction_before_joining_the_runtime() {
+async fn plugin_changes_return_promptly_without_cancelling_a_running_interaction() {
     let data_dir = test_data_dir();
     let workspace_dir = data_dir.with_extension("workspace");
     tokio::fs::create_dir(&workspace_dir).await.unwrap();
@@ -399,7 +399,11 @@ async fn plugin_recomposition_cancels_a_pending_interaction_before_joining_the_r
         let session_id = session_id.clone();
         tokio::spawn(async move {
             application
-                .run_turn(&session_id, None, "/ask Continue this run?".to_owned())
+                .run_turn(
+                    &session_id,
+                    Some("plugin-save-active".to_owned()),
+                    "/ask Continue this run?".to_owned(),
+                )
                 .await
         })
     };
@@ -415,13 +419,25 @@ async fn plugin_recomposition_cancels_a_pending_interaction_before_joining_the_r
     .await
     .expect("run opened a pending interaction");
 
-    tokio::time::timeout(
+    let error = tokio::time::timeout(
         std::time::Duration::from_secs(2),
         application.update_profile_plugins(&session_id, Vec::new()),
     )
     .await
-    .expect("plugin recomposition must not wait forever on the interaction")
-    .unwrap();
+    .expect("plugin changes must return while the task remains active")
+    .unwrap_err();
+    assert_eq!(error.code, ternilo_protocol::ErrorCode::Conflict);
+    assert!(
+        !application
+            .pending_questions(Some(&session_id))
+            .await
+            .is_empty()
+    );
+    assert!(!running.is_finished());
+    application
+        .cancel_turn(&session_id, "plugin-save-active")
+        .await
+        .unwrap();
 
     assert!(
         application
@@ -429,7 +445,14 @@ async fn plugin_recomposition_cancels_a_pending_interaction_before_joining_the_r
             .await
             .is_empty()
     );
-    running.await.unwrap().unwrap();
+    assert_eq!(
+        running.await.unwrap().unwrap_err().code,
+        ternilo_protocol::ErrorCode::Cancelled
+    );
+    application
+        .update_profile_plugins(&session_id, Vec::new())
+        .await
+        .unwrap();
     let resumed = application
         .run_turn(&session_id, None, "/code \"runtime restarted\"".to_owned())
         .await

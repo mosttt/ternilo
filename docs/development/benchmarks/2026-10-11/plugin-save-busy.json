@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-11",
+  "build": "local development worktree, 0.2.11; not a public release",
+  "browser": "Chromium desktop and touch emulation",
+  "viewports": [{ "width": 1440, "height": 900 }, { "width": 320, "height": 560 }],
+  "cases": [
+    { "placement": "local", "passed": true, "duration_ms": 10957.85, "busy_save_response_ms": 5 },
+    { "placement": "server-node", "passed": true, "duration_ms": 20016.08, "busy_save_response_ms": 148 }
+  ],
+  "verified": [
+    "running task explanation before saving",
+    "editable fields while save, enable and remove-override actions are disabled",
+    "HTTP Conflict without waiting for the running task",
+    "rejected save preserves the active task and original configuration",
+    "natural task completion restores save with the same edited values",
+    "direct navigation to Server plugin settings receives current activity",
+    "stop from settings without leaving the edited form",
+    "mobile stop and save actions remain visible and unobstructed",
+    "save edited configuration after the task actually stops"
+  ],
+  "page_errors": [], "console_errors": [], "http_errors": [],
+  "screenshots_reviewed": true,
+  "isolation": "temporary directories, random ports, synthetic accounts; daily instances untouched"
+}

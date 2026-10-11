@@ -79,6 +79,31 @@ function render(pluginMetadata: PluginCatalogEntry) {
 }
 
 describe('PluginConfigCard draft lifecycle', () => {
+  it('keeps editable changes while a running task blocks save, then saves the same draft', async () => {
+    const onSave = vi.fn(async () => undefined)
+    const draw = (blocked: boolean) => root.render(<LocaleProvider><PluginConfigCard
+      entry={{ ...entry }} metadata={metadata()} overridden={false} onSave={onSave}
+      disabledReason={blocked ? '当前任务结束后才能保存' : undefined} /></LocaleProvider>)
+    await settle(() => draw(false))
+    await settle(() => host.querySelector<HTMLButtonElement>('[aria-label="展开: local-files"]')?.click())
+    const input = host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!
+    await settle(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, '3145728')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const save = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '保存')!
+    await settle(() => draw(true))
+    expect(save.disabled).toBe(true)
+    expect(input.disabled).toBe(false)
+    expect(input.value).toBe('3145728')
+    expect(host.querySelector('[role="status"]')?.textContent).toContain('任务结束')
+    await settle(() => draw(false))
+    expect(save.disabled).toBe(false)
+    expect(input.value).toBe('3145728')
+    await settle(() => save.click())
+    expect(onSave).toHaveBeenCalledWith({ ...entry, config: { max_read_bytes: 3145728 } })
+  })
+
   it.each([
     { hostLimit: 0, configured: 0, expected: '不限制工具调用次数' },
     { hostLimit: 512, configured: 0, expected: '每轮最多 512 次' },
