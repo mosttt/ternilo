@@ -112,7 +112,10 @@ test('another computer can open an offline computer’s same-named folder withou
     assert.equal(await dialog.locator('#workspace-name').inputValue(), 'Pictures (d)', 'reopening the same computer’s folder keeps its name')
     await dialog.getByRole('button', { name: '打开并开始会话', exact: true }).click()
     await dialog.waitFor({ state: 'hidden' })
-    const reopened = await until(() => request('/state'), state => state.sessions.length === 3, 'same folder reopened')
+    const reusedId = current.sessions.find(session => session.workspace_id === newWorkspace.workspace_id).identity.session_id
+    await page.locator(`[data-sidebar-session-row][data-session-id="${reusedId}"] [data-sidebar-session-active="true"]`).waitFor()
+    const reopened = await request('/state')
+    assert.deepEqual(reopened.sessions.map(session => session.identity.session_id).sort(), current.sessions.map(session => session.identity.session_id).sort(), 'reopening the same folder reuses its unused session')
     assert.equal(reopened.workspaces.length, 2)
     assert.equal(reopened.workspaces.find(workspace => workspace.workspace_id === newWorkspace.workspace_id).title, 'Pictures (d)')
     await page.screenshot({ path: path.join(artifacts, 'workspace-registration.png') })
