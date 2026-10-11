@@ -36,6 +36,7 @@ pub(super) async fn contract(
         &fixture.bob.user_id
     );
     tx.commit().await.unwrap();
+    role_model_contract(store, fixture, mapping, &node, &body, &snapshot).await;
     lineage_contract(store, fixture, mapping, &node, &body).await;
     schedules::contract(store, fixture, mapping, &node, &body).await;
     ledger_contract(store, &principal, now).await;
@@ -58,6 +59,98 @@ pub(super) async fn contract(
     assert_denied(store, &node, &body).await;
     store
         .set_edge_session_model_snapshot(&fixture.alice, tenant, session, None)
+        .await
+        .unwrap();
+}
+
+async fn role_model_contract(
+    store: &ControlStore,
+    fixture: &EdgeFixture,
+    mapping: &MappingFixture,
+    node: &NodePrincipal,
+    body: &NodeModelRequest,
+    snapshot: &ternilo_protocol::RunModelSnapshot,
+) {
+    let mut role_model = snapshot.clone();
+    let RunModelBinding::UserProvider { model, .. } = &mut role_model.binding else {
+        panic!("account fixture")
+    };
+    "role-specific-model".clone_into(model);
+    let roles = std::collections::BTreeMap::from([
+        (
+            ternilo_protocol::AgentRole::Investigator,
+            Some(role_model.clone()),
+        ),
+        (ternilo_protocol::AgentRole::Implementer, None),
+    ]);
+    store
+        .set_edge_session_model_configuration(
+            &fixture.bob,
+            &fixture.tenant_a,
+            &mapping.browser_session,
+            None,
+            Some(roles.clone()),
+        )
+        .await
+        .unwrap();
+    for (index, role) in [
+        ternilo_protocol::AgentRole::Investigator,
+        ternilo_protocol::AgentRole::Implementer,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut metadata = super::metadata(
+            "Role child",
+            Some(mapping.browser_session.clone()),
+            fixture.now + 1001,
+        );
+        metadata.subagent = Some(ternilo_protocol::SubagentSessionMetadata {
+            role: Some(role),
+            subagent_id: ternilo_protocol::SubagentId::new(format!("role-{index}")),
+            provider: "in-process".to_owned(),
+            transcript_kind: ternilo_protocol::SubagentTranscriptKind::Conversation,
+        });
+        // Node metadata never grants a model, including when a role deliberately uses a local Provider.
+        metadata.server_model = Some(snapshot.clone());
+        metadata.role_models = roles.clone();
+        let child = store
+            .create_edge_session_mapping(
+                &fixture.alice,
+                &fixture.tenant_a,
+                &fixture.workspace_a,
+                &fixture.executor_a,
+                &SessionId::new(format!("role-node-{index}")),
+                None,
+                metadata,
+                fixture.now + 1001,
+            )
+            .await
+            .unwrap();
+        assert!(child.metadata.role_models.is_empty());
+        assert_eq!(child.metadata.server_model, roles[&role]);
+        let mut request = body.clone();
+        request.session_id = child.node_session_id;
+        assert_denied(store, node, &request).await;
+        if role == ternilo_protocol::AgentRole::Investigator {
+            request.binding = role_model.binding.clone();
+            let mut tx = store.database().begin().await.unwrap();
+            let accepted = store
+                .authorize_node_model_in(&mut tx, node, &request)
+                .await
+                .unwrap();
+            assert_eq!(accepted.snapshot, role_model);
+            tx.commit().await.unwrap();
+        }
+    }
+    store
+        .set_edge_session_model_configuration(
+            &fixture.bob,
+            &fixture.tenant_a,
+            &mapping.browser_session,
+            None,
+            Some(std::collections::BTreeMap::default()),
+        )
         .await
         .unwrap();
 }

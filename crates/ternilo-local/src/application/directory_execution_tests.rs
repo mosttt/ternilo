@@ -414,6 +414,7 @@ async fn true_subagent_reenters_its_parent_directory_but_an_ordinary_fork_waits(
         .create(
             parent.identity,
             SubagentSessionRequest {
+                role: None,
                 subagent_id: SubagentId::new("child"),
                 provider: "in-process".to_owned(),
                 label: "child".to_owned(),

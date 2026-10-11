@@ -246,6 +246,8 @@ pub struct EdgeSessionRecord {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EdgeSessionMetadata {
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub role_models: ternilo_protocol::AgentRoleModels,
     pub parent_session_id: Option<SessionId>,
     pub subagent: Option<SubagentSessionMetadata>,
     pub title: String,

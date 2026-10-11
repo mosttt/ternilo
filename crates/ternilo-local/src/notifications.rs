@@ -188,6 +188,7 @@ mod tests {
 
         let subagent = SessionEventKind::SubagentUpdated {
             subagent: ternilo_protocol::SubagentSnapshot {
+                role: None,
                 subagent_id: ternilo_protocol::SubagentId::new("child"),
                 provider: "local".to_owned(),
                 label: "Reviewer".to_owned(),

@@ -195,7 +195,13 @@ impl Fixture {
             .iter_mut()
             .find(|plugin| plugin.id == "workflow-engine")
             .unwrap()
-            .config = json!({"max_concurrent_agents": 2, "max_wall_ms": 30_000});
+            .config = json!({"max_concurrent_agents": 8, "max_wall_ms": 30_000});
+        profile
+            .plugins
+            .iter_mut()
+            .find(|plugin| plugin.id == "subagents")
+            .unwrap()
+            .config = json!({"coordination":{"max_parallel":2}});
         if let Some(timeout_ms) = tool_timeout_ms {
             profile
                 .plugins

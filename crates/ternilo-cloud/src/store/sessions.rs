@@ -48,8 +48,8 @@ async fn require_authorized_model_binding(
 }
 
 mod records;
-pub(crate) use records::decode_session;
 use records::select_session;
+pub(crate) use records::{decode_session, decode_subagent_metadata};
 
 impl CloudStore {
     pub async fn create_session(
@@ -177,7 +177,7 @@ impl CloudStore {
         set_tenant(&mut transaction, tenant_id).await?;
         let row = sqlx::query(
             "SELECT tenant_id, session_id, user_id, project_id, workspace_id, agent_id,
-                    parent_session_id, subagent_metadata, title, archived_at_ms, state, permissions,
+                    parent_session_id, subagent_metadata, subagent_role, title, archived_at_ms, state, permissions,
                     model_snapshot,
                     reserved_model_tokens,
                     agent_preset, profile_plugins, mode, execution, last_seq, created_at_ms, updated_at_ms
@@ -317,7 +317,7 @@ impl CloudStore {
         let rows = sqlx::query(
             "SELECT session.tenant_id, session.session_id, session.user_id,
                     session.project_id, session.workspace_id, session.parent_session_id,
-                    session.subagent_metadata,
+                    session.subagent_metadata, session.subagent_role,
                     session.agent_id, session.archived_at_ms, session.state,
                     session.permissions, session.model_snapshot, session.reserved_model_tokens, session.agent_preset,
                     session.profile_plugins, session.mode, session.execution, session.last_seq,
@@ -362,7 +362,7 @@ impl CloudStore {
              WHERE tenant_id = $1 AND session_id = $2 AND user_id = $3
                AND archived_at_ms IS NULL
              RETURNING tenant_id, session_id, user_id, project_id, workspace_id, agent_id,
-                       parent_session_id, subagent_metadata, title, archived_at_ms, state, permissions,
+                       parent_session_id, subagent_metadata, subagent_role, title, archived_at_ms, state, permissions,
                        model_snapshot, reserved_model_tokens,
                        agent_preset, profile_plugins, mode, execution, last_seq, created_at_ms, updated_at_ms",
         )

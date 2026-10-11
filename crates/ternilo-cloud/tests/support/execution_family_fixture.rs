@@ -199,6 +199,7 @@ impl Fixture {
                 parent,
                 &session,
                 &SubagentSessionMetadata {
+                    role: None,
                     subagent_id: SubagentId::new(name),
                     provider: "in-process".to_owned(),
                     transcript_kind: SubagentTranscriptKind::Conversation,

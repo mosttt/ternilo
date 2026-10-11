@@ -1751,6 +1751,7 @@ async fn serve_cloud_host_request(
             }
         },
         CloudHostRequest::CreateSubagent {
+            role,
             subagent_id,
             provider,
             label,
@@ -1764,6 +1765,7 @@ async fn serve_cloud_host_request(
             let suffix = hex_bytes(&digest.finalize()[..16]);
             let child_session_id = ternilo_protocol::SessionId::new(format!("child-{suffix}"));
             let metadata = ternilo_protocol::SubagentSessionMetadata {
+                role,
                 subagent_id,
                 provider,
                 transcript_kind,
@@ -2386,6 +2388,7 @@ impl SubagentSessionHost for PipeCloudHost {
             let value = self
                 .client
                 .request(CloudHostRequest::CreateSubagent {
+                    role: request.role,
                     subagent_id: request.subagent_id,
                     provider: request.provider,
                     label: request.label,

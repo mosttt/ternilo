@@ -332,6 +332,12 @@ impl LocalApplication {
             &session.profile_plugins,
             session.mode,
         );
+        let coordination = ternilo_protocol::CoordinationConfig::from_profile(&candidate)?;
+        for role in ternilo_protocol::AgentRole::ALL {
+            if let Some(selection) = coordination.role(role).model.as_ref() {
+                resolve_named_provider(selection, &self.providers).await?;
+            }
+        }
         validate_local_profile(&candidate, &self.catalog, &self.extension_registry)?;
         // The lifecycle guard prevents a new turn from starting after this idle check.
         drop(idle_runtime);

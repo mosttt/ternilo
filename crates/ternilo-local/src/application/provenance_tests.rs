@@ -83,6 +83,7 @@ async fn model_origin_stays_with_the_run_across_later_inputs_and_nested_children
             .create(
                 identity,
                 SubagentSessionRequest {
+                    role: None,
                     subagent_id: SubagentId::new(name),
                     provider: "in-process".to_owned(),
                     label: name.to_owned(),

@@ -486,6 +486,7 @@ async fn equal_subagent_ids_under_different_parents_get_distinct_sessions() {
         .await
         .unwrap();
     let request = SubagentSessionRequest {
+        role: None,
         subagent_id: SubagentId::new("agent-session-local-id"),
         provider: "in-process".to_owned(),
         label: "worker".to_owned(),

@@ -94,6 +94,11 @@ export function ModelPicker({
   open,
   onOpenChange,
   defaultTenantId,
+  selectionOverride,
+  onSelectOverride,
+  inheritedLabel,
+  targetOverride,
+  roleOverride,
 }: {
   compact?: boolean
   disabled?: boolean
@@ -104,12 +109,17 @@ export function ModelPicker({
   open?: boolean
   onOpenChange?(open: boolean): void
   defaultTenantId?: string
+  selectionOverride?: ModelSelection
+  onSelectOverride?(model: ModelSelection): void | Promise<void>
+  inheritedLabel?: string
+  targetOverride?: ExecutionTarget
+  roleOverride?: 'investigator' | 'implementer' | 'reviewer'
 }) {
   const { platform, currentTenantId, currentSession: workbenchSession, currentWorkspace: workbenchWorkspace, catalog, updateSession, notify, serverIdentity } = useWorkbench()
   const currentSession = defaultTenantId ? null : workbenchSession
   const currentWorkspace = defaultTenantId ? null : workbenchWorkspace
   const t = useTranslate('model')
-  const cloud = Boolean(platform && (currentSession?.placement ?? currentWorkspace?.placement) !== 'local_node')
+  const cloud = Boolean(platform && (targetOverride?.placement ?? currentSession?.placement ?? currentWorkspace?.placement) !== 'local_node')
   const edge = Boolean(platform && !cloud)
   const accounts = useAccountProviders(Boolean(platform && serverIdentity?.personal_tenant_id), serverIdentity?.personal_tenant_id)
   const [selecting, setSelecting] = React.useState(false)
@@ -132,7 +142,8 @@ export function ModelPicker({
     sessionId: currentSession?.identity.session_id,
     workspaceId: currentWorkspace?.workspace_id,
     placement: currentSession?.placement ?? currentWorkspace?.placement,
-  }), [defaultTenantId, platform, currentTenantId, currentSession?.identity.session_id, currentWorkspace?.workspace_id, currentSession?.placement, currentWorkspace?.placement])
+    ...targetOverride,
+  }), [targetOverride, defaultTenantId, platform, currentTenantId, currentSession?.identity.session_id, currentWorkspace?.workspace_id, currentSession?.placement, currentWorkspace?.placement])
   const targetKey = executionTargetKey(target)
   const [cachedProviders, setProviders] = React.useState<ProviderProfile[]>(() => peekProviderInventory(target)?.providers ?? [])
   const [cachedCredentials, setCredentials] = React.useState<CredentialInventory | null>(() => peekProviderInventory(target)?.credentials ?? null)
@@ -144,7 +155,7 @@ export function ModelPicker({
   const previousTarget = React.useRef({ key: targetKey, status: currentWorkspace?.status })
   const [loadedCloud, setCloudInventory] = React.useState(() => ({ key: targetKey, inventory: peekCloudModelInventory(target) }))
   const cloudInventory = loadedCloud.key === targetKey ? loadedCloud.inventory : null
-  const selection = currentSession?.model ?? cloudInventory?.current?.selection ?? { provider: 'profile_default' as const }
+  const selection = selectionOverride ?? currentSession?.model ?? cloudInventory?.current?.selection ?? { provider: 'profile_default' as const }
   const serverBacked = cloud || Boolean(platform && (selection.provider === 'account_provider' || selection.provider === 'platform_model' || selection.provider === 'computer_provider'))
   const sharedAccount = selection.provider === 'account_provider' && platform && selection.owner_user_id !== serverIdentity?.user.user_id
   const selectionKey = modelSelectionKey(selection)
@@ -180,7 +191,25 @@ export function ModelPicker({
     void loadCloud(true)
     return () => { cloudGeneration.current += 1; unsubscribe() }
   }, [platform, targetKey, selectionKey, loadCloud])
-  const cloudCurrent = currentCloudModel(cloudInventory, selection)
+  const [rolePreview, setRolePreview] = React.useState<{ key: string; current: CloudModelCurrent | null }>({ key: '', current: null })
+  const rolePreviewKey = JSON.stringify([targetKey, roleOverride, selectionKey])
+  React.useEffect(() => {
+    if (!roleOverride || !serverBacked || selection.provider === 'profile_default' || !target.sessionId) return
+    let cancelled = false
+    setCloudStatus('loading')
+    setCloudError('')
+    void api.request<CloudModelCurrent | null>(executionTargetPath('/role-model-preview', { tenantId: target.tenantId }), {
+      method: 'POST', headers: executionTargetHeaders(target), body: { session_id: target.sessionId, role: roleOverride, selection },
+    }).then(current => {
+      if (!cancelled) { setRolePreview({ key: rolePreviewKey, current }); setCloudStatus('ready') }
+    }).catch(cause => {
+      if (!cancelled) { setCloudError(cause instanceof Error ? cause.message : String(cause)); setCloudStatus('error') }
+    })
+    return () => { cancelled = true }
+  }, [rolePreviewKey, serverBacked])
+  const cloudCurrent = roleOverride && serverBacked
+    ? rolePreview.key === rolePreviewKey ? rolePreview.current : null
+    : currentCloudModel(cloudInventory, selection)
 
 
   const load = React.useCallback(async (force = false) => {
@@ -256,7 +285,7 @@ export function ModelPicker({
   const reasoning = serverBacked ? cloudCurrent?.selectable_reasoning : selectedDefaults?.reasoning
   const currentEffort = effectiveEffort(selection, selectedDefaults)
   const profileAvailable = profileModelIsUsable(effectiveProfile, catalog, credentials)
-  const selectedLabel = cloud && selection.provider === 'profile_default' ? t('cloud.choose') : selection.provider === 'profile_default' && effectiveProfile && !profileAvailable
+  const selectedLabel = inheritedLabel && selection.provider === 'profile_default' ? inheritedLabel : cloud && selection.provider === 'profile_default' ? t('cloud.choose') : selection.provider === 'profile_default' && effectiveProfile && !profileAvailable
     ? t('provider.configure')
     : modelLabel(selection, selectedProviders, t('default'), cloudCurrent)
   const triggerLabel = `${selectedLabel}${selection.provider === 'computer_provider' ? ` · ${cloudCurrent?.source_name || t('source.computer')}` : selection.provider === 'account_provider' ? ` · ${t(sharedAccount ? 'source.sharedAccount' : 'source.account')}` : edge && selection.provider === 'platform_model' ? ` · ${t('cloud.platform')}` : edge ? ` · ${t('source.node')}` : cloud && selection.provider === 'named_provider' ? ` · ${t('cloud.byok')}` : ''}${currentEffort ? ` · ${currentEffort}` : ''}`
@@ -280,12 +309,17 @@ export function ModelPicker({
 
   React.useEffect(() => { onReadinessChange?.(readiness) }, [onReadinessChange, readiness])
 
-  if (!currentSession && !cloud) return null
+  if (!currentSession && !cloud && !onSelectOverride) return null
 
   const select = async (model: ModelSelection) => {
     if (disabled || selecting) return
     setSelecting(true)
     try {
+      if (onSelectOverride) {
+        await onSelectOverride(model)
+        setMenuOpen(false)
+        return
+      }
       if (currentSession) {
         await updateSession(currentSession.identity.session_id, { model })
         if (platform) invalidateCloudModelInventory(target)
@@ -323,8 +357,8 @@ export function ModelPicker({
                   <div className="min-w-0 flex-1"><div>{cloudCurrent.model.display_name}</div><div className="text-xs text-muted-foreground">{cloudCurrent.source_name} · {cloudCurrent.model.model_id}</div></div><Check />
                 </DropdownMenuItem>
               </>}
-              {!cloud && <DropdownMenuItem disabled={!profileAvailable} onSelect={() => void select({ provider: 'profile_default' })}>
-                <CircleGauge /><div className="min-w-0 flex-1"><div>{t('inherit')}</div><div className="text-xs text-muted-foreground">{t('inherit.description')}</div></div>
+              {(!cloud || onSelectOverride) && <DropdownMenuItem disabled={!onSelectOverride && !profileAvailable} onSelect={() => void select({ provider: 'profile_default' })}>
+                <CircleGauge /><div className="min-w-0 flex-1"><div>{inheritedLabel ?? t('inherit')}</div>{!inheritedLabel && <div className="text-xs text-muted-foreground">{t('inherit.description')}</div>}</div>
                 {selection.provider === 'profile_default' && <Check />}
               </DropdownMenuItem>}
               {platform && serverIdentity && <>

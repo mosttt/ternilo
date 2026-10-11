@@ -113,14 +113,14 @@ async fn load_fork_source_in(
     let parent_row = sqlx::query(ternilo_storage::for_update(
         transaction,
         "SELECT tenant_id, session_id, user_id, project_id, workspace_id, agent_id,
-                parent_session_id, subagent_metadata, title, archived_at_ms, state, permissions,
+                parent_session_id, subagent_metadata, subagent_role, title, archived_at_ms, state, permissions,
                 model_snapshot, reserved_model_tokens,
                 agent_preset, profile_plugins, mode, execution, last_seq, created_at_ms, updated_at_ms
          FROM cloud_sessions
          WHERE tenant_id = $1 AND session_id = $2 AND user_id = $3
            AND archived_at_ms IS NULL",
         "SELECT tenant_id, session_id, user_id, project_id, workspace_id, agent_id,
-                parent_session_id, subagent_metadata, title, archived_at_ms, state, permissions,
+                parent_session_id, subagent_metadata, subagent_role, title, archived_at_ms, state, permissions,
                 model_snapshot, reserved_model_tokens,
                 agent_preset, profile_plugins, mode, execution, last_seq, created_at_ms, updated_at_ms
          FROM cloud_sessions

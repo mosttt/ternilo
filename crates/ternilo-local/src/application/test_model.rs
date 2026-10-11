@@ -96,6 +96,41 @@ impl TestModel {
         self.requests.lock().unwrap().clone()
     }
 
+    pub(super) async fn install_named(
+        &self,
+        application: &LocalApplication,
+        provider_id: &str,
+        models: &[&str],
+    ) {
+        application
+            .upsert_provider_profile(ternilo_protocol::ProviderProfile {
+                id: provider_id.to_owned(),
+                display_name: provider_id.to_owned(),
+                base_url: self.base_url.clone(),
+                protocol: ternilo_protocol::ProviderProtocol::OpenAiChatCompletions,
+                api_key_ref: None,
+                defaults: ternilo_protocol::ProviderModelDefaults {
+                    context_window: 128_000,
+                    max_output_tokens: 4096,
+                    reasoning: None,
+                },
+                models: models
+                    .iter()
+                    .map(|model| ternilo_protocol::ProviderModel {
+                        id: (*model).to_owned(),
+                        display_name: None,
+                        settings: ternilo_protocol::ProviderModelSettings::Inherit,
+                    })
+                    .collect(),
+                timeout_ms: 5000,
+                max_attempts: 1,
+                retry_base_delay_ms: 10,
+                hosted_tools: None,
+            })
+            .await
+            .unwrap();
+    }
+
     pub(super) async fn install(
         &self,
         application: &LocalApplication,

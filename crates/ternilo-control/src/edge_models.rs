@@ -66,8 +66,29 @@ impl ControlStore {
         session: &SessionId,
         snapshot: Option<RunModelSnapshot>,
     ) -> Result<(), HarnessError> {
-        if let Some(snapshot) = &snapshot {
-            snapshot.validate()?;
+        self.set_edge_session_model_configuration(actor, tenant, session, Some(snapshot), None)
+            .await
+    }
+
+    pub async fn set_edge_session_model_configuration(
+        &self,
+        actor: &ControlUser,
+        tenant: &TenantId,
+        session: &SessionId,
+        snapshot: Option<Option<RunModelSnapshot>>,
+        roles: Option<ternilo_protocol::AgentRoleModels>,
+    ) -> Result<(), HarnessError> {
+        for model in snapshot
+            .as_ref()
+            .and_then(Option::as_ref)
+            .into_iter()
+            .chain(
+                roles
+                    .iter()
+                    .flat_map(|roles| roles.values().filter_map(Option::as_ref)),
+            )
+        {
+            model.validate()?;
         }
         let mut tx = self.database.begin().await?;
         set_tenant_scope(&mut tx, tenant).await?;
@@ -84,7 +105,12 @@ impl ControlStore {
             "SELECT metadata_json FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2",
             "SELECT metadata_json FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2 FOR UPDATE"))
             .bind(tenant.as_str()).bind(session.as_str()).fetch_one(&mut *tx).await.map_err(database_error)?;
-        metadata.0.server_model = snapshot;
+        if let Some(snapshot) = snapshot {
+            metadata.0.server_model = snapshot;
+        }
+        if let Some(roles) = roles {
+            metadata.0.role_models = roles;
+        }
         sqlx::query("UPDATE control_edge_sessions SET metadata_json=$3 WHERE tenant_id=$1 AND session_id=$2")
             .bind(tenant.as_str()).bind(session.as_str()).bind(metadata).execute(&mut *tx).await.map_err(database_error)?;
         tx.commit().await.map_err(database_error)

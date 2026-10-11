@@ -5,6 +5,7 @@ import type { Translate } from '@/i18n/runtime'
 import type { AgentTeamSnapshot, LocalSession } from '@/types'
 import { Button } from '@/components/ui/button'
 import css from './agent-team-panel.module.css'
+import { useTranslate } from '@/i18n/provider'
 
 function memberDepth(memberId: string, snapshot: AgentTeamSnapshot) {
   const members = new Map(snapshot.members.map(member => [member.id, member]))
@@ -63,6 +64,12 @@ export function AgentTeamRoster({
   onMessage(memberId: string): void
   t: Translate<'observability'>
 }) {
+  const settings = useTranslate('settings')
+  const roleLabels = {
+    investigator: settings('coordination.role.investigator'),
+    implementer: settings('coordination.role.implementer'),
+    reviewer: settings('coordination.role.reviewer'),
+  }
   const liveById = React.useMemo(() => new Map(subagents.map(member => [member.id, member])), [subagents])
   const memberNames = React.useMemo(() => new Map(snapshot.members.map(member => [member.id, member.label])), [snapshot.members])
   const [drafts, setDrafts] = React.useState<Record<string, string>>({})
@@ -111,7 +118,7 @@ export function AgentTeamRoster({
           <span className={css.avatar}>{member.role === 'lead' ? <UserRound aria-hidden="true" /> : <Bot aria-hidden="true" />}</span>
           <span className={css.identity}>
             <strong>{member.label}{current ? <em>{t('team.member.you')}</em> : null}</strong>
-            <small>{member.role === 'lead' ? t('team.role.lead') : member.provider || t('team.providerUnknown')}</small>
+            <small>{member.role === 'lead' ? t('team.role.lead') : addressed?.subagent?.role ? roleLabels[addressed.subagent.role] : member.provider || t('team.providerUnknown')}</small>
           </span>
           <span className={css.dot} data-status={live?.status ?? (current ? 'current' : 'available')} aria-hidden="true" />
           <span className={css.status}>{live ? liveStatusLabel(live.status, t) : current ? t('team.member.current') : t('team.member.available')}</span>

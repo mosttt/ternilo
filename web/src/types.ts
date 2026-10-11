@@ -321,6 +321,7 @@ export interface LocalSession {
   workspace_path: string
   parent_session_id?: string | null
   subagent?: {
+    role?: 'investigator' | 'implementer' | 'reviewer' | null
     subagent_id: string
     provider: string
     transcript_kind: 'conversation' | 'process_lifecycle'

@@ -54,6 +54,32 @@ impl CloudStore {
         )
         .await?;
         parent_session.model = crate::profile_model_snapshot(&parent.claim.spec.profile)?;
+        let coordination =
+            ternilo_protocol::CoordinationConfig::from_profile(&parent.claim.spec.profile)?;
+        if coordination.mode == ternilo_protocol::CoordinationMode::Independent {
+            return Err(HarnessError::policy("Independent coordination is active"));
+        }
+        parent_session.profile_plugins = parent.claim.spec.profile.plugins.clone();
+        parent_session.permissions = parent.claim.spec.permissions;
+        parent_session.mode = parent.claim.spec.mode;
+        if let Some(role) = metadata.role {
+            parent_session.model = accepted_role_model(&parent.claim.spec.profile, role)?;
+            if coordination.role_read_only(role) {
+                parent_session.permissions = ternilo_protocol::PermissionPreset::ReadOnly;
+            }
+            parent_session.profile_plugins = ternilo_kernel::compose_profiles([
+                parent.claim.spec.profile.clone(),
+                ternilo_protocol::Profile {
+                    plugins: coordination.child_overrides(&parent.claim.spec.profile, role),
+                },
+            ])
+            .plugins;
+            for entry in &mut parent_session.profile_plugins {
+                if entry.enabled && entry.kind == crate::BROKERED_MODEL_KIND {
+                    entry.config = serde_json::json!({"snapshot":parent_session.model});
+                }
+            }
+        }
         let child = create_subagent_in(
             &mut transaction,
             &parent_session,
@@ -118,14 +144,7 @@ impl CloudStore {
                 "cloud Subagent RunSpec does not match its canonical Session",
             ));
         }
-        let inherited_model = crate::profile_model_snapshot(&parent.claim.spec.profile)?;
-        if crate::profile_model_snapshot(&spec.profile)? != inherited_model
-            || child.model != inherited_model
-        {
-            return Err(HarnessError::policy(
-                "subagent must retain its accepted parent's model binding",
-            ));
-        }
+        validate_child_spec(&child, parent, spec)?;
         let reservation = ternilo_control::ControlStore::reserve_quota_for_owner_in(
             &mut transaction,
             &parent.claim.actor_user_id,
@@ -328,6 +347,11 @@ impl CloudStore {
         label: String,
         now_ms: u64,
     ) -> Result<CloudSessionRecord, HarnessError> {
+        if metadata.role.is_some() {
+            return Err(HarnessError::policy(
+                "agent roles require an accepted parent run",
+            ));
+        }
         let mut transaction = self.tenant_transaction(tenant_id).await?;
         let owner_id = crate::sharing::session_owner_in(
             &mut transaction,
@@ -416,6 +440,64 @@ impl CloudStore {
     }
 }
 
+fn validate_child_spec(
+    child: &CloudSessionRecord,
+    parent: &StartedRun,
+    spec: &RunSpec,
+) -> Result<(), HarnessError> {
+    let coordination =
+        ternilo_protocol::CoordinationConfig::from_profile(&parent.claim.spec.profile)?;
+    if coordination.mode == ternilo_protocol::CoordinationMode::Independent {
+        return Err(HarnessError::policy("Independent coordination is active"));
+    }
+    let permissions =
+        if parent.claim.spec.permissions == ternilo_protocol::PermissionPreset::ReadOnly {
+            ternilo_protocol::PermissionPreset::ReadOnly
+        } else {
+            child.permissions
+        };
+    let mode = if parent.claim.spec.mode == ternilo_protocol::SessionMode::Plan {
+        ternilo_protocol::SessionMode::Plan
+    } else {
+        child.mode
+    };
+    // The canonical child was authorized at creation. Parent edits do not rewrite
+    // that binding; the model gateway still checks current access on each call.
+    if crate::profile_model_snapshot(&spec.profile)? != child.model
+        || spec.permissions != permissions
+        || spec.mode != mode
+        || spec.profile.plugins != child.profile_plugins
+    {
+        return Err(HarnessError::policy(
+            "subagent must retain its accepted model binding and permission ceiling",
+        ));
+    }
+    Ok(())
+}
+
+fn accepted_role_model(
+    profile: &ternilo_protocol::Profile,
+    role: ternilo_protocol::AgentRole,
+) -> Result<Option<ternilo_protocol::RunModelSnapshot>, HarnessError> {
+    let config = ternilo_protocol::CoordinationConfig::from_profile(profile)?;
+    match config.role(role).model.as_ref() {
+        None | Some(ternilo_protocol::DefaultModelSelection::ProfileDefault) => {
+            crate::profile_model_snapshot(profile)
+        }
+        Some(selection) => {
+            let snapshot = config.resolved_models.get(&role).ok_or_else(|| {
+                HarnessError::policy("agent role has no accepted Server model authorization")
+            })?;
+            if snapshot.selection() != *selection {
+                return Err(HarnessError::policy(
+                    "agent role model differs from the accepted role selection",
+                ));
+            }
+            Ok(Some(snapshot.clone()))
+        }
+    }
+}
+
 fn to_i64(value: u64, label: &str) -> Result<i64, HarnessError> {
     i64::try_from(value).map_err(|_| HarnessError::invalid(format!("{label} exceeds i64")))
 }
@@ -469,9 +551,9 @@ async fn create_subagent_in(
         ));
     }
     let query = if backend(transaction) == Backend::Postgres {
-        "SELECT session_id, parent_session_id, subagent_metadata FROM cloud_sessions WHERE tenant_id = $1 AND user_id = $2 AND (session_id = $3 OR (parent_session_id = $4 AND CAST(subagent_metadata AS jsonb)->>'subagent_id' = $5)) ORDER BY session_id LIMIT 1"
+        "SELECT session_id, parent_session_id, subagent_metadata, subagent_role FROM cloud_sessions WHERE tenant_id = $1 AND user_id = $2 AND (session_id = $3 OR (parent_session_id = $4 AND CAST(subagent_metadata AS jsonb)->>'subagent_id' = $5)) ORDER BY session_id LIMIT 1"
     } else {
-        "SELECT session_id, parent_session_id, subagent_metadata FROM cloud_sessions WHERE tenant_id = $1 AND user_id = $2 AND (session_id = $3 OR (parent_session_id = $4 AND json_extract(subagent_metadata, '$.subagent_id') = $5)) ORDER BY session_id LIMIT 1"
+        "SELECT session_id, parent_session_id, subagent_metadata, subagent_role FROM cloud_sessions WHERE tenant_id = $1 AND user_id = $2 AND (session_id = $3 OR (parent_session_id = $4 AND json_extract(subagent_metadata, '$.subagent_id') = $5)) ORDER BY session_id LIMIT 1"
     };
     if let Some(row) = sqlx::query(query)
         .bind(parent.tenant_id.as_str())
@@ -483,11 +565,10 @@ async fn create_subagent_in(
         .await
         .map_err(database_error)?
     {
-        let prior: Option<Json<SubagentSessionMetadata>> =
-            row.try_get("subagent_metadata").map_err(database_error)?;
+        let prior = crate::store::decode_subagent_metadata(&row)?;
         let lineage: Option<String> = row.try_get("parent_session_id").map_err(database_error)?;
         if lineage.as_deref() != Some(parent.session_id.as_str())
-            || prior.as_ref().map(|value| &value.0) != Some(metadata)
+            || prior.as_ref() != Some(metadata)
         {
             return Err(HarnessError::conflict(
                 "cloud Subagent Session identity is already used",
@@ -498,15 +579,17 @@ async fn create_subagent_in(
                 .map_err(database_error)?,
         ));
     }
+    let mut stored_metadata = metadata.clone();
+    let role = stored_metadata.role.take();
     sqlx::query("INSERT INTO cloud_sessions (tenant_id, session_id, user_id, project_id, workspace_id, agent_id,
         parent_session_id, subagent_metadata, title, permissions, model_snapshot,
-        reserved_model_tokens, agent_preset, profile_plugins, mode, state, created_at_ms, updated_at_ms)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'idle', $16, $16)")
+        reserved_model_tokens, agent_preset, profile_plugins, mode, state, created_at_ms, updated_at_ms, subagent_role)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'idle', $16, $16, $17)")
         .bind(parent.tenant_id.as_str()).bind(child.as_str()).bind(parent.user_id.as_str()).bind(&parent.project_id)
-        .bind(parent.workspace_id.as_str()).bind(parent.agent_id.as_str()).bind(parent.session_id.as_str()).bind(Json(metadata)).bind(label.trim())
+        .bind(parent.workspace_id.as_str()).bind(parent.agent_id.as_str()).bind(parent.session_id.as_str()).bind(Json(&stored_metadata)).bind(label.trim())
         .bind(permission_str(parent.permissions)).bind(parent.model.as_ref().map(Json))
         .bind(to_i64(parent.reserved_model_tokens, "child token budget")?).bind(&parent.agent_preset).bind(Json(&parent.profile_plugins))
-        .bind(mode_str(parent.mode)).bind(to_i64(now_ms, "child creation time")?).execute(&mut **transaction).await.map_err(database_error)?;
+        .bind(mode_str(parent.mode)).bind(to_i64(now_ms, "child creation time")?).bind(role.map(ternilo_protocol::AgentRole::as_str)).execute(&mut **transaction).await.map_err(database_error)?;
     crate::execution_families::ensure_child_in(
         transaction,
         &parent.tenant_id,

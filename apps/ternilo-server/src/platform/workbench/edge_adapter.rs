@@ -150,7 +150,7 @@ impl<'a> EdgeAdapter<'a> {
     pub(crate) async fn update(
         &self,
         mapping: EdgeSessionRecord,
-        update: UpdateSessionRequest,
+        mut update: UpdateSessionRequest,
     ) -> Result<WorkbenchSession, HarnessError> {
         if update.model_token_limit.is_some() {
             return Err(HarnessError::invalid(
@@ -168,6 +168,12 @@ impl<'a> EdgeAdapter<'a> {
             .lock_resources(self.tenant_id, &mapping.executor_id)
             .await;
         let model_changed = update.model.is_some();
+        let roles_changed = update.profile_plugins.is_some() || update.agent_preset.is_some();
+        let roles = if roles_changed {
+            Some(self.resolve_role_models(&mapping, &mut update).await?)
+        } else {
+            None
+        };
         let server_model = match &update.model {
             Some(model) => {
                 super::model_options::resolve_edge_selection(
@@ -181,14 +187,15 @@ impl<'a> EdgeAdapter<'a> {
             }
             None => None,
         };
-        if model_changed {
+        if model_changed || roles_changed {
             self.state
                 .store
-                .set_edge_session_model_snapshot(
+                .set_edge_session_model_configuration(
                     self.actor,
                     self.tenant_id,
                     &mapping.session_id,
-                    server_model.clone(),
+                    model_changed.then(|| server_model.clone()),
+                    roles,
                 )
                 .await?;
         }
@@ -213,14 +220,15 @@ impl<'a> EdgeAdapter<'a> {
         let value = match value {
             Ok(value) => value,
             Err(error) => {
-                if model_changed {
+                if model_changed || roles_changed {
                     self.state
                         .store
-                        .set_edge_session_model_snapshot(
+                        .set_edge_session_model_configuration(
                             self.actor,
                             self.tenant_id,
                             &mapping.session_id,
-                            mapping.metadata.server_model.clone(),
+                            model_changed.then(|| mapping.metadata.server_model.clone()),
+                            roles_changed.then(|| mapping.metadata.role_models.clone()),
                         )
                         .await?;
                 }
@@ -230,6 +238,100 @@ impl<'a> EdgeAdapter<'a> {
         self.record_action(&mapping, ResourceAction::Configure)
             .await?;
         self.cache_returned_snapshot(mapping, value, None).await
+    }
+
+    async fn resolve_role_models(
+        &self,
+        mapping: &EdgeSessionRecord,
+        update: &mut UpdateSessionRequest,
+    ) -> Result<ternilo_protocol::AgentRoleModels, HarnessError> {
+        let preset = if let Some(id) = &update.agent_preset {
+            let value = self
+                .state
+                .edge
+                .call(
+                    self.tenant_id,
+                    &mapping.executor_id,
+                    ApplicationOperation::AgentPresetGet {
+                        preset_id: id.clone(),
+                    },
+                )
+                .await?;
+            decode::<ternilo_protocol::AgentPresetDocument>(value, "Node agent preset")?
+                .profile
+                .plugins
+        } else {
+            mapping.metadata.preset_plugins.clone()
+        };
+        let mut overrides = update
+            .profile_plugins
+            .clone()
+            .unwrap_or_else(|| mapping.metadata.profile_plugins.clone());
+        let effective = ternilo_kernel::compose_profiles([
+            Profile { plugins: preset },
+            Profile {
+                plugins: overrides.clone(),
+            },
+        ]);
+        let mut roles = ternilo_protocol::AgentRoleModels::new();
+        for mut entry in effective
+            .plugins
+            .into_iter()
+            .filter(|entry| entry.enabled && entry.kind == ternilo_protocol::SUBAGENTS_PLUGIN_KIND)
+        {
+            let Some(value) = entry.config.get("coordination") else {
+                continue;
+            };
+            let mut config: ternilo_protocol::CoordinationConfig =
+                serde_json::from_value(value.clone()).map_err(|error| {
+                    HarnessError::invalid(format!("invalid coordination settings: {error}"))
+                })?;
+            config.resolved_models.clear();
+            config.validate()?;
+            for role in ternilo_protocol::AgentRole::ALL {
+                let Some(selection) = config.role(role).model.as_ref() else {
+                    continue;
+                };
+                if matches!(
+                    selection,
+                    ternilo_protocol::DefaultModelSelection::ProfileDefault
+                ) {
+                    continue;
+                }
+                let mut authorization = mapping.clone();
+                authorization.metadata.server_model = mapping
+                    .metadata
+                    .role_models
+                    .get(&role)
+                    .cloned()
+                    .unwrap_or_else(|| mapping.metadata.server_model.clone());
+                let snapshot = super::model_options::resolve_edge_selection(
+                    self.state,
+                    self.actor,
+                    self.tenant_id,
+                    &authorization,
+                    &serde_json::to_value(selection)
+                        .map_err(|error| HarnessError::invalid(error.to_string()))?,
+                )
+                .await?;
+                if let Some(snapshot) = &snapshot {
+                    config.resolved_models.insert(role, snapshot.clone());
+                }
+                roles.insert(role, snapshot);
+            }
+            entry.config["coordination"] = serde_json::to_value(config)
+                .map_err(|error| HarnessError::execution(error.to_string()))?;
+            if let Some(existing) = overrides
+                .iter_mut()
+                .find(|existing| existing.id == entry.id)
+            {
+                *existing = entry;
+            } else {
+                overrides.push(entry);
+            }
+        }
+        update.profile_plugins = Some(overrides);
+        Ok(roles)
     }
 
     pub(crate) async fn fork(
@@ -1485,6 +1587,7 @@ mod tests {
             owner_user_id: UserId::new("user"),
             node_session_id: SessionId::new(node_id),
             metadata: EdgeSessionMetadata {
+                role_models: std::collections::BTreeMap::default(),
                 server_model: None,
                 parent_session_id: None,
                 subagent: None,

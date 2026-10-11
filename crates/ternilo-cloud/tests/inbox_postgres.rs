@@ -933,6 +933,7 @@ async fn inbox_contract(
     );
     let child_session_id = SessionId::new("child-worker-host");
     let child_metadata = SubagentSessionMetadata {
+        role: None,
         subagent_id: SubagentId::new("researcher"),
         provider: "in-process".to_owned(),
         transcript_kind: SubagentTranscriptKind::Conversation,

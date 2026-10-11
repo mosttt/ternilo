@@ -910,6 +910,7 @@ async fn shared_actor_subagent_uses_original_authority_without_copying_resource_
             &parent,
             &child_id,
             &ternilo_protocol::SubagentSessionMetadata {
+                role: None,
                 subagent_id: ternilo_protocol::SubagentId::new("researcher"),
                 provider: "in-process".to_owned(),
                 transcript_kind: ternilo_protocol::SubagentTranscriptKind::Conversation,

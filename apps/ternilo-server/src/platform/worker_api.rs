@@ -483,6 +483,29 @@ async fn dispatch(
         } => {
             let (store, run) = store.authorized_run(&run, now).await?;
             let mut spec = run.claim.spec.clone();
+            let child = store
+                .get_session(&run.claim.tenant_id, &child_session_id)
+                .await?;
+            if child.parent_session_id.as_ref() != Some(&run.claim.session_id)
+                || child.user_id != run.claim.spec.metadata.user_id
+                || child.workspace_id != run.claim.spec.metadata.workspace_id
+            {
+                return Err(HarnessError::policy(
+                    "subagent does not belong to this accepted parent",
+                ));
+            }
+            spec.permissions =
+                if run.claim.spec.permissions == ternilo_protocol::PermissionPreset::ReadOnly {
+                    ternilo_protocol::PermissionPreset::ReadOnly
+                } else {
+                    child.permissions
+                };
+            spec.mode = if run.claim.spec.mode == ternilo_protocol::SessionMode::Plan {
+                ternilo_protocol::SessionMode::Plan
+            } else {
+                child.mode
+            };
+            spec.profile.plugins = child.profile_plugins.clone();
             spec.metadata.session_id = child_session_id.clone();
             spec.metadata.run_id = child_run_id;
             spec.input.clone_from(&input);

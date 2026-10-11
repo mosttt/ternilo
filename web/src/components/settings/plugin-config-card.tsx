@@ -15,6 +15,8 @@ import {
   schemaType,
 } from './plugin-config'
 import styles from './plugin-config-card.module.css'
+import { CoordinationFields, coordinationErrorKey } from './coordination-fields'
+import type { ExecutionTarget } from '@/domain/execution-target'
 
 function initialTexts(config: Record<string, unknown>, fields: ReturnType<typeof pluginConfigFields>) {
   return Object.fromEntries(fields.map((field) => {
@@ -41,6 +43,7 @@ export function PluginConfigCard({
   savingLabel,
   disabledReason,
   hostToolCallLimit,
+  target,
   onToggle,
   onSave,
   onReset,
@@ -55,6 +58,7 @@ export function PluginConfigCard({
   savingLabel?: string
   disabledReason?: string
   hostToolCallLimit?: number
+  target?: ExecutionTarget
   onToggle?(enabled: boolean): Promise<void>
   onSave(entry: PluginEntry): Promise<void>
   onReset?(): Promise<void>
@@ -118,7 +122,9 @@ export function PluginConfigCard({
       await onSave({ ...entry, config: preview.next })
       setOpen(false)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      const message = cause instanceof Error ? cause.message : String(cause)
+      const localized = entry.kind === 'ternilo.subagents.in_process' ? coordinationErrorKey(message) : null
+      setError(localized ? t(localized) : message)
     } finally {
       setBusy(false)
     }
@@ -208,6 +214,11 @@ export function PluginConfigCard({
           {fields.length ? (
             <div className="grid gap-5">
               {fields.map((field) => {
+                if (entry.kind === 'ternilo.subagents.in_process' && field.key === 'coordination') {
+                  return <CoordinationFields key={field.key} id={`plugin-${entry.id}-coordination`} target={target}
+                    value={draft.coordination} disabled={busy}
+                    onChange={coordination => setDraft(current => ({ ...current, coordination }))} />
+                }
                 const type = schemaType(field.schema)
                 const value = draft[field.key]
                 const hasOverride = value !== undefined || touched.has(field.key)

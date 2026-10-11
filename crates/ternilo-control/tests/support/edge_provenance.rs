@@ -516,6 +516,7 @@ pub(super) async fn subagent_mapping(
         fixture.now + 1_000,
     );
     metadata.subagent = Some(ternilo_protocol::SubagentSessionMetadata {
+        role: None,
         subagent_id: ternilo_protocol::SubagentId::new(name),
         provider: "in-process".to_owned(),
         transcript_kind: ternilo_protocol::SubagentTranscriptKind::Conversation,

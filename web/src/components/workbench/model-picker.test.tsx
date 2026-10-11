@@ -531,6 +531,30 @@ describe('Cloud model selection', () => {
     expect(fixture.request.mock.calls.some(([path]) => String(path).startsWith('/default-model'))).toBe(false)
   })
 
+  it('edits role reasoning without switching the lead or saving a default', async () => {
+    cloud()
+    const selection: ModelSelection = { provider: 'platform_model', grant_id: 'role-grant', model_id: 'role-model' }
+    const editRole = vi.fn()
+    fixture.request.mockImplementation(async (path: string) => {
+      if (path === '/role-model-preview') return { selection, model: { ...publicModel, model_id: 'role-model', display_name: 'Role model' }, selectable_reasoning: publicModel.defaults.reasoning, available: true, source_name: 'Role budget' }
+      if (path.startsWith('/model-options')) return { current: null, options: [], next_cursor: null }
+      return path.startsWith('/providers') ? [] : inventory
+    })
+    await act(async () => root.render(<ModelPicker roleOverride="investigator" selectionOverride={selection} onSelectOverride={editRole} />))
+    await settle()
+    expect(host.textContent).toContain('Role model')
+    expect(fixture.request).toHaveBeenCalledWith('/role-model-preview', expect.objectContaining({ body: { session_id: 'session-1', role: 'investigator', selection } }))
+    act(() => host.querySelector<HTMLButtonElement>('button')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+    const effort = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent?.startsWith('推理强度'))!
+    effort.focus()
+    act(() => effort.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })))
+    await settle()
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === 'low')!.click())
+    expect(editRole).toHaveBeenCalledWith({ ...selection, reasoning_effort: 'low' })
+    expect(fixture.updateSession).not.toHaveBeenCalled()
+    expect(fixture.request.mock.calls.some(([path]) => String(path).startsWith('/default-model'))).toBe(false)
+  })
+
   it('explains undeclared platform reasoning instead of inventing unsupported levels', async () => {
     cloud()
     fixture.request.mockResolvedValue({ current: { selection: fixture.model, model: { ...publicModel, defaults: { ...publicModel.defaults, reasoning: null } }, selectable_reasoning: null, source_name: 'Budget grant-a', available: true }, options: [], next_cursor: null })

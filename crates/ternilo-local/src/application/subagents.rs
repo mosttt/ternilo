@@ -388,6 +388,69 @@ impl LocalSubagentSessionHost {
     }
 }
 
+impl LocalSubagentSessionHost {
+    async fn configure_child(
+        &self,
+        parent_session: &mut LocalSession,
+        role: Option<ternilo_protocol::AgentRole>,
+    ) -> Result<(), HarnessError> {
+        let profile = ternilo_kernel::compose_profiles([
+            self.profile.clone(),
+            Profile {
+                plugins: parent_session.preset_plugins.clone(),
+            },
+            Profile {
+                plugins: parent_session.profile_plugins.clone(),
+            },
+        ]);
+        let coordination = ternilo_protocol::CoordinationConfig::from_profile(&profile)?;
+        if coordination.mode == ternilo_protocol::CoordinationMode::Independent {
+            return Err(HarnessError::policy("Independent coordination is active"));
+        }
+        if let Some(role) = role {
+            let settings = coordination.role(role);
+            if let Some(selection) = &settings.model
+                && !matches!(
+                    selection,
+                    ternilo_protocol::DefaultModelSelection::ProfileDefault
+                )
+            {
+                parent_session.model = selection.clone();
+                parent_session.server_model = coordination.resolved_models.get(&role).cloned();
+            }
+            super::validate_model(&parent_session.model)?;
+            resolve_named_provider(&parent_session.model, &self.providers).await?;
+            if matches!(
+                &parent_session.model,
+                ternilo_protocol::DefaultModelSelection::AccountProvider { .. }
+                    | ternilo_protocol::DefaultModelSelection::PlatformModel { .. }
+                    | ternilo_protocol::DefaultModelSelection::ComputerProvider { .. }
+            ) && parent_session
+                .server_model
+                .as_ref()
+                .is_none_or(|snapshot| snapshot.selection() != parent_session.model)
+            {
+                return Err(HarnessError::policy(
+                    "Choose the role's Server model through its Server before starting an agent",
+                ));
+            }
+            if coordination.role_read_only(role) {
+                parent_session.permissions = PermissionPreset::ReadOnly;
+            }
+            parent_session.profile_plugins = ternilo_kernel::compose_profiles([
+                Profile {
+                    plugins: parent_session.profile_plugins.clone(),
+                },
+                Profile {
+                    plugins: coordination.child_overrides(&profile, role),
+                },
+            ])
+            .plugins;
+        }
+        Ok(())
+    }
+}
+
 impl SubagentSessionHost for LocalSubagentSessionHost {
     fn create<'a>(
         &'a self,
@@ -407,7 +470,7 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
                     "Subagent Session provider, label, and task must not be empty",
                 ));
             }
-            let parent_session = self
+            let mut parent_session = self
                 .state
                 .session(parent.session_id.as_str())
                 .await
@@ -417,6 +480,8 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
                     "Subagent parent identity does not match its persisted Session",
                 ));
             }
+            self.configure_child(&mut parent_session, request.role)
+                .await?;
             let mut key = Sha256::new();
             key.update(parent.session_id.as_str().as_bytes());
             key.update([0]);
@@ -447,6 +512,7 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
                 workspace_path: parent_session.workspace_path,
                 parent_session_id: Some(parent.session_id),
                 subagent: Some(SubagentSessionMetadata {
+                    role: request.role,
                     subagent_id: request.subagent_id,
                     provider: request.provider,
                     transcript_kind: request.transcript_kind,

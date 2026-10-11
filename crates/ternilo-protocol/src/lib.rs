@@ -93,6 +93,8 @@ string_id!(ScheduleId);
 string_id!(SubmissionId);
 
 mod agent_presets;
+mod coordination;
+pub use coordination::*;
 mod agent_team;
 mod file_inventory;
 mod live;
@@ -1217,6 +1219,8 @@ pub enum SubagentTranscriptKind {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SubagentSessionMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<AgentRole>,
     pub subagent_id: SubagentId,
     pub provider: String,
     pub transcript_kind: SubagentTranscriptKind,
@@ -1240,6 +1244,8 @@ impl AcceptedSubagentRun {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SubagentSnapshot {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<AgentRole>,
     pub subagent_id: SubagentId,
     pub provider: String,
     pub label: String,

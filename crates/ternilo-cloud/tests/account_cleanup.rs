@@ -315,6 +315,7 @@ async fn cleanup_contract(fixture: &Fixture) {
             &parent,
             &child_session_id,
             &SubagentSessionMetadata {
+                role: None,
                 subagent_id: SubagentId::new("cleanup-helper"),
                 provider: "in-process".to_owned(),
                 transcript_kind: SubagentTranscriptKind::Conversation,

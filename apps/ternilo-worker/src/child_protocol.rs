@@ -126,6 +126,8 @@ pub enum CloudHostRequest {
         parked_revision: u64,
     },
     CreateSubagent {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        role: Option<ternilo_protocol::AgentRole>,
         subagent_id: SubagentId,
         provider: String,
         label: String,
@@ -352,6 +354,7 @@ mod tests {
         let request = ChildToParentFrame::HostRequest {
             request_id: 7,
             request: CloudHostRequest::CreateSubagent {
+                role: None,
                 subagent_id: ternilo_protocol::SubagentId::new("researcher"),
                 provider: "in-process".to_owned(),
                 label: "Researcher".to_owned(),

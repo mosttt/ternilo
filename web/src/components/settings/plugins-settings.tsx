@@ -766,6 +766,7 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
                 <PluginConfigCard
                   key={entry.id}
                   entry={entry}
+                  target={target}
                   metadata={metadata}
                   hostToolCallLimit={catalog?.host_limits?.max_tool_calls}
                   disabledReason={disabledReason}
