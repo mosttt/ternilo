@@ -98,7 +98,7 @@ test('project memory, scoped Git commits, GitHub contracts and rendered document
     assert.equal((await tool('read_project_memory', {})).notes.checks.content, 'Run relevant checks / 执行验证 / 검사 실행')
     assert.equal((await request(`${resource}/events`)).filter(event => event.type === 'document_rendered').length, 2)
     browser = await chromium.launch({ headless: true, executablePath: browserPath })
-    for (const [locale, label] of [['zh', '该版本已检查'], ['en', 'This version was reviewed'], ['ko', '이 버전 검토 완료']]) {
+    for (const [locale, label, renderLabel] of [['zh', '该版本已检查', '渲染文档'], ['en', 'This version was reviewed', 'Render document'], ['ko', '이 버전 검토 완료', '문서 렌더링']]) {
       const context = await browser.newContext({ viewport: locale === 'ko' ? { width: 320, height: 560 } : { width: 1280, height: 900 }, serviceWorkers: 'block', hasTouch: true })
       await context.addInitScript(({ locale, id, workspaceId }) => { localStorage.setItem('ternilo.locale', locale); localStorage.setItem('ternilo.current-session', id); localStorage.setItem('ternilo.current-workspace', workspaceId) }, { locale, id, workspaceId: workspace.workspace_id })
       const page = await context.newPage(); activePage = page
@@ -107,6 +107,7 @@ test('project memory, scoped Git commits, GitHub contracts and rendered document
       const row = page.locator('[data-chat-event="document_rendered"]').last(); await row.waitFor({ state: 'attached' })
       const processControl = row.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]'); if (await processControl.getAttribute('aria-expanded') === 'false') await processControl.click()
       await row.getByText(label, { exact: true }).waitFor()
+      await page.locator('[data-tool-call-tree]').getByText(renderLabel, { exact: true }).first().waitFor()
       await until(() => row.locator('img').evaluateAll(images => images.length && images.every(image => image.complete && image.naturalWidth > 0)), value => value, 'resolved durable document screenshots')
       assert.equal(await row.locator('img').first().evaluate(image => getComputedStyle(image).objectFit), 'contain')
       await row.scrollIntoViewIfNeeded()
