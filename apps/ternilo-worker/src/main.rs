@@ -1564,6 +1564,11 @@ fn event_attachment_references(kind: &SessionEventKind) -> Vec<&Attachment> {
             .iter()
             .filter(|attachment| attachment.is_reference())
             .collect(),
+        SessionEventKind::DocumentRendered { render } => render
+            .screenshots
+            .iter()
+            .filter(|attachment| attachment.is_reference())
+            .collect(),
         SessionEventKind::ToolCallFinished {
             retained_output: Some(attachment),
             ..
@@ -3418,6 +3423,23 @@ mod tests {
                 source: None,
                 references: Vec::new(),
                 attachments: vec![inline, reference.clone()],
+            }),
+            vec![&reference]
+        );
+        assert_eq!(
+            event_attachment_references(&SessionEventKind::DocumentRendered {
+                render: ternilo_protocol::DocumentRender {
+                    render_id: "render-1".into(),
+                    path: "document.md".into(),
+                    source_sha256: "b".repeat(64),
+                    viewport_width: 320,
+                    viewport_height: 560,
+                    content_height: 560,
+                    horizontal_overflow: false,
+                    missing_images: 0,
+                    blocked_resources: 0,
+                    screenshots: vec![reference.clone()],
+                },
             }),
             vec![&reference]
         );

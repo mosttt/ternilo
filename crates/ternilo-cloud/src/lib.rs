@@ -173,6 +173,30 @@ pub fn cloud_profile(model: Option<&RunModelSnapshot>) -> ternilo_protocol::Prof
                 serde_json::json!({}),
             ),
             ternilo_protocol::PluginEntry {
+                id: "document-review".to_owned(),
+                kind: ternilo_builtins::DOCUMENT_REVIEW_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
+            ternilo_protocol::PluginEntry {
+                id: "github-tools".to_owned(),
+                kind: ternilo_builtins::GITHUB_TOOLS_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
+            ternilo_protocol::PluginEntry {
+                id: "project-memory".to_owned(),
+                kind: ternilo_builtins::PROJECT_MEMORY_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
+            ternilo_protocol::PluginEntry {
+                id: "repository-tools".to_owned(),
+                kind: ternilo_builtins::REPOSITORY_TOOLS_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
+            ternilo_protocol::PluginEntry {
                 id: "code-map".to_owned(),
                 kind: ternilo_builtins::CODE_MAP_KIND.to_owned(),
                 enabled: false,

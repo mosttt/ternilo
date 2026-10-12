@@ -6,6 +6,10 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
+pulldown-cmark.workspace = true
+tempfile.workspace = true
+tokio-tungstenite.workspace = true
+cap-std.workspace = true
 tree-sitter.workspace = true
 tree-sitter-rust.workspace = true
 tree-sitter-typescript.workspace = true
@@ -38,7 +42,6 @@ ternilo-kernel.workspace = true
 ternilo-protocol.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 tokio.workspace = true
 
 [lints]

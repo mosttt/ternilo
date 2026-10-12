@@ -1,4 +1,13 @@
 export const zh = {
+  'document.rendered': "文档渲染截图",
+  'document.pages': "{count} 页",
+  'document.evidence': "横向溢出：{overflow} · 未加载图片：{missing} · 未内嵌资源：{blocked}",
+  'document.yes': "有",
+  'document.no': "无",
+  'document.passed': "该版本已检查",
+  'document.needsChanges': "该版本需要修改",
+  'document.pending': "已渲染，等待检查",
+
   'reasoning.observed': "推理强度观察",
   'reasoning.low': "低",
   'reasoning.medium': "中",
@@ -311,6 +320,15 @@ export const zh = {
 export type ChatKey = keyof typeof zh
 
 export const en = {
+  'document.rendered': "Document render",
+  'document.pages': "{count} pages",
+  'document.evidence': "Horizontal overflow: {overflow} · Missing images: {missing} · Non-embedded resources: {blocked}",
+  'document.yes': "Yes",
+  'document.no': "No",
+  'document.passed': "This version was reviewed",
+  'document.needsChanges': "This version needs changes",
+  'document.pending': "Rendered; review pending",
+
   'reasoning.observed': "Reasoning effort observation",
   'reasoning.low': "Low",
   'reasoning.medium': "Medium",
@@ -621,6 +639,15 @@ export const en = {
 } satisfies Record<ChatKey, string>
 
 export const ko = {
+  'document.rendered': "문서 렌더링",
+  'document.pages': "{count}페이지",
+  'document.evidence': "가로 넘침: {overflow} · 누락된 이미지: {missing} · 포함되지 않은 리소스: {blocked}",
+  'document.yes': "있음",
+  'document.no': "없음",
+  'document.passed': "이 버전 검토 완료",
+  'document.needsChanges': "이 버전 수정 필요",
+  'document.pending': "렌더링 완료, 검토 대기",
+
   'reasoning.observed': "추론 강도 관찰",
   'reasoning.low': "낮음",
   'reasoning.medium': "중간",

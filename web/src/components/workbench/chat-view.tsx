@@ -138,7 +138,7 @@ function ConversationItemView({ item, events, sessionId, selection, onSelect, on
     onSelect={() => onSelect({ kind: 'event', event: item.event })}
     t={t}
   />
-  return <ConversationEventRow item={item} events={events} t={t} onSelect={() => onSelect({ kind: 'event', event: item.event })} />
+  return <ConversationEventRow sessionId={sessionId} item={item} events={events} t={t} onSelect={() => onSelect({ kind: 'event', event: item.event })} />
 }
 
 function TurnBlock({ turn, latest, events, sessionId, assistantTails, projection, reloadMetadata, selection, onSelect, onRegenerate, onEdit, regenerateDisabled, compact, t }: {
@@ -296,14 +296,18 @@ export function ChatView({ sessionId, events, pendingSubmissions, projection, re
   const previousFirstRef = React.useRef(turns[0]?.runId)
   const pendingAnchorRef = React.useRef<PagingAnchor | null>(null)
 
-  React.useLayoutEffect(() => {
+  // Adjust the window before committing prepended turns, so the visible tail is never replaced by older rows.
+  if (turns.length !== previousTotalRef.current) {
     const previousTotal = previousTotalRef.current
-    const prepended = previousFirstRef.current !== undefined && turns[0]?.runId !== previousFirstRef.current
-    previousFirstRef.current = turns[0]?.runId
-    if (turns.length === previousTotal) return
+    const previousFirst = previousFirstRef.current
+    const prepended = previousFirst === undefined ? 0 : Math.max(0, turns.findIndex(turn => turn.runId === previousFirst))
     previousTotalRef.current = turns.length
+    previousFirstRef.current = turns[0]?.runId
     setTurnWindow(current => {
-      if (prepended) return { start: 0, end: Math.min(turns.length, MAX_TURN_WINDOW) }
+      if (prepended > 0) {
+        const end = Math.min(turns.length, current.end + prepended)
+        return { start: Math.max(0, end - MAX_TURN_WINDOW), end }
+      }
       if (turns.length < previousTotal) return tailWindow(turns.length)
       if (current.end !== previousTotal) return {
         start: Math.min(current.start, turns.length),
@@ -317,7 +321,7 @@ export function ChatView({ sessionId, events, pendingSubmissions, projection, re
       const start = pinned ? Math.max(0, end - MAX_TURN_WINDOW) : current.start
       return { start, end: Math.min(end, start + MAX_TURN_WINDOW) }
     })
-  }, [turns])
+  }
 
   React.useLayoutEffect(() => {
     const anchor = pendingAnchorRef.current
@@ -340,12 +344,12 @@ export function ChatView({ sessionId, events, pendingSubmissions, projection, re
   }, [])
 
   const loadOlder = () => {
-    preserveAnchor()
     if (turnWindow.start === 0 && history?.hasOlder) {
       onReaderNavigate()
       void history.loadOlder()
       return
     }
+    preserveAnchor()
     setTurnWindow(current => {
       const start = Math.max(0, current.start - TURN_PAGE_SIZE)
       return { start, end: Math.min(turns.length, current.end, start + MAX_TURN_WINDOW) }

@@ -1,4 +1,14 @@
 export const zh = {
+  'workflow.memoryEntries': "项目记忆条目上限",
+  'workflow.memoryChars': "每条记忆字符上限",
+  'workflow.memoryHint': "事实保存在项目根目录的 .ternilo-memory.json，按版本更新以避免覆盖其他代理的更改。历史对话仍使用会话检索。",
+  'workflow.githubUrl': "GitHub API 地址",
+  'workflow.githubUrlHint': "默认使用 GitHub 官方 API；也可配置企业版 API。需使用可联网的本机或接入电脑，网络隔离的 Worker 不支持。",
+  'workflow.githubCredential': "执行端凭据引用",
+  'workflow.githubCredentialHint': "填写已在执行端保存的凭据名称，留空可读取公开仓库。创建或合并 PR 需要凭据和正常工具授权，不在这里填写令牌原文。",
+  'workflow.browser': "文档渲染浏览器",
+  'workflow.browserHint': "执行端上的 Chrome／Chromium 程序名称或完整路径。启用后只在渲染时启动，适用于 Markdown 和静态 HTML；截图需支持图像输入的模型进行检查。",
+
   'optimization.promptCache': "提示前缀缓存",
   'optimization.promptCacheHint': "为 Anthropic Messages 的稳定系统提示添加缓存标记；默认关闭。其他协议保持供应商原有缓存行为。实际命中和费用以供应商返回为准。",
   'optimization.reasoning': "自动推理强度：观察模式",
@@ -832,6 +842,16 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  'workflow.memoryEntries': "Maximum project memory entries",
+  'workflow.memoryChars': "Maximum characters per note",
+  'workflow.memoryHint': "Facts live in .ternilo-memory.json at the project root. Revision checks prevent overwriting another agent’s changes. Use session search for conversation history.",
+  'workflow.githubUrl': "GitHub API URL",
+  'workflow.githubUrlHint': "Uses the official GitHub API by default; an enterprise API can also be configured. Requires a local or connected computer with network access; isolated Workers are offline.",
+  'workflow.githubCredential': "Execution host credential reference",
+  'workflow.githubCredentialHint': "Name a credential saved on the execution host. Leave blank for public reads. Creating or merging PRs requires credentials and normal tool authorization. Do not paste a token here.",
+  'workflow.browser': "Document rendering browser",
+  'workflow.browserHint': "Chrome/Chromium executable name or full path on the execution host. Starts only when rendering Markdown or static HTML. Reviewing screenshots requires an image-capable model.",
+
   'optimization.promptCache': "Prompt prefix caching",
   'optimization.promptCacheHint': "Add a cache breakpoint to stable system instructions for Anthropic Messages. Off by default. Other protocols keep their existing provider caching behavior. Actual cache hits and charges depend on the provider.",
   'optimization.reasoning': "Automatic reasoning: observation mode",
@@ -1709,6 +1729,16 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  'workflow.memoryEntries': "프로젝트 메모리 최대 항목 수",
+  'workflow.memoryChars': "메모당 최대 문자 수",
+  'workflow.memoryHint': "사실은 프로젝트 루트의 .ternilo-memory.json에 저장됩니다. 버전 확인으로 다른 에이전트의 변경 사항을 덮어쓰지 않습니다. 대화 기록은 세션 검색을 사용합니다.",
+  'workflow.githubUrl': "GitHub API 주소",
+  'workflow.githubUrlHint': "기본값은 공식 GitHub API이며 기업용 API도 설정할 수 있습니다. 네트워크에 연결된 로컬 또는 연결 컴퓨터가 필요하며 격리된 Worker는 오프라인입니다.",
+  'workflow.githubCredential': "실행 호스트 자격 증명 참조",
+  'workflow.githubCredentialHint': "실행 호스트에 저장된 자격 증명 이름을 입력하세요. 공개 저장소 읽기는 비워 둘 수 있습니다. PR 생성·병합에는 자격 증명과 일반 도구 승인이 필요합니다. 토큰 원문은 입력하지 마세요.",
+  'workflow.browser': "문서 렌더링 브라우저",
+  'workflow.browserHint': "실행 호스트의 Chrome/Chromium 실행 파일 이름 또는 전체 경로입니다. Markdown이나 정적 HTML 렌더링 시에만 시작합니다. 스크린샷 검토에는 이미지 입력을 지원하는 모델이 필요합니다.",
+
   'optimization.promptCache': "프롬프트 접두부 캐싱",
   'optimization.promptCacheHint': "Anthropic Messages의 안정적인 시스템 지침에 캐시 지점을 추가합니다. 기본값은 꺼짐입니다. 다른 프로토콜은 기존 공급자 캐싱을 유지하며 실제 적중과 요금은 공급자에 따릅니다.",
   'optimization.reasoning': "자동 추론 강도: 관찰 모드",

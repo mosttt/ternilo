@@ -111,6 +111,10 @@ pub fn event_references_attachment(event: &SessionEvent, digest: &str) -> bool {
         } => retained_output
             .as_ref()
             .is_some_and(|attachment| attachment.reference_digest() == Some(digest)),
+        SessionEventKind::DocumentRendered { render } => render
+            .screenshots
+            .iter()
+            .any(|attachment| attachment.reference_digest() == Some(digest)),
         SessionEventKind::DeliverableProduced { attachment, .. } => {
             attachment.reference_digest() == Some(digest)
         }

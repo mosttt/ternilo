@@ -718,7 +718,7 @@ pub(crate) fn derive_model_messages(
                 tool_call_id: None,
                 tool_calls: Vec::new(),
             }),
-            _ => None,
+            _ => crate::document_tools::context_message(&event.kind),
         };
         if let Some(message) = message {
             messages.push(message);

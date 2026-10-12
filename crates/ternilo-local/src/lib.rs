@@ -119,6 +119,8 @@ pub fn local_profile() -> Profile {
         ),
         plugin("file-tools", ternilo_builtins::FILE_TOOLS_KIND),
         plugin("code-map", ternilo_builtins::CODE_MAP_KIND),
+        plugin("project-memory", ternilo_builtins::PROJECT_MEMORY_KIND),
+        plugin("repository-tools", ternilo_builtins::REPOSITORY_TOOLS_KIND),
         plugin("shell-tool", ternilo_builtins::SHELL_TOOL_KIND),
         plugin("ask-user-tool", ternilo_builtins::ASK_USER_TOOL_KIND),
         plugin("plan-tool", ternilo_builtins::PLAN_TOOL_KIND),
@@ -128,6 +130,18 @@ pub fn local_profile() -> Profile {
         plugin("web-fetch", ternilo_builtins::WEB_FETCH_KIND),
         plugin("code-mode", ternilo_code_runtime::CODE_MODE_KIND),
     ]);
+    profile.plugins.push(PluginEntry {
+        id: "document-review".to_owned(),
+        kind: ternilo_builtins::DOCUMENT_REVIEW_KIND.to_owned(),
+        enabled: false,
+        config: json!({}),
+    });
+    profile.plugins.push(PluginEntry {
+        id: "github-tools".to_owned(),
+        kind: ternilo_builtins::GITHUB_TOOLS_KIND.to_owned(),
+        enabled: false,
+        config: json!({}),
+    });
     profile
 }
 

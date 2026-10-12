@@ -12,7 +12,10 @@ mod agent_team;
 mod code_map;
 mod context;
 mod contributions;
+mod document_browser;
+mod document_tools;
 mod extensions;
+mod github;
 #[cfg(test)]
 mod goal_execution_tests;
 mod hooks;
@@ -28,10 +31,12 @@ mod model_replay;
 mod model_rule;
 mod process_group;
 pub mod process_supervision;
+mod project_memory;
 mod projection;
 mod prompt;
 mod prompt_cache;
 mod reasoning_observation;
+mod repository_tools;
 mod schedule;
 mod session;
 mod session_query;
@@ -61,7 +66,9 @@ pub use agent_team::KIND as AGENT_TEAM_TOOLS_KIND;
 pub use code_map::KIND as CODE_MAP_KIND;
 pub use context::KIND as CONTEXT_KIND;
 pub use contributions::PROMPT_SECTION_KIND;
+pub use document_tools::KIND as DOCUMENT_REVIEW_KIND;
 pub use extensions::KIND as RUNTIME_EXTENSION_TOOLS_KIND;
+pub use github::KIND as GITHUB_TOOLS_KIND;
 pub use hooks::{CLAUDE_CODE_KIND as CLAUDE_CODE_HOOKS_KIND, CODEX_KIND as CODEX_HOOKS_KIND};
 pub use instructions::KIND as INSTRUCTIONS_KIND;
 pub use jobs::KIND as JOB_TOOLS_KIND;
@@ -71,6 +78,8 @@ pub use model::{
     normalize_provider_usage,
 };
 pub use model_discovery::{discover_provider_models, parse_openai_model_catalog};
+pub use project_memory::KIND as PROJECT_MEMORY_KIND;
+pub use repository_tools::KIND as REPOSITORY_TOOLS_KIND;
 mod provider_http;
 pub use model_replay::KIND as MODEL_REPLAY_KIND;
 pub use model_rule::{RuleCommand, parse_rule_command, rule_command_name};
@@ -152,6 +161,10 @@ pub fn register(catalog: &mut Catalog) -> Result<(), HarnessError> {
         context::factory(),
         workspace_tools::file_tools_factory(),
         code_map::factory(),
+        project_memory::factory(),
+        repository_tools::factory(),
+        github::factory(),
+        document_tools::factory(),
         workspace_tools::shell_tool_factory(),
         workspace_tools::ask_user_tool_factory(),
         workspace_tools::plan_tool_factory(),
@@ -253,6 +266,14 @@ fn plugin_description(kind: &str) -> &'static str {
         "ternilo.tools.runtime_extensions" => "检查并经审批管理已安装的签名运行时扩展。",
         "ternilo.tool.schedule" => "创建、查看和取消持久定时任务。",
         "ternilo.context.compaction" => "在上下文接近上限时压缩较早的会话历史。",
+        "ternilo.tools.project_memory" => {
+            "分别管理持久项目事实与历史会话检索，按版本保存项目记忆。"
+        }
+        "ternilo.tools.document_review" => {
+            "实际渲染 Markdown／静态 HTML，保存截图并记录与源内容对应的检查结论。"
+        }
+        "ternilo.tools.github" => "读取 PR、变更与检查，并经授权创建或按指定提交合并 PR。",
+        "ternilo.tools.repository" => "检查 Git 状态和差异，并只提交明确选择的文件。",
         "ternilo.tools.code_map" => "通过 AST 查看代码符号、导入和调用关系，不执行项目代码。",
         "ternilo.tools.files" => "向模型提供工作区文件读取、写入、替换、glob 与 grep。",
         "ternilo.tool.shell" => "通过宿主 sandbox 执行一次性 shell 命令。",

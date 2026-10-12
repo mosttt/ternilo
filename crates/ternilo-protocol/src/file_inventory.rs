@@ -345,6 +345,23 @@ pub fn session_file_references(event: &SessionEvent) -> Vec<SessionFileReference
                 })
             })
             .collect(),
+        SessionEventKind::DocumentRendered { render } => render
+            .screenshots
+            .iter()
+            .enumerate()
+            .filter_map(|(index, attachment)| {
+                let index = u32::try_from(index).ok()?;
+                Some(SessionFileReference {
+                    id: format!("generated-{}-{index}", event.seq),
+                    kind: SessionFileKind::Generated,
+                    path: None,
+                    attachment_index: index,
+                    attachment,
+                    occurred_at_ms: event.occurred_at_ms,
+                    event_seq: Some(event.seq),
+                })
+            })
+            .collect(),
         SessionEventKind::DeliverableProduced {
             path, attachment, ..
         } => vec![SessionFileReference {

@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 mod context_handoff;
+mod document_review;
+pub use document_review::{DocumentRender, DocumentReview, DocumentVerdict};
 mod reasoning_observation;
 pub use context_handoff::ContextHandoff;
 pub use reasoning_observation::ReasoningObservation;
@@ -3148,6 +3150,12 @@ pub enum SessionEventKind {
     },
     ScheduleChanged {
         change: ScheduleChange,
+    },
+    DocumentRendered {
+        render: DocumentRender,
+    },
+    DocumentReviewed {
+        review: DocumentReview,
     },
     DeliverableProduced {
         path: String,

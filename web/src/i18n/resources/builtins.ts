@@ -1,4 +1,9 @@
 export const zh = {
+  'plugin.projectMemory': "将持久项目事实与历史对话分开，并按版本保存记忆。",
+  'plugin.repository': "检查 Git 状态和差异，只提交明确选择的文件。",
+  'plugin.github': "读取 PR、变更与检查，并经授权创建或按指定提交合并 PR。",
+  'plugin.documentReview': "实际渲染 Markdown／静态 HTML，保存截图并记录与源内容对应的检查结论。",
+
   'plugin.codeMap': "通过 AST 查看代码符号、导入和调用关系，不执行项目代码。",
   'plugin.sessionLog': '保存 append-only 会话事件，并从事件构建模型历史。',
   'plugin.sessionTitle': '首次成功运行后用当前会话模型生成简洁标题。',
@@ -67,6 +72,11 @@ export const zh = {
 export type BuiltinsKey = keyof typeof zh
 
 export const en: Record<BuiltinsKey, string> = {
+  'plugin.projectMemory': "Keep durable project facts separate from conversation history, with revision checks.",
+  'plugin.repository': "Inspect Git status and diffs; commit only explicitly selected files.",
+  'plugin.github': "Read PRs, changes and checks; create or merge an exact head when authorized.",
+  'plugin.documentReview': "Render Markdown/static HTML, retain screenshots and record reviews tied to the source.",
+
   'plugin.codeMap': "Inspect AST symbols, imports and syntactic calls without executing project code.",
   'plugin.sessionLog': 'Stores append-only session events and builds model history from them.',
   'plugin.sessionTitle': 'Generates a concise title with the current session model after the first successful run.',
@@ -139,6 +149,11 @@ export const en: Record<BuiltinsKey, string> = {
 }
 
 export const ko = {
+  'plugin.projectMemory': "영구 프로젝트 사실을 대화 기록과 분리하고 버전을 확인하여 저장합니다.",
+  'plugin.repository': "Git 상태와 차이를 확인하고 명시적으로 선택한 파일만 커밋합니다.",
+  'plugin.github': "PR, 변경 사항과 검사를 읽고 승인된 경우 PR을 생성하거나 지정한 커밋을 병합합니다.",
+  'plugin.documentReview': "Markdown/정적 HTML을 실제로 렌더링하고 스크린샷 및 소스에 연결된 검토 결과를 저장합니다.",
+
   'plugin.codeMap': "프로젝트 코드를 실행하지 않고 AST 기호, 가져오기 및 구문상 호출 관계를 확인합니다.",
   'plugin.sessionLog': '추가 전용 세션 이벤트를 저장하고 이를 바탕으로 모델 기록을 구성합니다.',
   'plugin.sessionTitle': '첫 번째 실행이 성공하면 현재 세션 모델로 간결한 제목을 생성합니다.',
