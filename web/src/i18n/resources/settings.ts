@@ -1,4 +1,19 @@
 export const zh = {
+  'optimization.promptCache': "提示前缀缓存",
+  'optimization.promptCacheHint': "为 Anthropic Messages 的稳定系统提示添加缓存标记；默认关闭。其他协议保持供应商原有缓存行为。实际命中和费用以供应商返回为准。",
+  'optimization.reasoning': "自动推理强度：观察模式",
+  'optimization.reasoningHint': "按当前任务长度、工具调用和错误记录推理强度建议，用于评估。不会切换模型或更改实际推理强度，默认关闭。",
+
+  'plugins.configurationConflict': "会话配置正在更新，请稍后重试。已编辑内容会保留。",
+  'codeMap.maxFiles': "一次分析的文件数上限",
+  'codeMap.maxFileBytes': "单个文件读取上限（字节）",
+  'codeMap.limitsHint': "超过上限的文件内容或图谱条目会标记为不完整。动态调用只提供语法引用，不推断类型。",
+
+  'tools.historyBudget': "历史工具输出预算（字符）",
+  'tools.historyBudgetHint': "发送给模型的工具输出总预算，优先保留最近结果。默认 48000；0 表示不限制总量。完整结果仍保留在会话历史。",
+  'tools.readCache': "文件读取缓存（字节）",
+  'tools.readCacheHint': "每个会话可复用的文件内容总量。0 表示关闭；例如 8388608 为 8 MiB。读取前仍检查权限和文件版本，写入或检测到文件变化时失效。",
+
   "context.structuredSummary": "结构化上下文摘要",
   "context.structuredSummaryDescription": "压缩历史时分别保留目标、约束、决定、已完成工作、待办、文件与验证结果。",
   "toolSchemas.enabled": "按需加载工具定义",
@@ -817,6 +832,21 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  'optimization.promptCache': "Prompt prefix caching",
+  'optimization.promptCacheHint': "Add a cache breakpoint to stable system instructions for Anthropic Messages. Off by default. Other protocols keep their existing provider caching behavior. Actual cache hits and charges depend on the provider.",
+  'optimization.reasoning': "Automatic reasoning: observation mode",
+  'optimization.reasoningHint': "Record effort recommendations from current task length, tool calls and errors for evaluation. Does not switch models or change actual reasoning effort. Off by default.",
+
+  'plugins.configurationConflict': "Session configuration is being updated. Try again shortly; your edits are preserved.",
+  'codeMap.maxFiles': "Maximum files per map",
+  'codeMap.maxFileBytes': "Maximum bytes per file",
+  'codeMap.limitsHint': "Content or map entries beyond these limits are marked incomplete. Dynamic calls are syntactic references without type inference.",
+
+  'tools.historyBudget': "Tool history budget (characters)",
+  'tools.historyBudgetHint': "Total model-facing tool output budget, prioritizing recent results. Default: 48000; 0 disables the total limit. Full results remain in session history.",
+  'tools.readCache': "File read cache (bytes)",
+  'tools.readCacheHint': "Total reusable file content per session. 0 disables caching; 8388608 is 8 MiB. Reads still check access and file versions. Writes or detected file changes invalidate cached content.",
+
   "context.structuredSummary": "Structured context summaries",
   "context.structuredSummaryDescription": "Keep goals, constraints, decisions, completed work, pending work, files, and verification results in separate sections when compacting history.",
   "toolSchemas.enabled": "Load tool definitions on demand",
@@ -1679,6 +1709,21 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  'optimization.promptCache': "프롬프트 접두부 캐싱",
+  'optimization.promptCacheHint': "Anthropic Messages의 안정적인 시스템 지침에 캐시 지점을 추가합니다. 기본값은 꺼짐입니다. 다른 프로토콜은 기존 공급자 캐싱을 유지하며 실제 적중과 요금은 공급자에 따릅니다.",
+  'optimization.reasoning': "자동 추론 강도: 관찰 모드",
+  'optimization.reasoningHint': "현재 작업 길이, 도구 호출과 오류를 바탕으로 평가용 강도 제안을 기록합니다. 모델이나 실제 추론 강도는 변경하지 않으며 기본값은 꺼짐입니다.",
+
+  'plugins.configurationConflict': "세션 구성을 업데이트하고 있습니다. 잠시 후 다시 시도하세요. 편집 내용은 유지됩니다.",
+  'codeMap.maxFiles': "분석당 최대 파일 수",
+  'codeMap.maxFileBytes': "파일당 최대 바이트",
+  'codeMap.limitsHint': "한도를 초과하는 파일 내용이나 항목은 불완전으로 표시됩니다. 동적 호출은 타입 추론 없이 구문 참조만 제공합니다.",
+
+  'tools.historyBudget': "도구 기록 예산 (문자)",
+  'tools.historyBudgetHint': "최근 결과를 우선 보존하는 모델용 도구 출력 총예산입니다. 기본값은 48000이며 0은 총량 제한을 해제합니다. 전체 결과는 세션 기록에 남습니다.",
+  'tools.readCache': "파일 읽기 캐시 (바이트)",
+  'tools.readCacheHint': "세션별 재사용 가능한 파일 내용 총량입니다. 0은 비활성화, 8388608은 8 MiB입니다. 읽기 전에 접근 권한과 파일 버전을 확인하며 쓰기 또는 파일 변경 감지 시 캐시가 무효화됩니다.",
+
   "context.structuredSummary": "구조화된 컨텍스트 요약",
   "context.structuredSummaryDescription": "기록을 압축할 때 목표, 제약 조건, 결정, 완료한 작업, 남은 작업, 파일과 검증 결과를 구분하여 보존합니다.",
   "toolSchemas.enabled": "필요할 때 도구 정의 불러오기",

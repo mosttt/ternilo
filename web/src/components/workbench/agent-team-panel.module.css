@@ -231,3 +231,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+@media (max-width: 400px) {
+  .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

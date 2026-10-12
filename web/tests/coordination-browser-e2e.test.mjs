@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { verifyTeamUsage } from './team-usage-fixture.mjs'
-import { modelFixture, verifyToolDiscovery } from './coordination-fixture.mjs'
+import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap } from './coordination-fixture.mjs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -120,6 +120,30 @@ test('coordination settings persist in all locales and a real delegated call use
       await registry.locator('#plugin-tool-registry-schemas-loaded').fill(String(3 + Object.keys(locales).indexOf(locale)))
       await registry.getByRole('button', { name: labels.save, exact: true }).click()
       await until(() => registry.locator('button[aria-expanded][aria-label]').getAttribute('aria-expanded'), value => value === 'false', 'saved schema loading')
+      for (const [id, field, value] of [['session', 'max_tool_history_chars', '48000'], ['local-files', 'read_cache_bytes', '8388608']]) {
+        const configured = dialog.locator(`[data-plugin-id="${id}"]`)
+        await configured.locator('button[aria-expanded][aria-label]').click()
+        const input = configured.locator(`#plugin-${id}-${field}`)
+        const configuredValue = String(Number(value) + Object.keys(locales).indexOf(locale) + 1)
+        await input.fill(configuredValue)
+        assert.ok(await input.getAttribute('id'))
+        await configured.getByRole('button', { name: labels.save, exact: true }).click()
+        await until(() => configured.locator('button[aria-expanded][aria-label]').getAttribute('aria-expanded'), value => value === 'false', 'saved tool output settings')
+        const saved = (await request('/state')).sessions.find(item => item.identity.session_id === session.identity.session_id)
+        assert.equal(saved.profile_plugins.find(entry => entry.id === id).config[field], Number(configuredValue))
+      }
+      const optimization = dialog.locator('[data-plugin-id="agent-loop"]')
+      await optimization.locator('button[aria-expanded][aria-label]').click()
+      for (const field of ['prompt_cache', 'observe_reasoning']) {
+        const toggle = optimization.locator(`#plugin-agent-loop-${field}`)
+        if (await toggle.getAttribute('aria-checked') === 'false') await toggle.click()
+        assert.equal(await toggle.getAttribute('aria-checked'), 'true')
+      }
+      const optimizationSave = optimization.getByRole('button', { name: labels.save, exact: true })
+      if (await optimizationSave.isEnabled()) {
+        await optimizationSave.click()
+        await until(() => optimization.locator('button[aria-expanded][aria-label]').getAttribute('aria-expanded'), value => value === 'false', 'saved observation mode')
+      }
       await context.close()
     }
     await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: 'Investigate using the configured role' } } })
@@ -141,9 +165,16 @@ test('coordination settings persist in all locales and a real delegated call use
       page.on('console', message => { if (message.type() === 'error') errors.console.push(message.text()) })
       page.on('response', response => { if (response.status() >= 400) errors.http.push(`${response.status()} ${response.url()}`) })
       await page.goto(origin)
+      const observed = page.locator('[data-chat-event="reasoning_effort_observed"]').last()
+      await observed.waitFor({ state: 'attached' })
+      const process = observed.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]')
+      if (await process.getAttribute('aria-expanded') === 'false') await process.click()
+      await observed.getByText({ zh: '推理强度观察', en: 'Reasoning effort observation', ko: '추론 강도 관찰' }[locale], { exact: true }).waitFor()
+      assert.ok((await observed.innerText()).includes({ zh: '实际模型与推理设置保持不变', en: 'actual model and reasoning settings are unchanged', ko: '실제 모델 및 추론 설정은 변경되지 않습니다' }[locale]))
       await verifyTeamUsage(page, request, session.identity.session_id, locale)
       await context.close()
     }
+    await verifyToolBudgetAndMap(request, session.identity.session_id, upstream)
     assert.deepEqual(errors, { page: [], console: [], http: [] })
     console.log(JSON.stringify({ locales: Object.keys(locales), roleModel: child.model.model, childReadOnly: true, errors }))
   } catch (error) {

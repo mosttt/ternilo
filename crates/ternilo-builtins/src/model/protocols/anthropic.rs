@@ -44,7 +44,8 @@ pub(super) fn request_body(
     }
     let mut body = json!({"model": model.model, "messages": messages, "max_tokens": model.max_tokens.unwrap_or(4096), "stream": true});
     if !request.system_prompt.is_empty() {
-        body["system"] = json!(request.system_prompt);
+        body["system"] =
+            crate::prompt_cache::anthropic_system(&request.system_prompt, request.prompt_cache);
     }
     if !request.tools.is_empty() {
         body["tools"] = json!(request.tools.iter().map(|tool| json!({"name": tool.name, "description": tool.description, "input_schema": tool.input_schema})).collect::<Vec<_>>());

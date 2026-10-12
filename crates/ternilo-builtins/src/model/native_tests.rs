@@ -553,3 +553,41 @@ fn hosted_web_stream_preserves_inputs_encrypted_results_citations_and_pause_afte
     .unwrap();
     assert_eq!(body["messages"][1]["content"], json!(state.blocks));
 }
+
+#[test]
+fn explicit_prompt_caching_is_opt_in_and_does_not_change_reasoning_or_other_protocols() {
+    let mut request = request();
+    request.system_prompt =
+        "Stable project instructions\n\nSession identity: private-session".into();
+    let provider = model(ProviderProtocol::AnthropicMessages, Some("low"));
+    let uncached = protocols::request_body(&provider, &request).unwrap();
+    request.prompt_cache = true;
+    let cached = protocols::request_body(&provider, &request).unwrap();
+    assert!(uncached["system"].is_string());
+    assert_eq!(cached["system"][0]["cache_control"]["type"], "ephemeral");
+    assert!(cached["system"][1]["cache_control"].is_null());
+    assert_eq!(cached["output_config"], uncached["output_config"]);
+    assert_eq!(cached["messages"], uncached["messages"]);
+    for protocol in [
+        ProviderProtocol::OpenAiChatCompletions,
+        ProviderProtocol::OpenAiResponses,
+        ProviderProtocol::GoogleGemini,
+    ] {
+        let provider = model(protocol, None);
+        let enabled = protocols::request_body(&provider, &request).unwrap();
+        request.prompt_cache = false;
+        assert_eq!(
+            enabled,
+            protocols::request_body(&provider, &request).unwrap()
+        );
+        request.prompt_cache = true;
+    }
+    request.prompt_cache = false;
+    let legacy = serde_json::to_value(&request).unwrap();
+    assert!(legacy.get("prompt_cache").is_none());
+    assert!(
+        !serde_json::from_value::<ModelRequest>(legacy)
+            .unwrap()
+            .prompt_cache
+    );
+}

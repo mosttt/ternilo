@@ -418,7 +418,8 @@ pub fn event_category(kind: &ternilo_protocol::SessionEventKind) -> SessionEvent
         | SessionEventKind::CodeDispatchStarted { .. }
         | SessionEventKind::CodeDispatchFinished { .. }
         | SessionEventKind::RuntimeExtensionChanged { .. } => SessionEventCategory::Tool,
-        SessionEventKind::PlanUpdated { .. }
+        SessionEventKind::ReasoningEffortObserved { .. }
+        | SessionEventKind::PlanUpdated { .. }
         | SessionEventKind::PlanReviewCompleted { .. }
         | SessionEventKind::TodoUpdated { .. }
         | SessionEventKind::GoalUpdated { .. }

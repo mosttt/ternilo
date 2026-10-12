@@ -113,6 +113,7 @@ fn deepseek_final_reasoning_and_truncation_are_preserved_without_changing_standa
 #[test]
 fn deepseek_tool_history_passes_back_full_reasoning_only_for_the_selected_adapter() {
     let request = ModelRequest {
+        prompt_cache: false,
         run_id: ternilo_protocol::RunId::new("model-test-run"),
         step: 1,
         system_prompt: String::new(),

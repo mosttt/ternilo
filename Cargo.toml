@@ -32,6 +32,13 @@ rust-version = "1.98"
 version = "0.2.12"
 
 [workspace.dependencies]
+tree-sitter = "0.27.1"
+tree-sitter-rust = "0.24.2"
+tree-sitter-typescript = "0.23.2"
+tree-sitter-javascript = "0.25.0"
+tree-sitter-python = "0.25.0"
+tree-sitter-go = "0.25.0"
+
 cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
 agent-client-protocol = "2.0.0"

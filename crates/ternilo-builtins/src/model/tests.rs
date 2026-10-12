@@ -378,6 +378,7 @@ fn responses_request_uses_native_messages_tools_and_reasoning_shape() {
     let body = protocols::request_body(
         &model,
         &ModelRequest {
+            prompt_cache: false,
             run_id: ternilo_protocol::RunId::new("model-test-run"),
             system_prompt: "system".to_owned(),
             messages: vec![ModelMessage {
@@ -429,6 +430,7 @@ fn image_only_user_messages_do_not_emit_empty_text_parts() {
     assert_eq!(chat["content"][0]["type"], "image_url");
 
     let responses = responses_input(&ModelRequest {
+        prompt_cache: false,
         run_id: ternilo_protocol::RunId::new("model-test-run"),
         system_prompt: String::new(),
         messages: vec![message],

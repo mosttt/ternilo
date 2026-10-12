@@ -319,6 +319,7 @@ impl ContextManager {
             .models
             .complete(
                 ModelRequest {
+                    prompt_cache: false,
                     run_id,
                     system_prompt:
                         "You compact an agent conversation without losing operational facts."

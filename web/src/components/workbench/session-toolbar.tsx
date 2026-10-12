@@ -106,7 +106,7 @@ export function SessionHeaderActions({
     <div className={`${css.headerActions} session-header-actions`} aria-label={t('session.actions')} data-session-read-only-actions="">
       {openTeam && <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-xs" className={css.headerAction} aria-label={observabilityT('team.open')} onClick={() => openTeam()}>
+          <Button type="button" variant="ghost" size="icon-xs" className={`${css.headerAction} ${css.headerTeam}`} aria-label={observabilityT('team.open')} onClick={() => openTeam()}>
             <UsersRound />
           </Button>
         </TooltipTrigger>

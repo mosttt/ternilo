@@ -6,6 +6,13 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
+tree-sitter.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-javascript.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-go.workspace = true
+
 agent-client-protocol.workspace = true
 chrono.workspace = true
 futures-util.workspace = true

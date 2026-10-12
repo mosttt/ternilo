@@ -321,6 +321,10 @@ async fn prepare_source(
     snapshot
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep accepted input setup and its forged authorization checks together."
+)]
 async fn accepted_input(
     store: &ControlStore,
     fixture: &EdgeFixture,
@@ -378,6 +382,7 @@ async fn accepted_input(
         request_id: "request-1".to_owned(),
         binding: snapshot.binding.clone(),
         request: ModelRequest {
+            prompt_cache: false,
             run_id: RunId::new("account-model-run"),
             system_prompt: String::new(),
             messages: Vec::new(),

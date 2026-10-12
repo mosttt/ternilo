@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
 mod context_handoff;
+mod reasoning_observation;
 pub use context_handoff::ContextHandoff;
+pub use reasoning_observation::ReasoningObservation;
 mod provider_usage;
 pub use provider_usage::{ProviderUsageRoute, ReportedModelUsage};
 mod model_gateway;
@@ -2228,6 +2230,8 @@ pub struct HookResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelRequest {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub prompt_cache: bool,
     pub run_id: RunId,
     pub system_prompt: String,
     pub messages: Vec<ModelMessage>,
@@ -3034,6 +3038,10 @@ pub enum SessionEventKind {
     ModelRequestStarted {
         step: u32,
         system_prompt: String,
+    },
+    ReasoningEffortObserved {
+        step: u32,
+        observation: ReasoningObservation,
     },
     ProviderUsageStarted {
         /// Original journal identity survives forks; Server read projections may redact it.

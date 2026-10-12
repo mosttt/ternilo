@@ -1009,6 +1009,7 @@ async fn run_in_process_turn(
         let response = driver
             .models
             .complete(ModelRequest {
+                prompt_cache: false,
                 run_id: parent_run_id.clone(),
                 system_prompt: format!(
                     "{}\n\nYou are an in-process child agent named {:?}. Work independently on the delegated task. Return a concise result to the parent; do not ask the user for permission or clarification.",

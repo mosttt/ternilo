@@ -5,7 +5,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { chromium } from 'playwright'
-import { modelFixture, verifyToolDiscovery } from './coordination-fixture.mjs'
+import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap } from './coordination-fixture.mjs'
 import { localApi, until } from './model-device-fixture.mjs'
 import { execute, freePort, initializeServer, repository, serverRequest, startProcess, stopProcess, waitForHttp, selectSpace } from './platform-e2e-fixture.mjs'
 
@@ -96,6 +96,10 @@ test('Server role models execute through Node and Worker with independent reason
     await page.getByRole('button', { name: '登录', exact: true }).click()
     await selectSpace(page, tenantId)
     await configureRole(page, request, nodeId, model)
+    for (const id of [nodeId]) {
+      const current = (await request('/state')).sessions.find(session => session.identity.session_id === id)
+      await request(`/sessions/${id}`, { method: 'PATCH', body: { profile_plugins: [...current.profile_plugins, { id: 'agent-loop', kind: 'ternilo.agent.react', enabled: true, config: { observe_reasoning: true, prompt_cache: true } }] } })
+    }
     const nodeChild = await runRole(request, nodeId, upstream)
     const project = (await request('/projects', { body: { name: 'Coordination' } })).project
     const managed = (await request('/workspaces', { body: { project_id: project.project_id, name: 'Managed coordination', placement: 'cloud' } })).workspace
@@ -107,6 +111,8 @@ test('Server role models execute through Node and Worker with independent reason
     const worker = startProcess(workerBinary, ['serve', '--config-dir', workerDirectory]); processes.push(worker)
     await until(() => worker.diagnostics(), output => /Ternilo cloud worker .* ready/.test(output), 'Worker ready')
     await configureRole(page, request, cloud.identity.session_id, model, 'Managed coordination')
+    const configuredCloud = (await request('/state')).sessions.find(session => session.identity.session_id === cloud.identity.session_id)
+    await request(`/sessions/${cloud.identity.session_id}`, { method: 'PATCH', body: { profile_plugins: [...configuredCloud.profile_plugins, { id: 'agent-loop', kind: 'ternilo.agent.react', enabled: true, config: { observe_reasoning: true, prompt_cache: true } }] } })
     const cloudChild = await runRole(request, cloud.identity.session_id, upstream)
     for (const sessionId of [nodeId, cloud.identity.session_id]) {
       const current = (await request('/state')).sessions.find(item => item.identity.session_id === sessionId)
@@ -118,6 +124,9 @@ test('Server role models execute through Node and Worker with independent reason
       await page.locator(`[data-sidebar-session-row][data-session-id="${sessionId}"]`).click()
       await page.evaluate(() => localStorage.removeItem('ternilo.usage-estimate-prices.v1'))
       await verifyTeamUsage(page, request, sessionId, 'zh', sessionId === nodeId ? 'node' : 'worker')
+      await verifyToolBudgetAndMap(request, sessionId, upstream)
+      const recorded = await request(`/sessions/${sessionId}/events`)
+      assert.ok(recorded.some(event => event.type === 'reasoning_effort_observed'))
     }
     assert.deepEqual(errors, [])
     console.log(JSON.stringify({ nodeChild: nodeChild.subagent.role, workerChild: cloudChild.subagent.role, roleReasoning: 'low', errors }))

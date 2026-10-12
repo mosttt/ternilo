@@ -150,6 +150,7 @@ mod tests {
     #[test]
     fn conservative_budget_covers_wire_overhead_and_the_frozen_output_limit() {
         let request = ModelRequest {
+            prompt_cache: false,
             run_id: ternilo_protocol::RunId::new("model-test-run"),
             system_prompt: "System".to_owned(),
             messages: Vec::new(),

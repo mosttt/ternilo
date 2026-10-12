@@ -101,6 +101,7 @@ fn creative_profile() -> Profile {
 
 fn minimal_profile() -> Profile {
     let disabled = [
+        ("code-map", "ternilo.tools.code_map"),
         ("identity-prompt", "ternilo.prompt.identity"),
         ("workflow-engine", "ternilo.workflow.rhai"),
         ("workflow-tool", "ternilo.tools.workflow"),

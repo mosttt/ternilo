@@ -20,6 +20,7 @@ mod directory;
 mod event_store;
 mod execution_resources;
 mod extensions;
+mod file_read_cache;
 mod inbox;
 mod interaction;
 mod jobs;
@@ -117,6 +118,7 @@ pub fn local_profile() -> Profile {
             ternilo_builtins::INSTRUCTIONS_KIND,
         ),
         plugin("file-tools", ternilo_builtins::FILE_TOOLS_KIND),
+        plugin("code-map", ternilo_builtins::CODE_MAP_KIND),
         plugin("shell-tool", ternilo_builtins::SHELL_TOOL_KIND),
         plugin("ask-user-tool", ternilo_builtins::ASK_USER_TOOL_KIND),
         plugin("plan-tool", ternilo_builtins::PLAN_TOOL_KIND),

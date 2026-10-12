@@ -9,6 +9,7 @@ pub use model_gateway::{
 mod agent;
 mod agent_goal;
 mod agent_team;
+mod code_map;
 mod context;
 mod contributions;
 mod extensions;
@@ -29,6 +30,8 @@ mod process_group;
 pub mod process_supervision;
 mod projection;
 mod prompt;
+mod prompt_cache;
+mod reasoning_observation;
 mod schedule;
 mod session;
 mod session_query;
@@ -55,6 +58,7 @@ use ternilo_kernel::{Catalog, HarnessPlugin, PluginFactory, PluginManifest};
 use ternilo_protocol::{HarnessError, PluginEntry, Profile};
 
 pub use agent_team::KIND as AGENT_TEAM_TOOLS_KIND;
+pub use code_map::KIND as CODE_MAP_KIND;
 pub use context::KIND as CONTEXT_KIND;
 pub use contributions::PROMPT_SECTION_KIND;
 pub use extensions::KIND as RUNTIME_EXTENSION_TOOLS_KIND;
@@ -147,6 +151,7 @@ pub fn register(catalog: &mut Catalog) -> Result<(), HarnessError> {
         schedule::factory(),
         context::factory(),
         workspace_tools::file_tools_factory(),
+        code_map::factory(),
         workspace_tools::shell_tool_factory(),
         workspace_tools::ask_user_tool_factory(),
         workspace_tools::plan_tool_factory(),
@@ -248,6 +253,7 @@ fn plugin_description(kind: &str) -> &'static str {
         "ternilo.tools.runtime_extensions" => "检查并经审批管理已安装的签名运行时扩展。",
         "ternilo.tool.schedule" => "创建、查看和取消持久定时任务。",
         "ternilo.context.compaction" => "在上下文接近上限时压缩较早的会话历史。",
+        "ternilo.tools.code_map" => "通过 AST 查看代码符号、导入和调用关系，不执行项目代码。",
         "ternilo.tools.files" => "向模型提供工作区文件读取、写入、替换、glob 与 grep。",
         "ternilo.tool.shell" => "通过宿主 sandbox 执行一次性 shell 命令。",
         "ternilo.tool.ask_user" => "暂停运行并向用户提出可恢复的问题或审批。",

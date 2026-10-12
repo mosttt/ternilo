@@ -18,6 +18,7 @@ fn request() -> ComputerModelRequest {
         reasoning_effort: None,
         max_attempts: 2,
         request: ModelRequest {
+            prompt_cache: false,
             run_id: RunId::new("remote-run"),
             system_prompt: "private source prompt".into(),
             messages: vec![],

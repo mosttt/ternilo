@@ -15,8 +15,9 @@
 .mobileOnlySeparator { display: none; }
 
 @media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
-  .headerActions > :not(.headerMore):not(.headerService) { display: none; }
+  .headerActions > :not(.headerMore):not(.headerService):not(.headerTeam) { display: none; }
   .composerControl { min-width: 40px; height: 40px; }
+  .headerTeam,
   .headerMore,
   .headerService { min-width: 40px; height: 40px; }
   .composerControlLabel { display: none; }

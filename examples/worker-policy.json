@@ -38,6 +38,7 @@
     "ternilo.session.log",
     "ternilo.prompt.registry",
     "ternilo.tools.registry",
+    "ternilo.tools.code_map",
     "ternilo.hooks.registry",
     "ternilo.prompt.system",
     "ternilo.prompt.identity",

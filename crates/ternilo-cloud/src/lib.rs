@@ -172,6 +172,12 @@ pub fn cloud_profile(model: Option<&RunModelSnapshot>) -> ternilo_protocol::Prof
                 ternilo_builtins::INSTRUCTIONS_KIND,
                 serde_json::json!({}),
             ),
+            ternilo_protocol::PluginEntry {
+                id: "code-map".to_owned(),
+                kind: ternilo_builtins::CODE_MAP_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
             entry(
                 "file-tools",
                 ternilo_builtins::FILE_TOOLS_KIND,

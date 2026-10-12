@@ -204,7 +204,7 @@ impl HarnessPlugin for IdentityPromptPlugin {
             let registration = prompts
                 .register(PromptSection {
                     id: "session-identity".to_owned(),
-                    order: 100,
+                    order: i32::MAX,
                     content: format!(
                         "Session identity: tenant={}, user={}, agent={}, session={}. {}",
                         identity.tenant_id,

@@ -1,4 +1,10 @@
 export const zh = {
+  'reasoning.observed': "推理强度观察",
+  'reasoning.low': "低",
+  'reasoning.medium': "中",
+  'reasoning.high': "高",
+  'reasoning.observationDetail': "建议：{effort}。本轮输入 {chars} 字符、工具调用 {calls} 次、错误 {errors} 次。仅记录建议，实际模型与推理设置保持不变。",
+
   'identity.you': '你',
   'identity.localUser': '本机用户',
   'identity.schedule': '定时任务',
@@ -305,6 +311,12 @@ export const zh = {
 export type ChatKey = keyof typeof zh
 
 export const en = {
+  'reasoning.observed': "Reasoning effort observation",
+  'reasoning.low': "Low",
+  'reasoning.medium': "Medium",
+  'reasoning.high': "High",
+  'reasoning.observationDetail': "Recommendation: {effort}. Current task: {chars} characters, {calls} tool calls, {errors} errors. Recorded for evaluation; actual model and reasoning settings are unchanged.",
+
   'identity.you': 'You',
   'identity.localUser': 'Local user',
   'identity.schedule': 'Scheduled task',
@@ -609,6 +621,12 @@ export const en = {
 } satisfies Record<ChatKey, string>
 
 export const ko = {
+  'reasoning.observed': "추론 강도 관찰",
+  'reasoning.low': "낮음",
+  'reasoning.medium': "중간",
+  'reasoning.high': "높음",
+  'reasoning.observationDetail': "제안: {effort}. 현재 작업: {chars}자, 도구 호출 {calls}회, 오류 {errors}회. 평가용 기록이며 실제 모델 및 추론 설정은 변경되지 않습니다.",
+
   'identity.you': '나',
   'identity.localUser': '로컬 사용자',
   'identity.schedule': '예약 작업',
