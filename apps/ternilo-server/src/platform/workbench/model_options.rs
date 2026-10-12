@@ -51,6 +51,7 @@ struct CurrentModel {
 
 mod edge;
 pub(crate) mod managed;
+pub(crate) mod role;
 pub(crate) use edge::resolve_edge_selection;
 
 pub(crate) async fn resolve_selection(

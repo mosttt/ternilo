@@ -243,6 +243,7 @@ impl ControlStore {
             .unwrap_or_else(|| SessionId::new(random_identifier("ses")));
         let now = to_i64(now_ms, "edge session creation timestamp")?;
         metadata.server_model = None;
+        metadata.role_models.clear();
         let mut transaction = self.database.begin().await?;
         set_tenant(&mut transaction, tenant_id).await?;
         let mut parent_node_session_id = None;
@@ -260,7 +261,15 @@ impl ControlStore {
                 .bind(tenant_id.as_str()).bind(parent_id.as_str()).fetch_optional(&mut *transaction).await.map_err(database_error)?.ok_or_else(session_not_found)?;
             let inherited: ternilo_storage::Json<EdgeSessionMetadata> =
                 parent.try_get("metadata_json").map_err(database_error)?;
-            metadata.server_model = inherited.0.server_model;
+            metadata.server_model = metadata
+                .subagent
+                .as_ref()
+                .and_then(|child| child.role)
+                .and_then(|role| inherited.0.role_models.get(&role).cloned())
+                .unwrap_or_else(|| inherited.0.server_model.clone());
+            if metadata.subagent.is_none() {
+                metadata.role_models = inherited.0.role_models;
+            }
             let parent_workspace: String =
                 parent.try_get("workspace_id").map_err(database_error)?;
             let parent_executor: String = parent.try_get("executor_id").map_err(database_error)?;
@@ -449,6 +458,7 @@ impl ControlStore {
             "SELECT metadata_json FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2 FOR UPDATE"))
             .bind(tenant_id.as_str()).bind(session_id.as_str()).fetch_one(&mut *transaction).await.map_err(database_error)?;
         metadata.server_model = existing.0.server_model;
+        metadata.role_models = existing.0.role_models;
         let metadata_json = serde_json::to_value(metadata).map_err(|error| json_error(&error))?;
         let row = sqlx::query(
             "UPDATE control_edge_sessions

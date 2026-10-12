@@ -58,7 +58,7 @@ pub use outer_sandbox::{OUTER_SANDBOX_KIND, outer_sandbox_factory};
 pub use run_lineage::CloudRunLineage;
 pub use steering::CloudSteeringTicket;
 pub use store::{CloudStore, EncryptedUserProviderCredential, UserProviderRoute, spec_digest};
-pub use subagents::{CloudSubagent, WorkerSubagentRun};
+pub use subagents::{CloudSubagent, WorkerSubagentRun, worker_subagent_profile};
 pub use telemetry::{ClaimedCloudTelemetry, CloudSessionTelemetry};
 pub use ternilo_builtins::{
     BROKERED_MODEL_KIND, BrokeredModelConfig, model_gateway_factory, profile_model_snapshot,
@@ -172,6 +172,36 @@ pub fn cloud_profile(model: Option<&RunModelSnapshot>) -> ternilo_protocol::Prof
                 ternilo_builtins::INSTRUCTIONS_KIND,
                 serde_json::json!({}),
             ),
+            ternilo_protocol::PluginEntry {
+                id: "document-review".to_owned(),
+                kind: ternilo_builtins::DOCUMENT_REVIEW_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
+            ternilo_protocol::PluginEntry {
+                id: "github-tools".to_owned(),
+                kind: ternilo_builtins::GITHUB_TOOLS_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
+            ternilo_protocol::PluginEntry {
+                id: "project-memory".to_owned(),
+                kind: ternilo_builtins::PROJECT_MEMORY_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
+            ternilo_protocol::PluginEntry {
+                id: "repository-tools".to_owned(),
+                kind: ternilo_builtins::REPOSITORY_TOOLS_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
+            ternilo_protocol::PluginEntry {
+                id: "code-map".to_owned(),
+                kind: ternilo_builtins::CODE_MAP_KIND.to_owned(),
+                enabled: false,
+                config: serde_json::json!({}),
+            },
             entry(
                 "file-tools",
                 ternilo_builtins::FILE_TOOLS_KIND,

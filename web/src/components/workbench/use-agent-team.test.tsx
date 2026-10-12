@@ -46,7 +46,7 @@ function childSession(sessionId: string, subagentId: string, updatedAt = 1): Loc
     workspace_id: 'workspace', workspace_path: '/tmp/workspace', title: sessionId,
     permissions: 'workspace_write', model: { provider: 'profile_default' },
     agent_preset: 'standard', preset_plugins: [], profile_plugins: [], mode: 'execute',
-    parent_session_id: 'owner',
+    parent_session_id: 'team-a',
     subagent: { subagent_id: subagentId, provider: 'in-process', transcript_kind: 'conversation' },
     created_at_ms: 1, updated_at_ms: updatedAt,
   }

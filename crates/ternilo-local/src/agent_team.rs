@@ -1067,6 +1067,7 @@ mod tests {
         let mut session = root_session(id);
         session.parent_session_id = Some(SessionId::new(parent));
         session.subagent = Some(SubagentSessionMetadata {
+            role: None,
             subagent_id: SubagentId::new(subagent_id),
             provider: "in-process".to_owned(),
             transcript_kind: SubagentTranscriptKind::Conversation,

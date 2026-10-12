@@ -347,6 +347,7 @@ impl NodeSessionSnapshot {
         parent_session_id: Option<SessionId>,
     ) -> ternilo_control::EdgeSessionMetadata {
         ternilo_control::EdgeSessionMetadata {
+            role_models: std::collections::BTreeMap::default(),
             parent_session_id,
             subagent: self.subagent.clone(),
             title: self.title.clone(),
@@ -374,6 +375,7 @@ mod tests {
     #[test]
     fn cloud_workbench_session_preserves_subagent_metadata() {
         let metadata = SubagentSessionMetadata {
+            role: None,
             subagent_id: SubagentId::new("researcher"),
             provider: "in-process".to_owned(),
             transcript_kind: SubagentTranscriptKind::Conversation,

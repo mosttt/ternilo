@@ -7,6 +7,7 @@ async fn child(application: &LocalApplication, parent: &LocalSession, name: &str
         .create(
             parent.identity.clone(),
             SubagentSessionRequest {
+                role: None,
                 subagent_id: SubagentId::new(name),
                 provider: "in-process".to_owned(),
                 label: name.to_owned(),

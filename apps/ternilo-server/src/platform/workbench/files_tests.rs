@@ -237,6 +237,7 @@ impl Fixture {
                 &SessionId::new(format!("node-session-{name}")),
                 Some(&SessionId::new(name)),
                 EdgeSessionMetadata {
+                    role_models: std::collections::BTreeMap::default(),
                     server_model: None,
                     parent_session_id: None,
                     subagent: None,

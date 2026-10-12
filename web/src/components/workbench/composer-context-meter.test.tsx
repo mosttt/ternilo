@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Translate } from '@/i18n/runtime'
 import { zh } from '@/i18n/resources/conversation'
+import { resetCloudModelInventoryForTest } from '@/domain/cloud-model-inventory'
 import { resetProviderInventoryForTest } from '@/domain/provider-inventory'
 import { ComposerContextMeter } from './composer-context-meter'
 
@@ -15,6 +16,7 @@ let host: HTMLDivElement
 beforeEach(() => {
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   resetProviderInventoryForTest()
+  resetCloudModelInventoryForTest()
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
 })
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks() })
@@ -80,4 +82,21 @@ it.each(['platform_model', 'named_provider'] as const)('uses the exact %s cloud 
   expect(String(fetchMock.mock.calls[0][0])).toContain('/model-options?limit=25&session_id=shared-session')
   await act(async () => root.render(<ComposerContextMeter model={{ ...selection, reasoning_effort: 'low' }} target={{ sessionId: 'shared-session', placement: 'cloud' }} events={events} t={t} />))
   expect(host.innerHTML).toBe('')
+})
+
+
+it.each(['account_provider', 'computer_provider', 'platform_model'] as const)('loads %s context capacity for a Server Node session', async provider => {
+  const selection = provider === 'account_provider'
+    ? { provider, owner_user_id: 'owner', provider_id: 'p', model: 'm' }
+    : provider === 'computer_provider' ? { provider, executor_id: 'node', provider_id: 'p', model: 'm' }
+    : { provider, grant_id: 'g', model_id: 'm' }
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ current: { selection, available: true, model: { defaults: { context_window: 1000 } } } })))
+  const events: import('@/types').SessionEvent[] = [{ seq: 1, occurred_at_ms: 1, run_id: 'r', type: 'assistant_message', response: { provider: 'p', model: 'm', finish_reason: 'stop', content: 'done', usage: { input_tokens: 100, output_tokens: 50, cached_input_tokens: 40, reasoning_tokens: 20 } } }]
+  await act(async () => root.render(<ComposerContextMeter model={selection} target={{ sessionId: 'node-session', placement: 'local_node' }} events={events} t={t} />))
+  const trigger = host.querySelector<HTMLButtonElement>('button')!
+  expect(trigger.getAttribute('aria-label')).toContain('15%')
+  act(() => trigger.click())
+  expect(host.textContent).toContain('缓存读取（输入内）40')
+  expect(host.textContent).toContain('推理（输出内）20')
+  expect(String(fetchMock.mock.calls[0][0])).toContain('/model-options?limit=25&session_id=node-session')
 })

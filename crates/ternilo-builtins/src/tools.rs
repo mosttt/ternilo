@@ -1,12 +1,18 @@
+#[path = "tool_schemas.rs"]
+mod schemas;
 #[path = "tool_sources.rs"]
 mod sources;
+use schemas::SchemaLoadingConfig;
 
+#[cfg(test)]
+#[path = "tool_schemas_tests.rs"]
+mod schema_tests;
 #[cfg(test)]
 #[path = "tool_sources_tests.rs"]
 mod source_tests;
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     future::Future,
     pin::Pin,
     sync::{
@@ -50,6 +56,7 @@ pub fn factory() -> PluginFactory {
         },
         |value| {
             let config: ToolRegistryConfig = parse_config(value)?;
+            config.schema_loading.validate()?;
             if config.timeout_ms == 0 {
                 return Err(HarnessError::composition(
                     "tool registry timeout_ms must be positive",
@@ -64,6 +71,8 @@ pub fn factory() -> PluginFactory {
 #[derive(Clone, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ToolRegistryConfig {
+    #[serde(default)]
+    schema_loading: SchemaLoadingConfig,
     #[serde(default = "default_timeout_ms")]
     timeout_ms: u64,
 }
@@ -99,9 +108,15 @@ impl HarnessPlugin for ToolRegistryPlugin {
             state: Mutex::new(ToolState::default()),
             commands: CommandRegistry::default(),
             timeout,
+            schema_loading: self.config.schema_loading.clone(),
             next_approval: AtomicU64::new(1),
         });
         Activation::Once(Box::pin(async move {
+            if registry.schema_loading.enabled {
+                registry
+                    .add_tool(schemas::registration(Arc::downgrade(&registry)))
+                    .map_err(|error| linorun_core::ActivationFailure::user(error.to_string()))?;
+            }
             for command in crate::model_rule::builtin_command_registrations() {
                 registry.commands.register(command).map_err(|error| {
                     linorun_core::ActivationFailure::user(format!(
@@ -132,6 +147,7 @@ impl HarnessPlugin for ToolRegistryPlugin {
 
 #[derive(Default)]
 struct ToolState {
+    loaded_schemas: VecDeque<String>,
     next: u64,
     tools: BTreeMap<u64, ToolRegistration>,
     names: BTreeMap<String, u64>,
@@ -148,6 +164,7 @@ struct SourceEntry {
 }
 
 struct ToolRegistry {
+    schema_loading: SchemaLoadingConfig,
     environment: RunEnvironmentClient,
     sessions: SessionsClient,
     state: Mutex<ToolState>,
@@ -303,6 +320,43 @@ fn validate_command_arguments(
 }
 
 impl ToolRegistry {
+    async fn tool_specs(&self) -> Vec<ToolSpec> {
+        let mut tools: Vec<_> = self
+            .state
+            .lock()
+            .expect("tool registry lock poisoned")
+            .tools
+            .values()
+            .map(|tool| tool.spec.clone())
+            .collect();
+        if !crate::agent_goal::goal_tool_enabled(&self.sessions.events().await) {
+            tools.retain(|tool| tool.name != "update_goal");
+        }
+        tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools
+    }
+
+    fn add_tool(&self, tool: ToolRegistration) -> Result<u64, HarnessError> {
+        if tool.spec.name.trim().is_empty() {
+            return Err(HarnessError::invalid("tool name must not be empty"));
+        }
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| HarnessError::execution("tool registry lock poisoned"))?;
+        if state.names.contains_key(&tool.spec.name) {
+            return Err(HarnessError::composition(format!(
+                "tool {:?} is already registered",
+                tool.spec.name
+            )));
+        }
+        let name = tool.spec.name.clone();
+        let id = Self::next_id(&mut state)?;
+        state.names.insert(name, id);
+        state.tools.insert(id, tool);
+        Ok(id)
+    }
+
     fn next_id(state: &mut ToolState) -> Result<u64, HarnessError> {
         let id = state.next;
         state.next = state
@@ -510,26 +564,7 @@ impl ToolsProvider for ToolRegistry {
         _: CallContext<()>,
         tool: ToolRegistration,
     ) -> Pin<Box<dyn Future<Output = Result<u64, HarnessError>> + Send + 'a>> {
-        Box::pin(async move {
-            if tool.spec.name.trim().is_empty() {
-                return Err(HarnessError::invalid("tool name must not be empty"));
-            }
-            let mut state = self
-                .state
-                .lock()
-                .map_err(|_| HarnessError::execution("tool registry lock poisoned"))?;
-            if state.names.contains_key(&tool.spec.name) {
-                return Err(HarnessError::composition(format!(
-                    "tool {:?} is already registered",
-                    tool.spec.name
-                )));
-            }
-            let name = tool.spec.name.clone();
-            let id = Self::next_id(&mut state)?;
-            state.names.insert(name, id);
-            state.tools.insert(id, tool);
-            Ok(id)
-        })
+        Box::pin(async move { self.add_tool(tool) })
     }
 
     fn unregister_tool<'a>(
@@ -637,21 +672,7 @@ impl ToolsProvider for ToolRegistry {
         &'a self,
         _: CallContext<()>,
     ) -> Pin<Box<dyn Future<Output = Vec<ToolSpec>> + Send + 'a>> {
-        Box::pin(async move {
-            let mut tools: Vec<_> = self
-                .state
-                .lock()
-                .expect("tool registry lock poisoned")
-                .tools
-                .values()
-                .map(|tool| tool.spec.clone())
-                .collect();
-            if !crate::agent_goal::goal_tool_enabled(&self.sessions.events().await) {
-                tools.retain(|tool| tool.name != "update_goal");
-            }
-            tools.sort_by(|left, right| left.name.cmp(&right.name));
-            tools
-        })
+        Box::pin(self.tool_specs())
     }
 
     fn present<'a>(
@@ -680,10 +701,21 @@ impl ToolsProvider for ToolRegistry {
                 tools.retain(|tool| tool.name != "update_goal");
             }
             tools.sort_by(|left, right| left.name.cmp(&right.name));
-            match presenter {
-                Some(presenter) => presenter.present(tools).await,
-                None => Ok(ToolPresentation::native(tools)),
+            let discovery = self.prepare_schema_tools(&mut tools)?;
+            let mut presentation = match presenter {
+                Some(presenter) => presenter.present(tools).await?,
+                None => ToolPresentation::native(tools),
+            };
+            if let Some(discovery) = discovery {
+                presentation.deferred_tools = discovery.deferred;
+                let mut prompt = discovery.prompt;
+                if let Some(previous) = presentation.system_prompt {
+                    prompt.push_str("\n\n");
+                    prompt.push_str(&previous);
+                }
+                presentation.system_prompt = Some(prompt);
             }
+            Ok(presentation)
         })
     }
 

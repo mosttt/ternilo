@@ -276,6 +276,7 @@ fn edge_session() -> EdgeSessionRecord {
         owner_user_id: UserId::new("user"),
         node_session_id: SessionId::new("node-session"),
         metadata: ternilo_control::EdgeSessionMetadata {
+            role_models: std::collections::BTreeMap::default(),
             server_model: None,
             parent_session_id: None,
             subagent: None,

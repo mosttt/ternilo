@@ -57,6 +57,18 @@ const exactTitles: Record<string, Parameters<Translate<'chat'>>[0]> = {
   terminal_list: 'tool.terminalList',
   run_code: 'tool.code',
   skill: 'tool.skill',
+  search_tools: 'tool.discover',
+  code_map: 'tool.codeMap',
+  read_project_memory: 'tool.memoryRead',
+  update_project_memory: 'tool.memoryUpdate',
+  git_inspect: 'tool.repositoryInspect',
+  git_commit_paths: 'tool.repositoryCommit',
+  github_list_prs: 'tool.pullList',
+  github_review_pr: 'tool.pullReview',
+  github_create_pr: 'tool.pullCreate',
+  github_merge_pr: 'tool.pullMerge',
+  render_document: 'tool.documentRender',
+  record_document_review: 'tool.documentReview',
 }
 
 export function exactTitle(trace: ToolTrace, t: Translate<'chat'>) {

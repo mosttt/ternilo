@@ -1,3 +1,4 @@
+import { ToolSchemaFields } from './tool-schema-fields'
 import * as React from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,8 @@ import {
   schemaType,
 } from './plugin-config'
 import styles from './plugin-config-card.module.css'
+import { CoordinationFields, coordinationErrorKey } from './coordination-fields'
+import type { ExecutionTarget } from '@/domain/execution-target'
 
 function initialTexts(config: Record<string, unknown>, fields: ReturnType<typeof pluginConfigFields>) {
   return Object.fromEntries(fields.map((field) => {
@@ -41,6 +44,7 @@ export function PluginConfigCard({
   savingLabel,
   disabledReason,
   hostToolCallLimit,
+  target,
   onToggle,
   onSave,
   onReset,
@@ -55,6 +59,7 @@ export function PluginConfigCard({
   savingLabel?: string
   disabledReason?: string
   hostToolCallLimit?: number
+  target?: ExecutionTarget
   onToggle?(enabled: boolean): Promise<void>
   onSave(entry: PluginEntry): Promise<void>
   onReset?(): Promise<void>
@@ -118,7 +123,9 @@ export function PluginConfigCard({
       await onSave({ ...entry, config: preview.next })
       setOpen(false)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      const message = cause instanceof Error ? cause.message : String(cause)
+      const localized = entry.kind === 'ternilo.subagents.in_process' ? coordinationErrorKey(message) : null
+      setError(localized ? t(localized) : entry.kind === 'ternilo.tools.registry' && message.includes('tool schema') ? t('toolSchemas.invalid') : message)
     } finally {
       setBusy(false)
     }
@@ -208,10 +215,32 @@ export function PluginConfigCard({
           {fields.length ? (
             <div className="grid gap-5">
               {fields.map((field) => {
+                if (entry.kind === 'ternilo.tools.registry' && field.key === 'schema_loading') {
+                  return <ToolSchemaFields key={field.key} id={`plugin-${entry.id}-schemas`} value={draft.schema_loading} disabled={busy}
+                    onChange={schema_loading => setDraft(current => ({ ...current, schema_loading }))} />
+                }
+                if (entry.kind === 'ternilo.subagents.in_process' && field.key === 'coordination') {
+                  return <CoordinationFields key={field.key} id={`plugin-${entry.id}-coordination`} target={target}
+                    value={draft.coordination} disabled={busy}
+                    onChange={coordination => setDraft(current => ({ ...current, coordination }))} />
+                }
                 const type = schemaType(field.schema)
                 const value = draft[field.key]
                 const hasOverride = value !== undefined || touched.has(field.key)
-                const label = fieldLabel(field.key, field.schema)
+                const structuredSummary = entry.kind === 'ternilo.context.compaction' && field.key === 'structured_summary'
+                const budgetField = entry.kind === 'ternilo.session.log' && field.key === 'max_tool_history_chars'
+                const cacheField = entry.kind === 'ternilo.files.local' && field.key === 'read_cache_bytes'
+                const workflowFields: Record<string, [string, string]> = {
+                  'ternilo.tools.project_memory:max_entries': [t('workflow.memoryEntries'), t('workflow.memoryHint')],
+                  'ternilo.tools.project_memory:max_note_chars': [t('workflow.memoryChars'), t('workflow.memoryHint')],
+                  'ternilo.tools.github:base_url': [t('workflow.githubUrl'), t('workflow.githubUrlHint')],
+                  'ternilo.tools.github:credential_ref': [t('workflow.githubCredential'), t('workflow.githubCredentialHint')],
+                  'ternilo.tools.document_review:browser_command': [t('workflow.browser'), t('workflow.browserHint')],
+                }
+                const workflowField = workflowFields[`${entry.kind}:${field.key}`]
+                const optimizationField = entry.kind === 'ternilo.agent.react' ? field.key : ''
+                const codeMapField = entry.kind === 'ternilo.tools.code_map' ? field.key : ''
+                const label = workflowField ? workflowField[0] : optimizationField === 'prompt_cache' ? t('optimization.promptCache') : optimizationField === 'observe_reasoning' ? t('optimization.reasoning') : codeMapField === 'max_files' ? t('codeMap.maxFiles') : codeMapField === 'max_file_bytes' ? t('codeMap.maxFileBytes') : budgetField ? t('tools.historyBudget') : cacheField ? t('tools.readCache') : structuredSummary ? t('context.structuredSummary') : fieldLabel(field.key, field.schema)
                 const invalid = preview.invalid === field.key
                 const configuredLimit = preview.next[field.key] ?? field.schema.default
                 const effectiveToolLimit = entry.kind === 'ternilo.agent.react' && field.key === 'max_tool_calls' && !invalid
@@ -267,7 +296,7 @@ export function PluginConfigCard({
                       />
                     )}
                     <FieldDescription className={invalid ? 'text-destructive' : undefined}>
-                      {invalid ? t('plugins.invalidField', { name: label }) : field.schema.description || t('plugins.schemaFieldDescription', { key: field.key })}
+                      {invalid ? t('plugins.invalidField', { name: label }) : workflowField ? workflowField[1] : optimizationField === 'prompt_cache' ? t('optimization.promptCacheHint') : optimizationField === 'observe_reasoning' ? t('optimization.reasoningHint') : codeMapField ? t('codeMap.limitsHint') : budgetField ? t('tools.historyBudgetHint') : cacheField ? t('tools.readCacheHint') : structuredSummary ? t('context.structuredSummaryDescription') : field.schema.description || t('plugins.schemaFieldDescription', { key: field.key })}
                     </FieldDescription>
                     {effectiveToolLimit !== undefined && <FieldDescription data-tool-call-limit="">
                       {effectiveToolLimit === 0 ? t('plugins.toolLimit.unlimited') : t('plugins.toolLimit.effective', { limit: effectiveToolLimit })}

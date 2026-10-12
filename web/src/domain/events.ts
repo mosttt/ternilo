@@ -87,6 +87,8 @@ export type ConversationItem =
   | { kind: 'card'; key: string; event: SessionEvent }
 
 const visibleCards = new Set([
+  'document_rendered', 'document_reviewed',
+  'reasoning_effort_observed',
   'plan_updated', 'plan_review_completed', 'todo_updated', 'goal_updated', 'goal_round_started',
   'schedule_changed', 'subagent_updated', 'runtime_extension_changed',
   'workflow_run_started', 'workflow_phase_changed', 'workflow_log_emitted',

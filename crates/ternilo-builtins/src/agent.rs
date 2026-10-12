@@ -40,6 +40,10 @@ component_descriptor! {
 #[derive(Clone, Copy, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct AgentConfig {
+    #[serde(default)]
+    prompt_cache: bool,
+    #[serde(default)]
+    observe_reasoning: bool,
     /// Maximum Agent steps requested per turn; 0 means no plugin limit. The host may impose a lower ceiling.
     #[serde(default = "default_max_steps")]
     max_steps: u32,
@@ -97,6 +101,8 @@ impl HarnessPlugin for ReactAgentPlugin {
 
     fn activate(&self, context: ComponentContext) -> Activation {
         let provider: Arc<dyn AgentsProvider> = Arc::new(ReactAgent {
+            prompt_cache: self.config.prompt_cache,
+            observe_reasoning: self.config.observe_reasoning,
             max_steps: self.config.max_steps,
             max_tool_calls: self.config.max_tool_calls,
             max_goal_rounds: self.config.goal_round_limit,
@@ -151,6 +157,8 @@ impl HarnessPlugin for ReactAgentPlugin {
 }
 
 struct ReactAgent {
+    prompt_cache: bool,
+    observe_reasoning: bool,
     max_steps: u32,
     max_tool_calls: u32,
     max_goal_rounds: u32,
@@ -766,7 +774,8 @@ impl ReactAgent {
             SessionEventKind::ToolCallStarted { call: call.clone() },
         )
         .await?;
-        let visible = presentation.tools.iter().any(|tool| tool.name == call.name);
+        let visible = presentation.tools.iter().any(|tool| tool.name == call.name)
+            || (!presentation.code_only && presentation.deferred_tools.contains(&call.name));
         if !visible {
             let content = if presentation.code_only {
                 format!(
@@ -1171,6 +1180,15 @@ impl ReactAgent {
                 }
                 system_prompt.push_str(&section);
             }
+            if self.observe_reasoning {
+                let observation =
+                    crate::reasoning_observation::observe(&self.sessions.events().await, &run_id);
+                self.append(
+                    &run_id,
+                    SessionEventKind::ReasoningEffortObserved { step, observation },
+                )
+                .await?;
+            }
             self.append(
                 &run_id,
                 SessionEventKind::ModelRequestStarted {
@@ -1180,6 +1198,7 @@ impl ReactAgent {
             )
             .await?;
             let request = ModelRequest {
+                prompt_cache: self.prompt_cache,
                 run_id: run_id.clone(),
                 system_prompt,
                 messages: self.sessions.derive_messages().await,

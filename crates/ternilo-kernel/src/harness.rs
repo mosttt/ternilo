@@ -356,7 +356,7 @@ fn profile_provides_subagents(catalog: &Catalog, profile: &Profile) -> bool {
         .any(|entry| {
             catalog
                 .factory(&entry.kind)
-                .is_ok_and(|factory| factory.manifest.provides.contains(&"ternilo/subagents@2"))
+                .is_ok_and(|factory| factory.manifest.provides.contains(&"ternilo/subagents@3"))
         })
 }
 

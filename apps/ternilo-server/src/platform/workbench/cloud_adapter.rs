@@ -167,6 +167,14 @@ impl<'a> CloudAdapter<'a> {
         if let Some(value) = update.profile_plugins.as_ref() {
             candidate.profile_plugins.clone_from(value);
         }
+        if update.profile_plugins.is_some() {
+            self.resolve_role_models(
+                &mut candidate.profile_plugins,
+                Some((ResourceKind::Session, candidate.session_id.as_str())),
+            )
+            .await?;
+            update.profile_plugins = Some(candidate.profile_plugins.clone());
+        }
         if let Some(value) = update.mode {
             candidate.mode = value;
         }
@@ -1056,6 +1064,11 @@ impl<'a> CloudAdapter<'a> {
             selected,
         )
         .await?;
+        self.resolve_role_models(
+            &mut draft.profile.plugins,
+            Some((ResourceKind::Session, session.session_id.as_str())),
+        )
+        .await?;
         validate_task_model_budget(
             &current,
             &draft.input,
@@ -1113,6 +1126,15 @@ impl<'a> CloudAdapter<'a> {
         selection: DefaultModelSelection,
         resource: Option<(ResourceKind, &str)>,
     ) -> Result<Option<RunModelSnapshot>, HarnessError> {
+        self.model_update_for_role(selection, resource, None).await
+    }
+
+    async fn model_update_for_role(
+        &self,
+        selection: DefaultModelSelection,
+        resource: Option<(ResourceKind, &str)>,
+        role: Option<ternilo_protocol::AgentRole>,
+    ) -> Result<Option<RunModelSnapshot>, HarnessError> {
         let owner = if let Some((kind, id)) = resource {
             let access = self
                 .state
@@ -1125,11 +1147,16 @@ impl<'a> CloudAdapter<'a> {
             self.actor.user_id.clone()
         };
         let previous = if let Some((ResourceKind::Session, id)) = resource {
-            self.state
+            let session = self
+                .state
                 .cloud
                 .get_session(self.tenant_id, &SessionId::new(id))
-                .await?
-                .model
+                .await?;
+            let roles = ternilo_protocol::CoordinationConfig::from_profile(&Profile {
+                plugins: session.profile_plugins,
+            })?;
+            role.and_then(|role| roles.resolved_models.get(&role).cloned())
+                .or(session.model)
         } else {
             None
         };
@@ -1143,6 +1170,46 @@ impl<'a> CloudAdapter<'a> {
             selection,
         )
         .await
+    }
+
+    async fn resolve_role_models(
+        &self,
+        plugins: &mut [ternilo_protocol::PluginEntry],
+        resource: Option<(ResourceKind, &str)>,
+    ) -> Result<(), HarnessError> {
+        for entry in plugins
+            .iter_mut()
+            .filter(|entry| entry.enabled && entry.kind == ternilo_protocol::SUBAGENTS_PLUGIN_KIND)
+        {
+            let Some(value) = entry.config.get_mut("coordination") else {
+                continue;
+            };
+            let mut config: ternilo_protocol::CoordinationConfig =
+                serde_json::from_value(value.clone()).map_err(|error| {
+                    HarnessError::invalid(format!("invalid coordination settings: {error}"))
+                })?;
+            config.resolved_models.clear();
+            config.validate()?;
+            for role in ternilo_protocol::AgentRole::ALL {
+                let Some(selection) = config.role(role).model.as_ref() else {
+                    continue;
+                };
+                if matches!(selection, DefaultModelSelection::ProfileDefault) {
+                    continue;
+                }
+                let snapshot = self
+                    .model_update_for_role(selection.clone(), resource, Some(role))
+                    .await?
+                    .ok_or_else(|| {
+                        HarnessError::policy("choose an available model for this agent role")
+                    })?;
+                config.role_mut(role).model = Some(snapshot.selection());
+                config.resolved_models.insert(role, snapshot);
+            }
+            *value = serde_json::to_value(config)
+                .map_err(|error| HarnessError::execution(error.to_string()))?;
+        }
+        Ok(())
     }
 
     async fn validate_profile(&self, session: &CloudSessionRecord) -> Result<(), HarnessError> {
@@ -1199,6 +1266,7 @@ fn cloud_subagent_snapshot(
         .as_ref()
         .expect("canonical cloud Subagent has metadata");
     SubagentSnapshot {
+        role: metadata.role,
         subagent_id: metadata.subagent_id.clone(),
         provider: metadata.provider.clone(),
         label: child.title.clone(),

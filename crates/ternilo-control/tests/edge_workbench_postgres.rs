@@ -1505,6 +1505,7 @@ async fn enroll(
 
 fn metadata(title: &str, parent_session_id: Option<SessionId>, now_ms: u64) -> EdgeSessionMetadata {
     EdgeSessionMetadata {
+        role_models: std::collections::BTreeMap::default(),
         server_model: None,
         parent_session_id,
         subagent: None,
@@ -1539,6 +1540,7 @@ fn hello(executor_id: ExecutorId) -> ExecutorHello {
 #[test]
 fn edge_metadata_rejects_inconsistent_timestamps() {
     let invalid = EdgeSessionMetadata {
+        role_models: std::collections::BTreeMap::default(),
         created_at_ms: 20,
         updated_at_ms: 19,
         ..metadata("invalid", None, 20)

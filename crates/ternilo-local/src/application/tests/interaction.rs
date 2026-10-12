@@ -700,3 +700,38 @@ async fn authoritative_inbox_interrupts_direct_turn_and_parks_fifo_on_cancel() {
     tokio::fs::remove_dir_all(data_dir).await.unwrap();
     tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
 }
+
+#[tokio::test]
+async fn plugin_save_waits_for_an_idle_metadata_reader_without_reporting_a_running_task() {
+    let data_dir = test_data_dir();
+    let workspace_dir = data_dir.with_extension("workspace");
+    tokio::fs::create_dir(&workspace_dir).await.unwrap();
+    let application = open_test_application(data_dir.clone()).await;
+    let workspace = application
+        .add_workspace(workspace_dir.to_str().unwrap())
+        .await
+        .unwrap();
+    let session = application
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let id = session.identity.session_id.as_str();
+    application.session_command_catalog(id).await.unwrap();
+    let lifecycle = application.session_lifecycle(id).await;
+    let reading = lifecycle.lock().await;
+    let save = application.update_profile_plugins(id, Vec::new());
+    tokio::pin!(save);
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(30), &mut save)
+            .await
+            .is_err()
+    );
+    drop(reading);
+    tokio::time::timeout(std::time::Duration::from_secs(2), save)
+        .await
+        .unwrap()
+        .unwrap();
+    application.shutdown().await.unwrap();
+    tokio::fs::remove_dir_all(data_dir).await.unwrap();
+    tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
+}

@@ -60,6 +60,7 @@ function ToastRegion() {
     <div
       className="pointer-events-none fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[90] ml-auto flex w-[min(380px,calc(100vw-2rem))] flex-col gap-2"
       role="region"
+      data-notification-region=""
       aria-label={t("notification.region")}
       aria-live="polite"
       aria-relevant="additions"
@@ -94,6 +95,7 @@ function ToastRegion() {
               type="button"
               className="-m-2 grid size-10 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={t("notification.dismiss")}
+              data-notification-action=""
               onClick={() => dismissToast(toast.id)}
             >
               <X className="size-4" />

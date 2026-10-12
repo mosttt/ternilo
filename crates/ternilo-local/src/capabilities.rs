@@ -29,6 +29,8 @@ use tokio::{
     process::Command,
 };
 
+use crate::file_read_cache::{FileReadCache, FileVersion};
+
 pub const LOCAL_FILES_KIND: &str = "ternilo.files.local";
 pub const LOCAL_SHELL_KIND: &str = "ternilo.shell.local";
 
@@ -53,6 +55,8 @@ component_descriptor! {
 struct FilesConfig {
     #[serde(default = "default_max_read_bytes")]
     max_read_bytes: u64,
+    #[serde(default)]
+    read_cache_bytes: usize,
 }
 
 const fn default_max_read_bytes() -> u64 {
@@ -127,6 +131,7 @@ impl HarnessPlugin for LocalFilesPlugin {
             .service::<RunEnvironment>()
             .expect("local files declares RunEnvironment");
         let max_read_bytes = self.config.max_read_bytes;
+        let read_cache_bytes = self.config.read_cache_bytes;
         let route = context.context().clone();
         let scope = context.scope().clone();
         Activation::Once(Box::pin(async move {
@@ -147,6 +152,8 @@ impl HarnessPlugin for LocalFilesPlugin {
                 root,
                 environment,
                 max_read_bytes,
+                read_cache_bytes,
+                read_cache: tokio::sync::Mutex::new(FileReadCache::default()),
             });
             scope
                 .provide::<WorkspaceFiles>(&route, provider)
@@ -165,11 +172,16 @@ struct LocalFiles {
     root: PathBuf,
     environment: RunEnvironmentClient,
     max_read_bytes: u64,
+    read_cache_bytes: usize,
+    read_cache: tokio::sync::Mutex<FileReadCache>,
 }
 
 impl LocalFiles {
     async fn read_utf8_bounded(&self, path: &Path) -> Result<String, HarnessError> {
-        let metadata = tokio::fs::metadata(path).await.map_err(|error| {
+        let mut file = tokio::fs::File::open(path).await.map_err(|error| {
+            HarnessError::execution(format!("open {}: {error}", path.display()))
+        })?;
+        let metadata = file.metadata().await.map_err(|error| {
             HarnessError::execution(format!("inspect {}: {error}", path.display()))
         })?;
         if !metadata.is_file() {
@@ -185,11 +197,16 @@ impl LocalFiles {
                 self.max_read_bytes
             )));
         }
-        let file = tokio::fs::File::open(path).await.map_err(|error| {
-            HarnessError::execution(format!("open {}: {error}", path.display()))
-        })?;
+        let version = FileVersion::from_metadata(&metadata);
+        if self.read_cache_bytes > 0
+            && let Some(version) = &version
+            && let Some(content) = self.read_cache.lock().await.get(path, version)
+        {
+            return Ok(content);
+        }
         let mut bytes = Vec::new();
-        file.take(self.max_read_bytes.saturating_add(1))
+        (&mut file)
+            .take(self.max_read_bytes.saturating_add(1))
             .read_to_end(&mut bytes)
             .await
             .map_err(|error| {
@@ -201,9 +218,22 @@ impl LocalFiles {
                 self.max_read_bytes
             )));
         }
-        String::from_utf8(bytes).map_err(|error| {
+        let content = String::from_utf8(bytes).map_err(|error| {
             HarnessError::invalid(format!("read UTF-8 file {}: {error}", path.display()))
-        })
+        })?;
+        if self.read_cache_bytes > 0
+            && let Some(version) = version
+            && let Ok(after) = file.metadata().await
+            && FileVersion::from_metadata(&after).as_ref() == Some(&version)
+        {
+            self.read_cache.lock().await.insert(
+                path.to_path_buf(),
+                version,
+                content.clone(),
+                self.read_cache_bytes,
+            );
+        }
+        Ok(content)
     }
 
     async fn existing_path(&self, requested: &str) -> Result<PathBuf, HarnessError> {
@@ -346,6 +376,7 @@ impl WorkspaceFilesProvider for LocalFiles {
                 .acquire_workspace(RunCancellation::new())
                 .await?;
             let path = self.writable_path(&request.path).await?;
+            self.read_cache.lock().await.invalidate(&path);
             write_owned(path.clone(), request.content.clone(), lease).await?;
             Ok(FileWriteResult {
                 path: self.display_path(&path),
@@ -386,6 +417,7 @@ impl WorkspaceFilesProvider for LocalFiles {
             } else {
                 content.replacen(&request.old, &request.new, 1)
             };
+            self.read_cache.lock().await.invalidate(&path);
             write_owned(path.clone(), updated, lease).await?;
             Ok(FileReplaceResult {
                 path: self.display_path(&path),

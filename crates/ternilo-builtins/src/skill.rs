@@ -946,7 +946,7 @@ async fn parse_skill_file(path: &Path) -> Result<ParsedSkill, HarnessError> {
         .replace("\r\n", "\n");
     let (frontmatter, body) = split_frontmatter(&text)?;
     let parsed = if let Some(frontmatter) = frontmatter {
-        let metadata: SkillFrontmatter = serde_yaml_ng::from_str(frontmatter).map_err(|error| {
+        let metadata: SkillFrontmatter = serde_saphyr::from_str(frontmatter).map_err(|error| {
             HarnessError::invalid(format!(
                 "parse skill frontmatter {}: {error}",
                 path.display()
@@ -1308,6 +1308,27 @@ mod tests {
         let revision = snapshot.snapshot.revision;
         registry.invalidate_provider(high).unwrap();
         assert!(registry.collect().await.unwrap().snapshot.revision > revision);
+    }
+
+    #[tokio::test]
+    async fn filesystem_frontmatter_preserves_multiline_metadata_and_boolean_aliases() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("SKILL.md");
+        tokio::fs::write(
+            &path,
+            "---\nname: review-code\ndescription: >-\n  验证 / 확인\n  across languages\nwhenToUse: |\n  Before merging.\n  Check the current diff.\ndisable-model-invocation: 'off'\nuser-invocable: 0\n---\nInspect the change.",
+        )
+        .await
+        .unwrap();
+        let parsed = parse_skill_file(&path).await.unwrap();
+        assert_eq!(parsed.description, "验证 / 확인 across languages");
+        assert_eq!(
+            parsed.when_to_use.as_deref(),
+            Some("Before merging.\nCheck the current diff.\n")
+        );
+        assert!(parsed.invocation.model_invocable);
+        assert!(!parsed.invocation.user_invocable);
+        assert_eq!(parsed.content, "Inspect the change.");
     }
 
     #[tokio::test]

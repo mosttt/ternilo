@@ -22,6 +22,7 @@ export function DialogContent({
   style,
   onOpenAutoFocus,
   onCloseAutoFocus,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
   const t = useTranslate('common')
@@ -49,6 +50,11 @@ export function DialogContent({
             restoreFocus.current.focus()
           }
           restoreFocus.current = null
+        }}
+        onInteractOutside={(event) => {
+          onInteractOutside?.(event)
+          // A notification may already be detached when Radix dispatches the deferred click.
+          if (event.target instanceof Element && event.target.closest('[data-notification-region], [data-notification-action]')) event.preventDefault()
         }}
         {...props}
       >

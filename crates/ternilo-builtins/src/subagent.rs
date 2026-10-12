@@ -24,15 +24,18 @@ use ternilo_kernel::{
     ToolRegistration, Tools, ToolsClient,
 };
 use ternilo_protocol::{
-    HarnessError, MessageRole, ModelMessage, ModelRequest, RunId, SessionEventKind, SubagentId,
-    SubagentSnapshot, SubagentStatus, SubagentTranscriptKind, ToolOutput, ToolSpec,
+    AgentRole, CoordinationConfig, CoordinationMode, HarnessError, MessageRole, ModelMessage,
+    ModelRequest, RunId, SessionEventKind, SubagentId, SubagentSnapshot, SubagentStatus,
+    SubagentTranscriptKind, ToolOutput, ToolSpec,
 };
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, mpsc};
 use tokio::task::JoinSet;
 
 use crate::{effective_count_limit, factory as make_factory, parse_config};
 
 pub const KIND: &str = "ternilo.subagents.in_process";
+
+mod coordination;
 
 component_descriptor! {
     static DESCRIPTOR: () {
@@ -45,6 +48,8 @@ component_descriptor! {
 #[derive(Clone, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SubagentConfig {
+    #[serde(default)]
+    coordination: CoordinationConfig,
     #[serde(default = "default_max_children")]
     max_children: usize,
     #[serde(default = "default_max_steps")]
@@ -83,10 +88,11 @@ pub fn factory() -> PluginFactory {
                 "ternilo/sessions@1",
                 "ternilo/run-environment@1",
             ],
-            provides: &["ternilo/subagents@2"],
+            provides: &["ternilo/subagents@3"],
         },
         |value| {
             let config: SubagentConfig = parse_config(value)?;
+            config.coordination.validate()?;
             if config.max_children == 0 || config.foreground_timeout_ms == 0 {
                 return Err(HarnessError::composition(
                     "subagent child limit and foreground timeout must be positive",
@@ -132,7 +138,7 @@ impl HarnessPlugin for SubagentPlugin {
         let scope = context.scope().clone();
         let in_process: Arc<dyn SubagentBackend> = Arc::new(InProcessBackend {
             models,
-            prompts,
+            prompts: prompts.clone(),
             tools: tools.clone(),
             environment: environment.clone(),
             config: self.config.clone(),
@@ -150,6 +156,8 @@ impl HarnessPlugin for SubagentPlugin {
                 sessions,
                 environment,
                 config: self.config.clone(),
+                child_slots: Arc::new(Semaphore::new(self.config.max_children)),
+                running_slots: Arc::new(Semaphore::new(self.config.coordination.parallel_limit())),
                 children: tokio::sync::Mutex::new(BTreeMap::new()),
                 pending_cleanup: Mutex::new(JoinSet::new()),
                 backends: Mutex::new(backends),
@@ -165,9 +173,21 @@ impl HarnessPlugin for SubagentPlugin {
                 .map_err(|error| {
                     linorun_core::ActivationFailure::user(format!("provide subagents: {error}"))
                 })?;
-            let registrations = register_tools(&tools, manager.clone())
+            let prompt = prompts
+                .register(ternilo_protocol::PromptSection {
+                    id: "coordination".to_owned(),
+                    order: 460,
+                    content: coordination::instructions(&manager.core.config.coordination),
+                })
                 .await
                 .map_err(|error| linorun_core::ActivationFailure::user(error.to_string()))?;
+            let registrations = match register_tools(&tools, manager.clone()).await {
+                Ok(registrations) => registrations,
+                Err(error) => {
+                    let _ = prompts.unregister(prompt).await;
+                    return Err(linorun_core::ActivationFailure::user(error.to_string()));
+                }
+            };
             Ok(Some(effect::inverse(move || async move {
                 for registration in registrations.into_iter().rev() {
                     tools
@@ -176,6 +196,10 @@ impl HarnessPlugin for SubagentPlugin {
                         .map_err(|error| CleanupError::user(error.to_string()))?;
                 }
                 manager.core.shutdown().await;
+                prompts
+                    .unregister(prompt)
+                    .await
+                    .map_err(|error| CleanupError::user(error.to_string()))?;
                 Ok(())
             })))
         }))
@@ -186,6 +210,8 @@ struct SubagentCore {
     sessions: SessionsClient,
     environment: RunEnvironmentClient,
     config: SubagentConfig,
+    child_slots: Arc<Semaphore>,
+    running_slots: Arc<Semaphore>,
     children: tokio::sync::Mutex<BTreeMap<SubagentId, Arc<Child>>>,
     pending_cleanup: Mutex<JoinSet<()>>,
     backends: Mutex<BTreeMap<u64, RegisteredBackend>>,
@@ -229,6 +255,7 @@ impl Drop for PendingChild {
 }
 
 struct Child {
+    _slot: OwnedSemaphorePermit,
     state: tokio::sync::Mutex<ChildState>,
     driver: Arc<dyn SubagentDriver>,
     sender: mpsc::UnboundedSender<ChildCommand>,
@@ -277,6 +304,7 @@ impl ChildRunCompletion {
 }
 
 struct ChildCommand {
+    permit: OwnedSemaphorePermit,
     parent_run_id: RunId,
     message: String,
     cancellation: RunCancellation,
@@ -361,18 +389,34 @@ impl SubagentCore {
     )]
     async fn spawn(
         self: &Arc<Self>,
-        provider: String,
         parent_run_id: RunId,
-        task: String,
-        label: Option<String>,
-        background: bool,
+        arguments: SpawnArguments,
         activity: ActivityBranch,
     ) -> Result<SubagentSnapshot, HarnessError> {
+        let SpawnArguments {
+            provider,
+            task,
+            label,
+            background,
+            role,
+        } = arguments;
         let task = task.trim().to_owned();
         if task.is_empty() {
             return Err(HarnessError::invalid("subagent task must not be empty"));
         }
         let provider = provider.trim().to_owned();
+        let permit = self.start_permit()?;
+        if role.is_some() && provider != "in-process" {
+            return Err(HarnessError::invalid(
+                "role settings apply to built-in agents; configure an external agent through its provider",
+            ));
+        }
+        let slot = self.child_slots.clone().try_acquire_owned().map_err(|_| {
+            HarnessError::policy(format!(
+                "session already owns the maximum of {} subagents",
+                self.config.max_children
+            ))
+        })?;
         let backend = self.backend(&provider)?;
         let now = now_ms()?;
         let sequence = self.next_id.fetch_add(1, Ordering::Relaxed);
@@ -396,6 +440,7 @@ impl SubagentCore {
         let session = self
             .environment
             .create_subagent_session(SubagentSessionRequest {
+                role,
                 subagent_id: subagent_id.clone(),
                 provider: provider.clone(),
                 label: label.clone(),
@@ -403,7 +448,13 @@ impl SubagentCore {
                 transcript_kind,
             })
             .await?;
+        if role.is_some() && session.is_none() {
+            return Err(HarnessError::unavailable(
+                "agent roles require a persistent session host",
+            ));
+        }
         let snapshot = SubagentSnapshot {
+            role,
             subagent_id: subagent_id.clone(),
             provider,
             label,
@@ -421,6 +472,7 @@ impl SubagentCore {
         let completion = Arc::new(ChildRunCompletion::default());
         let (sender, receiver) = mpsc::unbounded_channel();
         let child = Arc::new(Child {
+            _slot: slot,
             state: tokio::sync::Mutex::new(ChildState {
                 snapshot: snapshot.clone(),
                 start: start.clone(),
@@ -434,12 +486,6 @@ impl SubagentCore {
         });
         {
             let mut children = self.children.lock().await;
-            if children.len() >= self.config.max_children {
-                return Err(HarnessError::policy(format!(
-                    "session already owns the maximum of {} subagents",
-                    self.config.max_children
-                )));
-            }
             children.insert(subagent_id.clone(), child.clone());
         }
         let mut pending = PendingChild {
@@ -468,6 +514,7 @@ impl SubagentCore {
         child
             .sender
             .send(ChildCommand {
+                permit,
                 parent_run_id,
                 message: task,
                 cancellation,
@@ -512,6 +559,7 @@ impl SubagentCore {
             None => automated_input_provenance()?,
         };
         let child = self.child(subagent_id).await?;
+        let permit = self.start_permit()?;
         if !child.driver.supports_followup() {
             return Err(HarnessError::invalid(format!(
                 "subagent provider {:?} is one-shot and does not support follow-up messages",
@@ -551,6 +599,7 @@ impl SubagentCore {
         child
             .sender
             .send(ChildCommand {
+                permit,
                 parent_run_id,
                 message,
                 cancellation,
@@ -561,6 +610,17 @@ impl SubagentCore {
         start.wait().await?;
         start.mark_delivered();
         Ok(snapshot)
+    }
+
+    fn start_permit(&self) -> Result<OwnedSemaphorePermit, HarnessError> {
+        if self.config.coordination.mode == CoordinationMode::Independent {
+            return Err(HarnessError::policy(
+                "Independent coordination is active. Complete the task in this session.",
+            ));
+        }
+        self.running_slots.clone().try_acquire_owned().map_err(|_| {
+            HarnessError::policy("The coordination parallel limit is reached. Wait for an active agent to finish before starting another task.")
+        })
     }
 
     async fn child(&self, subagent_id: &SubagentId) -> Result<Arc<Child>, HarnessError> {
@@ -883,6 +943,7 @@ async fn child_worker(
                 command.start,
             )
             .await;
+        drop(command.permit);
         start.resolve(
             result
                 .as_ref()
@@ -948,6 +1009,7 @@ async fn run_in_process_turn(
         let response = driver
             .models
             .complete(ModelRequest {
+                prompt_cache: false,
                 run_id: parent_run_id.clone(),
                 system_prompt: format!(
                     "{}\n\nYou are an in-process child agent named {:?}. Work independently on the delegated task. Return a concise result to the parent; do not ask the user for permission or clarification.",
@@ -1013,6 +1075,19 @@ async fn run_in_process_turn(
 }
 
 impl SubagentsProvider for SubagentManager {
+    fn parallel_limit<'a>(
+        &'a self,
+        _: CallContext<()>,
+    ) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>> {
+        Box::pin(async move {
+            self.core
+                .config
+                .coordination
+                .parallel_limit()
+                .min(self.core.config.max_children)
+        })
+    }
+
     fn register_backend<'a>(
         &'a self,
         _: CallContext<()>,
@@ -1048,11 +1123,14 @@ impl SubagentsProvider for SubagentManager {
         Box::pin(async move {
             self.core
                 .spawn(
-                    "in-process".to_owned(),
                     parent_run_id,
-                    task,
-                    label,
-                    background,
+                    SpawnArguments {
+                        provider: "in-process".to_owned(),
+                        task,
+                        label,
+                        background,
+                        role: None,
+                    },
                     activity,
                 )
                 .await
@@ -1071,7 +1149,17 @@ impl SubagentsProvider for SubagentManager {
     ) -> Pin<Box<dyn Future<Output = Result<SubagentSnapshot, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
             self.core
-                .spawn(provider, parent_run_id, task, label, background, activity)
+                .spawn(
+                    parent_run_id,
+                    SpawnArguments {
+                        provider,
+                        task,
+                        label,
+                        background,
+                        role: None,
+                    },
+                    activity,
+                )
                 .await
         })
     }
@@ -1183,7 +1271,8 @@ async fn register_tools(
                         "task": { "type": "string" },
                         "label": { "type": "string" },
                         "provider": { "type": "string", "default": "in-process" },
-                        "background": { "type": "boolean", "default": true }
+                        "background": { "type": "boolean", "default": true },
+                        "role": { "type": "string", "enum": ["investigator", "implementer", "reviewer"], "description": "Use the configured model, instructions and permissions for this role. Omit to inherit the lead's model and permissions." }
                     },
                     "required": ["task"],
                     "additionalProperties": false
@@ -1242,6 +1331,11 @@ async fn register_tools(
     ];
     let mut registrations = Vec::new();
     for (spec, operation) in definitions {
+        if manager.core.config.coordination.mode == CoordinationMode::Independent
+            && matches!(operation, SubagentOperation::Spawn)
+        {
+            continue;
+        }
         registrations.push(
             tools
                 .register_tool(ToolRegistration {
@@ -1271,14 +1365,7 @@ impl ToolHandler for SubagentTool {
                     serde_json::to_value(
                         self.manager
                             .core
-                            .spawn(
-                                arguments.provider,
-                                context.run_id,
-                                arguments.task,
-                                arguments.label,
-                                arguments.background,
-                                context.activity,
-                            )
+                            .spawn(context.run_id, arguments, context.activity)
                             .await?,
                     )
                 }
@@ -1343,6 +1430,8 @@ impl ToolHandler for SubagentTool {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SpawnArguments {
+    #[serde(default)]
+    role: Option<AgentRole>,
     task: String,
     label: Option<String>,
     #[serde(default = "default_subagent_provider")]

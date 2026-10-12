@@ -833,6 +833,7 @@ mod tests {
             owner_user_id: UserId::new("user-a"),
             node_session_id: SessionId::new("node-session-a"),
             metadata: EdgeSessionMetadata {
+                role_models: std::collections::BTreeMap::default(),
                 server_model: None,
                 parent_session_id: None,
                 subagent: None,

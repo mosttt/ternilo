@@ -252,7 +252,18 @@ impl LocalApplication {
             )
         };
         let _lifecycle = if changes_plugins {
-            lifecycle.try_lock().map_err(|_| busy_plugins())?
+            if let Some(managed) = self.live.read().await.get(session_id).cloned() {
+                drop(
+                    Arc::clone(&managed.gate)
+                        .try_lock_owned()
+                        .map_err(|_| busy_plugins())?,
+                );
+            }
+            // Metadata reads also use this lock. Give them time to finish without
+            // waiting indefinitely behind another lifecycle operation.
+            tokio::time::timeout(std::time::Duration::from_secs(1), lifecycle.lock())
+                .await
+                .map_err(|_| HarnessError::conflict("Session configuration is busy. Retry after the current configuration operation finishes."))?
         } else {
             lifecycle.lock().await
         };
@@ -332,6 +343,12 @@ impl LocalApplication {
             &session.profile_plugins,
             session.mode,
         );
+        let coordination = ternilo_protocol::CoordinationConfig::from_profile(&candidate)?;
+        for role in ternilo_protocol::AgentRole::ALL {
+            if let Some(selection) = coordination.role(role).model.as_ref() {
+                resolve_named_provider(selection, &self.providers).await?;
+            }
+        }
         validate_local_profile(&candidate, &self.catalog, &self.extension_registry)?;
         // The lifecycle guard prevents a new turn from starting after this idle check.
         drop(idle_runtime);

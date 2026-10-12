@@ -94,7 +94,7 @@ pub fn factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: KIND,
-            requires: &["ternilo/subagents@2", "ternilo/run-environment@1"],
+            requires: &["ternilo/subagents@3", "ternilo/run-environment@1"],
             provides: &[],
         },
         |value| {

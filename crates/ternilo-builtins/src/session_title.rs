@@ -92,6 +92,7 @@ impl SessionTitlesProvider for LlmSessionTitles {
                 .models
                 .complete(
                     ModelRequest {
+                        prompt_cache: false,
                         run_id,
                         system_prompt: SYSTEM_PROMPT.to_owned(),
                         messages: vec![ModelMessage {

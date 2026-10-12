@@ -1,0 +1,16 @@
+.root { display: grid; min-width: 0; gap: 12px; color: var(--label-secondary); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.root p { margin: 0; }
+.card { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--surface-layer-1); }
+.card h3 { margin: 0 0 8px; color: var(--foreground); font-size: 13px; }
+.card small { font-weight: normal; color: var(--label-tertiary); }
+.card summary { cursor: pointer; color: var(--foreground); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px 16px; margin: 8px 0; }
+.facts dt { color: var(--label-tertiary); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.prices { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+.prices legend { max-width: 100%; padding: 0 4px; overflow-wrap: anywhere; }
+.prices label { display: grid; min-width: 0; gap: 4px; }
+.prices input, .currency select { min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--background); color: var(--foreground); font: inherit; }
+.currency { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.currency select { width: auto; }
+@media (max-width: 480px) { .prices { grid-template-columns: 1fr; } }

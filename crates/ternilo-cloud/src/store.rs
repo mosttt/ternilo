@@ -25,7 +25,7 @@ mod sessions;
 pub(crate) use execution::{
     drain_worker_runs_in, fail_queued_capacity_in, lock_session_in, require_writer_in,
 };
-pub(crate) use sessions::decode_session;
+pub(crate) use sessions::{decode_session, decode_subagent_metadata};
 
 #[derive(Clone)]
 pub struct CloudStore {
@@ -1252,6 +1252,14 @@ async fn initialize_database(database: &Database) -> Result<(), HarnessError> {
                 include_str!("schema/workspace_waiting_postgres.sql"),
                 include_str!("schema/execution_families_postgres.sql"),
             ),
+        )
+        .await?;
+    database
+        .initialize(
+            "cloud_agent_roles",
+            1,
+            include_str!("schema/agent_roles.sql"),
+            "",
         )
         .await?;
     database

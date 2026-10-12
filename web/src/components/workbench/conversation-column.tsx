@@ -1,3 +1,4 @@
+import { HistoryScrollPreserver } from './history-scroll-preserver'
 import { ComposerTakeover } from './composer-takeover'
 import { canAnswerQuestion, ownsExecutionConfiguration, resourcePermissions } from '@/domain/resource-access'
 import * as React from 'react'
@@ -810,6 +811,23 @@ export function ConversationColumn({
       onFollowup={followupSubagent}
       onStop={stopSubagent}
     >
+    <HistoryScrollPreserver
+      sessionId={currentSessionId}
+      view={activeViewId}
+      enabled={followsActiveTail && !restoringScroll.current}
+      loading={runtime.loadingHistory || runtime.loadingOlder}
+      statsReady={runtime.stats !== null}
+      firstSeq={runtime.events[0]?.seq}
+      scrollRef={scrollRef}
+      following={() => followsTail.current && readerScrollIntent.current !== -1}
+      onRestore={() => {
+        const element = scrollRef.current
+        if (!element) return
+        observedScrollTop.current = element.scrollTop
+        if (currentSessionId) scrollPositions.current.write(currentSessionId, view, element.scrollTop, followsTail.current)
+        updateTailButton()
+      }}
+    >
     <main ref={rootRef} id="conversation-main" className={`${css.root} conversation-column`} data-phase={phase} data-session-state={sessionState}>
       {currentSession && (
         <ConversationSessionHeader
@@ -1139,6 +1157,7 @@ export function ConversationColumn({
         </DialogContent>
       </Dialog>
     </main>
+    </HistoryScrollPreserver>
     </AgentTeamSurface>
     </WorkspaceDisplayContext.Provider>
   )

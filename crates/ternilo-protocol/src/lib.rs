@@ -1,5 +1,11 @@
 #![forbid(unsafe_code)]
 
+mod context_handoff;
+mod document_review;
+pub use document_review::{DocumentRender, DocumentReview, DocumentVerdict};
+mod reasoning_observation;
+pub use context_handoff::ContextHandoff;
+pub use reasoning_observation::ReasoningObservation;
 mod provider_usage;
 pub use provider_usage::{ProviderUsageRoute, ReportedModelUsage};
 mod model_gateway;
@@ -93,6 +99,8 @@ string_id!(ScheduleId);
 string_id!(SubmissionId);
 
 mod agent_presets;
+mod coordination;
+pub use coordination::*;
 mod agent_team;
 mod file_inventory;
 mod live;
@@ -1217,6 +1225,8 @@ pub enum SubagentTranscriptKind {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SubagentSessionMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<AgentRole>,
     pub subagent_id: SubagentId,
     pub provider: String,
     pub transcript_kind: SubagentTranscriptKind,
@@ -1240,6 +1250,8 @@ impl AcceptedSubagentRun {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SubagentSnapshot {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<AgentRole>,
     pub subagent_id: SubagentId,
     pub provider: String,
     pub label: String,
@@ -2220,6 +2232,8 @@ pub struct HookResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelRequest {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub prompt_cache: bool,
     pub run_id: RunId,
     pub system_prompt: String,
     pub messages: Vec<ModelMessage>,
@@ -3027,6 +3041,10 @@ pub enum SessionEventKind {
         step: u32,
         system_prompt: String,
     },
+    ReasoningEffortObserved {
+        step: u32,
+        observation: ReasoningObservation,
+    },
     ProviderUsageStarted {
         /// Original journal identity survives forks; Server read projections may redact it.
         source_session_id: Option<SessionId>,
@@ -3132,6 +3150,12 @@ pub enum SessionEventKind {
     },
     ScheduleChanged {
         change: ScheduleChange,
+    },
+    DocumentRendered {
+        render: DocumentRender,
+    },
+    DocumentReviewed {
+        review: DocumentReview,
     },
     DeliverableProduced {
         path: String,

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ListTodo, LoaderCircle, Mail, RefreshCcw, UsersRound } from 'lucide-react'
+import { ChartNoAxesCombined, ListTodo, LoaderCircle, Mail, RefreshCcw, UsersRound } from 'lucide-react'
 import type { SessionLiveActivity } from '@/api/live-client'
 import { deriveSubagents, mergeCanonicalSubagentEvents } from '@/domain/observability'
 import { useTranslate } from '@/i18n/provider'
@@ -10,11 +10,12 @@ import {
 } from '@/components/ui/dialog'
 import { AgentTeamMailbox } from './agent-team-mailbox'
 import { AgentTeamRoster } from './agent-team-roster'
+import { AgentTeamUsage } from './agent-team-usage'
 import { AgentTeamTasks } from './agent-team-tasks'
 import { useAgentTeam } from './use-agent-team'
 import css from './agent-team-panel.module.css'
 
-type AgentTeamView = 'roster' | 'tasks' | 'mailbox'
+type AgentTeamView = 'roster' | 'tasks' | 'mailbox' | 'usage'
 type OpenAgentTeam = (subagentId?: string) => void
 
 const AgentTeamOpenContext = React.createContext<OpenAgentTeam | null>(null)
@@ -79,6 +80,7 @@ export function AgentTeamSurface({
   const workspaceT = useTranslate('workspace')
   const eventSubagents = React.useMemo(() => deriveSubagents(events), [events])
   const [open, setOpen] = React.useState(false)
+  const [usageRevision, setUsageRevision] = React.useState(0)
   const [view, setView] = React.useState<AgentTeamView>('roster')
   const [selectedSubagentId, setSelectedSubagentId] = React.useState<string | null>(null)
   const [messageRecipient, setMessageRecipient] = React.useState<string | null>(null)
@@ -181,6 +183,7 @@ export function AgentTeamSurface({
     { id: 'roster', icon: UsersRound, label: t('team.view.roster'), count: visibleSnapshot?.members.length ?? 0 },
     { id: 'tasks', icon: ListTodo, label: t('team.view.tasks'), count: visibleSnapshot?.tasks.length ?? 0 },
     { id: 'mailbox', icon: Mail, label: t('team.view.mailbox'), count: unread },
+    { id: 'usage', icon: ChartNoAxesCombined, label: t('team.view.usage'), count: 0 },
   ]
 
   return <AgentTeamOpenContext.Provider value={openTeam}>
@@ -190,7 +193,7 @@ export function AgentTeamSurface({
         <DialogHeader className={css.header}>
           <div className={css.titleRow}>
             <DialogTitle className={css.title}><UsersRound aria-hidden="true" />{t('team.title')}</DialogTitle>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('team.refresh')} disabled={team.loading} onClick={() => void team.refresh()}>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('team.refresh')} disabled={team.loading} onClick={() => { setUsageRevision(value => value + 1); void team.refresh() }}>
               <RefreshCcw className={team.loading ? css.spin : undefined} aria-hidden="true" />
             </Button>
           </div>
@@ -222,8 +225,11 @@ export function AgentTeamSurface({
         </div>}
         <div className={css.body}>
           {team.loading && !visibleSnapshot ? <div className={css.loadState} role="status"><LoaderCircle className={css.spin} aria-hidden="true" /><strong>{t('team.loading')}</strong></div> : null}
-          {team.loadError && !visibleSnapshot ? <div className={css.loadState} role="alert"><strong>{t('team.loadFailed')}</strong><p>{t('team.loadFailedHint')}</p><Button type="button" size="sm" variant="outline" onClick={() => void team.refresh()}><RefreshCcw />{t('team.retry')}</Button></div> : null}
+          {team.loadError && !visibleSnapshot ? <div className={css.loadState} role="alert"><strong>{t('team.loadFailed')}</strong><p>{t('team.loadFailedHint')}</p><Button type="button" size="sm" variant="outline" onClick={() => { setUsageRevision(value => value + 1); void team.refresh() }}><RefreshCcw />{t('team.retry')}</Button></div> : null}
           {visibleSnapshot && <>
+            <section id="agent-team-usage-panel" role="tabpanel" aria-labelledby="agent-team-usage-tab" hidden={view !== 'usage'}>
+              {view === 'usage' && sessionId && <AgentTeamUsage snapshot={visibleSnapshot} sessionId={sessionId} sessions={sessions} events={events} liveActivity={liveActivity} refreshRevision={usageRevision} t={t} />}
+            </section>
             <section id="agent-team-roster-panel" role="tabpanel" aria-labelledby="agent-team-roster-tab" hidden={view !== 'roster'}>
               {view === 'roster' && <AgentTeamRoster
                 snapshot={visibleSnapshot}

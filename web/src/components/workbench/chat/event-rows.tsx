@@ -1,3 +1,6 @@
+import { parseContextHandoff } from '@/domain/context-handoff'
+import { MessageAttachments } from '../message-attachments'
+import { ContextHandoffSummary } from './context-handoff-summary'
 import * as React from 'react'
 import {
   Bot, Check, ChevronRight, CircleAlert, CircleDot, Clock3, Command, ListChecks, PackageCheck,
@@ -98,6 +101,7 @@ function CommandRow({ item, t, onSelect }: { item: Extract<EventItem, { kind: 'c
 }
 
 function CompactionRow({ item, t, onSelect }: { item: Extract<EventItem, { kind: 'compaction' }>; t: ChatTranslate; onSelect(): void }) {
+  const handoff = React.useMemo(() => item.summary ? parseContextHandoff(item.summary) : null, [item.summary])
   const [open, setOpen] = React.useState(false)
   const summary = item.running
     ? t('message.compaction.running')
@@ -113,7 +117,7 @@ function CompactionRow({ item, t, onSelect }: { item: Extract<EventItem, { kind:
       expandable={Boolean(item.summary)}
       onToggle={() => item.summary && setOpen(value => !value)}
     >
-      {item.summary && <div className={css.bodyStack}><JsonBody value={item.summary} /><button type="button" className={css.details} onClick={onSelect}>{t('details.title')}</button></div>}
+      {item.summary && <div className={css.bodyStack}>{handoff ? <ContextHandoffSummary handoff={handoff} t={t} /> : <JsonBody value={item.summary} />}<button type="button" className={css.details} onClick={onSelect}>{t('details.title')}</button></div>}
     </ChatDisclosure>
   </div>
 }
@@ -131,7 +135,10 @@ function CardRow({ item, t, onSelect }: { item: Extract<EventItem, { kind: 'card
   if (event.type === 'goal_round_started') return <button type="button" className={css.goalRound} data-chat-event="goal_round_started" onClick={onSelect}>
     <Target /><span>{t('event.goalRound', { round: Number(event.round) })}</span><ChevronRight />
   </button>
+  const observation = event.type === 'reasoning_effort_observed' ? asRecord(event.observation) : null
+  const effort = observation?.recommended === 'high' ? t('reasoning.high') : observation?.recommended === 'medium' ? t('reasoning.medium') : t('reasoning.low')
   const configuration: Record<string, { title: string; icon: typeof Target }> = {
+    reasoning_effort_observed: { title: t('reasoning.observed'), icon: CircleDot },
     plan_updated: { title: t('event.plan'), icon: ListChecks }, todo_updated: { title: t('event.todo'), icon: ListChecks },
     goal_updated: { title: t('event.goal'), icon: Target },
     subagent_updated: { title: t('event.subagent'), icon: Bot }, workflow_run_started: { title: t('event.workflow'), icon: Workflow },
@@ -143,7 +150,7 @@ function CardRow({ item, t, onSelect }: { item: Extract<EventItem, { kind: 'card
   const failure = event.type === 'turn_failed' ? presentRuntimeError(event.message, t) : null
   const config = failure ? { title: failure.title, icon: CircleAlert } : configuration[event.type] ?? { title: humanize(event.type), icon: CircleDot }
   const Icon = config.icon
-  const body = failure?.message ?? String(event.explanation ?? event.objective ?? event.message ?? event.title ?? '')
+  const body = observation ? t('reasoning.observationDetail', { effort, chars: Number(observation.task_chars), calls: Number(observation.tool_calls), errors: Number(observation.tool_errors) }) : failure?.message ?? String(event.explanation ?? event.objective ?? event.message ?? event.title ?? '')
   const subagent = event.subagent ? asRecord(event.subagent) : null
   return <button type="button" className={cn(css.card, event.type === 'turn_failed' && css.error)} data-chat-event={event.type} onClick={onSelect}>
     <span className={css.cardHeader}><Icon /><strong>{config.title}</strong><ChevronRight /></span>
@@ -166,7 +173,7 @@ function ConnectedEventRow({ item, events, onSelect }: {
   return <SubagentEventRow event={item.event} sessions={snapshot.sessions} onOpenSession={selectSession} onSelect={onSelect} />
 }
 
-export function ConversationEventRow({ item, events, onSelect, t }: { item: EventItem; events: readonly SessionEvent[]; onSelect(): void; t: ChatTranslate }) {
+export function ConversationEventRow({ item, events, sessionId, onSelect, t }: { sessionId: string; item: EventItem; events: readonly SessionEvent[]; onSelect(): void; t: ChatTranslate }) {
   if (item.kind === 'retry') return <RetryRow item={item} t={t} />
   if (item.kind === 'command') return <CommandRow item={item} t={t} onSelect={onSelect} />
   if (item.kind === 'compaction') return <CompactionRow item={item} t={t} onSelect={onSelect} />
@@ -174,6 +181,25 @@ export function ConversationEventRow({ item, events, onSelect, t }: { item: Even
     <span className={css.cardHeader}><CircleAlert /><strong>{t('message.maxTokens')}</strong><ChevronRight /></span>
     <span className={css.cardBody}>{t('message.maxTokens.hint')}</span>
   </button>
+  if (item.event.type === 'document_rendered' && item.event.render) {
+    const render = item.event.render
+    const review = events.findLast(event => event.type === 'document_reviewed' && event.review?.render_id === render.render_id)?.review
+    return <section className={css.card} data-chat-event="document_rendered">
+      <button type="button" className={css.cardHeader} onClick={onSelect}><CircleDot /><strong>{t('document.rendered')}</strong><ChevronRight /></button>
+      <span className={css.cardBody}>{render.path} · {render.viewport_width} × {render.viewport_height} · {t('document.pages', { count: render.screenshots.length })}</span>
+      <span className={css.cardBody}>{t('document.evidence', { overflow: render.horizontal_overflow ? t('document.yes') : t('document.no'), missing: render.missing_images, blocked: render.blocked_resources })}</span>
+      <span className={css.cardBody}>{t(review?.verdict === 'pass' ? 'document.passed' : review ? 'document.needsChanges' : 'document.pending')}</span>
+      <MessageAttachments sessionId={sessionId} attachments={render.screenshots} imageFit="contain" />
+    </section>
+  }
+  if (item.event.type === 'document_reviewed' && item.event.review) {
+    const review = item.event.review
+    return <button type="button" className={css.card} data-chat-event="document_reviewed" onClick={onSelect}>
+      <span className={css.cardHeader}><Check /><strong>{t(review.verdict === 'pass' ? 'document.passed' : 'document.needsChanges')}</strong><ChevronRight /></span>
+      <span className={css.cardBody}>{review.path}</span>
+      <span className={css.cardBody}>{review.findings.join(' · ')}</span>
+    </button>
+  }
   if (item.event.type === 'schedule_changed') return <ScheduleEventRow event={item.event} onSelect={onSelect} />
   if (item.event.type === 'workflow_run_started' || item.event.type === 'subagent_updated') {
     return <ConnectedEventRow item={item} events={events} onSelect={onSelect} />

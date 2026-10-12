@@ -6,6 +6,17 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
+pulldown-cmark.workspace = true
+tempfile.workspace = true
+tokio-tungstenite.workspace = true
+cap-std.workspace = true
+tree-sitter.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-javascript.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-go.workspace = true
+
 agent-client-protocol.workspace = true
 chrono.workspace = true
 futures-util.workspace = true
@@ -22,7 +33,7 @@ rhai.workspace = true
 rmcp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-serde_yaml_ng.workspace = true
+serde-saphyr.workspace = true
 schemars.workspace = true
 sha2.workspace = true
 tokio.workspace = true
@@ -31,7 +42,6 @@ ternilo-kernel.workspace = true
 ternilo-protocol.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 tokio.workspace = true
 
 [lints]

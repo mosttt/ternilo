@@ -233,6 +233,7 @@ impl ControlStore {
             .await?;
             let mut metadata = session.metadata.clone();
             metadata.server_model = None;
+            metadata.role_models.clear();
             metadata.parent_session_id = metadata
                 .parent_session_id
                 .as_ref()
@@ -241,7 +242,17 @@ impl ControlStore {
                 if let Some(parent) = &metadata.parent_session_id {
                     let inherited: Option<Json<EdgeSessionMetadata>> = sqlx::query_scalar("SELECT metadata_json FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2")
                         .bind(tenant_id.as_str()).bind(parent.as_str()).fetch_optional(&mut *transaction).await.map_err(database_error)?;
-                    metadata.server_model = inherited.and_then(|metadata| metadata.0.server_model);
+                    if let Some(parent) = inherited {
+                        metadata.server_model = metadata
+                            .subagent
+                            .as_ref()
+                            .and_then(|child| child.role)
+                            .and_then(|role| parent.0.role_models.get(&role).cloned())
+                            .unwrap_or_else(|| parent.0.server_model.clone());
+                        if metadata.subagent.is_none() {
+                            metadata.role_models = parent.0.role_models;
+                        }
+                    }
                 }
                 sqlx::query(
                     "INSERT INTO control_edge_sessions
@@ -303,6 +314,7 @@ async fn update_metadata(
     .map_err(database_error)?;
     let mut metadata = metadata.clone();
     metadata.server_model = existing.0.server_model.clone();
+    metadata.role_models = existing.0.role_models.clone();
     if metadata.updated_at_ms >= existing.0.updated_at_ms && metadata != existing.0 {
         sqlx::query(
             "UPDATE control_edge_sessions SET metadata_json = $3, updated_at_ms = $4
@@ -349,6 +361,7 @@ mod tests {
             session_id: SessionId::new(id),
             workspace_id: WorkspaceId::new("same-local-workspace"),
             metadata: EdgeSessionMetadata {
+                role_models: std::collections::BTreeMap::default(),
                 server_model: None,
                 parent_session_id: parent.map(SessionId::new),
                 subagent: None,

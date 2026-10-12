@@ -677,13 +677,13 @@ async fn load_team_scope(
     let query = if lock_sessions
         && ternilo_storage::backend(transaction) == ternilo_storage::Backend::Postgres
     {
-        "SELECT session_id, parent_session_id, subagent_metadata, title
+        "SELECT session_id, parent_session_id, subagent_metadata, subagent_role, title
          FROM cloud_sessions
          WHERE tenant_id = $1 AND user_id = $2
          ORDER BY session_id
          FOR SHARE"
     } else {
-        "SELECT session_id, parent_session_id, subagent_metadata, title
+        "SELECT session_id, parent_session_id, subagent_metadata, subagent_role, title
          FROM cloud_sessions
          WHERE tenant_id = $1 AND user_id = $2
          ORDER BY session_id"
@@ -697,12 +697,7 @@ async fn load_team_scope(
     let sessions = rows
         .into_iter()
         .map(|row| {
-            let subagent = row
-                .try_get::<Option<ternilo_storage::Json<SubagentSessionMetadata>>, _>(
-                    "subagent_metadata",
-                )
-                .map_err(database_error)?
-                .map(|value| value.0);
+            let subagent = crate::store::decode_subagent_metadata(&row)?;
             if let Some(metadata) = &subagent {
                 metadata.subagent_id.validate()?;
                 if metadata.provider.trim().is_empty() {
@@ -1166,6 +1161,7 @@ mod tests {
             session_id: SessionId::new(id),
             parent_session_id: Some(SessionId::new(parent)),
             subagent: Some(SubagentSessionMetadata {
+                role: None,
                 subagent_id: SubagentId::new(subagent_id),
                 provider: "in-process".to_owned(),
                 transcript_kind: SubagentTranscriptKind::Conversation,

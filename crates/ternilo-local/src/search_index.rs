@@ -418,7 +418,8 @@ pub fn event_category(kind: &ternilo_protocol::SessionEventKind) -> SessionEvent
         | SessionEventKind::CodeDispatchStarted { .. }
         | SessionEventKind::CodeDispatchFinished { .. }
         | SessionEventKind::RuntimeExtensionChanged { .. } => SessionEventCategory::Tool,
-        SessionEventKind::PlanUpdated { .. }
+        SessionEventKind::ReasoningEffortObserved { .. }
+        | SessionEventKind::PlanUpdated { .. }
         | SessionEventKind::PlanReviewCompleted { .. }
         | SessionEventKind::TodoUpdated { .. }
         | SessionEventKind::GoalUpdated { .. }
@@ -433,7 +434,9 @@ pub fn event_category(kind: &ternilo_protocol::SessionEventKind) -> SessionEvent
         | SessionEventKind::WorkflowRunFinished { .. } => SessionEventCategory::Planning,
         SessionEventKind::ContextCompactionStarted { .. }
         | SessionEventKind::ContextCompacted { .. } => SessionEventCategory::Compaction,
-        SessionEventKind::DeliverableProduced { .. } => SessionEventCategory::Deliverable,
+        SessionEventKind::DocumentRendered { .. }
+        | SessionEventKind::DocumentReviewed { .. }
+        | SessionEventKind::DeliverableProduced { .. } => SessionEventCategory::Deliverable,
         SessionEventKind::CommandStarted { .. }
         | SessionEventKind::FeedbackSubmitted { .. }
         | SessionEventKind::CommandFinished { .. }
@@ -467,6 +470,9 @@ pub fn event_category(kind: &ternilo_protocol::SessionEventKind) -> SessionEvent
 #[must_use]
 pub fn searchable_event_text(event: &SessionEvent) -> String {
     use ternilo_protocol::SessionEventKind;
+    if let Some(text) = document_search_text(&event.kind) {
+        return text;
+    }
     match &event.kind {
         SessionEventKind::UserMessage { content, .. } => content.clone(),
         SessionEventKind::AssistantMessageDelta { delta, .. }
@@ -640,4 +646,21 @@ async fn set_private_permissions(path: &Path) -> Result<(), HarnessError> {
 #[cfg(not(unix))]
 async fn set_private_permissions(_: &Path) -> Result<(), HarnessError> {
     Ok(())
+}
+
+fn document_search_text(kind: &ternilo_protocol::SessionEventKind) -> Option<String> {
+    use ternilo_protocol::SessionEventKind;
+    match kind {
+        SessionEventKind::DocumentRendered { render } => Some(format!(
+            "document render {} {}",
+            render.path, render.source_sha256
+        )),
+        SessionEventKind::DocumentReviewed { review } => Some(format!(
+            "document review {} {:?} {}",
+            review.path,
+            review.verdict,
+            review.findings.join(" ")
+        )),
+        _ => None,
+    }
 }

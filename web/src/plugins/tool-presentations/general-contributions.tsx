@@ -27,7 +27,7 @@ export const codeTool = defineToolPresentation<BuiltinView<'generic'>>({
   matches: trace => trace.kind === 'code' || trace.name.includes('code'),
   parse: genericView,
   icon: () => Code2,
-  title: (trace, t) => trace.name === 'run_code' ? t('tool.code') : trace.name || t('tool.call'),
+  title: exactTitle,
   target: genericTarget,
   badge: (_trace, t) => t('tool.codeBadge'),
   render: (view, { t }) => <GenericToolResult view={view} t={t} />,
@@ -38,7 +38,7 @@ export const orchestrationTool = defineToolPresentation<BuiltinView<'generic'>>(
   matches: trace => trace.name.includes('agent') || trace.name.includes('workflow'),
   parse: genericView,
   icon: () => Braces,
-  title: (trace, t) => trace.name || t('tool.call'),
+  title: exactTitle,
   target: genericTarget,
   render: (view, { t }) => <GenericToolResult view={view} t={t} />,
 })
@@ -48,7 +48,7 @@ export const genericTool = defineToolPresentation<BuiltinView<'generic'>>({
   matches: () => true,
   parse: genericView,
   icon: () => Wrench,
-  title: (trace, t) => trace.name || t('tool.call'),
+  title: exactTitle,
   target: genericTarget,
   render: (view, { t }) => <GenericToolResult view={view} t={t} />,
 })

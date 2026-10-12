@@ -5,19 +5,18 @@ import type {
   AgentTeamSnapshot, AgentTeamTask, AgentTeamTaskDraft, LocalSession, SessionEvent,
 } from '@/types'
 import { agentTeamApi } from './agent-team-api'
+import { teamSessionIds } from '@/domain/team-usage'
 
 export type AgentTeamMutation = 'create' | 'replace' | 'delete' | 'send' | 'read'
 
 const EMPTY_SESSIONS: readonly LocalSession[] = []
 const EMPTY_ACTIVITY: Readonly<Record<string, SessionLiveActivity>> = {}
 
-function canonicalMemberSessions(snapshot: AgentTeamSnapshot, sessions: readonly LocalSession[]) {
-  const sessionBySubagent = new Map(sessions.flatMap(session => (
-    session.subagent ? [[session.subagent.subagent_id, session] as const] : []
-  )))
+function canonicalMemberSessions(snapshot: AgentTeamSnapshot, sessions: readonly LocalSession[], currentSessionId: string) {
+  const resolved = teamSessionIds(snapshot, currentSessionId, sessions)
   return snapshot.members.flatMap(member => {
     if (!member.subagent_id) return []
-    const session = sessionBySubagent.get(member.subagent_id)
+    const session = sessions.find(value => value.identity.session_id === resolved.get(member.id))
     return session ? [[member.subagent_id, session] as const] : []
   })
 }
@@ -26,8 +25,9 @@ function canonicalMemberHistoryKey(
   snapshot: AgentTeamSnapshot,
   sessions: readonly LocalSession[],
   activity: Readonly<Record<string, SessionLiveActivity>>,
+  currentSessionId: string,
 ) {
-  const members = canonicalMemberSessions(snapshot, sessions)
+  const members = canonicalMemberSessions(snapshot, sessions, currentSessionId)
   return [snapshot.team_id, ...members.map(([subagentId, session]) => {
     const sessionId = session.identity.session_id
     const live = activity[sessionId]
@@ -66,7 +66,7 @@ export function useAgentTeam(
   liveActivityRef.current = liveActivity
   liveSnapshotRef.current = liveSnapshot
   const liveHistoryKey = liveSnapshot
-    ? canonicalMemberHistoryKey(liveSnapshot, sessions, liveActivity)
+    ? canonicalMemberHistoryKey(liveSnapshot, sessions, liveActivity, sessionId ?? '')
     : ''
 
   if (sessionEpoch.current.id !== sessionId) {
@@ -90,7 +90,7 @@ export function useAgentTeam(
     setLoadError('')
     try {
       const next = await agentTeamApi.snapshot(targetSessionId, signal)
-      const members = canonicalMemberSessions(next, sessionsRef.current)
+      const members = canonicalMemberSessions(next, sessionsRef.current, targetSessionId)
       const histories = await Promise.all(members.map(async ([subagentId, childSession]) => (
         [subagentId, await agentTeamApi.events(childSession.identity.session_id, signal)] as const
       )))
@@ -102,6 +102,7 @@ export function useAgentTeam(
             next,
             sessionsRef.current,
             liveActivityRef.current,
+            targetSessionId,
           )
         }
       }
@@ -128,7 +129,7 @@ export function useAgentTeam(
       && sessionEpoch.current.value === targetEpoch
     if (!targetSessionId || !isCurrent()) return
     const revision = ++historyRevision.current
-    const members = canonicalMemberSessions(next, sessionsRef.current)
+    const members = canonicalMemberSessions(next, sessionsRef.current, targetSessionId)
     try {
       const histories = await Promise.all(members.map(async ([subagentId, childSession]) => (
         [subagentId, await agentTeamApi.events(childSession.identity.session_id, signal)] as const

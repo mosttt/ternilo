@@ -314,6 +314,7 @@ async fn verify_subagent_acceptance(
             run: RunLease::from(parent),
             child_session_id: session_id.clone(),
             metadata: ternilo_protocol::SubagentSessionMetadata {
+                role: None,
                 subagent_id: ternilo_protocol::SubagentId::new("http-child"),
                 provider: "in-process".to_owned(),
                 transcript_kind: ternilo_protocol::SubagentTranscriptKind::Conversation,

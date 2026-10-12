@@ -445,7 +445,7 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
     try {
       await updateSession(currentSession.identity.session_id, { profile_plugins: overrides })
     } catch (cause) {
-      if (cause instanceof ApiError && cause.code === 'conflict') throw new Error(t('plugins.waitForTask'))
+      if (cause instanceof ApiError && cause.code === 'conflict') throw new Error(t(cause.message.includes('Session configuration is busy') ? 'plugins.configurationConflict' : 'plugins.waitForTask'))
       throw cause
     }
     await Promise.all([loadProfile(), onChanged()])
@@ -766,6 +766,7 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
                 <PluginConfigCard
                   key={entry.id}
                   entry={entry}
+                  target={target}
                   metadata={metadata}
                   hostToolCallLimit={catalog?.host_limits?.max_tool_calls}
                   disabledReason={disabledReason}

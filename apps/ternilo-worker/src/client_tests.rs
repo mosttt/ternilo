@@ -67,6 +67,7 @@ fn request() -> WorkerModelRequest {
             model: "test-model".to_owned(),
         },
         request: ModelRequest {
+            prompt_cache: false,
             run_id: ternilo_protocol::RunId::new("model-test-run"),
             system_prompt: "system".to_owned(),
             messages: Vec::new(),

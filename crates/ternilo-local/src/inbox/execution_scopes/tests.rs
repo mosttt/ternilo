@@ -17,6 +17,7 @@ fn session(id: &str, parent: Option<&str>, subagent: bool) -> LocalSession {
         workspace_path: "/workspace".to_owned(),
         parent_session_id: parent.map(SessionId::new),
         subagent: subagent.then(|| SubagentSessionMetadata {
+            role: None,
             subagent_id: SubagentId::new(format!("agent-{id}")),
             provider: "in-process".to_owned(),
             transcript_kind: SubagentTranscriptKind::Conversation,

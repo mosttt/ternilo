@@ -111,7 +111,7 @@ pub fn engine_factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: ENGINE_KIND,
-            requires: &["ternilo/subagents@2", "ternilo/sessions@1"],
+            requires: &["ternilo/subagents@3", "ternilo/sessions@1"],
             provides: &["ternilo/workflows@1"],
         },
         |value| {
@@ -369,6 +369,10 @@ impl RhaiWorkflowEngine {
     ) -> Result<WorkflowRunResult, HarnessError> {
         request.activity.ensure_running().await?;
         validate_request(&request)?;
+        let parallel_limit = self.subagents.parallel_limit().await;
+        if parallel_limit == 0 {
+            return Err(HarnessError::policy("Independent coordination is active"));
+        }
         let cancellation = RunCancellation::new();
         let mut cancellation_guard = WorkflowCancellationGuard {
             cancellation: cancellation.clone(),
@@ -400,7 +404,7 @@ impl RhaiWorkflowEngine {
             max_wall_ms: self.config.max_wall_ms,
             max_items_per_call: self.config.max_items_per_call,
             max_total_agents: self.config.max_total_agents,
-            max_concurrent_agents: self.config.max_concurrent_agents,
+            max_concurrent_agents: self.config.max_concurrent_agents.min(parallel_limit),
             agent_timeout_ms: self.config.agent_timeout_ms,
             reserved_agents: AtomicU32::new(0),
             started_agents: AtomicU32::new(0),

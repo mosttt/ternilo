@@ -141,6 +141,7 @@ pub(crate) fn router() -> Router {
         .push(Router::with_path("state").get(workspace::workbench_state))
         .push(Router::with_path("files").get(files::list_files))
         .push(Router::with_path("model-options").get(model_options::model_options))
+        .push(Router::with_path("role-model-preview").post(model_options::role::preview))
         .push(
             Router::with_path("computer-model-requests")
                 .get(model_computers::forwarded_usage)

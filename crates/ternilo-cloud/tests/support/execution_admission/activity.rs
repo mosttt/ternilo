@@ -22,6 +22,7 @@ pub(super) async fn execution_activity_projection(fixture: &mut Fixture) {
     let child = fixture.child(&run, "projected-child", worker).await;
     let empty_child = SessionId::new("projected-empty-child");
     let child_metadata = SubagentSessionMetadata {
+        role: None,
         subagent_id: SubagentId::new("projected-empty-child"),
         provider: "in-process".to_owned(),
         transcript_kind: SubagentTranscriptKind::Conversation,

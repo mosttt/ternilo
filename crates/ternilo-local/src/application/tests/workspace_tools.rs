@@ -544,3 +544,74 @@ async fn explicit_skill_turn_keeps_the_skill_model_visible_and_the_ui_event_conc
     tokio::fs::remove_dir_all(data_dir).await.unwrap();
     tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
 }
+
+#[tokio::test]
+async fn cached_reads_follow_external_edits_and_tool_writes() {
+    let data_dir = test_data_dir();
+    let workspace_dir = data_dir.with_extension("workspace");
+    tokio::fs::create_dir(&workspace_dir).await.unwrap();
+    tokio::fs::write(workspace_dir.join("cached.txt"), "initial contents")
+        .await
+        .unwrap();
+    let application = open_test_application(data_dir.clone()).await;
+    let workspace = application
+        .add_workspace(workspace_dir.to_str().unwrap())
+        .await
+        .unwrap();
+    let session = application
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let id = session.identity.session_id.as_str();
+    application
+        .update_profile_plugins(
+            id,
+            vec![PluginEntry {
+                id: "local-files".into(),
+                kind: crate::LOCAL_FILES_KIND.into(),
+                enabled: true,
+                config: serde_json::json!({"read_cache_bytes": 4096}),
+            }],
+        )
+        .await
+        .unwrap();
+    for expected in [
+        "initial contents",
+        "initial contents",
+        "changed externally with a new size",
+    ] {
+        if expected != "initial contents" {
+            tokio::fs::write(workspace_dir.join("cached.txt"), expected)
+                .await
+                .unwrap();
+        }
+        let outcome = application
+            .run_turn(id, None, "/read cached.txt".into())
+            .await
+            .unwrap();
+        assert!(outcome.answer.contains(expected));
+    }
+    application
+        .run_turn(id, None, "/write cached.txt written by the tool".into())
+        .await
+        .unwrap();
+    let read = application
+        .run_turn(id, None, "/read cached.txt".into())
+        .await
+        .unwrap();
+    assert!(read.answer.contains("written by the tool"));
+    tokio::fs::remove_file(workspace_dir.join("cached.txt"))
+        .await
+        .unwrap();
+    assert!(
+        application
+            .run_turn(id, None, "/read cached.txt".into())
+            .await
+            .unwrap()
+            .answer
+            .contains("resolve")
+    );
+    application.shutdown().await.unwrap();
+    tokio::fs::remove_dir_all(data_dir).await.unwrap();
+    tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
+}

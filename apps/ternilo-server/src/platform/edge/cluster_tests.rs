@@ -152,6 +152,7 @@ impl Fixture {
                 &SessionId::new("node-session"),
                 Some(&SessionId::new("peer-session")),
                 ternilo_control::EdgeSessionMetadata {
+                    role_models: std::collections::BTreeMap::default(),
                     server_model: None,
                     parent_session_id: None,
                     subagent: None,
@@ -295,6 +296,7 @@ async fn online_computer_state_does_not_load_offline_workspace_or_session_metada
         .await
         .unwrap();
     let metadata = ternilo_control::EdgeSessionMetadata {
+        role_models: std::collections::BTreeMap::default(),
         server_model: None,
         parent_session_id: None,
         subagent: None,

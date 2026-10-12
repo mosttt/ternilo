@@ -190,12 +190,13 @@ export function ImageLightbox({
 }
 
 export function MessageAttachments({
-  attachments, sessionId, resolveImage, align = 'start',
+  attachments, sessionId, resolveImage, align = 'start', imageFit = 'cover',
 }: {
   attachments: Attachment[]
   sessionId?: string
   resolveImage?: ImageAttachmentResolver
   align?: 'start' | 'end'
+  imageFit?: 'cover' | 'contain'
 }) {
   const t = useTranslate('chat')
   const effectiveResolver = React.useCallback<ImageAttachmentResolver>(
@@ -240,7 +241,7 @@ export function MessageAttachments({
   if (!attachments.length) return null
   return (
     <>
-      {images.length > 0 && <div className={css.gallery} data-message-image-gallery="" data-align={align} data-count={images.length} aria-label={t('attachment.imageCount', { count: images.length })}>
+      {images.length > 0 && <div className={css.gallery} data-message-image-gallery="" data-image-fit={imageFit} data-align={align} data-count={images.length} aria-label={t('attachment.imageCount', { count: images.length })}>
         {images.map(({ attachment, attachmentIndex }) => <MessageImage
           key={`${attachment.name}-${attachmentIndex}`}
           attachment={attachment}

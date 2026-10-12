@@ -321,6 +321,7 @@ export interface LocalSession {
   workspace_path: string
   parent_session_id?: string | null
   subagent?: {
+    role?: 'investigator' | 'implementer' | 'reviewer' | null
     subagent_id: string
     provider: string
     transcript_kind: 'conversation' | 'process_lifecycle'
@@ -660,7 +661,29 @@ export interface ModelResponse {
   replayed?: boolean
 }
 
+export interface DocumentRender {
+  render_id: string
+  path: string
+  source_sha256: string
+  viewport_width: number
+  viewport_height: number
+  content_height: number
+  horizontal_overflow: boolean
+  missing_images: number
+  blocked_resources: number
+  screenshots: Attachment[]
+}
+export interface DocumentReview {
+  render_id: string
+  path: string
+  source_sha256: string
+  verdict: 'pass' | 'needs_changes'
+  findings: string[]
+}
+
 export interface SessionEvent extends Record<string, unknown> {
+  render?: DocumentRender
+  review?: DocumentReview
   provenance?: InputProvenance | null
   seq: number
   occurred_at_ms: number

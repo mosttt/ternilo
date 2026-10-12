@@ -14,7 +14,7 @@ pub(super) async fn select_session(
 ) -> Result<sqlx::any::AnyRow, HarnessError> {
     sqlx::query(
         "SELECT tenant_id, session_id, user_id, project_id, workspace_id, agent_id,
-                parent_session_id, subagent_metadata, title, archived_at_ms, state, permissions,
+                parent_session_id, subagent_metadata, subagent_role, title, archived_at_ms, state, permissions,
                 model_snapshot,
                 reserved_model_tokens,
                 agent_preset, profile_plugins, mode, execution, last_seq, created_at_ms, updated_at_ms
@@ -56,12 +56,7 @@ pub(crate) fn decode_session(row: &sqlx::any::AnyRow) -> Result<CloudSessionReco
             .try_get::<Option<String>, _>("parent_session_id")
             .map_err(database_error)?
             .map(SessionId::new),
-        subagent: row
-            .try_get::<Option<ternilo_storage::Json<SubagentSessionMetadata>>, _>(
-                "subagent_metadata",
-            )
-            .map_err(database_error)?
-            .map(|value| value.0),
+        subagent: decode_subagent_metadata(row)?,
         agent_id: ternilo_protocol::AgentId::new(
             row.try_get::<String, _>("agent_id")
                 .map_err(database_error)?,
@@ -126,4 +121,24 @@ fn mode_parse(value: &str) -> Result<SessionMode, HarnessError> {
             "database contains unknown cloud session mode {value:?}"
         ))),
     }
+}
+
+pub(crate) fn decode_subagent_metadata(
+    row: &sqlx::any::AnyRow,
+) -> Result<Option<SubagentSessionMetadata>, HarnessError> {
+    let mut metadata = row
+        .try_get::<Option<ternilo_storage::Json<SubagentSessionMetadata>>, _>("subagent_metadata")
+        .map_err(database_error)?
+        .map(|value| value.0);
+    if let Some(metadata) = &mut metadata {
+        metadata.role = row
+            .try_get::<Option<String>, _>("subagent_role")
+            .map_err(database_error)?
+            .map(|role| serde_json::from_value(serde_json::Value::String(role)))
+            .transpose()
+            .map_err(|error| {
+                HarnessError::execution(format!("invalid stored agent role: {error}"))
+            })?;
+    }
+    Ok(metadata)
 }

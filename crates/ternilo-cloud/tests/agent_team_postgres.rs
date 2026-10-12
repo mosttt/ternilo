@@ -649,6 +649,7 @@ async fn set_subagent(
     subagent_id: &str,
 ) {
     let metadata = SubagentSessionMetadata {
+        role: None,
         subagent_id: SubagentId::new(subagent_id),
         provider: "in-process".to_owned(),
         transcript_kind: SubagentTranscriptKind::Conversation,

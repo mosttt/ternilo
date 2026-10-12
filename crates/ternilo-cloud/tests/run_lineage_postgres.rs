@@ -192,6 +192,7 @@ impl Fixture {
     async fn child(&mut self, parent: &StartedRun, name: &str) -> (SessionId, RunId) {
         let session = SessionId::new(format!("{name}-session"));
         let metadata = SubagentSessionMetadata {
+            role: None,
             subagent_id: SubagentId::new(name),
             provider: "in-process".to_owned(),
             transcript_kind: SubagentTranscriptKind::Conversation,
@@ -684,6 +685,7 @@ async fn lineage_contract(control: ControlStore, cloud: CloudStore) {
     let (cleanup_session, cleanup_run) = fixture.child(&parent, "accepted-before-stop").await;
     let deferred_session = SessionId::new("created-before-stop");
     let deferred_metadata = SubagentSessionMetadata {
+        role: None,
         subagent_id: SubagentId::new("created-before-stop"),
         provider: "in-process".to_owned(),
         transcript_kind: SubagentTranscriptKind::Conversation,
@@ -723,6 +725,7 @@ async fn lineage_contract(control: ControlStore, cloud: CloudStore) {
             &parent,
             &SessionId::new("created-after-stop"),
             &SubagentSessionMetadata {
+                role: None,
                 subagent_id: SubagentId::new("created-after-stop"),
                 ..deferred_metadata
             },

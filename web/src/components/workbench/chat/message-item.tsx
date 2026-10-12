@@ -45,7 +45,7 @@ export function UserMessageItem({ sessionId, event, content, onRegenerate, onEdi
       setSaving(false)
     }
   }
-  return <article className={css.userRow} data-role="user" data-time-hover-root="">
+  return <article className={css.userRow} data-role="user" data-chat-message-seq={event.seq} data-time-hover-root="">
     <div className={css.userStack}>
       <InputIdentity author={event.provenance?.author} />
       <MessageAttachments sessionId={sessionId} attachments={event.attachments ?? []} align="end" />
@@ -85,6 +85,7 @@ export function PendingSubmissionBubble({ sessionId, submission }: {
 }
 
 export function AssistantMessageItem({
+  event,
   content,
   reasoning,
   sources,
@@ -104,7 +105,7 @@ export function AssistantMessageItem({
   reasoningDisclosure?: ReasoningDisclosure
   t: ChatTranslate
 }) {
-  return <article className={css.assistantRow} data-role="assistant" data-streaming={streaming || undefined}>
+  return <article className={css.assistantRow} data-role="assistant" data-chat-message-seq={event.seq} data-streaming={streaming || undefined}>
     {!omitReasoning && reasoning && <ReasoningRow reasoning={reasoning} disclosure={reasoningDisclosure} />}
     <AssistantMarkdown source={content} streaming={streaming} interrupted={interrupted} t={t} />
     {!!sources?.length && <nav data-provider-sources="" aria-label={t('message.webSources')} className="mt-3 flex flex-wrap gap-2 text-xs">

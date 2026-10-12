@@ -343,6 +343,7 @@ impl ModelOutput for DiscardModelOutput {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SubagentSessionRequest {
+    pub role: Option<ternilo_protocol::AgentRole>,
     pub subagent_id: SubagentId,
     pub provider: String,
     pub label: String,
@@ -499,7 +500,7 @@ pub struct SubagentBackendRegistration {
 
 service_contract! {
     pub contract Subagents {
-        id: "ternilo/subagents@2",
+        id: "ternilo/subagents@3",
         intercept: (),
         identity: (),
         merge: merge_unit,
@@ -507,6 +508,7 @@ service_contract! {
             async fn register_backend(backend: SubagentBackendRegistration) -> Result<u64, HarnessError>;
             async fn unregister_backend(registration: u64) -> Result<(), HarnessError>;
             async fn providers() -> Vec<String>;
+            async fn parallel_limit() -> usize;
             async fn spawn(parent_run_id: RunId, task: String, label: Option<String>, background: bool, activity: ActivityBranch) -> Result<SubagentSnapshot, HarnessError>;
             #[allow(clippy::too_many_arguments, reason = "The provider adds routing context to explicit activity and spawn options.")]
             async fn spawn_on(provider: String, parent_run_id: RunId, task: String, label: Option<String>, background: bool, activity: ActivityBranch) -> Result<SubagentSnapshot, HarnessError>;
@@ -850,6 +852,8 @@ pub trait ToolGuard: Send + Sync + 'static {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ToolPresentation {
     pub tools: Vec<ToolSpec>,
+    /// Omitted schemas remain available to explicit user commands.
+    pub deferred_tools: std::collections::BTreeSet<String>,
     pub system_prompt: Option<String>,
     pub code_only: bool,
 }
@@ -861,6 +865,7 @@ impl ToolPresentation {
             tools,
             system_prompt: None,
             code_only: false,
+            deferred_tools: std::collections::BTreeSet::new(),
         }
     }
 }

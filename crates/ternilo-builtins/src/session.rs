@@ -1,3 +1,6 @@
+#[path = "tool_output_budget.rs"]
+mod tool_output_budget;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     future::Future,
@@ -44,9 +47,9 @@ pub fn factory() -> PluginFactory {
         },
         |value| {
             let config: SessionLogConfig = parse_config(value)?;
-            if config.max_tool_result_chars < 256 {
+            if config.max_tool_result_chars < 256 || (config.max_tool_history_chars != 0 && config.max_tool_history_chars < 1024) {
                 return Err(HarnessError::composition(
-                    "session max_tool_result_chars must be at least 256",
+                    "session max_tool_result_chars must be at least 256; max_tool_history_chars must be zero or at least 1024",
                 ));
             }
             Ok(Arc::new(SessionLogPlugin { config }))
@@ -62,6 +65,12 @@ pub fn factory() -> PluginFactory {
 struct SessionLogConfig {
     #[serde(default = "default_max_tool_result_chars")]
     max_tool_result_chars: usize,
+    #[serde(default = "default_tool_history_chars")]
+    max_tool_history_chars: usize,
+}
+
+const fn default_tool_history_chars() -> usize {
+    48_000
 }
 
 const fn default_max_tool_result_chars() -> usize {
@@ -93,6 +102,7 @@ impl HarnessPlugin for SessionLogPlugin {
         let route = context.context().clone();
         let scope = context.scope().clone();
         let max_tool_result_chars = self.config.max_tool_result_chars;
+        let max_tool_history_chars = self.config.max_tool_history_chars;
         Activation::Once(Box::pin(async move {
             let mut events = environment
                 .load_events()
@@ -117,6 +127,7 @@ impl HarnessPlugin for SessionLogPlugin {
                 })),
                 commits: Arc::clone(&commits),
                 max_tool_result_chars,
+                max_tool_history_chars,
             });
             scope
                 .provide::<Sessions>(&route, provider)
@@ -337,6 +348,7 @@ struct SessionLog {
     state: Arc<tokio::sync::Mutex<SessionLogState>>,
     commits: Arc<SessionCommits>,
     max_tool_result_chars: usize,
+    max_tool_history_chars: usize,
 }
 
 struct SessionLogState {
@@ -598,7 +610,10 @@ impl SessionsProvider for SessionLog {
         _: CallContext<()>,
     ) -> Pin<Box<dyn Future<Output = Vec<ModelMessage>> + Send + 'a>> {
         Box::pin(async move {
-            derive_model_messages(&self.state.lock().await.events, self.max_tool_result_chars)
+            let mut messages =
+                derive_model_messages(&self.state.lock().await.events, self.max_tool_result_chars);
+            tool_output_budget::apply(&mut messages, self.max_tool_history_chars);
+            messages
         })
     }
 }
@@ -631,11 +646,13 @@ pub(crate) fn derive_model_messages(
     });
     let mut messages = Vec::new();
     let after_seq = if let Some(compaction) = latest_compaction {
+        let summary = ternilo_protocol::ContextHandoff::parse(&compaction.summary)
+            .map_or_else(|| compaction.summary.clone(), |handoff| handoff.render());
         messages.push(ModelMessage {
             role: MessageRole::User,
             content: format!(
                 "<earlier_conversation_summary through_seq={}>\n{}\n</earlier_conversation_summary>",
-                compaction.through_seq, compaction.summary
+                compaction.through_seq, summary
             ),
             reasoning_content: None,
             provider_state: None,
@@ -701,7 +718,7 @@ pub(crate) fn derive_model_messages(
                 tool_call_id: None,
                 tool_calls: Vec::new(),
             }),
-            _ => None,
+            _ => crate::document_tools::context_message(&event.kind),
         };
         if let Some(message) = message {
             messages.push(message);
