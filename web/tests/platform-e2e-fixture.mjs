@@ -213,11 +213,12 @@ export async function startPostgres({ prefix, database }) {
           return stdout.trim()
         },
         dump: async () => {
+          // Full model catalogs and event history can exceed execFile's default 1 MiB buffer.
           const { stdout } = await execute('docker', [
             'exec', container,
             'pg_dump', '--data-only', '--no-owner', '--no-privileges',
             '-U', 'postgres', '-d', database,
-          ])
+          ], { maxBuffer: 16 * 1024 * 1024 })
           return stdout
         },
         stop: () => execute('docker', ['stop', container]).catch(() => {}),
