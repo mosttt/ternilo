@@ -13,11 +13,17 @@ const active = page => page.locator('[data-sidebar-session-active="true"]').eval
 async function buttonIsReachable(button, page) {
   const bounds = await button.boundingBox()
   const viewport = page.viewportSize()
-  assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width && bounds.y + bounds.height <= viewport.height)
+  assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width && bounds.y + bounds.height <= viewport.height, JSON.stringify({ bounds, viewport }))
   assert.ok(await button.evaluate(element => {
     const r = element.getBoundingClientRect()
     return element.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
   }), 'dialog action must not be covered')
+}
+
+async function settleSidebarMotion(page) {
+  await page.locator('[data-app-sidebar-column]').evaluate(async element => {
+    await Promise.all(element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})))
+  })
 }
 
 async function scrollSidebarByTouch(page) {
@@ -163,14 +169,14 @@ for (const placement of ['local', 'server-node']) {
       await row(page, mobile.identity.session_id).locator('[data-sidebar-session-active="true"]').waitFor()
       assert.equal(uiCreates, 2, 'a prepared draft is never taken over')
       await page.setViewportSize({ width: 320, height: 560 })
-      // Selection precedes history loading; wait for the blank view's own sidebar control.
+      // Session loading and the responsive layout update independently of the viewport request.
+      await page.locator('[data-app-frame][data-mobile]').waitFor()
       await page.locator('#conversation-main[data-phase="hero"][data-session-state="empty"]').waitFor()
+      await settleSidebarMotion(page)
       const sidebarToggle = page.getByRole('button', { name: '打开侧边栏', exact: true })
       await buttonIsReachable(sidebarToggle, page)
       await sidebarToggle.tap()
-      await page.locator('[data-app-sidebar-column]').evaluate(async element => {
-        await Promise.all(element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})))
-      })
+      await settleSidebarMotion(page)
       await scrollSidebarByTouch(page)
       dialog = await openDelete(mobile.identity.session_id, true)
       await dialog.screenshot({ path: path.join(evidence, `blank-session-${placement}-mobile.png`) })

@@ -270,6 +270,50 @@
     ],
     "errors": [],
     "application_changes": false,
-    "timeout_changes": false
+    "timeout_changes": false,
+    "responsive_followup": {
+      "failed_ci_run": 38444939660,
+      "cause": "Viewport resize precedes the independent mobile layout flag and drawer animation completion.",
+      "fix": "Wait for the mobile frame and actual drawer animations, then retain full bounds, hit testing and native tap.",
+      "local_seconds": 6.92,
+      "server_node_seconds": 11.45,
+      "local_repeat_seconds": [
+        7.07,
+        8.17
+      ],
+      "application_layout_changes": false,
+      "errors": []
+    }
+  },
+  "node_without_workbench": {
+    "version": "0.2.14",
+    "source": "0bb4d38efdc228b05716261aac62684e64ef794c",
+    "node_identity_test": 1,
+    "workbench": {
+      "passed": 41,
+      "postgres_ignored": 3,
+      "seconds": 13.44
+    },
+    "control_server_clippy_all_targets": true,
+    "matched_program_versions": [
+      "ternilo 0.2.14",
+      "ternilo-server 0.2.14",
+      "ternilo-worker 0.2.14"
+    ],
+    "node_worker_browser": {
+      "passed": true,
+      "seconds": 27.51,
+      "owner_page_closed_for_node": true,
+      "actual_child_answer_verified": true,
+      "errors": []
+    },
+    "restricted_postgres_two_servers": {
+      "passed": true,
+      "seconds": 16.89,
+      "owner_page_closed": true,
+      "schema_creation_denied": true,
+      "errors": []
+    },
+    "temporary_processes_and_postgres_removed": true
   }
 }
