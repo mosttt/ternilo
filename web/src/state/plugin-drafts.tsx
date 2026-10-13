@@ -17,12 +17,25 @@ const PluginDraftContext = React.createContext<{
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, StoredDraft>>>
 } | null>(null)
 
-// Keep drafts across settings views and dialog lifetimes, scoped by account and session.
-export function PluginDraftProvider({ children }: { children: React.ReactNode }) {
-  const locksRef = React.useRef(new Set<string>())
-  const [locks, setLocks] = React.useState(new Set<string>())
-  const [drafts, setDrafts] = React.useState<Record<string, StoredDraft>>({})
-  return <PluginDraftContext.Provider value={{ drafts, setDrafts, locks, locksRef, setLocks }}>{children}</PluginDraftContext.Provider>
+function initialStore(scope: string) {
+  return { scope, drafts: {} as Record<string, StoredDraft>, locks: new Set<string>(), locksRef: { current: new Set<string>() } }
+}
+
+// Reset only plugin state on account changes, preserving in-flight authentication UI.
+export function PluginDraftProvider({ children, scope = '' }: { children: React.ReactNode; scope?: string }) {
+  const [state, setState] = React.useState(() => initialStore(scope))
+  if (state.scope !== scope) setState(initialStore(scope))
+  const setDrafts: React.Dispatch<React.SetStateAction<Record<string, StoredDraft>>> = action => {
+    setState(current => current.locksRef !== state.locksRef ? current : {
+      ...current, drafts: typeof action === 'function' ? action(current.drafts) : action,
+    })
+  }
+  const setLocks: React.Dispatch<React.SetStateAction<Set<string>>> = action => {
+    setState(current => current.locksRef !== state.locksRef ? current : {
+      ...current, locks: typeof action === 'function' ? action(current.locks) : action,
+    })
+  }
+  return <PluginDraftContext.Provider value={{ drafts: state.drafts, setDrafts, locks: state.locks, locksRef: state.locksRef, setLocks }}>{children}</PluginDraftContext.Provider>
 }
 
 export function usePluginDraft(key: string | undefined, baseline: string, initial: PluginDraft) {

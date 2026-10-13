@@ -983,7 +983,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       notify,
       dismissToast,
     }}>
-      <PluginDraftProvider key={JSON.stringify([remote, serverIdentity?.user.user_id, currentTenantId])}><InputViewerProvider local={!platform && !remote} user={platform ? serverIdentity?.user ?? null : null}>{children}</InputViewerProvider></PluginDraftProvider>
+      <PluginDraftProvider scope={JSON.stringify([remote, serverIdentity?.user.user_id, currentTenantId])}><InputViewerProvider local={!platform && !remote} user={platform ? serverIdentity?.user ?? null : null}>{children}</InputViewerProvider></PluginDraftProvider>
     </WorkbenchContext.Provider>
   )
 }

@@ -188,4 +188,21 @@ describe('PluginConfigCard draft lifecycle', () => {
     expect(host.textContent).not.toContain('未保存')
   })
 
+  it('clears account-scoped drafts without remounting the surrounding UI', async () => {
+    const draw = (scope: string) => root.render(<LocaleProvider><PluginDraftProvider scope={scope}>
+      <PluginConfigCard entry={entry} metadata={metadata()} draftKey="same-session:local-files" overridden={false} onSave={vi.fn()} />
+    </PluginDraftProvider></LocaleProvider>)
+    await settle(() => draw('account-a'))
+    await settle(() => host.querySelector<HTMLButtonElement>('[aria-label="展开: local-files"]')!.click())
+    const input = host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!
+    await settle(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, '3145728')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await settle(() => draw('account-b'))
+    expect(host.querySelector('#plugin-local-files-max_read_bytes')).toBe(input)
+    expect(input.value).toBe('2097152')
+    expect(host.textContent).not.toContain('未保存')
+  })
+
 })

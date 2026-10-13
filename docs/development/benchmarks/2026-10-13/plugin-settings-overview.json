@@ -95,5 +95,67 @@
     "CLI and Server build",
     "git diff --check"
   ],
-  "release_status": "尚未发布，验收针对开发构建；服务提供的 app.js/app.css 与工作树构建摘要一致。"
+  "release_status": "尚未发布，验收针对开发构建；服务提供的 app.js/app.css 与工作树构建摘要一致。",
+  "authentication_followup": {
+    "reason": "Reset plugin drafts and locks on account changes without remounting the application and reopening invitations.",
+    "version": "0.2.14",
+    "unit_tests": {
+      "files": 4,
+      "passed": 54
+    },
+    "browser_tests": [
+      {
+        "name": "plugin-settings-local",
+        "passed": true,
+        "duration_ms": 41632.654284
+      },
+      {
+        "name": "plugin-settings-server-node",
+        "passed": true,
+        "duration_ms": 45384.134291
+      },
+      {
+        "name": "server-accounts-nodes",
+        "passed": true,
+        "duration_ms": 66270.782613,
+        "revoked_reads_denied": 6
+      }
+    ],
+    "browser_results": [
+      {
+        "placement": "local",
+        "assetHashes": {
+          "app.js": "f03b2dc44af95f1b1322a132aeed4a15338ced902e23a8c730c9bdb99826bb9e",
+          "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+        },
+        "locales": [
+          "zh",
+          "en",
+          "ko"
+        ],
+        "errors": {
+          "page": [],
+          "console": [],
+          "http": []
+        }
+      },
+      {
+        "placement": "server-node",
+        "assetHashes": {
+          "app.js": "f03b2dc44af95f1b1322a132aeed4a15338ced902e23a8c730c9bdb99826bb9e",
+          "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+        },
+        "locales": [
+          "zh",
+          "en",
+          "ko"
+        ],
+        "errors": {
+          "page": [],
+          "console": [],
+          "http": []
+        }
+      }
+    ]
+  }
 }
