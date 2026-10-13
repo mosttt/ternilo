@@ -352,6 +352,7 @@ async function configureProvider(page, baseUrl) {
   await dialog.getByRole('button', { name: '关闭 Provider 编辑器' }).click()
 
   await dialog.getByRole('button', { name: '插件', exact: true }).click()
+  await dialog.getByRole('tab', { name: '插件配置', exact: true }).click()
   const pluginRows = dialog.getByRole('switch')
   await pluginRows.first().waitFor()
   assert.equal(await pluginRows.count() > 0, true)

@@ -1,3 +1,4 @@
+import { PluginDraftProvider } from './plugin-drafts'
 import * as React from 'react'
 import { InputViewerProvider } from './input-viewer'
 import { randomUuid } from '@/lib/random-id'
@@ -982,7 +983,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       notify,
       dismissToast,
     }}>
-      <InputViewerProvider local={!platform && !remote} user={platform ? serverIdentity?.user ?? null : null}>{children}</InputViewerProvider>
+      <PluginDraftProvider scope={JSON.stringify([remote, serverIdentity?.user.user_id, currentTenantId])}><InputViewerProvider local={!platform && !remote} user={platform ? serverIdentity?.user ?? null : null}>{children}</InputViewerProvider></PluginDraftProvider>
     </WorkbenchContext.Provider>
   )
 }

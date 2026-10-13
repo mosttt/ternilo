@@ -1144,6 +1144,7 @@ describe('session plugin configuration', () => {
         </LocaleProvider>,
       ),
     )
+    await settle(() => button('插件配置', host).click())
     await settle(() => button('展开: agent-loop', host).click())
     const maxSteps = host.querySelector<HTMLInputElement>('#plugin-agent-loop-max_tool_calls')!
     expect(maxSteps.value).toBe('8')
@@ -1211,7 +1212,7 @@ describe('built-in plugin localization', () => {
 
     await settle(() => button('Plugin list', host).click())
     expect(host.textContent).toContain('作者原文')
-    const search = host.querySelector<HTMLInputElement>('input[type="search"]')!
+    const search = host.querySelector<HTMLInputElement>('#settings-panel-catalog input[type="search"]')!
     await settle(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'Searches the web')
       search.dispatchEvent(new Event('input', { bubbles: true }))

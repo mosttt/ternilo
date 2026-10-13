@@ -91,8 +91,8 @@ function assertPersistedSubmitter(submission, events, account) {
 async function modelDirectory(page, triggerName, english = false, surface = page.locator('[data-input-bar]')) {
   await surface.getByRole('button', { name: triggerName, exact: true }).click()
   const trigger = page.getByRole('menuitem', { name: english ? /^Model/ : /^模型/ })
-  if (page.viewportSize().width <= 760) await trigger.click()
-  else { await trigger.hover(); await trigger.press('ArrowRight') }
+  if (await trigger.getAttribute('aria-haspopup') === 'menu') { await trigger.hover(); await trigger.press('ArrowRight') }
+  else await trigger.click()
   const dialog = page.getByRole('menu').filter({ has: page.locator('[data-model-source="platform"]') })
   await dialog.getByRole('button', { name: english ? 'Search' : '搜索', exact: true }).waitFor()
   return dialog
@@ -109,10 +109,10 @@ async function assertLayout(page, surface) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'document stays inside viewport')
   assert.ok(await surface.evaluate(element => element.scrollWidth <= element.clientWidth), 'model menu has no horizontal overflow')
   const box = await surface.boundingBox(), size = page.viewportSize()
-  assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= size.width + 1 && box.y + box.height <= size.height + 1, 'model menu fits viewport')
+  assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= size.width + 1 && box.y + box.height <= size.height + 1, `model menu fits viewport: ${JSON.stringify({ box, size })}`)
   for (const button of await surface.getByRole('button').all()) {
     const target = await button.boundingBox()
-    if (target && size.width <= 760) assert.ok(target.width >= 39.9 && target.height >= 39.9, `touch target ${await button.innerText()}`)
+    if (target && (size.width <= 760 || (size.height <= 520 && size.width > size.height))) assert.ok(target.width >= 39.9 && target.height >= 39.9, `touch target ${await button.innerText()}`)
   }
 }
 
@@ -289,10 +289,35 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
       await ownerPage.setViewportSize(viewport)
       dialog = await modelDirectory(ownerPage, `Published model · ${chosen.grant_name} · medium`)
       await assertLayout(ownerPage, dialog)
+      assert.equal(await dialog.getByRole('menuitem', { name: '返回', exact: true }).count(), 1, 'compact model directory offers in-place back navigation in portrait and landscape')
+      await dialog.locator('[data-model-grant]').first().waitFor()
+      const box = await dialog.boundingBox()
+      const touch = await ownerContext.newCDPSession(ownerPage)
+      const x = Math.round(box.x + box.width / 2), y = Math.round(box.y + box.height * 0.75)
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+      for (let step = 1; step <= 6; step++) {
+        await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - step * 15 }] })
+        await ownerPage.waitForTimeout(25)
+      }
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await touch.detach()
+      await until(() => dialog.evaluate(element => element.scrollTop), top => top > 0, 'model directory responds to native touch scrolling')
+      await dialog.hover()
+      const positions = []
+      for (let step = 0; step < 12; step++) {
+        await ownerPage.mouse.wheel(0, 400)
+        await ownerPage.waitForTimeout(75)
+        const position = await dialog.evaluate(element => ({ top: element.scrollTop, distance: element.scrollHeight - element.clientHeight - element.scrollTop }))
+        positions.push(position)
+        if (position.distance < 1) break
+      }
+      assert.ok(positions.at(-1).distance < 1, `model directory reaches its paging controls: ${JSON.stringify({ viewport, positions })}`)
+      await assertLayout(ownerPage, dialog)
+      assert.equal(await dialog.getByRole('button', { name: '下一页', exact: true }).isVisible(), true)
       assert.equal((await access(`/model-options?session_id=${sessionId}`)).current.selection.grant_id, chosen.grant_id)
       await ownerPage.screenshot({ path: path.join(artifacts, `managed-model-picker-${viewport.width}.png`) })
       await ownerPage.keyboard.press('Escape')
-      if (viewport.width > 760) await ownerPage.keyboard.press('Escape')
+      if (await ownerPage.getByRole('menu').count()) await ownerPage.keyboard.press('Escape')
       await until(() => ownerPage.getByRole('menu').count(), count => count === 0, 'model menu closes before changing viewport')
     }
     await ownerPage.setViewportSize({ width: 1440, height: 1000 })

@@ -2,8 +2,8 @@ use std::{collections::BTreeSet, time::Duration};
 
 use futures_util::{StreamExt, stream};
 use serde::Deserialize;
-use ternilo_control::{ControlUser, NodeSessionResource, NodeWorkspaceResource};
-use ternilo_protocol::{HarnessError, TenantId, WorkspaceId};
+use ternilo_control::{ControlUser, NodePrincipal, NodeSessionResource, NodeWorkspaceResource};
+use ternilo_protocol::{HarnessError, SessionId, TenantId, WorkspaceId};
 use ternilo_transport::{ApplicationOperation, ExecutorId};
 
 use crate::platform::{http::now_ms, state::AppState};
@@ -76,8 +76,37 @@ async fn discover_computer(
     tenant_id: &TenantId,
     executor_id: &ExecutorId,
 ) -> Result<(), HarnessError> {
+    let imported = synchronize_connected_node_resources(state, tenant_id, executor_id).await?;
+    if !imported.is_empty() {
+        let mappings = state
+            .store
+            .list_owned_edge_sessions(user, tenant_id)
+            .await?;
+        let imported = imported.into_iter().collect::<BTreeSet<_>>();
+        let adapter = EdgeAdapter::new(state, user, tenant_id);
+        for mapping in mappings
+            .iter()
+            .filter(|mapping| imported.contains(&mapping.session_id))
+        {
+            // Initial events may have arrived before their resource mapping.
+            // Fetch the canonical history once after installing that mapping.
+            if let Err(error) = adapter.events(mapping).await {
+                eprintln!("cache discovered session {}: {error}", mapping.session_id);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Refresh machine-reported metadata without borrowing a browser user's authority.
+/// The transport snapshot and enrolled owner establish identity; grants still gate reads and execution.
+async fn synchronize_connected_node_resources(
+    state: &AppState,
+    tenant_id: &TenantId,
+    executor_id: &ExecutorId,
+) -> Result<Vec<SessionId>, HarnessError> {
     let Some(mut resources) = state.edge.lock_discovery(tenant_id, executor_id).await else {
-        return Ok(());
+        return Ok(Vec::new());
     };
     let value = state
         .edge
@@ -127,8 +156,7 @@ async fn discover_computer(
         .collect::<Vec<_>>();
     let imported = state
         .store
-        .discover_owned_node_resources(
-            user,
+        .discover_connected_node_resources(
             tenant_id,
             executor_id,
             &workspaces,
@@ -137,24 +165,21 @@ async fn discover_computer(
         )
         .await?;
     *resources = Some(std::time::Instant::now());
-    drop(resources);
-    if !imported.is_empty() {
-        let mappings = state
-            .store
-            .list_owned_edge_sessions(user, tenant_id)
+    Ok(imported)
+}
+
+pub(crate) async fn synchronize_node_model_session(
+    state: &AppState,
+    node: &NodePrincipal,
+    session_id: &SessionId,
+) -> Result<(), HarnessError> {
+    if !state
+        .store
+        .node_model_session_registered(node, session_id)
+        .await?
+    {
+        synchronize_connected_node_resources(state, &node.scope.tenant_id, &node.executor_id)
             .await?;
-        let imported = imported.into_iter().collect::<BTreeSet<_>>();
-        let adapter = EdgeAdapter::new(state, user, tenant_id);
-        for mapping in mappings
-            .iter()
-            .filter(|mapping| imported.contains(&mapping.session_id))
-        {
-            // Initial events may have arrived before their resource mapping.
-            // Fetch the canonical history once after installing that mapping.
-            if let Err(error) = adapter.events(mapping).await {
-                eprintln!("cache discovered session {}: {error}", mapping.session_id);
-            }
-        }
     }
     Ok(())
 }

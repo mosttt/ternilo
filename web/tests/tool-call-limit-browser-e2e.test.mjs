@@ -54,6 +54,7 @@ test('tool call limits persist in copied presets and independent session overrid
       const dialog = page.getByRole('dialog', { name: '设置', exact: true })
       if (!await dialog.isVisible()) await page.getByRole('button', { name: '设置', exact: true }).click()
       await dialog.getByRole('button', { name: section, exact: true }).click()
+      if (section === '插件') await dialog.getByRole('tab', { name: '插件配置', exact: true }).click()
       return dialog
     }
     async function expandLoop(container) {
@@ -136,6 +137,7 @@ test('tool call limits persist in copied presets and independent session overrid
     await selectChoice(settingsDialog.getByLabel('语言', { exact: true }), 'en')
     const english = page.getByRole('dialog', { name: 'Settings', exact: true })
     await english.getByRole('button', { name: 'Plugins', exact: true }).click()
+    await english.getByRole('tab', { name: 'Plugin configuration', exact: true }).click()
     const englishLoop = english.locator('[data-plugin-id="agent-loop"]')
     await englishLoop.getByRole('button', { name: 'Expand: agent-loop', exact: true }).click()
     assert.equal(await englishLoop.getByLabel('Tool calls per turn', { exact: true }).inputValue(), '0')

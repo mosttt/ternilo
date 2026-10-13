@@ -521,6 +521,11 @@ test('Server account and platform Responses follow submitted messages before out
           await row.locator('[data-sidebar-session-button]').click()
           await page.setViewportSize({ width, height: 820 })
           stream = await startTurn(page, model, '建立对话历史')
+          const composerHeight = await page.locator('[data-composer-seat]').evaluate(element => element.offsetHeight)
+          await page.getByRole('textbox', { name: '输入任务' }).fill('第一行\n第二行\n第三行\n第四行')
+          await page.waitForFunction(before => document.querySelector('[data-composer-seat]').offsetHeight > before, composerHeight)
+          await atTail(page)
+          await page.getByRole('textbox', { name: '输入任务' }).fill('')
           stream.complete()
           await page.getByRole('button', { name: '发送', exact: true }).waitFor()
           const index = model.next()
@@ -550,6 +555,14 @@ test('Server account and platform Responses follow submitted messages before out
           await page.locator('[data-reasoning-body]').filter({ hasText: '这是上游返回的可展示摘要。' }).waitFor()
           if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `${scope}-${width}-summary.png`) })
           t.diagnostic(`${scope} ${width}px: before-output tail, summary request, live display and persisted usage passed`)
+        } catch (error) {
+          const events = await request(`/sessions/${sessionId}/events`)
+          t.diagnostic(`${scope} ${width}px failure: ${JSON.stringify({ geometry: await geometry(page), events: events.map(({ seq, type, phase }) => ({ seq, type, phase })) })}`)
+          if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+            await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+            await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `${scope}-${width}-scroll-failure.png`) })
+          }
+          throw error
         } finally {
           stream?.complete()
           await context.close()

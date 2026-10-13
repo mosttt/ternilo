@@ -1,0 +1,319 @@
+{
+  "date": "2026-10-13",
+  "scope": "插件集中配置与 Agent Team 协作设置同步",
+  "unit_tests": {
+    "files": 5,
+    "passed": 50,
+    "coverage": [
+      "插件编辑卡片",
+      "插件设置与扩展管理",
+      "团队面板",
+      "设置容器",
+      "预设编辑"
+    ]
+  },
+  "browser_tests": [
+    {
+      "name": "插件入口同步、三语、320/390 像素、原生触摸滚动（Local）",
+      "passed": true,
+      "duration_ms": 36415.749163
+    },
+    {
+      "name": "插件入口同步、三语、320/390 像素、原生触摸滚动（Server + Node）",
+      "passed": true,
+      "duration_ms": 42721.756275
+    },
+    {
+      "name": "运行中编辑、结束后保存、手机主动停止后保存（Local）",
+      "passed": true,
+      "duration_ms": 5647.361736,
+      "busy_response_ms": 4
+    },
+    {
+      "name": "运行中编辑、结束后保存、手机主动停止后保存（Server + Node）",
+      "passed": true,
+      "duration_ms": 7581.998696,
+      "busy_response_ms": 17
+    },
+    {
+      "name": "三语角色配置与实际子代理模型调用",
+      "passed": true,
+      "duration_ms": 31109.180559
+    },
+    {
+      "name": "设置页、预设、扩展管理、窄屏回归",
+      "passed": true,
+      "duration_ms": 30217.19566
+    },
+    {
+      "name": "预设与会话独立工具预算保存及恢复继承",
+      "passed": true,
+      "duration_ms": 11009.620261
+    }
+  ],
+  "browser_results": [
+    {
+      "placement": "local",
+      "assetHashes": {
+        "app.js": "0b16255f7dc5939d2a7975bff3ad04637844c2733697c6200119fec4fa822d7d",
+        "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+      },
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "errors": {
+        "page": [],
+        "console": [],
+        "http": []
+      }
+    },
+    {
+      "placement": "server-node",
+      "assetHashes": {
+        "app.js": "0b16255f7dc5939d2a7975bff3ad04637844c2733697c6200119fec4fa822d7d",
+        "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+      },
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "errors": {
+        "page": [],
+        "console": [],
+        "http": []
+      }
+    }
+  ],
+  "checks": [
+    "TypeScript typecheck",
+    "UI i18n gate",
+    "Formal documentation gate",
+    "Vite build",
+    "CLI and Server build",
+    "git diff --check"
+  ],
+  "release_status": "尚未发布，验收针对开发构建；服务提供的 app.js/app.css 与工作树构建摘要一致。",
+  "authentication_followup": {
+    "reason": "Reset plugin drafts and locks on account changes without remounting the application and reopening invitations.",
+    "version": "0.2.14",
+    "unit_tests": {
+      "files": 4,
+      "passed": 54
+    },
+    "browser_tests": [
+      {
+        "name": "plugin-settings-local",
+        "passed": true,
+        "duration_ms": 41632.654284
+      },
+      {
+        "name": "plugin-settings-server-node",
+        "passed": true,
+        "duration_ms": 45384.134291
+      },
+      {
+        "name": "server-accounts-nodes",
+        "passed": true,
+        "duration_ms": 66270.782613,
+        "revoked_reads_denied": 6
+      }
+    ],
+    "browser_results": [
+      {
+        "placement": "local",
+        "assetHashes": {
+          "app.js": "f03b2dc44af95f1b1322a132aeed4a15338ced902e23a8c730c9bdb99826bb9e",
+          "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+        },
+        "locales": [
+          "zh",
+          "en",
+          "ko"
+        ],
+        "errors": {
+          "page": [],
+          "console": [],
+          "http": []
+        }
+      },
+      {
+        "placement": "server-node",
+        "assetHashes": {
+          "app.js": "f03b2dc44af95f1b1322a132aeed4a15338ced902e23a8c730c9bdb99826bb9e",
+          "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+        },
+        "locales": [
+          "zh",
+          "en",
+          "ko"
+        ],
+        "errors": {
+          "page": [],
+          "console": [],
+          "http": []
+        }
+      }
+    ]
+  },
+  "scroll_follow_regression": {
+    "cause": "Transcript observer did not follow conditional element mounting, and composer height was not observed",
+    "reproduced_before_fix": {
+      "composer_growth_tail_distance_px": 72
+    },
+    "fix": "Observe the mounted transcript element, scroller and composer; retain output and reader-intent gates",
+    "browser": {
+      "passed": true,
+      "tests_including_subtests": 5,
+      "local_seconds": 24.22,
+      "server_seconds": 37.89,
+      "history_seconds": 60.53,
+      "model_sources": [
+        "account",
+        "platform"
+      ],
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "page_console_http_errors": []
+    },
+    "unit_tests": {
+      "passed": 6
+    },
+    "typecheck": true,
+    "build": true,
+    "documentation": true,
+    "asset_hashes": {
+      "app.js": "8e12da03148268a4d1d917dfb1e46ce7e5b02de31c6db4f802876850b6b938c8",
+      "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+    },
+    "release_published": false
+  },
+  "landscape_model_menu_regression": {
+    "date": "2026-10-14",
+    "failed_ci_run": 38421435982,
+    "failed_viewport": {
+      "width": 844,
+      "height": 390
+    },
+    "fix": "Short landscape screens use the existing single-level model menu, matching touch layout rules",
+    "component_tests_passed": 31,
+    "typecheck": true,
+    "i18n": true,
+    "documentation": true,
+    "matched_programs": [
+      "ternilo0.2.14",
+      "ternilo-server0.2.14",
+      "ternilo-worker0.2.14"
+    ],
+    "browser": {
+      "passed": true,
+      "seconds": 51.09,
+      "viewports": [
+        [
+          390,
+          844
+        ],
+        [
+          320,
+          740
+        ],
+        [
+          844,
+          390
+        ]
+      ],
+      "native_touch_scroll": true,
+      "wheel_reaches_paging_controls": true,
+      "shared_worker_execution": true,
+      "budget_and_revocation": true,
+      "errors": []
+    },
+    "asset_hashes": {
+      "app.js": "2c16bcee367b96f15b58490cb164e5f90f41c59fcf8bb42d15352c5d4aebfa01",
+      "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+    },
+    "release_published": false
+  },
+  "cross_server_revocation_contract": {
+    "date": "2026-10-14",
+    "failed_ci_run": 38429695280,
+    "fix": "Recognize denied workspace-scoped agent-presets reads during revocation, retaining exact resource, status and error-code checks",
+    "passed": true,
+    "seconds": 6.05,
+    "direct_group_project_revocation": true,
+    "history_cleared": true,
+    "later_events_stopped": true,
+    "application_permission_changes": false
+  },
+  "blank_session_touch_contract": {
+    "date": "2026-10-14",
+    "failed_ci_run": 38437191442,
+    "reproduced_locally": true,
+    "cause": "The test selected the loading header button before the empty-session view replaced it with its own control.",
+    "fix": "Wait for the blank view to finish loading, check viewport bounds and center hit testing, then use native tap.",
+    "browser": [
+      {
+        "placement": "local",
+        "passed": true,
+        "seconds": 19.94
+      },
+      {
+        "placement": "server-node",
+        "passed": true,
+        "seconds": 18.32
+      }
+    ],
+    "errors": [],
+    "application_changes": false,
+    "timeout_changes": false,
+    "responsive_followup": {
+      "failed_ci_run": 38444939660,
+      "cause": "Viewport resize precedes the independent mobile layout flag and drawer animation completion.",
+      "fix": "Wait for the mobile frame and actual drawer animations, then retain full bounds, hit testing and native tap.",
+      "local_seconds": 6.92,
+      "server_node_seconds": 11.45,
+      "local_repeat_seconds": [
+        7.07,
+        8.17
+      ],
+      "application_layout_changes": false,
+      "errors": []
+    }
+  },
+  "node_without_workbench": {
+    "version": "0.2.14",
+    "source": "0bb4d38efdc228b05716261aac62684e64ef794c",
+    "node_identity_test": 1,
+    "workbench": {
+      "passed": 41,
+      "postgres_ignored": 3,
+      "seconds": 13.44
+    },
+    "control_server_clippy_all_targets": true,
+    "matched_program_versions": [
+      "ternilo 0.2.14",
+      "ternilo-server 0.2.14",
+      "ternilo-worker 0.2.14"
+    ],
+    "node_worker_browser": {
+      "passed": true,
+      "seconds": 27.51,
+      "owner_page_closed_for_node": true,
+      "actual_child_answer_verified": true,
+      "errors": []
+    },
+    "restricted_postgres_two_servers": {
+      "passed": true,
+      "seconds": 16.89,
+      "owner_page_closed": true,
+      "schema_creation_denied": true,
+      "errors": []
+    },
+    "temporary_processes_and_postgres_removed": true
+  }
+}

@@ -19,6 +19,7 @@ async function configureRole(page, request, sessionId, model, workspaceTitle) {
   }
   await page.locator(`[data-sidebar-session-row][data-session-id="${sessionId}"]`).click()
   await page.goto(`${new URL(page.url()).origin}/settings/plugins`)
+  await page.getByRole('tab', { name: '插件配置', exact: true }).click()
   const card = page.locator('[data-plugin-id="subagents"]')
   await card.locator('button[aria-expanded][aria-label]').click()
   const investigator = card.getByRole('group', { name: '调查', exact: true })
@@ -51,6 +52,8 @@ async function runRole(request, parentId, upstream) {
   const child = state.sessions.find(item => item.parent_session_id === parentId && item.subagent?.role === 'investigator')
   assert.equal(child.permissions, 'read_only'); assert.equal(child.model.model, 'role-model')
   assert.ok(upstream.requests.slice(before).some(body => body.model === 'role-model' && body.reasoning_effort === 'low' && body.messages.some(message => String(message.content).includes('Platform evidence fixture'))))
+  const events = await request(`/sessions/${child.identity.session_id}/events`)
+  assert.ok(events.some(event => event.type === 'assistant_message' && event.response.content === 'Evidence collected.'))
   return child
 }
 
@@ -100,7 +103,10 @@ test('Server role models execute through Node and Worker with independent reason
       const current = (await request('/state')).sessions.find(session => session.identity.session_id === id)
       await request(`/sessions/${id}`, { method: 'PATCH', body: { profile_plugins: [...current.profile_plugins, { id: 'agent-loop', kind: 'ternilo.agent.react', enabled: true, config: { observe_reasoning: true, prompt_cache: true } }] } })
     }
+    // Node model synchronization must not depend on an open workbench polling state.
+    await page.goto('about:blank')
     const nodeChild = await runRole(request, nodeId, upstream)
+    await page.goto(server.origin)
     const project = (await request('/projects', { body: { name: 'Coordination' } })).project
     const managed = (await request('/workspaces', { body: { project_id: project.project_id, name: 'Managed coordination', placement: 'cloud' } })).workspace
     const cloud = await request('/sessions', { body: { workspace_id: managed.workspace_id, session_id: 'coordination-cloud', permissions: 'workspace_write' } })

@@ -1,3 +1,4 @@
+import { usePluginWriteLock } from '@/state/plugin-drafts'
 import * as React from 'react'
 import { Ban, Box, ChevronDown, PackagePlus, Search, Trash2 } from 'lucide-react'
 import { api, ApiError } from '@/api/client'
@@ -32,6 +33,7 @@ import { executionTargetKey, executionTargetPath, type ExecutionTarget } from '@
 import { resourcePermissions } from '@/domain/resource-access'
 import { invalidateProviderInventory, loadProviderInventory } from '@/domain/provider-inventory'
 import { PluginConfigCard } from './plugin-config-card'
+import { pluginFieldCopy } from './plugin-field-copy'
 import { configRecord, pluginConfigDefaults, pluginConfigFields } from './plugin-config'
 import { ActionDialog, SectionHeader, SettingsTabPanel, SettingsTabs } from './settings-ui'
 import styles from './settings-layout.module.css'
@@ -325,7 +327,7 @@ function ExtensionRuntimeContributions({
   </>
 }
 
-export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
+export function PluginsSettings({ onChanged, onlyKind }: { onChanged(): Promise<void>; onlyKind?: string }) {
   const { currentSession, currentWorkspace, sessionActivity, acceptLiveActivity, platform, accountScope, loading, authRequired, catalog, updateSession, notify } = useWorkbench()
   const t = useTranslate('settings')
   const builtins = useTranslate('builtins')
@@ -350,7 +352,8 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
   }, [acceptLiveActivity, accountScope, authRequired, currentSession?.placement, loading, sessionId])
   const configurationBusy = currentSession?.placement !== 'cloud'
     && Boolean(sessionId && sessionActivity[sessionId]?.running)
-  const disabledReason = configurationBusy ? t('plugins.waitForTask') : undefined
+  const [writing, startWriting, finishWriting] = usePluginWriteLock(JSON.stringify([accountScope, sessionId]))
+  const disabledReason = configurationBusy ? t('plugins.waitForTask') : writing ? common('saving') : undefined
   const [stoppingTask, setStoppingTask] = React.useState(false)
   const [stopRequested, setStopRequested] = React.useState(false)
   React.useEffect(() => { setStopRequested(false) }, [configurationBusy, currentSession?.identity.session_id])
@@ -368,7 +371,8 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
     } catch (cause) { notify(cause instanceof Error ? cause.message : String(cause), 'error') }
     finally { setStoppingTask(false) }
   }
-  const [activeTab, setActiveTab] = React.useState('configuration')
+  const [activeTab, setActiveTab] = React.useState('overview')
+  const [configQuery, setConfigQuery] = React.useState('')
   const [profile, setProfile] = React.useState<Profile | null>(null)
   const [inventory, setInventory] = React.useState<ExtensionInventory | null>(null)
   const [loadingProfile, setLoadingProfile] = React.useState(false)
@@ -401,23 +405,25 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
   )
   const targetKey = executionTargetKey(target)
 
+  const profileRequest = React.useRef(0)
   const loadProfile = React.useCallback(async () => {
-    if (!currentSession) {
-      setProfile(null)
-      return
-    }
+    const request = ++profileRequest.current
+    if (!sessionId) { setProfile(null); return }
     setLoadingProfile(true)
     setProfileError('')
     try {
-      setProfile(
-        await api.request<Profile>(`/sessions/${encodeURIComponent(currentSession.identity.session_id)}/plugins`),
-      )
+      const next = await api.request<Profile>(`/sessions/${encodeURIComponent(sessionId)}/plugins`)
+      if (request === profileRequest.current) setProfile(next)
     } catch (cause) {
-      setProfileError(cause instanceof Error ? cause.message : String(cause))
+      if (request === profileRequest.current) setProfileError(cause instanceof Error ? cause.message : String(cause))
     } finally {
-      setLoadingProfile(false)
+      if (request === profileRequest.current) setLoadingProfile(false)
     }
-  }, [currentSession, notify])
+  }, [sessionId, accountScope])
+  React.useEffect(() => {
+    setProfile(null)
+    return () => { profileRequest.current += 1 }
+  }, [sessionId, accountScope])
 
   const loadInventory = React.useCallback(async () => {
     setLoadingInventory(true)
@@ -433,22 +439,26 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
 
   React.useEffect(() => {
     void loadProfile()
-  }, [loadProfile])
+  }, [loadProfile, currentSession?.profile_plugins, currentSession?.preset_plugins, currentSession?.agent_preset])
   React.useEffect(() => {
+    if (onlyKind) return
     setInventory(null)
     void loadInventory()
-  }, [loadInventory, targetKey])
+  }, [loadInventory, targetKey, onlyKind])
 
   const writeOverrides = async (overrides: PluginEntry[]) => {
     if (!currentSession) throw new Error(t('plugins.noSession'))
     if (disabledReason) throw new Error(disabledReason)
+    if (!startWriting()) throw new Error(common('saving'))
     try {
       await updateSession(currentSession.identity.session_id, { profile_plugins: overrides })
+      await Promise.all([loadProfile(), onChanged()])
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === 'conflict') throw new Error(t(cause.message.includes('Session configuration is busy') ? 'plugins.configurationConflict' : 'plugins.waitForTask'))
       throw cause
+    } finally {
+      finishWriting()
     }
-    await Promise.all([loadProfile(), onChanged()])
   }
 
   const saveEntry = async (entry: PluginEntry) => {
@@ -715,7 +725,21 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
         .includes(normalizedQuery),
   )
 
+  const overview = Boolean(onlyKind) || activeTab === 'overview'
+  const configSearch = configQuery.trim().toLocaleLowerCase()
+  const configurationRows = (profile?.plugins ?? []).filter(entry => !onlyKind || entry.kind === onlyKind).map(entry => {
+    const metadata = localizedCatalog.find(item => item.kind === entry.kind) ?? emptyMetadata(entry.kind)
+    const fields = pluginConfigFields(metadata.config_schema)
+    const configurable = fields.length > 0 || Object.keys(configRecord(entry.config)).length > 0
+    const terms = fields.flatMap(field => { const copy = pluginFieldCopy(entry.kind, field, t); return [field.key, copy.label, copy.description] })
+    if (entry.kind === 'ternilo.subagents.in_process') terms.push(t('coordination.mode'), t('coordination.parallel'), t('coordination.model'), t('coordination.role.investigator'), t('coordination.role.implementer'), t('coordination.role.reviewer'), t('coordination.instructions'), t('coordination.readOnly'), t('coordination.mode.independent'), t('coordination.mode.assisted'), t('coordination.mode.parallel'))
+    if (entry.kind === 'ternilo.tools.registry') terms.push(t('toolSchemas.enabled'), t('toolSchemas.loaded'))
+    const matches = `${entry.id} ${entry.kind} ${metadata.description} ${terms.join(' ')}`.toLocaleLowerCase().includes(configSearch)
+    return { entry, metadata, visible: !overview || (configurable && matches) }
+  })
+  const visibleRows = configurationRows.filter(row => row.visible)
   const tabs = [
+    { id: 'overview', panelId: 'configuration', label: t('plugins.overviewTab') },
     { id: 'configuration', label: t('plugins.configurationTab') },
     { id: 'catalog', label: t('plugins.catalogTab') },
     { id: 'extensions', label: t('plugins.extensionsTab') },
@@ -723,15 +747,34 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
 
   return (
     <div className={styles.section}>
-      <SectionHeader title={t('nav.plugins')} description={t('plugins.description')} />
-      <SettingsTabs label={t('plugins.views')} tabs={tabs} active={activeTab} onChange={setActiveTab} />
+      {!onlyKind && <>
+        <SectionHeader title={t('nav.plugins')} description={t('plugins.description')} />
+        <SettingsTabs label={t('plugins.views')} tabs={tabs} active={activeTab} onChange={setActiveTab} />
+      </>}
 
-      <SettingsTabPanel id="configuration" active={activeTab}>
+      <div id="settings-panel-configuration" role={onlyKind ? undefined : 'tabpanel'} aria-labelledby={onlyKind ? undefined : `settings-tab-${overview ? 'overview' : 'configuration'}`} hidden={!onlyKind && activeTab !== 'overview' && activeTab !== 'configuration'} className={onlyKind ? undefined : 'pt-5'}>
+        {overview && !onlyKind && <div className="mb-4 grid min-w-0 gap-3">
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('plugins.overviewDescription')}</p>
+          <label className={styles.search}>
+            <Search aria-hidden="true" />
+            <span className="sr-only">{t('plugins.configSearch')}</span>
+            <input type="search" value={configQuery} placeholder={t('plugins.configSearch')} onChange={event => setConfigQuery(event.target.value)} />
+          </label>
+          <nav className="flex max-h-32 flex-wrap gap-2 overflow-auto" aria-label={t('plugins.quickJump')}>
+            {visibleRows.map(({ entry }) => <Button key={entry.id} type="button" variant="outline" size="xs" onClick={() => {
+              const element = document.getElementById(`plugin-section-${entry.id}`)
+              element?.scrollIntoView({ block: 'start' })
+              element?.focus({ preventScroll: true })
+            }}>{entry.id}</Button>)}
+          </nav>
+          {!visibleRows.length && profile && <p role="status" className="text-sm text-muted-foreground">{t('plugins.noConfigMatches')}</p>}
+        </div>}
+        {onlyKind && <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{t('coordination.panelScope')}</p>}
         <div className="mb-4 rounded-xl border bg-muted/20 px-4 py-3" data-plugin-scope="session">
           <strong className="text-sm">{t('plugins.sessionScopeTitle')}</strong>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('plugins.sessionScopeDescription')}</p>
         </div>
-        {disabledReason && <div className="mb-4 rounded-xl border bg-muted/20 px-4 py-3 text-sm leading-relaxed" data-plugin-settings-busy="">
+        {configurationBusy && <div className="mb-4 rounded-xl border bg-muted/20 px-4 py-3 text-sm leading-relaxed" data-plugin-settings-busy="">
           <p role="status">{stopRequested ? t('plugins.stopRequested') : disabledReason}</p>
           {resourcePermissions(currentSession?.access, !platform).stop && <Button type="button" className="mt-3" variant="outline"
             disabled={stoppingTask || stopRequested} onClick={() => void stopTask()}>{t('plugins.stopTask')}</Button>}
@@ -758,14 +801,14 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
               {common('retry')}
             </Button>
           </div>
-        ) : profile?.plugins.length ? (
+        ) : profile?.plugins.length && (!onlyKind || configurationRows.length > 0) ? (
           <div className="space-y-3">
-            {profile.plugins.map((entry) => {
-              const metadata = localizedCatalog.find((item) => item.kind === entry.kind) ?? emptyMetadata(entry.kind)
-              return (
+            {configurationRows.map(({ entry, metadata, visible }) => (
+              <div key={`${accountScope}:${targetKey}:${entry.id}`} id={`plugin-section-${entry.id}`} hidden={!visible} tabIndex={-1} className="scroll-mt-4 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl">
                 <PluginConfigCard
-                  key={entry.id}
                   entry={entry}
+                  expanded={overview}
+                  draftKey={JSON.stringify([accountScope, targetKey, entry.id])}
                   target={target}
                   metadata={metadata}
                   hostToolCallLimit={catalog?.host_limits?.max_tool_calls}
@@ -775,16 +818,17 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
                   onSave={saveEntry}
                   onReset={() => resetEntry(entry.id)}
                 />
-              )
-            })}
+              </div>
+            ))}
           </div>
         ) : (
           <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-            {t('plugins.empty')}
+            {t(onlyKind ? 'coordination.unavailable' : 'plugins.empty')}
           </div>
         )}
-      </SettingsTabPanel>
+      </div>
 
+      {!onlyKind && <>
       <SettingsTabPanel id="catalog" active={activeTab}>
         <label className={styles.search}>
           <Search aria-hidden="true" />
@@ -1669,6 +1713,7 @@ export function PluginsSettings({ onChanged }: { onChanged(): Promise<void> }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>}
     </div>
   )
 }

@@ -1,4 +1,6 @@
 export const zh = {
+  "team.view.settings": "协作设置",
+
   'team.view.usage': "用量",
   'team.usage.description': "已记录的主／子代理响应用量，包含重新生成前的响应。缓存读取与写入属于输入，推理属于输出；不重复相加。辅助模型调用及未记录的失败请求不包含在内，金额为估算，不是供应商账单。",
   'team.usage.total': "已读取成员合计",
@@ -182,6 +184,8 @@ export const zh = {
 export type ObservabilityKey = keyof typeof zh
 
 export const en = {
+  "team.view.settings": "Collaboration settings",
+
   'team.view.usage': "Usage",
   'team.usage.description': "Recorded lead and child responses, including responses before regeneration. Cache reads and writes are part of input; reasoning is part of output. They are not added twice. Auxiliary model calls and unrecorded failed requests are excluded. Costs are estimates, not provider invoices.",
   'team.usage.total': "Loaded members total",
@@ -362,6 +366,8 @@ export const en = {
   'subagent.sessionUnavailable': 'This child session cannot be opened here right now. Task summaries and results remain available.',
 } satisfies Record<ObservabilityKey, string>
 export const ko = {
+  "team.view.settings": "협업 설정",
+
   'team.view.usage': "사용량",
   'team.usage.description': "재생성 이전 응답을 포함한 주 에이전트와 하위 에이전트의 기록된 응답 사용량입니다. 캐시 읽기·쓰기는 입력에, 추론은 출력에 포함되며 중복 합산하지 않습니다. 보조 모델 호출과 기록되지 않은 실패 요청은 제외됩니다. 금액은 추정치이며 공급자 청구서가 아닙니다.",
   'team.usage.total': "불러온 구성원 합계",

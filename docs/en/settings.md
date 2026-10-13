@@ -4,6 +4,22 @@ The initial UI language follows the browser’s preferred supported language: Ch
 
 The theme defaults to **System** and responds to operating-system appearance changes while the page is open. An explicit Light or Dark selection remains your preference. Settings also control language, conversation text size, completed-turn display and the default behavior of future conversations.
 
+## All settings and team collaboration settings
+
+**Settings → Plugins** opens **All settings** by default. Configurable plugins show their fields directly, with search by plugin or parameter and quick navigation. Save, discard edits, or remove the session override separately for each plugin. **Plugin configuration** retains collapsible details; the plugin list and extension package views remain available.
+
+The current session's Agent Team panel includes **Collaboration settings** for the collaboration mode, role models, permissions, instructions, and child agent limits. It shares the same session configuration with the plugin page. Within the same page, drafts survive switching entry points, hiding plugins through search, and closing and reopening the panel. Saves, enabled state, and restored inheritance appear in the other entry points. Drafts are isolated by account, space, and session; reloading the page discards unsaved edits.
+
+Changes apply to the current session and subsequent runs after saving; existing child sessions keep their settings. Local and Server-connected computer sessions allow editing during a task, but saving requires the task to finish or be stopped.
+
+The two child agent limits have different scopes:
+
+- **Concurrent child task limit** bounds running tasks. Finishing a task releases its running slot. Assisted defaults to 4, Parallel to 8; the configurable range is 1–32.
+- **Retained child agent limit** bounds instances kept by the current session runtime. The default is 8 and the minimum is 1. Completed instances retain their slot until closed. It does not limit historical sessions.
+
+Effective concurrency is the smaller of the two values, shown immediately in the editor. A concurrency setting of 12 with an instance limit of 8 allows at most 8 running tasks. Independent mode disables child agents. Role model controls, child step/tool budgets, and foreground wait timeout have Chinese, English, and Korean labels and explanations.
+
+
 ## Configuration ownership
 
 Check the target shown at the top of settings. Computer-scoped providers, credentials, plugins, presets and attachments are stored on that computer. Server routes changes to it; an offline computer cannot accept those changes. Account providers and private API keys belong to your Server account. Cloud presets belong to the current user in the selected space, and cloud extension inventory belongs to the space.

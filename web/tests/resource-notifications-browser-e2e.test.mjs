@@ -127,7 +127,7 @@ test('sharing changes on one Server update and revoke another Server browser wit
       const url = new URL(response.url)
       assert.ok(response.revoked && [400, 403].includes(response.status)
         && (url.pathname.startsWith(`/api/v1/sessions/${sessionId}/`) || url.searchParams.get('session_id') === sessionId
-          || url.pathname === '/api/v1/catalog' && url.searchParams.get('workspace_id') === workspaceId), JSON.stringify(response))
+          || ['/api/v1/catalog', '/api/v1/agent-presets'].includes(url.pathname) && url.searchParams.get('workspace_id') === workspaceId), JSON.stringify(response))
       assert.ok(['policy_denied', 'invalid_input'].includes((await response.body).error?.code))
     }
     for (const error of consoleErrors) assert.ok(responses.some(response => response.url === error.url

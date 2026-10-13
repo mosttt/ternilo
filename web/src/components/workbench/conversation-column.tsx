@@ -1,3 +1,4 @@
+import { PluginsSettings } from '@/components/settings/plugins-settings'
 import { HistoryScrollPreserver } from './history-scroll-preserver'
 import { ComposerTakeover } from './composer-takeover'
 import { canAnswerQuestion, ownsExecutionConfiguration, resourcePermissions } from '@/domain/resource-access'
@@ -213,7 +214,7 @@ export function ConversationColumn({
   })
   const rootRef = React.useRef<HTMLDivElement>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  const contentRef = React.useRef<HTMLDivElement>(null)
+  const [contentElement, setContentElement] = React.useState<HTMLDivElement | null>(null)
   const followsTail = React.useRef(true)
   const readerScrollIntent = React.useRef<ScrollIntent>(null)
   const touchScroll = React.useRef<{ y: number; target: EventTarget | null } | null>(null)
@@ -461,18 +462,19 @@ export function ConversationColumn({
   }, [currentSessionId, followTail, followsActiveTail, runtime.loadedSessionId, runtime.pendingSubmissions, visibleInputSeq, visibleOutput.seq])
 
   React.useEffect(() => {
-    const content = contentRef.current
-    if (!content) return
+    if (!contentElement) return
     const observer = new ResizeObserver(() => {
       if (restorePendingPosition()) return
       updateTailButton()
       if (followsActiveTail && followsTail.current && !restoringScroll.current
         && outputReflowActive.current && runtime.loadedSessionId === currentSessionId) followTail(undefined, true)
     })
-    observer.observe(content)
+    observer.observe(contentElement)
     if (scrollRef.current) observer.observe(scrollRef.current)
+    const composer = scrollRef.current?.querySelector('[data-composer-seat]')
+    if (composer) observer.observe(composer)
     return () => observer.disconnect()
-  }, [currentSessionId, followTail, followsActiveTail, restorePendingPosition, runtime.loadedSessionId, updateTailButton])
+  }, [contentElement, currentSessionId, followTail, followsActiveTail, restorePendingPosition, runtime.loadedSessionId, updateTailButton])
 
   const onScroll = () => {
     const element = scrollRef.current
@@ -807,6 +809,7 @@ export function ConversationColumn({
       liveActivity={sessionActivity}
       readOnly={!permissions.submit}
       canStop={permissions.stop}
+      configuration={permissions.configure ? <PluginsSettings onlyKind="ternilo.subagents.in_process" onChanged={refresh} /> : undefined}
       onOpenSession={selectSession}
       onFollowup={followupSubagent}
       onStop={stopSubagent}
@@ -975,7 +978,7 @@ export function ConversationColumn({
             </Button>
           </div>
         ) : !blankSession ? (
-          <div ref={contentRef} className={css.sessionFlow}>
+          <div ref={setContentElement} className={css.sessionFlow}>
             <ConversationSession
               view={activeViewId}
               views={registeredViews.map(item => item.id)}

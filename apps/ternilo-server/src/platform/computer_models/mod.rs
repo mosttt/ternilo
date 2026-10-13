@@ -182,6 +182,8 @@ impl AcceptedCall {
                 )
                 .into());
             }
+            super::workbench::synchronize_node_model_session(&state, &node, &body.session_id)
+                .await?;
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
         let mut tx = state.store.database().begin().await?;

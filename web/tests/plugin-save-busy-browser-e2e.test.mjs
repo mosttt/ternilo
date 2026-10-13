@@ -114,6 +114,7 @@ for (const placement of ['local', 'server-node']) {
       const busy = scope.locator('[data-plugin-settings-busy]')
       await busy.waitFor()
       assert.match(await busy.textContent(), /当前会话正在运行/)
+      await page.getByRole('tab', { name: '插件配置', exact: true }).click()
       const card = scope.locator('[data-plugin-id="web-fetch"]')
       await card.getByRole('button', { name: '展开: web-fetch', exact: true }).click()
       const field = card.locator('#plugin-web-fetch-timeout_ms')

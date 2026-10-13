@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::json;
 use sqlx::Row;
-use ternilo_protocol::{HarnessError, SessionId, TenantId, WorkspaceId};
+use ternilo_protocol::{HarnessError, SessionId, TenantId, UserId, WorkspaceId};
 use ternilo_storage::{Json, Transaction, database_error, lock};
 use ternilo_transport::ExecutorId;
 
@@ -29,6 +29,45 @@ pub struct NodeSessionResource {
 }
 
 impl ControlStore {
+    /// Index a snapshot obtained from the authenticated Node connection under its
+    /// enrolled owner. Readers still need current resource grants for every result.
+    pub async fn discover_connected_node_resources(
+        &self,
+        tenant_id: &TenantId,
+        executor_id: &ExecutorId,
+        workspaces: &[NodeWorkspaceResource],
+        sessions: &[NodeSessionResource],
+        now_ms: u64,
+    ) -> Result<Vec<SessionId>, HarnessError> {
+        let mut tx = self.database.tenant_read_transaction(tenant_id).await?;
+        let row = sqlx::query(
+            "SELECT u.user_id,u.username FROM control_executors e
+             JOIN control_users u ON u.user_id=e.owner_user_id
+             LEFT JOIN control_computer_management m ON m.tenant_id=e.tenant_id AND m.executor_id=e.executor_id
+             WHERE e.tenant_id=$1 AND e.executor_id=$2 AND e.state<>'revoked'
+               AND u.status='active' AND m.suspended_at_ms IS NULL AND m.removed_at_ms IS NULL",
+        ).bind(tenant_id.as_str()).bind(executor_id.as_str())
+            .fetch_optional(&mut *tx).await.map_err(database_error)?
+            .ok_or_else(|| HarnessError::policy("computer is unavailable for resource discovery"))?;
+        let owner = ControlUser {
+            user_id: UserId::new(
+                row.try_get::<String, _>("user_id")
+                    .map_err(database_error)?,
+            ),
+            username: row.try_get("username").map_err(database_error)?,
+        };
+        tx.commit().await.map_err(database_error)?;
+        self.discover_owned_node_resources(
+            &owner,
+            tenant_id,
+            executor_id,
+            workspaces,
+            sessions,
+            now_ms,
+        )
+        .await
+    }
+
     /// Discover resources only for the exact machine owner. Existing bindings,
     /// ownership, and explicit workspace removal survive every refresh.
     #[allow(clippy::too_many_lines)]
@@ -281,7 +320,7 @@ impl ControlStore {
                 &mut transaction,
                 tenant_id,
                 Some(&actor.user_id),
-                "user",
+                "node",
                 "node.resources.discover",
                 "executor",
                 executor_id.as_str(),
