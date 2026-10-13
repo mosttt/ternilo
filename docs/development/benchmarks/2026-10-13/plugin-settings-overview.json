@@ -249,5 +249,27 @@
     "history_cleared": true,
     "later_events_stopped": true,
     "application_permission_changes": false
+  },
+  "blank_session_touch_contract": {
+    "date": "2026-10-14",
+    "failed_ci_run": 38437191442,
+    "reproduced_locally": true,
+    "cause": "The test selected the loading header button before the empty-session view replaced it with its own control.",
+    "fix": "Wait for the blank view to finish loading, check viewport bounds and center hit testing, then use native tap.",
+    "browser": [
+      {
+        "placement": "local",
+        "passed": true,
+        "seconds": 19.94
+      },
+      {
+        "placement": "server-node",
+        "passed": true,
+        "seconds": 18.32
+      }
+    ],
+    "errors": [],
+    "application_changes": false,
+    "timeout_changes": false
   }
 }

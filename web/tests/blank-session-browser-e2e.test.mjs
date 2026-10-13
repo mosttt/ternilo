@@ -163,7 +163,11 @@ for (const placement of ['local', 'server-node']) {
       await row(page, mobile.identity.session_id).locator('[data-sidebar-session-active="true"]').waitFor()
       assert.equal(uiCreates, 2, 'a prepared draft is never taken over')
       await page.setViewportSize({ width: 320, height: 560 })
-      await page.getByRole('button', { name: '打开侧边栏', exact: true }).tap()
+      // Selection precedes history loading; wait for the blank view's own sidebar control.
+      await page.locator('#conversation-main[data-phase="hero"][data-session-state="empty"]').waitFor()
+      const sidebarToggle = page.getByRole('button', { name: '打开侧边栏', exact: true })
+      await buttonIsReachable(sidebarToggle, page)
+      await sidebarToggle.tap()
       await page.locator('[data-app-sidebar-column]').evaluate(async element => {
         await Promise.all(element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})))
       })
