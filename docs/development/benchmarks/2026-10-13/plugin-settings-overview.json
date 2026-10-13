@@ -238,5 +238,16 @@
       "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
     },
     "release_published": false
+  },
+  "cross_server_revocation_contract": {
+    "date": "2026-10-14",
+    "failed_ci_run": 38429695280,
+    "fix": "Recognize denied workspace-scoped agent-presets reads during revocation, retaining exact resource, status and error-code checks",
+    "passed": true,
+    "seconds": 6.05,
+    "direct_group_project_revocation": true,
+    "history_cleared": true,
+    "later_events_stopped": true,
+    "application_permission_changes": false
   }
 }
