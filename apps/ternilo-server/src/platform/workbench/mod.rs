@@ -15,6 +15,7 @@ mod workspace;
 mod workspace_project;
 
 pub(crate) use cloud_adapter::CloudAdapter;
+pub(crate) use discovery::synchronize_node_model_session;
 pub(crate) use edge_adapter::{EdgeAdapter, authorize_edge_mutation};
 pub(crate) use placement::{PlacementResolver, SessionTarget, SettingsTarget};
 pub(crate) use workspace::{WorkbenchQuery, load_state_filtered};
