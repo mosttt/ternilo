@@ -1,0 +1,246 @@
+{
+  "version": "0.2.14",
+  "date": "2026-10-14",
+  "published": true,
+  "release_url": "https://github.com/mosttt/ternilo/releases/tag/v0.2.14",
+  "source_commit": "b44b0d453392dae8568c1bc4b9102e48537546ec",
+  "source_merged_to_main_before_tag": true,
+  "remote_main_and_tag_peeled_commit_verified": true,
+  "tag_moved": false,
+  "pr": {
+    "number": 4,
+    "merged": true,
+    "checks_url": "https://github.com/mosttt/ternilo/actions/runs/38451214738",
+    "passed": true
+  },
+  "workflow": {
+    "url": "https://github.com/mosttt/ternilo/actions/runs/38456151726",
+    "attempt": 1,
+    "conclusion": "success"
+  },
+  "assets": {
+    "version": "0.2.14",
+    "source": {
+      "version": "0.2.14",
+      "commit": "b44b0d453392dae8568c1bc4b9102e48537546ec",
+      "linorun": "46cca18d63d1bef1c5475ac6912f18f5426a115b"
+    },
+    "asset_count": 42,
+    "all_sizes_and_digests_match": true,
+    "individual_archive_checksums_match": true,
+    "archives": [
+      {
+        "file": "ternilo-0.2.14-aarch64-apple-darwin.tar.gz",
+        "target": "aarch64-apple-darwin",
+        "programs": [
+          "ternilo",
+          "ternilo-plugin"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-0.2.14-aarch64-pc-windows-msvc.zip",
+        "target": "aarch64-pc-windows-msvc",
+        "programs": [
+          "ternilo-plugin.exe",
+          "ternilo-sandbox-windows.exe",
+          "ternilo.exe"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-0.2.14-aarch64-unknown-linux-gnu.tar.gz",
+        "target": "aarch64-unknown-linux-gnu",
+        "programs": [
+          "ternilo",
+          "ternilo-plugin"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-0.2.14-x86_64-apple-darwin.tar.gz",
+        "target": "x86_64-apple-darwin",
+        "programs": [
+          "ternilo",
+          "ternilo-plugin"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-0.2.14-x86_64-pc-windows-msvc.zip",
+        "target": "x86_64-pc-windows-msvc",
+        "programs": [
+          "ternilo-plugin.exe",
+          "ternilo-sandbox-windows.exe",
+          "ternilo.exe"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-0.2.14-x86_64-unknown-linux-gnu.tar.gz",
+        "target": "x86_64-unknown-linux-gnu",
+        "programs": [
+          "ternilo",
+          "ternilo-plugin"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-server-0.2.14-aarch64-apple-darwin.tar.gz",
+        "target": "aarch64-apple-darwin",
+        "programs": [
+          "ternilo-server"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-server-0.2.14-aarch64-pc-windows-msvc.zip",
+        "target": "aarch64-pc-windows-msvc",
+        "programs": [
+          "ternilo-server.exe"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-server-0.2.14-aarch64-unknown-linux-gnu.tar.gz",
+        "target": "aarch64-unknown-linux-gnu",
+        "programs": [
+          "ternilo-server"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-server-0.2.14-x86_64-apple-darwin.tar.gz",
+        "target": "x86_64-apple-darwin",
+        "programs": [
+          "ternilo-server"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-server-0.2.14-x86_64-pc-windows-msvc.zip",
+        "target": "x86_64-pc-windows-msvc",
+        "programs": [
+          "ternilo-server.exe"
+        ],
+        "documentation_files": 111
+      },
+      {
+        "file": "ternilo-server-0.2.14-x86_64-unknown-linux-gnu.tar.gz",
+        "target": "x86_64-unknown-linux-gnu",
+        "programs": [
+          "ternilo-server"
+        ],
+        "documentation_files": 111
+      }
+    ],
+    "installers_format_checked": [
+      "aarch64-apple-darwin-Ternilo_0.2.14_aarch64.dmg",
+      "aarch64-pc-windows-msvc-Ternilo_0.2.14_arm64-setup.exe",
+      "aarch64-unknown-linux-gnu-Ternilo_0.2.14_aarch64.AppImage",
+      "aarch64-unknown-linux-gnu-Ternilo_0.2.14_arm64.deb",
+      "x86_64-apple-darwin-Ternilo_0.2.14_x64.dmg",
+      "x86_64-pc-windows-msvc-Ternilo_0.2.14_x64-setup.exe",
+      "x86_64-pc-windows-msvc-Ternilo_0.2.14_x64_en-US.msi",
+      "x86_64-unknown-linux-gnu-Ternilo_0.2.14_amd64.AppImage",
+      "x86_64-unknown-linux-gnu-Ternilo_0.2.14_amd64.deb"
+    ],
+    "limitations": "Installer format and archive architecture validation do not replace physical installation on every platform."
+  },
+  "image": {
+    "image": "ghcr.io/mosttt/ternilo-server:0.2.14",
+    "anonymous": true,
+    "index_digest": "sha256:1ed33d5114ec00bc89c6ec82761c1584e10a30ee9770c9c26b4a982bd7f8fdee",
+    "latest_digest": "sha256:1ed33d5114ec00bc89c6ec82761c1584e10a30ee9770c9c26b4a982bd7f8fdee",
+    "platform_digests": {
+      "amd64": "sha256:ee43f198a2ee96d9f2ad9d55e4c5793242a4c40efe2deb16251749160b81c92a",
+      "arm64": "sha256:2e39f54bbb4ad4031efa0691902e98df98c3e020ab3757088f63a9fffa472050"
+    },
+    "source_commit": "b44b0d453392dae8568c1bc4b9102e48537546ec",
+    "user": "10001"
+  },
+  "public_amd64_image_smoke": {
+    "passed": true,
+    "checks": [
+      "non-root process",
+      "read-only root filesystem",
+      "initialization",
+      "login",
+      "settings",
+      "embedded Web",
+      "persistent restart"
+    ]
+  },
+  "github_latest": "v0.2.14",
+  "public_programs": {
+    "version": "0.2.14",
+    "source": "b44b0d453392dae8568c1bc4b9102e48537546ec",
+    "stage": "public",
+    "package_sha256": {
+      "ternilo-0.2.14-x86_64-unknown-linux-gnu.tar.gz": "73b17b6e0b0e0f905338d582e49153baa242fee5aaf1a447f5933bfc62b8f6f1",
+      "ternilo-server-0.2.14-x86_64-unknown-linux-gnu.tar.gz": "a8c255adeae962c21f93fec081267e05fd5ab96338055168c1ca604e9cdeb213"
+    },
+    "groups": [
+      {
+        "name": "plugin-settings",
+        "seconds": 89.89,
+        "exit_code": 0
+      },
+      {
+        "name": "conversation-history",
+        "seconds": 118.13,
+        "exit_code": 0
+      },
+      {
+        "name": "account-invitation",
+        "seconds": 101.82,
+        "exit_code": 0
+      },
+      {
+        "name": "node-worker-coordination",
+        "seconds": 36.62,
+        "exit_code": 0
+      }
+    ]
+  },
+  "public_browser_tests_passed": 9,
+  "public_plugin_settings": {
+    "local": {
+      "placement": "local",
+      "assetHashes": {
+        "app.js": "2c16bcee367b96f15b58490cb164e5f90f41c59fcf8bb42d15352c5d4aebfa01",
+        "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+      },
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "errors": {
+        "page": [],
+        "console": [],
+        "http": []
+      }
+    },
+    "server_node": {
+      "placement": "server-node",
+      "assetHashes": {
+        "app.js": "2c16bcee367b96f15b58490cb164e5f90f41c59fcf8bb42d15352c5d4aebfa01",
+        "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+      },
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "errors": {
+        "page": [],
+        "console": [],
+        "http": []
+      }
+    }
+  },
+  "worker": "Matching 0.2.14 source, locally built Worker used with the public CLI and Server.",
+  "resource_migration_and_later_offline_ui_included": false,
+  "temporary_processes_removed": true
+}
