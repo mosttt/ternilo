@@ -19,6 +19,7 @@ async function configureRole(page, request, sessionId, model, workspaceTitle) {
   }
   await page.locator(`[data-sidebar-session-row][data-session-id="${sessionId}"]`).click()
   await page.goto(`${new URL(page.url()).origin}/settings/plugins`)
+  await page.getByRole('tab', { name: '插件配置', exact: true }).click()
   const card = page.locator('[data-plugin-id="subagents"]')
   await card.locator('button[aria-expanded][aria-label]').click()
   const investigator = card.getByRole('group', { name: '调查', exact: true })

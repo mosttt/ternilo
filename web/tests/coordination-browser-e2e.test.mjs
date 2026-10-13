@@ -56,6 +56,7 @@ test('coordination settings persist in all locales and a real delegated call use
       await page.getByRole('button', { name: labels.settings, exact: true }).click()
       const dialog = page.getByRole('dialog')
       await dialog.getByRole('button', { name: labels.plugins, exact: true }).click()
+      await dialog.getByRole('tab', { name: { zh: '插件配置', en: 'Plugin configuration', ko: '플러그인 구성' }[locale], exact: true }).click()
       const card = dialog.locator('[data-plugin-id="subagents"]')
       await card.locator('button[aria-expanded][aria-label]').click()
       const mode = card.locator('#plugin-subagents-coordination-mode')

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChartNoAxesCombined, ListTodo, LoaderCircle, Mail, RefreshCcw, UsersRound } from 'lucide-react'
+import { ChartNoAxesCombined, ListTodo, LoaderCircle, Mail, RefreshCcw, Settings2, UsersRound } from 'lucide-react'
 import type { SessionLiveActivity } from '@/api/live-client'
 import { deriveSubagents, mergeCanonicalSubagentEvents } from '@/domain/observability'
 import { useTranslate } from '@/i18n/provider'
@@ -15,7 +15,7 @@ import { AgentTeamTasks } from './agent-team-tasks'
 import { useAgentTeam } from './use-agent-team'
 import css from './agent-team-panel.module.css'
 
-type AgentTeamView = 'roster' | 'tasks' | 'mailbox' | 'usage'
+type AgentTeamView = 'roster' | 'tasks' | 'mailbox' | 'usage' | 'settings'
 type OpenAgentTeam = (subagentId?: string) => void
 
 const AgentTeamOpenContext = React.createContext<OpenAgentTeam | null>(null)
@@ -63,6 +63,7 @@ export function AgentTeamSurface({
   onFollowup,
   onStop,
   children,
+  configuration,
 }: {
   sessionId: string | null
   events: readonly SessionEvent[]
@@ -75,11 +76,13 @@ export function AgentTeamSurface({
   onFollowup(subagentId: string, message: string): Promise<void>
   onStop(subagentId: string): Promise<void>
   children: React.ReactNode
+  configuration?: React.ReactNode
 }) {
   const t = useTranslate('observability')
   const workspaceT = useTranslate('workspace')
   const eventSubagents = React.useMemo(() => deriveSubagents(events), [events])
   const [open, setOpen] = React.useState(false)
+  const titleRef = React.useRef<HTMLHeadingElement>(null)
   const [usageRevision, setUsageRevision] = React.useState(0)
   const [view, setView] = React.useState<AgentTeamView>('roster')
   const [selectedSubagentId, setSelectedSubagentId] = React.useState<string | null>(null)
@@ -184,16 +187,17 @@ export function AgentTeamSurface({
     { id: 'tasks', icon: ListTodo, label: t('team.view.tasks'), count: visibleSnapshot?.tasks.length ?? 0 },
     { id: 'mailbox', icon: Mail, label: t('team.view.mailbox'), count: unread },
     { id: 'usage', icon: ChartNoAxesCombined, label: t('team.view.usage'), count: 0 },
+    ...(configuration ? [{ id: 'settings' as const, icon: Settings2, label: t('team.view.settings'), count: 0 }] : []),
   ]
 
   return <AgentTeamOpenContext.Provider value={openTeam}>
     {children}
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className={css.panel} data-agent-team-panel="">
+      <DialogContent className={css.panel} data-agent-team-panel="" onOpenAutoFocus={event => { event.preventDefault(); titleRef.current?.focus() }}>
         <DialogHeader className={css.header}>
           <div className={css.titleRow}>
-            <DialogTitle className={css.title}><UsersRound aria-hidden="true" />{t('team.title')}</DialogTitle>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('team.refresh')} disabled={team.loading} onClick={() => { setUsageRevision(value => value + 1); void team.refresh() }}>
+            <DialogTitle ref={titleRef} tabIndex={-1} className={css.title}><UsersRound aria-hidden="true" />{t('team.title')}</DialogTitle>
+            <Button type="button" variant="ghost" size="icon" title={t('team.refresh')} aria-label={t('team.refresh')} disabled={team.loading} onClick={() => { setUsageRevision(value => value + 1); void team.refresh() }}>
               <RefreshCcw className={team.loading ? css.spin : undefined} aria-hidden="true" />
             </Button>
           </div>
@@ -224,6 +228,9 @@ export function AgentTeamSurface({
           {team.conflict ? t('team.conflict') : <><strong>{t('team.actionFailed')}</strong><small>{actionDetail}</small></>}
         </div>}
         <div className={css.body}>
+          {configuration && <section id="agent-team-settings-panel" role="tabpanel" aria-labelledby="agent-team-settings-tab" hidden={view !== 'settings'}>
+            {view === 'settings' && configuration}
+          </section>}
           {team.loading && !visibleSnapshot ? <div className={css.loadState} role="status"><LoaderCircle className={css.spin} aria-hidden="true" /><strong>{t('team.loading')}</strong></div> : null}
           {team.loadError && !visibleSnapshot ? <div className={css.loadState} role="alert"><strong>{t('team.loadFailed')}</strong><p>{t('team.loadFailedHint')}</p><Button type="button" size="sm" variant="outline" onClick={() => { setUsageRevision(value => value + 1); void team.refresh() }}><RefreshCcw />{t('team.retry')}</Button></div> : null}
           {visibleSnapshot && <>

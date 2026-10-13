@@ -62,6 +62,7 @@ export function SettingRow({
 }
 
 export interface SettingsTab {
+  panelId?: string
   id: string
   label: string
 }
@@ -87,7 +88,7 @@ export function SettingsTabs({
           className={styles.tab}
           role="tab"
           id={`settings-tab-${tab.id}`}
-          aria-controls={`settings-panel-${tab.id}`}
+          aria-controls={`settings-panel-${tab.panelId ?? tab.id}`}
           aria-selected={tab.id === active}
           tabIndex={tab.id === active ? 0 : -1}
           key={tab.id}

@@ -1,0 +1,99 @@
+{
+  "date": "2026-10-13",
+  "scope": "插件集中配置与 Agent Team 协作设置同步",
+  "unit_tests": {
+    "files": 5,
+    "passed": 50,
+    "coverage": [
+      "插件编辑卡片",
+      "插件设置与扩展管理",
+      "团队面板",
+      "设置容器",
+      "预设编辑"
+    ]
+  },
+  "browser_tests": [
+    {
+      "name": "插件入口同步、三语、320/390 像素、原生触摸滚动（Local）",
+      "passed": true,
+      "duration_ms": 36415.749163
+    },
+    {
+      "name": "插件入口同步、三语、320/390 像素、原生触摸滚动（Server + Node）",
+      "passed": true,
+      "duration_ms": 42721.756275
+    },
+    {
+      "name": "运行中编辑、结束后保存、手机主动停止后保存（Local）",
+      "passed": true,
+      "duration_ms": 5647.361736,
+      "busy_response_ms": 4
+    },
+    {
+      "name": "运行中编辑、结束后保存、手机主动停止后保存（Server + Node）",
+      "passed": true,
+      "duration_ms": 7581.998696,
+      "busy_response_ms": 17
+    },
+    {
+      "name": "三语角色配置与实际子代理模型调用",
+      "passed": true,
+      "duration_ms": 31109.180559
+    },
+    {
+      "name": "设置页、预设、扩展管理、窄屏回归",
+      "passed": true,
+      "duration_ms": 30217.19566
+    },
+    {
+      "name": "预设与会话独立工具预算保存及恢复继承",
+      "passed": true,
+      "duration_ms": 11009.620261
+    }
+  ],
+  "browser_results": [
+    {
+      "placement": "local",
+      "assetHashes": {
+        "app.js": "0b16255f7dc5939d2a7975bff3ad04637844c2733697c6200119fec4fa822d7d",
+        "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+      },
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "errors": {
+        "page": [],
+        "console": [],
+        "http": []
+      }
+    },
+    {
+      "placement": "server-node",
+      "assetHashes": {
+        "app.js": "0b16255f7dc5939d2a7975bff3ad04637844c2733697c6200119fec4fa822d7d",
+        "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+      },
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "errors": {
+        "page": [],
+        "console": [],
+        "http": []
+      }
+    }
+  ],
+  "checks": [
+    "TypeScript typecheck",
+    "UI i18n gate",
+    "Formal documentation gate",
+    "Vite build",
+    "CLI and Server build",
+    "git diff --check"
+  ],
+  "release_status": "尚未发布，验收针对开发构建；服务提供的 app.js/app.css 与工作树构建摘要一致。"
+}

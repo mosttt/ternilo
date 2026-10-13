@@ -27,8 +27,9 @@ export function coordinationErrorKey(message: string) {
   return null
 }
 
-export function CoordinationFields({ value, disabled, id, target, onChange }: {
+export function CoordinationFields({ value, childLimit, disabled, id, target, onChange }: {
   value: unknown
+  childLimit?: unknown
   disabled: boolean
   id: string
   target?: ExecutionTarget
@@ -37,6 +38,9 @@ export function CoordinationFields({ value, disabled, id, target, onChange }: {
   const t = useTranslate('settings')
   const config = configRecord(value)
   const mode = modes.includes(config.mode as typeof modes[number]) ? config.mode as typeof modes[number] : 'assisted'
+  const parallelLimit = config.max_parallel ?? (mode === 'parallel' ? 8 : 4)
+  const children = typeof childLimit === 'number' ? childLimit : 8
+  const effectiveLimit = typeof parallelLimit === 'number' && Number.isInteger(parallelLimit) && parallelLimit > 0 && Number.isInteger(children) && children > 0 ? Math.min(parallelLimit, children) : null
   const edit = (patch: Record<string, unknown>) => {
     const { resolved_models: _resolved, ...settings } = config
     onChange({ ...settings, ...patch })
@@ -52,8 +56,10 @@ export function CoordinationFields({ value, disabled, id, target, onChange }: {
     {mode !== 'independent' && <>
       <Field>
         <Label htmlFor={`${id}-parallel`}>{t('coordination.parallel')}</Label>
-        <Input id={`${id}-parallel`} type="number" min={1} max={32} value={String(config.max_parallel ?? (mode === 'parallel' ? 8 : 4))} disabled={disabled}
+        <Input id={`${id}-parallel`} type="number" min={1} max={32} value={String(parallelLimit)} disabled={disabled}
           onChange={event => edit({ max_parallel: Number(event.target.value) })} />
+        <FieldDescription>{t('coordination.parallelHint')}</FieldDescription>
+        {effectiveLimit !== null && <FieldDescription data-effective-parallel="">{t('coordination.effectiveParallel', { limit: effectiveLimit })}</FieldDescription>}
       </Field>
       <p className="text-xs leading-relaxed text-muted-foreground">{t('coordination.lead')}</p>
       {roles.map(role => {

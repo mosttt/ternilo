@@ -1,3 +1,5 @@
+import { usePluginDraft, type PluginDraft } from '@/state/plugin-drafts'
+import { pluginFieldCopy } from './plugin-field-copy'
 import { ToolSchemaFields } from './tool-schema-fields'
 import * as React from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
@@ -9,7 +11,6 @@ import type { PluginCatalogEntry, PluginEntry } from '@/types'
 import { cn } from '@/lib/utils'
 import {
   configRecord,
-  fieldLabel,
   fieldText,
   parseFieldText,
   pluginConfigFields,
@@ -35,6 +36,8 @@ function effectiveToolCallLimit(configured: unknown, host: number | undefined) {
 
 export function PluginConfigCard({
   entry,
+  expanded = false,
+  draftKey,
   metadata,
   overridden,
   title,
@@ -50,6 +53,8 @@ export function PluginConfigCard({
   onReset,
 }: {
   entry: PluginEntry
+  expanded?: boolean
+  draftKey?: string
   metadata: PluginCatalogEntry
   overridden: boolean
   title?: string
@@ -76,26 +81,25 @@ export function PluginConfigCard({
     [baselineDraft, fields],
   )
   const [open, setOpen] = React.useState(false)
-  const [draft, setDraft] = React.useState<Record<string, unknown>>(() => baselineDraft)
-  const [texts, setTexts] = React.useState<Record<string, string>>(() => baselineTexts)
-  const [rawText, setRawText] = React.useState(() => baselineText)
-  const [rawInvalid, setRawInvalid] = React.useState(false)
-  const [touched, setTouched] = React.useState<Set<string>>(() => new Set())
+  const initial: PluginDraft = { draft: baselineDraft, texts: baselineTexts, rawText: baselineText, rawInvalid: false, touched: new Set() }
+  const [editor, setEditor] = usePluginDraft(draftKey, baseline, initial)
+  const { draft, texts, rawText, rawInvalid, touched } = editor
+  const updateField = <K extends keyof PluginDraft>(key: K, action: React.SetStateAction<PluginDraft[K]>) => {
+    setEditor(current => ({ ...current, [key]: typeof action === 'function' ? (action as (value: PluginDraft[K]) => PluginDraft[K])(current[key]) : action }))
+  }
+  const setDraft = (value: React.SetStateAction<PluginDraft['draft']>) => updateField('draft', value)
+  const setTexts = (value: React.SetStateAction<PluginDraft['texts']>) => updateField('texts', value)
+  const setRawText = (value: string) => updateField('rawText', value)
+  const setRawInvalid = (value: boolean) => updateField('rawInvalid', value)
+  const setTouched = (value: React.SetStateAction<PluginDraft['touched']>) => updateField('touched', value)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState('')
   React.useEffect(() => {
     if (openRequest !== undefined) setOpen(true)
   }, [openRequest])
-  const restore = React.useCallback(() => {
-    setDraft(baselineDraft)
-    setTexts(baselineTexts)
-    setRawText(baselineText)
-    setRawInvalid(false)
-    setTouched(new Set())
-    setError('')
-  }, [baselineDraft, baselineText, baselineTexts])
-
-  React.useEffect(() => { restore() }, [baseline, restore])
+  const restore = () => { setEditor(initial); setError('') }
+  const visible = expanded || open
+  const Heading = expanded ? 'div' : 'button'
 
   const preview = React.useMemo(() => {
     const next = { ...draft }
@@ -121,6 +125,7 @@ export function PluginConfigCard({
     setError('')
     try {
       await onSave({ ...entry, config: preview.next })
+      setEditor({ draft: preview.next, texts: initialTexts(preview.next, fields), rawText: JSON.stringify(preview.next, null, 2), rawInvalid: false, touched: new Set() })
       setOpen(false)
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause)
@@ -137,6 +142,7 @@ export function PluginConfigCard({
     setError('')
     try {
       await onReset()
+      restore()
       setOpen(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -174,14 +180,11 @@ export function PluginConfigCard({
   }
 
   return (
-    <article className={cn(styles.card, open && styles.open)} data-plugin-id={entry.id}>
+    <article className={cn(styles.card, visible && styles.open)} data-plugin-id={entry.id}>
       <div className={styles.header}>
-        <button
-          type="button"
+        <Heading
+          {...(!expanded ? { type: 'button' as const, 'aria-expanded': open, 'aria-label': `${open ? common('collapse') : common('expand')}: ${title ?? entry.id}`, onClick: () => setOpen(value => !value) } : {})}
           className={styles.disclosure}
-          aria-expanded={open}
-          aria-label={`${open ? common('collapse') : common('expand')}: ${title ?? entry.id}`}
-          onClick={() => setOpen((value) => !value)}
         >
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-2">
@@ -192,8 +195,8 @@ export function PluginConfigCard({
             </span>
             <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{metadata.description || t('plugins.noDescription')}</span>
           </span>
-          <ChevronDown className={cn('size-4 shrink-0 transition-transform', open && 'rotate-180')} />
-        </button>
+          {!expanded && <ChevronDown className={cn('size-4 shrink-0 transition-transform', open && 'rotate-180')} />}
+        </Heading>
         {showToggle ? (
           <Switch
             checked={entry.enabled}
@@ -203,9 +206,9 @@ export function PluginConfigCard({
           />
         ) : null}
       </div>
-      {open ? (
+      {visible ? (
         <div className={styles.body}>
-          {metadata.requires.length || metadata.provides.length ? (
+          {!expanded && (metadata.requires.length || metadata.provides.length) ? (
             <dl className="mb-5 grid gap-3 rounded-lg bg-muted/25 p-3 text-xs sm:grid-cols-2">
               <div><dt className="text-muted-foreground">{t('plugins.requiresLabel')}</dt><dd className="mt-1 break-words font-mono">{metadata.requires.join(' · ') || '—'}</dd></div>
               <div><dt className="text-muted-foreground">{t('plugins.providesLabel')}</dt><dd className="mt-1 break-words font-mono">{metadata.provides.join(' · ') || '—'}</dd></div>
@@ -221,26 +224,13 @@ export function PluginConfigCard({
                 }
                 if (entry.kind === 'ternilo.subagents.in_process' && field.key === 'coordination') {
                   return <CoordinationFields key={field.key} id={`plugin-${entry.id}-coordination`} target={target}
-                    value={draft.coordination} disabled={busy}
+                    value={draft.coordination} childLimit={preview.next.max_children ?? fields.find(item => item.key === 'max_children')?.schema.default} disabled={busy}
                     onChange={coordination => setDraft(current => ({ ...current, coordination }))} />
                 }
                 const type = schemaType(field.schema)
                 const value = draft[field.key]
                 const hasOverride = value !== undefined || touched.has(field.key)
-                const structuredSummary = entry.kind === 'ternilo.context.compaction' && field.key === 'structured_summary'
-                const budgetField = entry.kind === 'ternilo.session.log' && field.key === 'max_tool_history_chars'
-                const cacheField = entry.kind === 'ternilo.files.local' && field.key === 'read_cache_bytes'
-                const workflowFields: Record<string, [string, string]> = {
-                  'ternilo.tools.project_memory:max_entries': [t('workflow.memoryEntries'), t('workflow.memoryHint')],
-                  'ternilo.tools.project_memory:max_note_chars': [t('workflow.memoryChars'), t('workflow.memoryHint')],
-                  'ternilo.tools.github:base_url': [t('workflow.githubUrl'), t('workflow.githubUrlHint')],
-                  'ternilo.tools.github:credential_ref': [t('workflow.githubCredential'), t('workflow.githubCredentialHint')],
-                  'ternilo.tools.document_review:browser_command': [t('workflow.browser'), t('workflow.browserHint')],
-                }
-                const workflowField = workflowFields[`${entry.kind}:${field.key}`]
-                const optimizationField = entry.kind === 'ternilo.agent.react' ? field.key : ''
-                const codeMapField = entry.kind === 'ternilo.tools.code_map' ? field.key : ''
-                const label = workflowField ? workflowField[0] : optimizationField === 'prompt_cache' ? t('optimization.promptCache') : optimizationField === 'observe_reasoning' ? t('optimization.reasoning') : codeMapField === 'max_files' ? t('codeMap.maxFiles') : codeMapField === 'max_file_bytes' ? t('codeMap.maxFileBytes') : budgetField ? t('tools.historyBudget') : cacheField ? t('tools.readCache') : structuredSummary ? t('context.structuredSummary') : fieldLabel(field.key, field.schema)
+                const { label, description } = pluginFieldCopy(entry.kind, field, t)
                 const invalid = preview.invalid === field.key
                 const configuredLimit = preview.next[field.key] ?? field.schema.default
                 const effectiveToolLimit = entry.kind === 'ternilo.agent.react' && field.key === 'max_tool_calls' && !invalid
@@ -296,7 +286,7 @@ export function PluginConfigCard({
                       />
                     )}
                     <FieldDescription className={invalid ? 'text-destructive' : undefined}>
-                      {invalid ? t('plugins.invalidField', { name: label }) : workflowField ? workflowField[1] : optimizationField === 'prompt_cache' ? t('optimization.promptCacheHint') : optimizationField === 'observe_reasoning' ? t('optimization.reasoningHint') : codeMapField ? t('codeMap.limitsHint') : budgetField ? t('tools.historyBudgetHint') : cacheField ? t('tools.readCacheHint') : structuredSummary ? t('context.structuredSummaryDescription') : field.schema.description || t('plugins.schemaFieldDescription', { key: field.key })}
+                      {invalid ? t('plugins.invalidField', { name: label }) : description}
                     </FieldDescription>
                     {effectiveToolLimit !== undefined && <FieldDescription data-tool-call-limit="">
                       {effectiveToolLimit === 0 ? t('plugins.toolLimit.unlimited') : t('plugins.toolLimit.effective', { limit: effectiveToolLimit })}
@@ -313,6 +303,7 @@ export function PluginConfigCard({
                 id={`plugin-${entry.id}-raw`}
                 className="min-h-36 font-mono text-xs"
                 value={rawText}
+                disabled={busy}
                 aria-invalid={preview.invalid === '__raw' || undefined}
                 onChange={(event) => {
                   setRawText(event.target.value)

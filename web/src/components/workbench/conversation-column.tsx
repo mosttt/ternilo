@@ -1,3 +1,4 @@
+import { PluginsSettings } from '@/components/settings/plugins-settings'
 import { HistoryScrollPreserver } from './history-scroll-preserver'
 import { ComposerTakeover } from './composer-takeover'
 import { canAnswerQuestion, ownsExecutionConfiguration, resourcePermissions } from '@/domain/resource-access'
@@ -807,6 +808,7 @@ export function ConversationColumn({
       liveActivity={sessionActivity}
       readOnly={!permissions.submit}
       canStop={permissions.stop}
+      configuration={permissions.configure ? <PluginsSettings onlyKind="ternilo.subagents.in_process" onChanged={refresh} /> : undefined}
       onOpenSession={selectSession}
       onFollowup={followupSubagent}
       onStop={stopSubagent}
