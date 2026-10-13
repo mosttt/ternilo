@@ -128,7 +128,8 @@ export function ModelPicker({
   const menuPath = React.useRef(pathname)
   const menuOpen = (open ?? localMenuOpen) && menuPath.current === pathname
   const setMenuOpen = (next: boolean) => { setLocalMenuOpen(next); onOpenChange?.(next) }
-  const narrowMenu = React.useSyncExternalStore(subscribeMenuViewport, () => window.innerWidth <= 760)
+  const narrowMenu = React.useSyncExternalStore(subscribeMenuViewport, () => window.innerWidth <= 760
+    || (window.innerHeight <= 520 && window.innerWidth > window.innerHeight))
   const [mobilePanel, setMobilePanel] = React.useState<'models' | 'reasoning' | null>(null)
   React.useEffect(() => {
     if (menuPath.current === pathname) return

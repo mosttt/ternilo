@@ -192,5 +192,51 @@
       "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
     },
     "release_published": false
+  },
+  "landscape_model_menu_regression": {
+    "date": "2026-10-14",
+    "failed_ci_run": 38421435982,
+    "failed_viewport": {
+      "width": 844,
+      "height": 390
+    },
+    "fix": "Short landscape screens use the existing single-level model menu, matching touch layout rules",
+    "component_tests_passed": 31,
+    "typecheck": true,
+    "i18n": true,
+    "documentation": true,
+    "matched_programs": [
+      "ternilo0.2.14",
+      "ternilo-server0.2.14",
+      "ternilo-worker0.2.14"
+    ],
+    "browser": {
+      "passed": true,
+      "seconds": 51.09,
+      "viewports": [
+        [
+          390,
+          844
+        ],
+        [
+          320,
+          740
+        ],
+        [
+          844,
+          390
+        ]
+      ],
+      "native_touch_scroll": true,
+      "wheel_reaches_paging_controls": true,
+      "shared_worker_execution": true,
+      "budget_and_revocation": true,
+      "errors": []
+    },
+    "asset_hashes": {
+      "app.js": "2c16bcee367b96f15b58490cb164e5f90f41c59fcf8bb42d15352c5d4aebfa01",
+      "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+    },
+    "release_published": false
   }
 }
