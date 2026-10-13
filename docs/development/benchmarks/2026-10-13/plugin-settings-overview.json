@@ -157,5 +157,40 @@
         }
       }
     ]
+  },
+  "scroll_follow_regression": {
+    "cause": "Transcript observer did not follow conditional element mounting, and composer height was not observed",
+    "reproduced_before_fix": {
+      "composer_growth_tail_distance_px": 72
+    },
+    "fix": "Observe the mounted transcript element, scroller and composer; retain output and reader-intent gates",
+    "browser": {
+      "passed": true,
+      "tests_including_subtests": 5,
+      "local_seconds": 24.22,
+      "server_seconds": 37.89,
+      "history_seconds": 60.53,
+      "model_sources": [
+        "account",
+        "platform"
+      ],
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "page_console_http_errors": []
+    },
+    "unit_tests": {
+      "passed": 6
+    },
+    "typecheck": true,
+    "build": true,
+    "documentation": true,
+    "asset_hashes": {
+      "app.js": "8e12da03148268a4d1d917dfb1e46ce7e5b02de31c6db4f802876850b6b938c8",
+      "app.css": "e1fdf931416000b207d045317578ef1d2fdb1a902a30869ef2129552d645b7a4"
+    },
+    "release_published": false
   }
 }
