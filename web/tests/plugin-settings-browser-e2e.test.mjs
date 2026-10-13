@@ -60,7 +60,7 @@ for (const placement of ['local', 'server-node']) {
         assert.deepEqual(createHash('sha256').update(served).digest('hex'), createHash('sha256').update(built).digest('hex'), `embedded ${asset} must match the current build`)
         assetHashes[asset] = createHash('sha256').update(served).digest('hex')
       }
-      const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
+      const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
       page = await context.newPage()
       page.setDefaultTimeout(12_000)
       page.on('pageerror', error => errors.page.push(error.message))
