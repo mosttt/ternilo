@@ -6,6 +6,8 @@ use ternilo_protocol::HarnessError;
 use tokio::io::AsyncReadExt as _;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::Message};
 
+mod math;
+
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 struct Cdp {
     socket: Socket,
@@ -208,6 +210,9 @@ async fn capture(
         json!({"frameId":frame["frameTree"]["frame"]["id"],"html":html}),
     )
     .await?;
+    if html.contains("data-ternilo-math=") {
+        math::render(&mut cdp, &frame["frameTree"]["frame"]["id"]).await?;
+    }
     let inspected = cdp.call("Runtime.evaluate", json!({"expression": r#"(async () => {
       await document.fonts.ready;
       await Promise.all([...document.images].map(image => image.decode().catch(() => null)));
@@ -232,6 +237,24 @@ async fn capture(
         .as_u64()
         .and_then(|value| u32::try_from(value).ok())
         .ok_or_else(|| HarnessError::execution("document browser did not return layout metrics"))?;
+    let screenshots = capture_screenshots(&mut cdp, width, height, content_height).await?;
+    Ok(BrowserRender {
+        height: content_height,
+        overflow: facts["overflow"] == true,
+        missing_images: u32::try_from(facts["missingImages"].as_u64().unwrap_or(0))
+            .unwrap_or(u32::MAX),
+        blocked_resources: u32::try_from(facts["blockedResources"].as_u64().unwrap_or(0))
+            .unwrap_or(u32::MAX),
+        screenshots,
+    })
+}
+
+async fn capture_screenshots(
+    cdp: &mut Cdp,
+    width: u32,
+    height: u32,
+    content_height: u32,
+) -> Result<Vec<String>, HarnessError> {
     let pages = content_height.max(1).div_ceil(height);
     if pages > 8 {
         return Err(HarnessError::invalid(
@@ -255,15 +278,7 @@ async fn capture(
         }
         screenshots.push(format!("data:image/png;base64,{data}"));
     }
-    Ok(BrowserRender {
-        height: content_height,
-        overflow: facts["overflow"] == true,
-        missing_images: u32::try_from(facts["missingImages"].as_u64().unwrap_or(0))
-            .unwrap_or(u32::MAX),
-        blocked_resources: u32::try_from(facts["blockedResources"].as_u64().unwrap_or(0))
-            .unwrap_or(u32::MAX),
-        screenshots,
-    })
+    Ok(screenshots)
 }
 
 async fn wait_endpoint(profile: &Path) -> Result<String, HarnessError> {

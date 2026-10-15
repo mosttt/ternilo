@@ -7,7 +7,7 @@ import { chromium } from 'playwright'
 import { localApi, until } from './model-device-fixture.mjs'
 import { execute, freePort, repository, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
 
-import { documentModel, githubFixture, rhai, untilOperation } from './project-delivery-fixture.mjs'
+import { documentModel, githubFixture, verifyReleaseQueries, verifyDocumentMath, rhai, untilOperation } from './project-delivery-fixture.mjs'
 
 test('project memory, scoped Git commits, GitHub contracts and rendered document reviews complete the delivery workflow', { timeout: 240_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-project-delivery-'))
@@ -68,6 +68,9 @@ test('project memory, scoped Git commits, GitHub contracts and rendered document
     await tool('git_commit_paths', { paths: ['selected.txt'], message: 'Commit only selected work' })
     const staged = (await tool('git_inspect', { action: 'diff', staged: true })).operations[0].stdout
     assert.ok(staged.includes('unrelated.txt')); assert.ok(!staged.includes('selected.txt'))
+    await request(resource, { method: 'PATCH', body: { permissions: 'read_only' } })
+    await verifyReleaseQueries((name, args, expectedError) => tool(name, args, expectedError, id, false), github)
+    await request(resource, { method: 'PATCH', body: { permissions: 'workspace_write' } })
     const reviewed = await tool('github_review_pr', { repository: 'fixture/repo', number: 1 })
     assert.equal(reviewed.pull.head_sha, 'a'.repeat(40)); assert.equal(reviewed.has_more_files, true)
     github.state.flip = true
@@ -94,9 +97,10 @@ test('project memory, scoped Git commits, GitHub contracts and rendered document
     const review = events.findLast(event => event.type === 'document_reviewed').review
     assert.equal(review.verdict, 'pass'); assert.equal(review.render_id, renders[1].render_id)
     assert.ok(model.requests.some(request => request.messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === 'image_url' && part.image_url.url.startsWith('data:image/png;base64,')))))
+    await verifyDocumentMath(tool)
     await stopProcess(app); app = startProcess(binary, args, env); await waitForHttp(origin, app); request = await localApi(origin)
     assert.equal((await tool('read_project_memory', {})).notes.checks.content, 'Run relevant checks / 执行验证 / 검사 실행')
-    assert.equal((await request(`${resource}/events`)).filter(event => event.type === 'document_rendered').length, 2)
+    assert.equal((await request(`${resource}/events`)).filter(event => event.type === 'document_rendered').length, 5)
     browser = await chromium.launch({ headless: true, executablePath: browserPath })
     for (const [locale, label, renderLabel] of [['zh', '该版本已检查', '渲染文档'], ['en', 'This version was reviewed', 'Render document'], ['ko', '이 버전 검토 완료', '문서 렌더링']]) {
       const context = await browser.newContext({ viewport: locale === 'ko' ? { width: 320, height: 560 } : { width: 1280, height: 900 }, serviceWorkers: 'block', hasTouch: true })
@@ -105,9 +109,10 @@ test('project memory, scoped Git commits, GitHub contracts and rendered document
       page.on('pageerror', error => errors.push(error.message)); page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) }); page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`) })
       await page.goto(origin)
       const row = page.locator('[data-chat-event="document_rendered"]').last(); await row.waitFor({ state: 'attached' })
-      const processControl = row.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]'); if (await processControl.getAttribute('aria-expanded') === 'false') await processControl.click()
+      const processControl = row.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]'); if (await processControl.count() && await processControl.getAttribute('aria-expanded') === 'false') await processControl.click()
       await row.getByText(label, { exact: true }).waitFor()
-      await page.locator('[data-tool-call-tree]').getByText(renderLabel, { exact: true }).first().waitFor()
+      await row.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-tool-call-tree]').getByText(renderLabel, { exact: true }).waitFor()
+
       await until(() => row.locator('img').evaluateAll(images => images.length && images.every(image => image.complete && image.naturalWidth > 0)), value => value, 'resolved durable document screenshots')
       assert.equal(await row.locator('img').first().evaluate(image => getComputedStyle(image).objectFit), 'contain')
       await row.scrollIntoViewIfNeeded()
@@ -117,8 +122,14 @@ test('project memory, scoped Git commits, GitHub contracts and rendered document
       const preview = page.locator('[data-message-image-lightbox]')
       await preview.waitFor()
       assert.equal(await preview.locator('img').evaluate(image => image.naturalWidth), 320)
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) await preview.locator('img').screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `math-${locale}.png`) })
       await page.keyboard.press('Escape')
       await preview.waitFor({ state: 'detached' })
+      await tool('github_release_status', { repository: 'fixture/repo', tag: 'v1' })
+      const releaseTitle = page.locator('[data-tool-call-tree]').getByText({ zh: '查询发布状态', en: 'Check release status', ko: '릴리스 상태 조회' }[locale], { exact: true }).last()
+      await releaseTitle.waitFor({ state: 'attached' })
+      await releaseTitle.scrollIntoViewIfNeeded()
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `release-status-${locale}.png`) })
       await context.close()
     }
     assert.deepEqual(errors, [])

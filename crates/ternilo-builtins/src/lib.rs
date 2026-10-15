@@ -270,9 +270,9 @@ fn plugin_description(kind: &str) -> &'static str {
             "分别管理持久项目事实与历史会话检索，按版本保存项目记忆。"
         }
         "ternilo.tools.document_review" => {
-            "实际渲染 Markdown／静态 HTML，保存截图并记录与源内容对应的检查结论。"
+            "实际渲染含公式的 Markdown／静态 HTML，保存截图并记录对应版本的检查结论。"
         }
-        "ternilo.tools.github" => "读取 PR、变更与检查，并经授权创建或按指定提交合并 PR。",
+        "ternilo.tools.github" => "读取 PR、检查和发布状态，并经授权创建或按指定提交合并 PR。",
         "ternilo.tools.repository" => "检查 Git 状态和差异，并只提交明确选择的文件。",
         "ternilo.tools.code_map" => "通过 AST 查看符号、导入、调用及候选影响范围，不执行项目代码。",
         "ternilo.tools.files" => "向模型提供工作区文件读取、写入、替换、glob 与 grep。",

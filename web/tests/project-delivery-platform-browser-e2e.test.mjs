@@ -6,7 +6,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { chromium } from 'playwright'
-import { documentModel, githubFixture, deliveryOperations } from './project-delivery-fixture.mjs'
+import { documentModel, githubFixture, verifyReleaseQueries, verifyDocumentMath, deliveryOperations } from './project-delivery-fixture.mjs'
 import { localApi, until } from './model-device-fixture.mjs'
 import { execute, freePort, initializeServer, repository, serverRequest, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
 
@@ -68,9 +68,13 @@ test('Server Node and Worker persist project memory and document evidence throug
       await tool('shell', { command: 'git init -q && git config user.name DeliveryFixture && git config user.email fixture@example.invalid && git config commit.gpgsign false && git add -- unrelated.txt' })
       await tool('git_commit_paths', { paths: ['selected.txt'], message: 'Commit selected delivery file' })
       assert.ok((await tool('git_inspect', { action: 'diff', staged: true })).operations[0].stdout.includes('unrelated.txt'))
-      if (id === nodeId) assert.equal((await tool('github_review_pr', { repository: 'fixture/repo', number: 1 })).pull.head_sha, 'a'.repeat(40))
+      if (id === nodeId) {
+        assert.equal((await tool('github_review_pr', { repository: 'fixture/repo', number: 1 })).pull.head_sha, 'a'.repeat(40))
+        await verifyReleaseQueries(tool, github)
+      }
       else {
         assert.match(await tool('github_review_pr', { repository: 'fixture/repo', number: 1 }, true), /Worker sandbox is offline/)
+        assert.match(await tool('github_release_status', { repository: 'fixture/repo' }, true), /Worker sandbox is offline/)
         // Make the test browser available inside the existing workspace mount; keep the Worker boundary intact.
         const digest = value => createHash('sha256').update(value).digest('hex')
         const managedPath = path.join(directory, 'managed-workspaces', digest(tenantId), digest(managed.workspace_id))
@@ -83,6 +87,7 @@ test('Server Node and Worker persist project memory and document evidence throug
       const renders = events.filter(event => event.type === 'document_rendered')
       assert.equal(renders.length, 2, JSON.stringify(events.filter(event => event.type === 'tool_call_finished' || event.type === 'turn_failed')).slice(-5000))
       assert.equal(events.findLast(event => event.type === 'document_reviewed')?.review.verdict, 'pass')
+      await verifyDocumentMath(tool)
       if (id === cloud.identity.session_id) await stopProcess(worker)
       await page.reload()
       if (id === cloud.identity.session_id) {
@@ -94,7 +99,7 @@ test('Server Node and Worker persist project memory and document evidence throug
       await sessionRow.waitFor({ state: 'attached' })
       await sessionRow.locator('[data-sidebar-session-button]').click()
       const row = page.locator('[data-chat-event="document_rendered"]').last(); await row.waitFor({ state: 'attached' })
-      const processControl = row.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]'); if (await processControl.getAttribute('aria-expanded') === 'false') await processControl.click()
+      const processControl = row.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]'); if (await processControl.count() && await processControl.getAttribute('aria-expanded') === 'false') await processControl.click()
       await row.getByText('该版本已检查', { exact: true }).waitFor()
       await until(() => row.locator('img').evaluateAll(images => images.length && images.every(image => image.complete && image.naturalWidth > 0)), value => value, 'relayed durable screenshots')
       assert.equal(await row.locator('img').first().evaluate(image => getComputedStyle(image).objectFit), 'contain')
@@ -104,6 +109,7 @@ test('Server Node and Worker persist project memory and document evidence throug
       const preview = page.locator('[data-message-image-lightbox]')
       await preview.waitFor()
       assert.equal(await preview.locator('img').evaluate(image => image.naturalWidth), 320)
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) await preview.locator('img').screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `math-${id === nodeId ? 'node' : 'worker'}.png`) })
       await page.keyboard.press('Escape')
       await preview.waitFor({ state: 'detached' })
     }

@@ -78,7 +78,7 @@ impl HarnessPlugin for Plugin {
                 let spec = if review {
                     ToolSpec { name: "record_document_review".into(), description: "Record your visual review of the latest rendered document. Inspect every screenshot, record findings and use needs_changes when corrections are needed. Pass is rejected if the source changed or the renderer detected overflow, missing images or blocked resources. A render alone is not a completed review.".into(), input_schema: json!({"type":"object","required":["render_id","verdict","findings"],"properties":{"render_id":{"type":"string"},"verdict":{"type":"string","enum":["pass","needs_changes"]},"findings":{"type":"array","minItems":1,"maxItems":20,"items":{"type":"string"}}},"additionalProperties":false}) }
                 } else {
-                    ToolSpec { name: "render_document".into(), description: "Actually render a workspace Markdown or static HTML document in an isolated Chrome/Chromium process. Returns layout evidence and persists viewport screenshots in the model context for visual inspection. JavaScript and external/file resources are blocked; embed assets as data URLs. Supports at most 512 KiB source and eight screenshot pages. Requires a configured browser on the execution host and an image-capable model. Correct findings in the source, re-render, then record_document_review before declaring delivery verified.".into(), input_schema: json!({"type":"object","required":["path"],"properties":{"path":{"type":"string"},"width":{"type":"integer","minimum":320,"maximum":1920,"default":1024},"height":{"type":"integer","minimum":480,"maximum":1600,"default":900}},"additionalProperties":false}) }
+                    ToolSpec { name: "render_document".into(), description: "Actually render a workspace Markdown (including $inline$ and $$display$$ math) or static HTML document in an isolated Chrome/Chromium process. Returns layout evidence and persists viewport screenshots in the model context for visual inspection. Document JavaScript and external/file resources are blocked; embed assets as data URLs. Math is rendered offline as MathML; invalid formulas and math commands that load resources or inject HTML are rejected. Supports at most 512 KiB source and eight screenshot pages. Requires a configured browser on the execution host and an image-capable model. Correct findings in the source, re-render, then record_document_review before declaring delivery verified.".into(), input_schema: json!({"type":"object","required":["path"],"properties":{"path":{"type":"string"},"width":{"type":"integer","minimum":320,"maximum":1920,"default":1024},"height":{"type":"integer","minimum":480,"maximum":1600,"default":900}},"additionalProperties":false}) }
                 };
                 registrations.push(
                     tools
@@ -197,13 +197,18 @@ fn render_html(path: &str, source: &str) -> Result<String, HarnessError> {
             let options = pulldown_cmark::Options::ENABLE_TABLES
                 | pulldown_cmark::Options::ENABLE_STRIKETHROUGH
                 | pulldown_cmark::Options::ENABLE_TASKLISTS
-                | pulldown_cmark::Options::ENABLE_FOOTNOTES;
+                | pulldown_cmark::Options::ENABLE_FOOTNOTES
+                | pulldown_cmark::Options::ENABLE_MATH;
             pulldown_cmark::html::push_html(
                 &mut output,
-                pulldown_cmark::Parser::new_ext(source, options),
+                pulldown_cmark::Parser::new_ext(source, options).map(|event| match event {
+                    pulldown_cmark::Event::InlineMath(tex) => math_placeholder(&tex, false),
+                    pulldown_cmark::Event::DisplayMath(tex) => math_placeholder(&tex, true),
+                    event => event,
+                }),
             );
             format!(
-                "<style>body{{font:16px/1.65 sans-serif;padding:24px;margin:0;overflow-wrap:anywhere}}img,svg{{max-width:100%}}pre{{white-space:pre-wrap;background:#f4f4f4;padding:12px}}table{{border-collapse:collapse;max-width:100%}}th,td{{border:1px solid #ddd;padding:6px 10px}}h1,h2,h3{{line-height:1.3}}</style>{output}"
+                "<style>body{{font:16px/1.65 sans-serif;padding:24px;margin:0;overflow-wrap:anywhere}}img,svg{{max-width:100%}}pre{{white-space:pre-wrap;background:#f4f4f4;padding:12px}}table{{border-collapse:collapse;max-width:100%}}th,td{{border:1px solid #ddd;padding:6px 10px}}h1,h2,h3{{line-height:1.3}}[data-ternilo-math=display]{{display:block;margin:1em 0}}math{{font-size:1.1em}}</style>{output}"
             )
         }
         "html" | "htm" => source.to_owned(),
@@ -217,6 +222,19 @@ fn render_html(path: &str, source: &str) -> Result<String, HarnessError> {
         "<!doctype html><meta charset=\"utf-8\"><meta name=\"ternilo-document-render\" content=\"1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\">{body}"
     ))
 }
+
+fn math_placeholder(tex: &str, display: bool) -> pulldown_cmark::Event<'static> {
+    let mut escaped = String::new();
+    pulldown_cmark::html::push_html(
+        &mut escaped,
+        [pulldown_cmark::Event::Text(tex.into())].into_iter(),
+    );
+    let mode = if display { "display" } else { "inline" };
+    pulldown_cmark::Event::Html(
+        format!("<span data-ternilo-math=\"{mode}\">{escaped}</span>").into(),
+    )
+}
+
 impl ToolHandler for DocumentTool {
     fn execute<'a>(
         &'a self,
@@ -420,5 +438,29 @@ pub(crate) fn context_message(kind: &SessionEventKind) -> Option<ternilo_protoco
             tool_calls: Vec::new(),
         }),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::render_html;
+
+    #[test]
+    fn markdown_math_escapes_source_and_preserves_code_and_currency_literals() {
+        let html = render_html(
+            "guide.md",
+            r"Inline $x < y$ and $$\frac{1}{2}$$.
+`$literal$` and \$20.
+```tex
+$not_math$
+```",
+        )
+        .unwrap();
+        assert_eq!(html.matches("data-ternilo-math=\"").count(), 2);
+        assert!(html.contains("x &lt; y"));
+        assert!(html.contains("<code>$literal$</code>"));
+        assert!(html.contains("$not_math$"));
+        assert!(html.contains("$20"));
+        assert!(html.contains("script-src 'none'"));
     }
 }
