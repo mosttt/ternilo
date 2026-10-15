@@ -115,12 +115,22 @@ export function PluginConfigCard({
         return { next, invalid: field.key }
       }
     }
+    if (entry.kind === 'ternilo.session.log' && next.tool_result_limits !== undefined) {
+      const limits = next.tool_result_limits
+      if (!limits || typeof limits !== 'object' || Array.isArray(limits)
+        || Object.entries(limits).some(([name, limit]) => !name || new TextEncoder().encode(name).length > 128 || /\s/u.test(name)
+          || !Number.isSafeInteger(limit) || Number(limit) < 256)) return { next, invalid: 'tool_result_limits' }
+    }
     return { next, invalid: '' }
-  }, [draft, fields, rawInvalid, texts, touched])
+  }, [draft, fields, rawInvalid, texts, touched, entry.kind])
   const dirty = touched.size > 0 || JSON.stringify(draft) !== baseline || rawText !== baselineText
 
   const save = async () => {
-    if (preview.invalid) { setError(t('plugins.invalidField', { name: preview.invalid })); return }
+    if (preview.invalid) {
+      setError(entry.kind === 'ternilo.session.log' && preview.invalid === 'tool_result_limits'
+        ? t('tools.perToolInvalid') : t('plugins.invalidField', { name: preview.invalid }))
+      return
+    }
     setBusy(true)
     setError('')
     try {
@@ -286,7 +296,8 @@ export function PluginConfigCard({
                       />
                     )}
                     <FieldDescription className={invalid ? 'text-destructive' : undefined}>
-                      {invalid ? t('plugins.invalidField', { name: label }) : description}
+                      {invalid ? entry.kind === 'ternilo.session.log' && field.key === 'tool_result_limits'
+                        ? t('tools.perToolInvalid') : t('plugins.invalidField', { name: label }) : description}
                     </FieldDescription>
                     {effectiveToolLimit !== undefined && <FieldDescription data-tool-call-limit="">
                       {effectiveToolLimit === 0 ? t('plugins.toolLimit.unlimited') : t('plugins.toolLimit.effective', { limit: effectiveToolLimit })}

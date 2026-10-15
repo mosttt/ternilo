@@ -27,7 +27,7 @@ export async function modelFixture() {
     const mapDone = turnMessages.some(message => message.tool_call_id === 'code-map-fixture')
     const mapLoaded = body.tools?.some(tool => tool.function?.name === 'code_map')
     const budgetCalls = { tool_calls: ['one', 'two'].map((name, index) => ({ index, id: `budget-${name}`, type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: `budget-${name}.txt` }) } })) }
-    const mapCall = { tool_calls: [{ index: 0, id: mapLoaded ? 'code-map-fixture' : 'code-map-search', type: 'function', function: { name: mapLoaded ? 'code_map' : 'search_tools', arguments: JSON.stringify(mapLoaded ? { paths: ['map-fixture.py'] } : { names: ['code_map'] }) } }] }
+    const mapCall = { tool_calls: [{ index: 0, id: mapLoaded ? 'code-map-fixture' : 'code-map-search', type: 'function', function: { name: mapLoaded ? 'code_map' : 'search_tools', arguments: JSON.stringify(mapLoaded ? { paths: ['map-fixture.py'], impact_symbol: 'map-fixture.py:2:1' } : { names: ['code_map'] }) } }] }
     const delta = budget ? budgetDone ? { content: 'Budget verified.' } : budgetCalls : mapCode ? mapDone ? { content: 'Code map verified.' } : mapCall : discovery ? listed ? { content: 'Tool discovery complete.' } : discoverCall : spawn ? { tool_calls: [{ index: 0, id: 'role-call', type: 'function', function: { name: 'spawn_agent', arguments: JSON.stringify({ task: 'Collect the evidence', role: 'investigator', background: false }) } }] }
       : { content: title ? 'Coordination acceptance' : body.model === 'role-model' ? 'Evidence collected.' : 'Coordination complete.' }
     if (!body.stream) {
@@ -62,14 +62,14 @@ export async function verifyToolBudgetAndMap(request, sessionId, upstream) {
   const resource = `/sessions/${sessionId}`
   const current = (await request('/state')).sessions.find(session => session.identity.session_id === sessionId)
   if (current.placement === 'cloud') await request(resource, { method: 'PATCH', body: { model_token_limit: 262144 } })
-  for (const [name, content] of [['budget-one.txt', 'File budget evidence. '.repeat(1500)], ['budget-two.txt', 'File budget evidence. '.repeat(1500)], ['map-fixture.py', '# def fake(): pass\ndef actual():\n    target()\n']]) {
+  for (const [name, content] of [['budget-one.txt', 'File budget evidence. '.repeat(1500)], ['budget-two.txt', 'File budget evidence. '.repeat(1500)], ['map-fixture.py', '# def fake(): pass\ndef actual():\n    target()\ndef caller():\n    actual()\ndef outer():\n    caller()\n']]) {
     const before = (await request(`${resource}/events`)).filter(event => event.type === 'turn_finished').length
     await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: `/write ${name} ${content}` } } })
     await until(() => request(`${resource}/events`), events => events.filter(event => event.type === 'turn_finished').length > before, 'written tool fixture')
     await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'idle file fixture')
   }
   const plugins = current.profile_plugins.filter(entry => !['session', 'code-map'].includes(entry.id))
-  plugins.push({ id: 'session', kind: 'ternilo.session.log', enabled: true, config: { max_tool_history_chars: 1024 } })
+  plugins.push({ id: 'session', kind: 'ternilo.session.log', enabled: true, config: { max_tool_history_chars: 1024, tool_result_limits: { read_file: 256 } } })
   plugins.push({ id: 'code-map', kind: 'ternilo.tools.code_map', enabled: true, config: {} })
   await request(resource, { method: 'PATCH', body: { profile_plugins: plugins } })
   for (const [input, marker] of [['Read budgeted files', 'Budget verified.'], ['Map code fixture', 'Code map verified.']]) {
@@ -86,6 +86,9 @@ export async function verifyToolBudgetAndMap(request, sessionId, upstream) {
       const messages = upstream.requests.at(-1).messages.filter(message => message.role === 'tool')
       assert.ok(messages.reduce((sum, message) => sum + Array.from(message.content).length, 0) <= 1024)
       assert.ok(messages.some(message => message.content.includes('context budget')))
+      const fileResults = messages.filter(message => ['budget-one', 'budget-two'].includes(message.tool_call_id))
+      assert.equal(fileResults.length, 2)
+      assert.ok(fileResults.every(message => Array.from(message.content).length <= 256), 'per-tool limits apply before the shared history budget')
     }
   }
   const events = await request(`${resource}/events`)
@@ -97,6 +100,9 @@ export async function verifyToolBudgetAndMap(request, sessionId, upstream) {
   assert.ok(map.files[0].symbols.some(symbol => symbol.name === 'actual'))
   assert.ok(map.files[0].calls.some(call => call.target === 'target'))
   assert.equal(map.files[0].syntax_errors, false)
+  assert.equal(map.impact.resolution, 'syntactic_candidates')
+  assert.deepEqual(map.impact.candidate_callers.map(caller => caller.symbol.name).sort(), ['caller', 'outer'])
+  assert.equal(map.impact.depth_limited, false)
 }
 
 export async function verifyContextComposition(page, request, sessionId, locale, artifact = locale) {

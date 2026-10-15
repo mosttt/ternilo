@@ -1,4 +1,11 @@
 export const zh = {
+  'tools.perToolInvalid': "请使用有效的工具名称，并为每项填写至少 256 的整数字符上限。",
+
+  'tools.perToolLimit': "按工具设置单条输出上限（字符）",
+  'tools.perToolLimitHint': "用 JSON 填写工具名称与字符数，例如 {\"read_file\":4096,\"search_files\":2048}。每项至少 256；未列出的工具使用默认值，总预算仍生效。{} 表示不单独设置。",
+  'tools.defaultResultLimit': "默认单条工具输出上限（字符）",
+  'tools.defaultResultLimitHint': "未单独设置的工具使用此上限。超长完整结果保存为附件，模型收到截短内容。",
+
   "plugins.overviewTab": "集中配置",
   "plugins.overviewDescription": "在此直接编辑可配置插件。与插件配置及团队面板共享草稿；每个插件独立保存或恢复继承。",
   "plugins.configSearch": "搜索插件或参数",
@@ -860,6 +867,13 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  'tools.perToolInvalid': "Use valid tool names and an integer limit of at least 256 characters for each tool.",
+
+  'tools.perToolLimit': "Per-tool result limits (characters)",
+  'tools.perToolLimitHint': "Enter tool names and limits as JSON, for example {\"read_file\":4096,\"search_files\":2048}. Each limit must be at least 256. Unlisted tools use the default; the total history budget still applies. {} removes individual limits.",
+  'tools.defaultResultLimit': "Default tool result limit (characters)",
+  'tools.defaultResultLimitHint': "Used for tools without an individual limit. Full oversized results are retained as attachments; the model receives a shortened result.",
+
   "plugins.overviewTab": "All settings",
   "plugins.overviewDescription": "Edit configurable plugins here. Drafts are shared with Plugin configuration and the team panel; save or restore inheritance for each plugin separately.",
   "plugins.configSearch": "Search plugins or parameters",
@@ -1765,6 +1779,13 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  'tools.perToolInvalid': "유효한 도구 이름과 도구별 최소 256자의 정수 한도를 입력하세요.",
+
+  'tools.perToolLimit': "도구별 단일 출력 한도 (문자)",
+  'tools.perToolLimitHint': "도구 이름과 문자 수를 JSON으로 입력하세요. 예: {\"read_file\":4096,\"search_files\":2048}. 각 한도는 최소 256입니다. 지정하지 않은 도구는 기본값을 사용하며 총예산도 적용됩니다. {}는 개별 한도를 해제합니다.",
+  'tools.defaultResultLimit': "기본 단일 도구 출력 한도 (문자)",
+  'tools.defaultResultLimitHint': "개별 한도가 없는 도구에 적용됩니다. 긴 결과의 원문은 첨부파일로 보존되고 모델에는 줄인 내용이 전달됩니다.",
+
   "plugins.overviewTab": "통합 설정",
   "plugins.overviewDescription": "설정 가능한 플러그인을 바로 편집합니다. 플러그인 설정 및 팀 패널과 초안을 공유하며, 각 플러그인을 따로 저장하거나 상속 설정으로 복원합니다.",
   "plugins.configSearch": "플러그인 또는 매개변수 검색",

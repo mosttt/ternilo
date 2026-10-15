@@ -30,8 +30,11 @@ pub(crate) fn apply(messages: &mut [ModelMessage], budget: usize) {
     }
 }
 
-fn preview(content: &str, limit: usize) -> String {
+pub(super) fn preview(content: &str, limit: usize) -> String {
     const MARKER: &str = "\n[Tool output shortened to fit the context budget; full output remains in session history.]\n";
+    if content.chars().count() <= limit {
+        return content.to_owned();
+    }
     let marker_size = MARKER.chars().count();
     if limit <= marker_size {
         return MARKER.chars().take(limit).collect();

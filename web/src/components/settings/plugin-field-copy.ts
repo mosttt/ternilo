@@ -12,6 +12,12 @@ export function pluginFieldCopy(kind: string, field: PluginConfigField, t: Trans
     const keys = subagentFields[field.key as keyof typeof subagentFields]
     return { label: t(keys[0]), description: t(keys[1]) }
   }
+  if (kind === 'ternilo.session.log' && field.key === 'tool_result_limits') {
+    return { label: t('tools.perToolLimit'), description: t('tools.perToolLimitHint') }
+  }
+  if (kind === 'ternilo.session.log' && field.key === 'max_tool_result_chars') {
+    return { label: t('tools.defaultResultLimit'), description: t('tools.defaultResultLimitHint') }
+  }
   const structuredSummary = kind === 'ternilo.context.compaction' && field.key === 'structured_summary'
   const budgetField = kind === 'ternilo.session.log' && field.key === 'max_tool_history_chars'
   const cacheField = kind === 'ternilo.files.local' && field.key === 'read_cache_bytes'

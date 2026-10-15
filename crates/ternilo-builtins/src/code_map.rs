@@ -9,6 +9,8 @@ use ternilo_kernel::{
 };
 use ternilo_protocol::{FileReadRequest, HarnessError, ToolOutput, ToolSpec};
 
+mod impact;
+
 pub const KIND: &str = "ternilo.tools.code_map";
 component_descriptor! {
     static DESCRIPTOR: () {
@@ -64,8 +66,8 @@ impl HarnessPlugin for Plugin {
             let registration = tools.register_tool(ToolRegistration {
                 spec: ToolSpec {
                     name: "code_map".into(),
-                    description: "Parse selected Rust, TypeScript/TSX, JavaScript/JSX, Python or Go files into AST symbols, imports and syntactic call edges with source locations. Paths must be explicit workspace files. Does not execute code or perform type resolution; dynamic calls remain unresolved. Read source around a symbol before editing.".into(),
-                    input_schema: json!({"type":"object","required":["paths"],"properties":{"paths":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":32}},"additionalProperties":false}),
+                    description: "Parse explicit workspace files into AST symbols, imports and calls. Supports Rust, TypeScript/TSX, JavaScript/JSX, Python and Go. Pass an impact_symbol ID from a previous map to trace candidate direct and indirect callers within the selected files. Call matching is syntactic, not type or import resolution; inspect reported locations before editing.".into(),
+                    input_schema: json!({"type":"object","required":["paths"],"properties":{"paths":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":32},"impact_symbol":{"type":"string","description":"Exact symbol ID from code_map, including its file and source position"},"impact_depth":{"type":"integer","minimum":1,"maximum":16,"default":8}},"additionalProperties":false}),
                 }, effect: ToolEffect::ReadOnly, handler,
             }).await.map_err(|error| linorun_core::ActivationFailure::user(error.to_string()))?;
             Ok(Some(effect::inverse(move || async move {
@@ -85,6 +87,12 @@ struct CodeMap {
 #[serde(deny_unknown_fields)]
 struct Arguments {
     paths: Vec<String>,
+    impact_symbol: Option<String>,
+    #[serde(default = "default_impact_depth")]
+    impact_depth: usize,
+}
+const fn default_impact_depth() -> usize {
+    8
 }
 impl ToolHandler for CodeMap {
     fn execute<'a>(
@@ -102,21 +110,40 @@ impl ToolHandler for CodeMap {
                     self.config.max_files
                 )));
             }
+            if !(1..=16).contains(&args.impact_depth) {
+                return Err(HarnessError::invalid(
+                    "impact_depth must be between 1 and 16",
+                ));
+            }
             let mut results = Vec::new();
+            let mut maps = Vec::new();
+            let mut unreadable = Vec::new();
+            let analyze_impact = args.impact_symbol.is_some();
             for path in args.paths {
                 context.cancellation.check()?;
                 let result = self.inspect(&path).await;
                 results.push(match result {
-                    Ok(map) => serde_json::to_value(map)
-                        .map_err(|error| HarnessError::execution(error.to_string()))?,
-                    Err(error) => json!({"path":path,"error":error.to_string()}),
+                    Ok(map) => {
+                        let value = serde_json::to_value(&map)
+                            .map_err(|error| HarnessError::execution(error.to_string()))?;
+                        if analyze_impact {
+                            maps.push(map);
+                        }
+                        value
+                    }
+                    Err(error) => {
+                        unreadable.push(path.clone());
+                        json!({"path":path,"error":error.to_string()})
+                    }
                 });
             }
+            let mut result = json!({"files":results,"edge_resolution":"syntactic"});
+            if let Some(symbol) = args.impact_symbol {
+                result["impact"] = impact::analyze(&maps, &symbol, args.impact_depth, &unreadable)?;
+            }
             Ok(ToolOutput {
-                content: serde_json::to_string(
-                    &json!({"files":results,"edge_resolution":"syntactic"}),
-                )
-                .map_err(|error| HarnessError::execution(error.to_string()))?,
+                content: serde_json::to_string(&result)
+                    .map_err(|error| HarnessError::execution(error.to_string()))?,
                 is_error: false,
             })
         })
@@ -173,6 +200,8 @@ struct Edge {
     from: Option<String>,
     target: String,
     line: usize,
+    #[serde(skip)]
+    symbol_name: Option<String>,
 }
 #[derive(Serialize)]
 struct FileMap {
@@ -284,17 +313,22 @@ fn parse(
                 from: owner.clone(),
                 target: text(node.child_by_field_name("source").unwrap_or(node), source),
                 line: node.start_position().row + 1,
+                symbol_name: None,
             });
         }
-        if matches!(kind, "call_expression" | "call" | "macro_invocation")
-            && let Some(target) = node
-                .child_by_field_name("function")
-                .or_else(|| node.child_by_field_name("macro"))
+        if matches!(
+            kind,
+            "call_expression" | "call" | "macro_invocation" | "new_expression"
+        ) && let Some(target) = node
+            .child_by_field_name("function")
+            .or_else(|| node.child_by_field_name("macro"))
+            .or_else(|| node.child_by_field_name("constructor"))
         {
             map.calls.push(Edge {
                 from: owner.clone(),
                 target: text(target, source),
                 line: node.start_position().row + 1,
+                symbol_name: callable_name(target, source),
             });
         }
         let mut cursor = node.walk();
@@ -307,6 +341,19 @@ fn parse(
         );
     }
     Ok(map)
+}
+
+fn callable_name(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
+    if matches!(
+        node.kind(),
+        "identifier" | "field_identifier" | "property_identifier"
+    ) {
+        return Some(text(node, source));
+    }
+    ["name", "field", "property", "attribute", "function"]
+        .into_iter()
+        .find_map(|field| node.child_by_field_name(field))
+        .and_then(|child| callable_name(child, source))
 }
 
 #[cfg(test)]

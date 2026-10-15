@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-15",
+  "scope": "Per-tool result limits and syntactic candidate caller impact",
+  "tests": {
+    "per_tool_limits": 2,
+    "output_retention_and_restart": 1,
+    "code_map_and_impact": 4,
+    "tool_history_regressions": 8,
+    "settings_component": 13
+  },
+  "checks": {
+    "typescript": true,
+    "ui_i18n": true,
+    "matched_cli_server_worker_build": true,
+    "screenshots_reviewed": true
+  },
+  "browser": [
+    {
+      "contract": "coordination-browser-e2e.test.mjs",
+      "seconds": 39.04,
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "invalid_limit_blocks_save": true,
+      "mobile_viewport": [
+        320,
+        560
+      ],
+      "unexpected_errors": []
+    },
+    {
+      "contract": "coordination-platform-browser-e2e.test.mjs",
+      "seconds": 29.72,
+      "execution_targets": [
+        "node",
+        "worker"
+      ],
+      "per_read_result_max_chars": 256,
+      "tool_history_max_chars": 1024,
+      "direct_and_indirect_candidate_callers": true,
+      "unexpected_errors": []
+    }
+  ],
+  "published": false,
+  "note": "Impact is name-based candidate caller analysis within selected files, not import/type/dynamic dispatch resolution. Timings are local validation results."
+}

@@ -134,6 +134,23 @@ test('coordination settings persist in all locales and a real delegated call use
         assert.equal(saved.profile_plugins.find(entry => entry.id === id).config[field], Number(configuredValue))
       }
       const optimization = dialog.locator('[data-plugin-id="agent-loop"]')
+      const sessionConfig = dialog.locator('[data-plugin-id="session"]')
+      await sessionConfig.locator('button[aria-expanded][aria-label]').click()
+      const perTool = { read_file: 2048 + Object.keys(locales).indexOf(locale) }
+      const limitsInput = sessionConfig.locator('#plugin-session-tool_result_limits')
+      await limitsInput.fill('{"read_file":12}')
+      assert.equal(await sessionConfig.getByRole('button', { name: labels.save, exact: true }).isEnabled(), false)
+      await limitsInput.fill(JSON.stringify(perTool))
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+        const dismiss = page.getByRole('button', { name: labels.dismiss, exact: true })
+        while (await dismiss.count()) await dismiss.first().click()
+        await limitsInput.evaluate(element => element.scrollIntoView({ block: 'center' }))
+        await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `per-tool-budget-${locale}.png`) })
+      }
+      await sessionConfig.getByRole('button', { name: labels.save, exact: true }).click()
+      await until(() => sessionConfig.locator('button[aria-expanded][aria-label]').getAttribute('aria-expanded'), value => value === 'false', 'saved per-tool limits')
+      const savedLimits = (await request('/state')).sessions.find(item => item.identity.session_id === session.identity.session_id)
+      assert.deepEqual(savedLimits.profile_plugins.find(entry => entry.id === 'session').config.tool_result_limits, perTool)
       await optimization.locator('button[aria-expanded][aria-label]').click()
       for (const field of ['prompt_cache', 'observe_reasoning']) {
         const toggle = optimization.locator(`#plugin-agent-loop-${field}`)

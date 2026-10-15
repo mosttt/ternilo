@@ -79,6 +79,33 @@ function render(pluginMetadata: PluginCatalogEntry) {
   )
 }
 
+it.each([
+  ['zh', '保存', '至少 256'],
+  ['en', 'Save', 'at least 256'],
+  ['ko', '저장', '최소 256'],
+])('validates and saves individual tool limits in %s', async (locale, saveLabel, minimum) => {
+  localStorage.setItem('ternilo.locale', locale)
+  const onSave = vi.fn(async () => undefined)
+  const plugin = { id: 'session', kind: 'ternilo.session.log', enabled: true, config: {} }
+  await settle(() => root.render(<LocaleProvider><PluginConfigCard entry={plugin}
+    metadata={{ kind: plugin.kind, description: 'Session', requires: [], provides: [], config_schema: { type: 'object', properties: { tool_result_limits: { type: 'object', default: {} } } } }}
+    expanded overridden={false} onSave={onSave} /></LocaleProvider>))
+  const input = host.querySelector<HTMLTextAreaElement>('#plugin-session-tool_result_limits')!
+  const edit = async (value: string) => settle(() => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const save = () => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === saveLabel)!
+  await edit('{"read_file":128}')
+  expect(save().disabled).toBe(true)
+  expect(input.getAttribute('aria-invalid')).toBe('true')
+  expect(host.textContent).toContain(minimum)
+  await edit('{"read_file":512,"search_files":2048}')
+  expect(save().disabled).toBe(false)
+  await settle(() => save().click())
+  expect(onSave).toHaveBeenCalledWith({ ...plugin, config: { tool_result_limits: { read_file: 512, search_files: 2048 } } })
+})
+
 describe('PluginConfigCard draft lifecycle', () => {
   it('keeps editable changes while a running task blocks save, then saves the same draft', async () => {
     const onSave = vi.fn(async () => undefined)

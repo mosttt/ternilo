@@ -274,7 +274,7 @@ fn plugin_description(kind: &str) -> &'static str {
         }
         "ternilo.tools.github" => "读取 PR、变更与检查，并经授权创建或按指定提交合并 PR。",
         "ternilo.tools.repository" => "检查 Git 状态和差异，并只提交明确选择的文件。",
-        "ternilo.tools.code_map" => "通过 AST 查看代码符号、导入和调用关系，不执行项目代码。",
+        "ternilo.tools.code_map" => "通过 AST 查看符号、导入、调用及候选影响范围，不执行项目代码。",
         "ternilo.tools.files" => "向模型提供工作区文件读取、写入、替换、glob 与 grep。",
         "ternilo.tool.shell" => "通过宿主 sandbox 执行一次性 shell 命令。",
         "ternilo.tool.ask_user" => "暂停运行并向用户提出可恢复的问题或审批。",
