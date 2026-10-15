@@ -1,4 +1,14 @@
 export const zh = {
+  'context.details': "上下文详情",
+  'context.composition': "最近请求文本（字符）",
+  'context.system': "系统指令",
+  'context.tools': "工具说明与参数",
+  'context.messages': "对话消息",
+  'context.toolResults': "工具输出",
+  'context.additionalState': "推理与续传状态",
+  'context.compositionMeasurement': "按发送前的文本统计，不等同于 Token 用量。",
+  'context.unmeasuredAttachments': "{count} 个图片或引用附件未计入字符统计。",
+
   'context.cached': "缓存读取（输入内）",
   'context.reasoning': "推理（输出内）",
   'context.measurement': "根据最近一次已报告响应估算；后续请求及压缩会改变上下文占用。",
@@ -217,6 +227,16 @@ export const zh = {
 } satisfies Record<string, string>
 export type ConversationKey = keyof typeof zh
 export const en = {
+  'context.details': "Context details",
+  'context.composition': "Latest request text (characters)",
+  'context.system': "System instructions",
+  'context.tools': "Tool definitions",
+  'context.messages': "Conversation messages",
+  'context.toolResults': "Tool results",
+  'context.additionalState': "Reasoning and provider state",
+  'context.compositionMeasurement': "Text measured before sending; these are not token counts.",
+  'context.unmeasuredAttachments': "{count} image or referenced attachments are not included.",
+
   'context.cached': "Cache reads (within input)",
   'context.reasoning': "Reasoning (within output)",
   'context.measurement': "Based on the latest reported response; later requests and compaction change context usage.",
@@ -434,6 +454,16 @@ export const en = {
   'queue.steered': 'Steered into current turn',
 } satisfies Record<ConversationKey, string>
 export const ko = {
+  'context.details': "컨텍스트 상세",
+  'context.composition': "최근 요청 텍스트 (문자)",
+  'context.system': "시스템 지침",
+  'context.tools': "도구 설명과 매개변수",
+  'context.messages': "대화 메시지",
+  'context.toolResults': "도구 출력",
+  'context.additionalState': "추론 및 공급자 상태",
+  'context.compositionMeasurement': "전송 전 텍스트 기준이며 토큰 수가 아닙니다.",
+  'context.unmeasuredAttachments': "이미지 또는 참조 첨부파일 {count}개는 포함되지 않습니다.",
+
   'context.cached': "캐시 읽기 (입력에 포함)",
   'context.reasoning': "추론 (출력에 포함)",
   'context.measurement': "최근 보고된 응답을 기준으로 한 추정치입니다. 이후 요청과 압축에 따라 컨텍스트 사용량이 달라집니다.",

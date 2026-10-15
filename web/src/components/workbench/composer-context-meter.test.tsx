@@ -55,7 +55,13 @@ describe('ComposerContextMeter', () => {
     const trigger = host.querySelector<HTMLButtonElement>('button[aria-label="上下文已用 85%"]')!
     expect(trigger).not.toBeNull()
     act(() => trigger.click())
-    expect(host.textContent).toContain('/compact')
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('/compact')
+    await act(async () => root.render(<ComposerContextMeter
+      model={{ provider: 'named_provider', provider_id: 'fixture', model: 'm' }}
+      events={[{ seq: 2, occurred_at_ms: 2, run_id: 'r', type: 'model_response', response: { provider: 'fixture', model: 'm', finish_reason: 'stop', content: 'short', usage: { input_tokens: 600, output_tokens: 0 } } }]}
+      t={t}
+    />))
+    expect(host.querySelector('button[aria-label="上下文已用 <1%"]')).not.toBeNull()
     await act(async () => {
       root.render(<ComposerContextMeter
         model={{ provider: 'named_provider', provider_id: 'fixture', model: 'm' }}
@@ -96,7 +102,24 @@ it.each(['account_provider', 'computer_provider', 'platform_model'] as const)('l
   const trigger = host.querySelector<HTMLButtonElement>('button')!
   expect(trigger.getAttribute('aria-label')).toContain('15%')
   act(() => trigger.click())
-  expect(host.textContent).toContain('缓存读取（输入内）40')
-  expect(host.textContent).toContain('推理（输出内）20')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('缓存读取（输入内）40')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('推理（输出内）20')
   expect(String(fetchMock.mock.calls[0][0])).toContain('/model-options?limit=25&session_id=node-session')
+})
+
+it('shows prepared text composition without requiring a model window and never reuses it for an older host request', async () => {
+  const usage = { system_chars: 12, tool_schema_chars: 30, conversation_chars: 40, tool_output_chars: 50, additional_state_chars: 8, unmeasured_attachments: 2 }
+  const events: import('@/types').SessionEvent[] = [{ seq: 1, occurred_at_ms: 1, run_id: 'r', type: 'model_request_started', step: 1, context_usage: usage }]
+  await act(async () => root.render(<ComposerContextMeter model={{ provider: 'profile_default' }} events={events} t={t} />))
+  const trigger = host.querySelector<HTMLButtonElement>('button[aria-label="上下文详情"]')!
+  expect(trigger).not.toBeNull()
+  await act(async () => trigger.click())
+  const panel = document.querySelector('[role="dialog"]')!
+  expect(panel.querySelector('[data-context-part="tool_output_chars"] dd')?.textContent).toBe('50')
+  expect(panel.querySelector('[data-context-composition] code')?.textContent).toBe('140')
+  expect(panel.textContent).toContain('2 个图片或引用附件未计入字符统计')
+  expect(panel.textContent).not.toContain('上下文已用')
+  await act(async () => root.render(<ComposerContextMeter model={{ provider: 'profile_default' }} events={[...events, { seq: 2, occurred_at_ms: 2, run_id: 'r', type: 'model_request_started', step: 2 }]} t={t} />))
+  expect(host.innerHTML).toBe('')
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
 })

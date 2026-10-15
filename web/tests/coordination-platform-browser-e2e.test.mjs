@@ -5,7 +5,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { chromium } from 'playwright'
-import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap } from './coordination-fixture.mjs'
+import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap, verifyContextComposition } from './coordination-fixture.mjs'
 import { localApi, until } from './model-device-fixture.mjs'
 import { execute, freePort, initializeServer, repository, serverRequest, startProcess, stopProcess, waitForHttp, selectSpace } from './platform-e2e-fixture.mjs'
 
@@ -131,6 +131,7 @@ test('Server role models execute through Node and Worker with independent reason
       await page.evaluate(() => localStorage.removeItem('ternilo.usage-estimate-prices.v1'))
       await verifyTeamUsage(page, request, sessionId, 'zh', sessionId === nodeId ? 'node' : 'worker')
       await verifyToolBudgetAndMap(request, sessionId, upstream)
+      await verifyContextComposition(page, request, sessionId, 'zh', sessionId === nodeId ? 'node' : 'worker')
       const recorded = await request(`/sessions/${sessionId}/events`)
       assert.ok(recorded.some(event => event.type === 'reasoning_effort_observed'))
     }

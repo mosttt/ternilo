@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-15",
+  "scope": "Prepared host context composition and responsive three-language usage popup",
+  "tests": {
+    "protocol_passed": 39,
+    "provider_request_passed": 4,
+    "tool_history_passed": 6,
+    "component_passed": 8,
+    "unicode_character_counts": true,
+    "unexpanded_attachments_remain_unmeasured": true,
+    "old_events_remain_readable": true,
+    "composition_does_not_require_model_window": true,
+    "new_request_without_metrics_clears_older_composition": true,
+    "sub_one_percent_is_not_rounded_up_to_one": true
+  },
+  "browser": [
+    {
+      "contract": "coordination-browser-e2e.test.mjs",
+      "seconds": 35.54,
+      "locales": ["zh", "en", "ko"],
+      "short_mobile_viewport": [320, 420],
+      "native_popup_scroll": true,
+      "actual_request_comparison": true,
+      "unexpected_errors": []
+    },
+    {
+      "contract": "coordination-platform-browser-e2e.test.mjs",
+      "seconds": 29.97,
+      "execution_targets": ["node", "worker"],
+      "actual_request_comparison": true,
+      "budgeted_tool_output_characters": 1024,
+      "unexpected_errors": []
+    }
+  ],
+  "checks": {
+    "protocol_builtins_local_cli_server_worker_all_targets_clippy": true,
+    "typescript": true,
+    "ui_i18n": true,
+    "web_build": true,
+    "cli_server_worker_build": true,
+    "screenshots_reviewed": true,
+    "cargo_fmt": true,
+    "documentation_markdown_files": 201
+  },
+  "temporary_services_and_data_removed": true,
+  "published": false,
+  "note": "Composition measures Unicode text and JSON characters in the prepared host request, not vendor token attribution. Timings are local validation results."
+}

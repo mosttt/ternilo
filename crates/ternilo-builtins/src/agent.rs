@@ -1189,14 +1189,6 @@ impl ReactAgent {
                 )
                 .await?;
             }
-            self.append(
-                &run_id,
-                SessionEventKind::ModelRequestStarted {
-                    step,
-                    system_prompt: system_prompt.clone(),
-                },
-            )
-            .await?;
             let request = ModelRequest {
                 prompt_cache: self.prompt_cache,
                 run_id: run_id.clone(),
@@ -1205,6 +1197,15 @@ impl ReactAgent {
                 tools: presentation.tools,
                 step,
             };
+            self.append(
+                &run_id,
+                SessionEventKind::ModelRequestStarted {
+                    step,
+                    system_prompt: request.system_prompt.clone(),
+                    context_usage: Some(request.context_usage()),
+                },
+            )
+            .await?;
             let output: Arc<dyn ModelOutput> = Arc::new(SessionModelOutput {
                 run_id: run_id.clone(),
                 step,

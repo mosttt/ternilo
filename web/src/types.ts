@@ -681,6 +681,15 @@ export interface DocumentReview {
   findings: string[]
 }
 
+export interface ModelContextUsage {
+  system_chars: number
+  tool_schema_chars: number
+  conversation_chars: number
+  tool_output_chars: number
+  additional_state_chars: number
+  unmeasured_attachments: number
+}
+
 export interface SessionEvent extends Record<string, unknown> {
   render?: DocumentRender
   review?: DocumentReview
@@ -691,6 +700,7 @@ export interface SessionEvent extends Record<string, unknown> {
   type: string
   step?: number
   system_prompt?: string
+  context_usage?: ModelContextUsage | null
   delta?: string
   content?: string
   display_content?: string | null

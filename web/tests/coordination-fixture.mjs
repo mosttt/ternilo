@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { until } from './model-device-fixture.mjs'
 import { createServer } from 'node:http'
+import { mkdir } from 'node:fs/promises'
+import path from 'node:path'
 
 export async function modelFixture() {
   const requests = []
@@ -74,6 +76,12 @@ export async function verifyToolBudgetAndMap(request, sessionId, upstream) {
     await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input } } })
     await until(() => request(`${resource}/events`), events => events.some(event => event.type === 'assistant_message' && event.response.content === marker), marker)
     await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'idle tools')
+    const requestEvent = (await request(`${resource}/events`)).findLast(event => event.type === 'model_request_started')
+    const sent = upstream.requests.findLast(body => body.stream)
+    const length = value => Array.from(value ?? '').length
+    assert.equal(requestEvent.context_usage.system_chars, sent.messages.filter(message => message.role === 'system').reduce((sum, message) => sum + length(message.content), 0))
+    assert.equal(requestEvent.context_usage.tool_schema_chars, (sent.tools ?? []).reduce((sum, tool) => sum + length(tool.function.name) + length(tool.function.description) + length(JSON.stringify(tool.function.parameters)), 0))
+    assert.equal(requestEvent.context_usage.tool_output_chars, sent.messages.filter(message => message.role === 'tool').reduce((sum, message) => sum + length(message.content), 0))
     if (input.startsWith('Read')) {
       const messages = upstream.requests.at(-1).messages.filter(message => message.role === 'tool')
       assert.ok(messages.reduce((sum, message) => sum + Array.from(message.content).length, 0) <= 1024)
@@ -89,4 +97,41 @@ export async function verifyToolBudgetAndMap(request, sessionId, upstream) {
   assert.ok(map.files[0].symbols.some(symbol => symbol.name === 'actual'))
   assert.ok(map.files[0].calls.some(call => call.target === 'target'))
   assert.equal(map.files[0].syntax_errors, false)
+}
+
+export async function verifyContextComposition(page, request, sessionId, locale, artifact = locale) {
+  const event = (await request(`/sessions/${sessionId}/events`)).findLast(event => event.type === 'model_request_started')
+  assert.ok(event.context_usage)
+  const originalViewport = page.viewportSize()
+  if (originalViewport.width < 400) await page.setViewportSize({ width: originalViewport.width, height: 420 })
+  const trigger = page.locator('[data-context-meter]')
+  await trigger.click()
+  const panel = page.getByRole('dialog', { name: { zh: '上下文详情', en: 'Context details', ko: '컨텍스트 상세' }[locale], exact: true })
+  await panel.waitFor()
+  for (const key of ['system_chars', 'tool_schema_chars', 'conversation_chars', 'tool_output_chars', 'additional_state_chars']) {
+    const row = panel.locator(`[data-context-part="${key}"]`)
+    await until(() => row.locator('dd').innerText(), text => Number(text.replaceAll(',', '')) === event.context_usage[key], `current context ${key}`)
+  }
+  const bounds = await panel.boundingBox()
+  const viewport = page.viewportSize()
+  assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width + 1 && bounds.y + bounds.height <= viewport.height + 1, 'context popup stays inside viewport')
+  assert.equal(await panel.evaluate(element => element.scrollWidth > element.clientWidth), false)
+  if (await panel.evaluate(element => element.scrollHeight > element.clientHeight + 1)) {
+    const touch = await page.context().newCDPSession(page)
+    const x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height - 20
+    try {
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+      for (let i = 1; i <= 8; i++) await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - Math.min(160, bounds.height - 40) * i / 8 }] })
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await until(() => panel.evaluate(element => element.scrollTop), value => value > 0, 'context popup native scrolling')
+    } finally { await touch.detach() }
+  }
+  await panel.locator('[data-context-part="additional_state_chars"]').scrollIntoViewIfNeeded()
+  if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+    await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+    await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `context-composition-${artifact}.png`) })
+  }
+  await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'hidden' })
+  await page.setViewportSize(originalViewport)
 }

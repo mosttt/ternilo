@@ -4,7 +4,7 @@
 .track { fill: none; stroke: var(--border-focus); stroke-width: 2; }
 .fill { fill: none; stroke: var(--label-tertiary); stroke-width: 2; stroke-linecap: round; }
 .fill[data-warning] { stroke: var(--warning); }
-.panel { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 100; box-sizing: border-box; width: 264px; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px; background: var(--popover); box-shadow: var(--shadow-lv3); color: var(--label-secondary); font-size: 12px; line-height: 20px; }
+.panel { z-index: 100; box-sizing: border-box; width: min(320px, calc(100vw - 24px)); max-height: var(--radix-popover-content-available-height); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px; background: var(--popover); box-shadow: var(--shadow-lv3); color: var(--label-secondary); font-size: 13px; line-height: 21px; }
 .header { display: flex; align-items: center; gap: 5px; }
 .header strong { color: var(--foreground); }
 .header code { margin-left: auto; color: var(--foreground); font-size: 12px; }
@@ -13,5 +13,15 @@
 .panel dl { margin: 0; }
 .panel dl div { display: flex; justify-content: space-between; gap: 12px; }
 .panel dd { margin: 0; color: var(--foreground); font-variant-numeric: tabular-nums; }
-.panel p { margin: 8px 0 0; border-radius: 7px; padding: 6px 8px; background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
-@media (max-width: 520px) { .panel { right: -52px; width: min(264px, calc(100vw - 28px)); } }
+.panel .warning { margin: 8px 0 0; border-radius: 7px; padding: 6px 8px; background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
+
+.panel .note { margin: 8px 0 0; color: var(--label-secondary); }
+.composition:not(:first-child) { margin-top: 12px; border-top: 1px solid var(--border-subtle); padding-top: 12px; }
+.compositionBar { display: flex; height: 6px; overflow: hidden; border-radius: 3px; margin: 10px 0; background: var(--interactive-hover); }
+.compositionBar span, .swatch { background: var(--part-color); }
+.swatch { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; }
+.panel [data-part="0"] { --part-color: var(--primary); }
+.panel [data-part="1"] { --part-color: var(--accent-color); }
+.panel [data-part="2"] { --part-color: var(--success); }
+.panel [data-part="3"] { --part-color: var(--warning); }
+.panel [data-part="4"] { --part-color: var(--label-tertiary); }

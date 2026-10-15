@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 mod context_handoff;
+mod context_usage;
+pub use context_usage::ModelContextUsage;
 mod document_review;
 pub use document_review::{DocumentRender, DocumentReview, DocumentVerdict};
 mod reasoning_observation;
@@ -3040,6 +3042,8 @@ pub enum SessionEventKind {
     ModelRequestStarted {
         step: u32,
         system_prompt: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        context_usage: Option<ModelContextUsage>,
     },
     ReasoningEffortObserved {
         step: u32,
@@ -3705,6 +3709,7 @@ mod tests {
             occurred_at_ms: 43,
             run_id: RunId::new("run-request"),
             kind: SessionEventKind::ModelRequestStarted {
+                context_usage: None,
                 step: 3,
                 system_prompt: "opaque # text\n\n<tool>exact</tool>".to_owned(),
             },

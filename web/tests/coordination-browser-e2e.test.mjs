@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { verifyTeamUsage } from './team-usage-fixture.mjs'
-import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap } from './coordination-fixture.mjs'
+import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap, verifyContextComposition } from './coordination-fixture.mjs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -173,6 +173,7 @@ test('coordination settings persist in all locales and a real delegated call use
       await observed.getByText({ zh: '推理强度观察', en: 'Reasoning effort observation', ko: '추론 강도 관찰' }[locale], { exact: true }).waitFor()
       assert.ok((await observed.innerText()).includes({ zh: '实际模型与推理设置保持不变', en: 'actual model and reasoning settings are unchanged', ko: '실제 모델 및 추론 설정은 변경되지 않습니다' }[locale]))
       await verifyTeamUsage(page, request, session.identity.session_id, locale)
+      await verifyContextComposition(page, request, session.identity.session_id, locale)
       await context.close()
     }
     await verifyToolBudgetAndMap(request, session.identity.session_id, upstream)
