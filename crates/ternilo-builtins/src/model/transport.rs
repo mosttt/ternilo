@@ -14,6 +14,46 @@ use ternilo_protocol::{
 };
 
 impl ProviderModel {
+    fn prepare_request_body(
+        &self,
+        request: &ModelRequest,
+    ) -> Result<(Value, Option<ternilo_protocol::ReasoningSelection>), HarnessError> {
+        let selection = request.reasoning_recommendation.map(|recommended| {
+            let available = self
+                .automatic_reasoning_efforts
+                .iter()
+                .filter(|(effort, value)| {
+                    **effort <= ternilo_protocol::ReasoningEffort::High
+                        && value.as_ref().is_none_or(|value| {
+                            !value.trim().is_empty()
+                                && !value.chars().any(char::is_control)
+                                && self
+                                    .protocol
+                                    .validate_reasoning_value(
+                                        value,
+                                        u64::from(self.max_tokens.unwrap_or(4096)),
+                                    )
+                                    .is_ok()
+                        })
+                })
+                .map(|(effort, value)| (*effort, value.clone()))
+                .collect();
+            ternilo_protocol::select_reasoning_effort(
+                recommended,
+                &available,
+                self.reasoning_effort.as_deref(),
+            )
+        });
+        let body = if let Some(selection) = &selection {
+            let mut model = self.clone();
+            model.reasoning_effort.clone_from(&selection.value);
+            protocols::request_body(&model, request)?
+        } else {
+            protocols::request_body(self, request)?
+        };
+        Ok((body, selection))
+    }
+
     pub(super) async fn complete_request(
         &self,
         mut request: ModelRequest,
@@ -29,7 +69,7 @@ impl ProviderModel {
                 }
             }
         }
-        let body = protocols::request_body(self, &request)?;
+        let (body, selection) = self.prepare_request_body(&request)?;
         let api_key = self.resolve_api_key().await?;
         for attempt in 1..=self.max_attempts {
             cancellation.check()?;
@@ -70,6 +110,7 @@ impl ProviderModel {
                             }
                         }
                     }
+                    response.reasoning_selection = selection;
                     response.attempts = attempt;
                     response.request_digest = Some(request_digest);
                     return Ok(response);

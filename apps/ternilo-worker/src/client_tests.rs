@@ -67,6 +67,7 @@ fn request() -> WorkerModelRequest {
             model: "test-model".to_owned(),
         },
         request: ModelRequest {
+            reasoning_recommendation: None,
             prompt_cache: false,
             run_id: ternilo_protocol::RunId::new("model-test-run"),
             system_prompt: "system".to_owned(),
@@ -89,6 +90,7 @@ fn model_response() -> ModelResponse {
         finish_reason: ModelFinishReason::Stop,
         provider_request_id: None,
         attempts: 1,
+        reasoning_selection: None,
         replayed: false,
         request_digest: None,
     }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { verifyTeamUsage } from './team-usage-fixture.mjs'
-import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap, verifyContextComposition } from './coordination-fixture.mjs'
+import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap, verifyContextComposition, verifyAutomaticReasoning, verifyReasoningDisplay } from './coordination-fixture.mjs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -31,7 +31,7 @@ test('coordination settings persist in all locales and a real delegated call use
     assert.ok((await (await fetch(`${origin}/assets/app.js`)).text()).includes('data-notification-region'))
     const request = await localApi(origin)
     await request('/providers', { body: { id: 'coordination-fixture', display_name: 'Coordination Fixture', base_url: upstream.baseUrl,
-      protocol: 'openai-chat-completions', api_key_ref: null, defaults: { context_window: 128_000, max_output_tokens: 4096 },
+      protocol: 'openai-chat-completions', api_key_ref: null, defaults: { context_window: 128_000, max_output_tokens: 4096, reasoning: { default_effort: 'medium', efforts: { low: 'low', medium: 'medium', high: 'high' } } },
       models: ['lead-model', 'role-model'].map(id => ({ id, display_name: id, settings: { mode: 'inherit' } })), timeout_ms: 30_000, max_attempts: 1, retry_base_delay_ms: 10 } })
     const folder = path.join(directory, 'workspace'); await mkdir(folder)
     const workspace = await request('/workspaces', { body: { path: folder } })
@@ -157,6 +157,16 @@ test('coordination settings persist in all locales and a real delegated call use
         if (await toggle.getAttribute('aria-checked') === 'false') await toggle.click()
         assert.equal(await toggle.getAttribute('aria-checked'), 'true')
       }
+      const automatic = optimization.locator('#plugin-agent-loop-automatic_reasoning')
+      assert.equal(await automatic.getAttribute('aria-checked'), 'false')
+      await automatic.click()
+      assert.equal(await automatic.getAttribute('aria-checked'), 'true')
+      await optimization.getByRole('button', { name: labels.save, exact: true }).click()
+      await until(() => optimization.locator('button[aria-expanded][aria-label]').getAttribute('aria-expanded'), value => value === 'false', 'saved automatic reasoning')
+      const savedAutomatic = (await request('/state')).sessions.find(item => item.identity.session_id === session.identity.session_id)
+      assert.equal(savedAutomatic.profile_plugins.find(entry => entry.id === 'agent-loop').config.automatic_reasoning, true)
+      await optimization.locator('button[aria-expanded][aria-label]').click()
+      await automatic.click()
       const optimizationSave = optimization.getByRole('button', { name: labels.save, exact: true })
       if (await optimizationSave.isEnabled()) {
         await optimizationSave.click()
@@ -194,6 +204,18 @@ test('coordination settings persist in all locales and a real delegated call use
       await context.close()
     }
     await verifyToolBudgetAndMap(request, session.identity.session_id, upstream)
+    await verifyAutomaticReasoning(request, session.identity.session_id, upstream)
+    for (const locale of Object.keys(locales)) {
+      const context = await browser.newContext({ viewport: locale === 'ko' ? { width: 320, height: 560 } : { width: 1280, height: 900 }, serviceWorkers: 'block' })
+      await context.addInitScript(({ locale, id, workspaceId }) => { localStorage.setItem('ternilo.locale', locale); localStorage.setItem('ternilo.current-session', id); localStorage.setItem('ternilo.current-workspace', workspaceId) }, { locale, id: session.identity.session_id, workspaceId: workspace.workspace_id })
+      const page = await context.newPage(); activePage = page
+      page.on('pageerror', error => errors.page.push(error.message))
+      page.on('console', message => { if (message.type() === 'error') errors.console.push(message.text()) })
+      page.on('response', response => { if (response.status() >= 400) errors.http.push(`${response.status()} ${response.url()}`) })
+      await page.goto(origin)
+      await verifyReasoningDisplay(page, locale)
+      await context.close()
+    }
     assert.deepEqual(errors, { page: [], console: [], http: [] })
     console.log(JSON.stringify({ locales: Object.keys(locales), roleModel: child.model.model, childReadOnly: true, errors }))
   } catch (error) {

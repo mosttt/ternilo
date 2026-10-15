@@ -207,8 +207,17 @@ fn render_html(path: &str, source: &str) -> Result<String, HarnessError> {
                     event => event,
                 }),
             );
+            let math_style = if output.contains("data-ternilo-math=") {
+                concat!(
+                    "<style>",
+                    include_str!("../assets/document-math.css"),
+                    "body{font-family:KaTeX_Main,serif}pre,code{font-family:KaTeX_Typewriter,monospace}</style>"
+                )
+            } else {
+                ""
+            };
             format!(
-                "<style>body{{font:16px/1.65 sans-serif;padding:24px;margin:0;overflow-wrap:anywhere}}img,svg{{max-width:100%}}pre{{white-space:pre-wrap;background:#f4f4f4;padding:12px}}table{{border-collapse:collapse;max-width:100%}}th,td{{border:1px solid #ddd;padding:6px 10px}}h1,h2,h3{{line-height:1.3}}[data-ternilo-math=display]{{display:block;margin:1em 0}}math{{font-size:1.1em}}</style>{output}"
+                "<style>body{{font:16px/1.65 sans-serif;padding:24px;margin:0;overflow-wrap:anywhere}}img,svg{{max-width:100%}}pre{{white-space:pre-wrap;background:#f4f4f4;padding:12px}}table{{border-collapse:collapse;max-width:100%}}th,td{{border:1px solid #ddd;padding:6px 10px}}h1,h2,h3{{line-height:1.3}}[data-ternilo-math=display]{{display:block;margin:1em 0}}</style>{math_style}{output}"
             )
         }
         "html" | "htm" => source.to_owned(),

@@ -136,9 +136,12 @@ function CardRow({ item, t, onSelect }: { item: Extract<EventItem, { kind: 'card
     <Target /><span>{t('event.goalRound', { round: Number(event.round) })}</span><ChevronRight />
   </button>
   const observation = event.type === 'reasoning_effort_observed' ? asRecord(event.observation) : null
+  const selection = observation?.selection ? asRecord(observation.selection) : null
+  const effortNames: Record<string, string> = { none: t('reasoning.none'), minimal: t('reasoning.minimal'), low: t('reasoning.low'), medium: t('reasoning.medium'), high: t('reasoning.high') }
+  const selected = effortNames[String(selection?.selected)] ?? String(selection?.selected ?? '—')
   const effort = observation?.recommended === 'high' ? t('reasoning.high') : observation?.recommended === 'medium' ? t('reasoning.medium') : t('reasoning.low')
   const configuration: Record<string, { title: string; icon: typeof Target }> = {
-    reasoning_effort_observed: { title: t('reasoning.observed'), icon: CircleDot },
+    reasoning_effort_observed: { title: selection ? t('reasoning.automatic') : t('reasoning.observed'), icon: CircleDot },
     plan_updated: { title: t('event.plan'), icon: ListChecks }, todo_updated: { title: t('event.todo'), icon: ListChecks },
     goal_updated: { title: t('event.goal'), icon: Target },
     subagent_updated: { title: t('event.subagent'), icon: Bot }, workflow_run_started: { title: t('event.workflow'), icon: Workflow },
@@ -150,7 +153,7 @@ function CardRow({ item, t, onSelect }: { item: Extract<EventItem, { kind: 'card
   const failure = event.type === 'turn_failed' ? presentRuntimeError(event.message, t) : null
   const config = failure ? { title: failure.title, icon: CircleAlert } : configuration[event.type] ?? { title: humanize(event.type), icon: CircleDot }
   const Icon = config.icon
-  const body = observation ? t('reasoning.observationDetail', { effort, chars: Number(observation.task_chars), calls: Number(observation.tool_calls), errors: Number(observation.tool_errors) }) : failure?.message ?? String(event.explanation ?? event.objective ?? event.message ?? event.title ?? '')
+  const body = observation ? selection && !selection.selected ? t('reasoning.unchanged') : t(selection ? 'reasoning.automaticDetail' : 'reasoning.observationDetail', { effort, selected, chars: Number(observation.task_chars), calls: Number(observation.tool_calls), errors: Number(observation.tool_errors) }) : failure?.message ?? String(event.explanation ?? event.objective ?? event.message ?? event.title ?? '')
   const subagent = event.subagent ? asRecord(event.subagent) : null
   return <button type="button" className={cn(css.card, event.type === 'turn_failed' && css.error)} data-chat-event={event.type} onClick={onSelect}>
     <span className={css.cardHeader}><Icon /><strong>{config.title}</strong><ChevronRight /></span>

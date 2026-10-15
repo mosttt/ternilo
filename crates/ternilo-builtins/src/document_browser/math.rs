@@ -14,12 +14,12 @@ pub(super) async fn render(
     let expression = concat!(
         include_str!("../../assets/document-math.js"),
         r#";
-        (() => {
+        (async () => {
           const formulas = [...document.querySelectorAll('[data-ternilo-math]')];
           for (const [index, element] of formulas.entries()) {
             try {
               element.innerHTML = katex.renderToString(element.textContent, {
-                output: 'mathml', displayMode: element.dataset.terniloMath === 'display',
+                output: 'htmlAndMathml', displayMode: element.dataset.terniloMath === 'display',
                 trust: () => { throw new Error('Links, external resources and HTML commands are not supported in document formulas'); },
                 strict: 'error', throwOnError: true, maxExpand: 1000, maxSize: 20
               });
@@ -27,13 +27,18 @@ pub(super) async fn render(
               return { error: `Formula ${index + 1}: ${error.message}` };
             }
           }
+          document.documentElement.getBoundingClientRect();
+          await document.fonts.ready;
+          if ([...document.fonts].some(font => font.status === 'error')) {
+            return { error: 'An embedded document font could not be loaded' };
+          }
           return { rendered: formulas.length };
         })()"#,
     );
     let result = cdp
         .call(
             "Runtime.evaluate",
-            json!({"contextId":context,"expression":expression,"returnByValue":true}),
+            json!({"contextId":context,"expression":expression,"returnByValue":true,"awaitPromise":true}),
         )
         .await?;
     if let Some(error) = result["result"]["value"]["error"].as_str() {

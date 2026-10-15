@@ -382,6 +382,7 @@ async fn accepted_input(
         request_id: "request-1".to_owned(),
         binding: snapshot.binding.clone(),
         request: ModelRequest {
+            reasoning_recommendation: None,
             prompt_cache: false,
             run_id: RunId::new("account-model-run"),
             system_prompt: String::new(),

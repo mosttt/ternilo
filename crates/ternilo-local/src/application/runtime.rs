@@ -356,6 +356,26 @@ pub(super) fn session_profile(
         }
         return profile;
     }
+    let automatic_reasoning_efforts = match (model, named_provider) {
+        (
+            ModelSelection::NamedProvider {
+                model,
+                reasoning_effort,
+                ..
+            },
+            Some(provider),
+        ) => {
+            let resolved = provider
+                .resolved_model(model)
+                .expect("validated named model");
+            ternilo_protocol::automatic_reasoning_efforts(
+                resolved.reasoning.as_ref(),
+                resolved.reasoning.as_ref(),
+                *reasoning_effort,
+            )
+        }
+        _ => ternilo_protocol::AutomaticReasoningEfforts::new(),
+    };
     let route = match (model, named_provider) {
         (
             ModelSelection::OpenAiCompatible {
@@ -444,6 +464,7 @@ pub(super) fn session_profile(
             "context_window": context_window,
             "max_tokens": max_tokens,
             "reasoning_effort": reasoning_effort,
+            "automatic_reasoning_efforts": automatic_reasoning_efforts,
         });
     }
     profile

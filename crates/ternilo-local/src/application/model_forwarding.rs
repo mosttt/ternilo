@@ -100,6 +100,11 @@ impl LocalApplication {
             max_tokens: Some(max_tokens),
             temperature: None,
             reasoning_effort,
+            automatic_reasoning_efforts: ternilo_protocol::automatic_reasoning_efforts(
+                request.defaults.reasoning.as_ref(),
+                current.reasoning.as_ref(),
+                request.reasoning_effort,
+            ),
             max_attempts: provider.max_attempts.min(request.max_attempts),
             retry_base_delay_ms: provider.retry_base_delay_ms,
         };

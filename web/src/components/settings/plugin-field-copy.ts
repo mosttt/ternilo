@@ -18,6 +18,9 @@ export function pluginFieldCopy(kind: string, field: PluginConfigField, t: Trans
   if (kind === 'ternilo.session.log' && field.key === 'max_tool_result_chars') {
     return { label: t('tools.defaultResultLimit'), description: t('tools.defaultResultLimitHint') }
   }
+  if (kind === 'ternilo.agent.react' && field.key === 'automatic_reasoning') {
+    return { label: t('optimization.automaticReasoning'), description: t('optimization.automaticReasoningHint') }
+  }
   const structuredSummary = kind === 'ternilo.context.compaction' && field.key === 'structured_summary'
   const budgetField = kind === 'ternilo.session.log' && field.key === 'max_tool_history_chars'
   const cacheField = kind === 'ternilo.files.local' && field.key === 'read_cache_bytes'

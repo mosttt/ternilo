@@ -696,6 +696,7 @@ fn completed_turn(run_id: &RunId, now: u64) -> Vec<SessionEvent> {
                     provider_request_id: None,
                     attempts: 1,
                     request_digest: None,
+                    reasoning_selection: None,
                     replayed: false,
                 },
             },

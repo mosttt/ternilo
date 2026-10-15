@@ -166,6 +166,7 @@ async fn upstream(replies: Vec<Reply>) -> (String, tokio::task::JoinHandle<Vec<V
 
 fn request() -> ModelRequest {
     ModelRequest {
+        reasoning_recommendation: None,
         prompt_cache: false,
         run_id: ternilo_protocol::RunId::new("model-test-run"),
         system_prompt: "System".to_owned(),
@@ -187,6 +188,7 @@ fn route(base_url: String, protocol: ProviderProtocol) -> ProviderModelRoute {
         max_tokens: Some(512),
         temperature: None,
         reasoning_effort: None,
+        automatic_reasoning_efforts: ternilo_protocol::AutomaticReasoningEfforts::new(),
         max_attempts: 3,
         retry_base_delay_ms: 1,
     }
@@ -579,5 +581,125 @@ async fn session_provider_persists_each_attempt_but_connected_servers_keep_their
             );
         }
         harness.shutdown().await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn automatic_reasoning_changes_the_real_request_across_all_protocols_only_when_enabled() {
+    use ternilo_protocol::ReasoningEffort::{High, Low};
+    for protocol in [
+        ProviderProtocol::OpenAiChatCompletions,
+        ProviderProtocol::OpenAiResponses,
+        ProviderProtocol::DeepSeekResponses,
+        ProviderProtocol::GoogleGemini,
+        ProviderProtocol::AnthropicMessages,
+    ] {
+        let body = match protocol {
+            ProviderProtocol::OpenAiChatCompletions => {
+                serde_json::from_str::<Value>(&completed().body).unwrap()
+            }
+            ProviderProtocol::OpenAiResponses | ProviderProtocol::DeepSeekResponses => {
+                json!({"id":"r","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"complete"}]}]})
+            }
+            ProviderProtocol::GoogleGemini => {
+                json!({"candidates":[{"content":{"role":"model","parts":[{"text":"complete"}]},"finishReason":"STOP"}]})
+            }
+            ProviderProtocol::AnthropicMessages => {
+                json!({"id":"r","content":[{"type":"text","text":"complete"}],"stop_reason":"end_turn"})
+            }
+        };
+        let replies = (0..3)
+            .map(|_| Reply {
+                status: 200,
+                body: body.to_string(),
+                stream: false,
+                stall: false,
+            })
+            .collect();
+        let (url, server) = upstream(replies).await;
+        let mut model_route = route(url, protocol);
+        model_route.reasoning_effort = Some("high".into());
+        model_route.automatic_reasoning_efforts =
+            [(Low, Some("low".into())), (High, Some("high".into()))].into();
+        for recommended in [None, Some(Low), Some(High)] {
+            let mut request = request();
+            request.reasoning_recommendation = recommended;
+            let response = complete_provider_model(
+                model_route.clone(),
+                None,
+                request,
+                Arc::new(Recorder::default()),
+                RunCancellation::new(),
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                response
+                    .reasoning_selection
+                    .as_ref()
+                    .and_then(|selection| selection.selected),
+                recommended
+            );
+        }
+        let requests = server.await.unwrap();
+        for (request, expected) in requests.iter().zip(["high", "low", "high"]) {
+            let actual = match protocol {
+                ProviderProtocol::OpenAiChatCompletions => &request["reasoning_effort"],
+                ProviderProtocol::OpenAiResponses | ProviderProtocol::DeepSeekResponses => {
+                    &request["reasoning"]["effort"]
+                }
+                ProviderProtocol::GoogleGemini => {
+                    &request["generationConfig"]["thinkingConfig"]["thinkingLevel"]
+                }
+                ProviderProtocol::AnthropicMessages => &request["output_config"]["effort"],
+            };
+            assert_eq!(actual, expected, "{protocol:?}");
+        }
+        assert_eq!(model_route.reasoning_effort.as_deref(), Some("high"));
+    }
+}
+
+#[tokio::test]
+async fn unsupported_automatic_budgets_keep_the_existing_request_usable() {
+    let replies = (0..2).map(|_| Reply {
+        status: 200,
+        body: json!({"id":"r","content":[{"type":"text","text":"complete"}],"stop_reason":"end_turn"}).to_string(),
+        stream: false,
+        stall: false,
+    }).collect();
+    let (url, server) = upstream(replies).await;
+    let mut model_route = route(url, ProviderProtocol::AnthropicMessages);
+    model_route
+        .automatic_reasoning_efforts
+        .insert(ternilo_protocol::ReasoningEffort::Low, Some("1024".into()));
+    for recommended in [None, Some(ternilo_protocol::ReasoningEffort::Low)] {
+        let mut request = request();
+        request.reasoning_recommendation = recommended;
+        let response = complete_provider_model(
+            model_route.clone(),
+            None,
+            request,
+            Arc::new(Recorder::default()),
+            RunCancellation::new(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            response
+                .reasoning_selection
+                .as_ref()
+                .and_then(|selection| selection.selected),
+            None
+        );
+        assert_eq!(
+            response.reasoning_selection.is_some(),
+            recommended.is_some()
+        );
+    }
+    for request in server.await.unwrap() {
+        assert!(request.get("thinking").is_none());
+        assert_eq!(request["max_tokens"], 512);
     }
 }

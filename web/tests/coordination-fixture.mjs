@@ -28,7 +28,11 @@ export async function modelFixture() {
     const mapLoaded = body.tools?.some(tool => tool.function?.name === 'code_map')
     const budgetCalls = { tool_calls: ['one', 'two'].map((name, index) => ({ index, id: `budget-${name}`, type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: `budget-${name}.txt` }) } })) }
     const mapCall = { tool_calls: [{ index: 0, id: mapLoaded ? 'code-map-fixture' : 'code-map-search', type: 'function', function: { name: mapLoaded ? 'code_map' : 'search_tools', arguments: JSON.stringify(mapLoaded ? { paths: ['map-fixture.py'], impact_symbol: 'map-fixture.py:2:1' } : { names: ['code_map'] }) } }] }
-    const delta = budget ? budgetDone ? { content: 'Budget verified.' } : budgetCalls : mapCode ? mapDone ? { content: 'Code map verified.' } : mapCall : discovery ? listed ? { content: 'Tool discovery complete.' } : discoverCall : spawn ? { tool_calls: [{ index: 0, id: 'role-call', type: 'function', function: { name: 'spawn_agent', arguments: JSON.stringify({ task: 'Collect the evidence', role: 'investigator', background: false }) } }] }
+    const reasoning = !title && JSON.stringify(body.messages[latestUser]).includes('Reasoning control fixture')
+    const read = turnMessages.some(message => message.tool_call_id === 'reason-read')
+    const failed = turnMessages.some(message => message.tool_call_id === 'reason-error')
+    const reasoningDelta = failed ? { content: 'Reasoning control verified.' } : { tool_calls: [{ index: 0, id: read ? 'reason-error' : 'reason-read', type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: read ? 'missing-reasoning-fixture.txt' : 'budget-one.txt' }) } }] }
+    const delta = reasoning ? reasoningDelta : budget ? budgetDone ? { content: 'Budget verified.' } : budgetCalls : mapCode ? mapDone ? { content: 'Code map verified.' } : mapCall : discovery ? listed ? { content: 'Tool discovery complete.' } : discoverCall : spawn ? { tool_calls: [{ index: 0, id: 'role-call', type: 'function', function: { name: 'spawn_agent', arguments: JSON.stringify({ task: 'Collect the evidence', role: 'investigator', background: false }) } }] }
       : { content: title ? 'Coordination acceptance' : body.model === 'role-model' ? 'Evidence collected.' : 'Coordination complete.' }
     if (!body.stream) {
       response.writeHead(200, { 'content-type': 'application/json' })
@@ -140,4 +144,57 @@ export async function verifyContextComposition(page, request, sessionId, locale,
   await page.keyboard.press('Escape')
   await panel.waitFor({ state: 'hidden' })
   await page.setViewportSize(originalViewport)
+}
+
+
+export async function verifyAutomaticReasoning(request, sessionId, upstream) {
+  const resource = `/sessions/${sessionId}`
+  const current = (await request('/state')).sessions.find(session => session.identity.session_id === sessionId)
+  const plugins = current.profile_plugins.map(entry => entry.id === 'agent-loop' ? { ...entry, config: { ...entry.config, automatic_reasoning: true } } : entry)
+  assert.ok(plugins.some(entry => entry.id === 'agent-loop'))
+  const originalModel = current.model
+  const model = { ...originalModel }; delete model.reasoning_effort
+  await request(resource, { method: 'PATCH', body: { model, profile_plugins: plugins } })
+  const run = async expected => {
+    const before = (await request(`${resource}/events`)).at(-1)?.seq ?? -1
+    const start = upstream.requests.length
+    await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: 'Reasoning control fixture' } } })
+    const events = await until(() => request(`${resource}/events`), values => values.some(event => event.seq > before && ['turn_finished', 'turn_failed'].includes(event.type)), 'automatic reasoning turn')
+    await until(() => request(`${resource}/queue`), value => !value.active_run_id, 'idle reasoning turn')
+    const turn = events.filter(event => event.seq > before)
+    assert.ok(turn.some(event => event.type === 'turn_finished'), JSON.stringify(turn).slice(-2500))
+    const selections = turn.filter(event => event.type === 'reasoning_effort_observed').map(event => event.observation.selection)
+    assert.deepEqual(selections.map(selection => selection.selected), expected)
+    assert.deepEqual(upstream.requests.slice(start).filter(body => body.stream).map(body => body.reasoning_effort), expected)
+    return turn
+  }
+  await run(['low', 'medium', 'high'])
+  await run(['low', 'medium', 'high']) // Previous tool errors must not increase a fresh task's first request.
+  await request(resource, { method: 'PATCH', body: { model: { ...model, reasoning_effort: 'low' } } })
+  await run(['low', 'low', 'low'])
+  const saved = (await request('/state')).sessions.find(session => session.identity.session_id === sessionId)
+  assert.equal(saved.model.model, originalModel.model)
+  assert.equal(saved.model.reasoning_effort, 'low', 'automatic selection does not rewrite the saved ceiling')
+  await request(resource, { method: 'PATCH', body: { model: originalModel } })
+}
+
+export async function verifyReasoningDisplay(page, locale, artifact = locale) {
+  const observed = page.locator('[data-chat-event="reasoning_effort_observed"]').last()
+  await observed.waitFor({ state: 'attached' })
+  const control = observed.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]')
+  if (await control.count() && await control.getAttribute('aria-expanded') === 'false') await control.click()
+  await observed.getByText({ zh: '自动推理强度', en: 'Automatic reasoning effort', ko: '자동 추론 강도' }[locale], { exact: true }).waitFor()
+  const expected = { zh: '本步使用：低；建议：高', en: 'Used this step: Low; recommended: High', ko: '이번 단계: 낮음; 제안: 높음' }[locale]
+  await until(() => observed.innerText(), text => text.includes(expected), 'recorded automatic reasoning selection')
+  const tail = page.getByRole('button', { name: { zh: '回到底部', en: 'Back to bottom', ko: '맨 아래로' }[locale], exact: true })
+  if (await tail.isVisible()) await tail.click()
+  await until(() => observed.evaluate(element => {
+    const bounds = element.getBoundingClientRect()
+    const composer = document.querySelector('[data-composer-seat]')?.getBoundingClientRect()
+    return bounds.top >= 0 && bounds.bottom <= (composer?.top ?? innerHeight)
+  }), value => value, 'automatic reasoning card is readable above the composer')
+  if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+    await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+    await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `automatic-reasoning-${artifact}.png`) })
+  }
 }

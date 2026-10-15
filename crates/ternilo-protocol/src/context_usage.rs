@@ -66,6 +66,7 @@ mod tests {
     #[test]
     fn prepared_context_counts_unicode_and_excludes_attachment_references() {
         let request = ModelRequest {
+            reasoning_recommendation: None,
             prompt_cache: false,
             run_id: RunId::new("context"),
             system_prompt: "中文🙂".into(),

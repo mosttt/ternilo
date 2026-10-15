@@ -549,6 +549,7 @@ impl Fixture {
                 request_id: 1,
                 binding,
                 request: ModelRequest {
+                    reasoning_recommendation: None,
                     prompt_cache: false,
                     run_id: ternilo_protocol::RunId::new("model-test-run"),
                     system_prompt: "retry".to_owned(),

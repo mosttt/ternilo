@@ -92,6 +92,7 @@ impl ModelsProvider for GoalModel {
                 provider_request_id: None,
                 attempts: 1,
                 request_digest: None,
+                reasoning_selection: None,
                 replayed: false,
             })
         })

@@ -93,6 +93,7 @@ fn retrying_model(delay_ms: u64) -> ProviderModel {
         max_tokens: None,
         temperature: None,
         reasoning_effort: None,
+        automatic_reasoning_efforts: ternilo_protocol::AutomaticReasoningEfforts::new(),
         max_attempts: 3,
         retry_base_delay_ms: delay_ms,
         client: reqwest::Client::new(),
@@ -368,6 +369,7 @@ fn responses_request_uses_native_messages_tools_and_reasoning_shape() {
         max_tokens: Some(8_192),
         temperature: None,
         reasoning_effort: Some("ultra".to_owned()),
+        automatic_reasoning_efforts: ternilo_protocol::AutomaticReasoningEfforts::new(),
         max_attempts: 1,
         retry_base_delay_ms: 1,
         client: reqwest::Client::new(),
@@ -378,6 +380,7 @@ fn responses_request_uses_native_messages_tools_and_reasoning_shape() {
     let body = protocols::request_body(
         &model,
         &ModelRequest {
+            reasoning_recommendation: None,
             prompt_cache: false,
             run_id: ternilo_protocol::RunId::new("model-test-run"),
             system_prompt: "system".to_owned(),
@@ -430,6 +433,7 @@ fn image_only_user_messages_do_not_emit_empty_text_parts() {
     assert_eq!(chat["content"][0]["type"], "image_url");
 
     let responses = responses_input(&ModelRequest {
+        reasoning_recommendation: None,
         prompt_cache: false,
         run_id: ternilo_protocol::RunId::new("model-test-run"),
         system_prompt: String::new(),

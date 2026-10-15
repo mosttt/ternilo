@@ -641,7 +641,14 @@ export interface ToolOutput {
   is_error: boolean
 }
 
+export interface ReasoningSelection {
+  recommended: ReasoningEffort
+  selected: ReasoningEffort | null
+  value: string | null
+}
+
 export interface ModelResponse {
+  reasoning_selection?: ReasoningSelection | null
   provider: string
   model: string
   content: string

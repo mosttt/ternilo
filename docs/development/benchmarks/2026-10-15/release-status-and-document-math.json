@@ -8,7 +8,7 @@
   "browser": [
     {
       "contract": "project-delivery-browser-e2e.test.mjs",
-      "seconds": 24.98,
+      "seconds": 25.09,
       "locales": [
         "zh",
         "en",
@@ -26,7 +26,7 @@
     },
     {
       "contract": "project-delivery-platform-browser-e2e.test.mjs",
-      "seconds": 83.56,
+      "seconds": 59.11,
       "execution_targets": [
         "node",
         "worker"
@@ -48,7 +48,9 @@
       1024,
       320
     ],
-    "source_version_review_binding": true
+    "source_version_review_binding": true,
+    "worker_visual_acceptance": true,
+    "embedded_css_and_fonts": true
   },
   "checks": {
     "builtins_local_all_targets_clippy": true,
@@ -60,5 +62,5 @@
     "screenshots_reviewed": true
   },
   "published": false,
-  "note": "Synthetic GitHub upstream only; no public release was created. Timings are local validation results."
+  "note": "Synthetic GitHub upstream only; no public release was created. Native MathML initially depended on absent Worker fonts; embedded KaTeX fonts and CSS fixed missing glyphs, verified in final screenshots. Timings are local validation results."
 }

@@ -5,6 +5,11 @@ mod context_usage;
 pub use context_usage::ModelContextUsage;
 mod document_review;
 pub use document_review::{DocumentRender, DocumentReview, DocumentVerdict};
+mod reasoning_control;
+pub use reasoning_control::{
+    AutomaticReasoningEfforts, ReasoningSelection, automatic_reasoning_efforts,
+    select_reasoning_effort,
+};
 mod reasoning_observation;
 pub use context_handoff::ContextHandoff;
 pub use reasoning_observation::ReasoningObservation;
@@ -2234,6 +2239,8 @@ pub struct HookResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_recommendation: Option<ReasoningEffort>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub prompt_cache: bool,
     pub run_id: RunId,
@@ -2247,6 +2254,8 @@ pub struct ModelRequest {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_selection: Option<ReasoningSelection>,
     /// Provider route that actually served this request.
     pub provider: String,
     /// Exact provider model that actually served this request.
@@ -3627,6 +3636,7 @@ mod tests {
             provider_request_id: Some("request-1".to_owned()),
             attempts: 1,
             request_digest: None,
+            reasoning_selection: None,
             replayed: false,
         };
         let response_json = serde_json::to_value(&response).unwrap();

@@ -36,8 +36,10 @@ export const zh = {
 
   'optimization.promptCache': "提示前缀缓存",
   'optimization.promptCacheHint': "为 Anthropic Messages 的稳定系统提示添加缓存标记；默认关闭。其他协议保持供应商原有缓存行为。实际命中和费用以供应商返回为准。",
-  'optimization.reasoning': "自动推理强度：观察模式",
-  'optimization.reasoningHint': "按当前任务长度、工具调用和错误记录推理强度建议，用于评估。不会切换模型或更改实际推理强度，默认关闭。",
+  'optimization.reasoning': "记录推理强度建议",
+  'optimization.automaticReasoning': "自动调整推理强度",
+  'optimization.automaticReasoningHint': "按当前任务的输入长度、工具调用和错误，在模型已启用的档位中自动选择，最高到高档；手动所选档位作为上限。运行轨迹记录实际档位，不切换模型或改写已保存设置。默认关闭。",
+  'optimization.reasoningHint': "自动调整关闭时，按本轮输入长度、工具调用和错误记录建议，不改变实际档位。开启自动调整后会始终记录实际档位。",
 
   'plugins.configurationConflict': "会话配置正在更新，请稍后重试。已编辑内容会保留。",
   'codeMap.maxFiles': "一次分析的文件数上限",
@@ -904,8 +906,10 @@ export const en: Record<SettingsKey, string> = {
 
   'optimization.promptCache': "Prompt prefix caching",
   'optimization.promptCacheHint': "Add a cache breakpoint to stable system instructions for Anthropic Messages. Off by default. Other protocols keep their existing provider caching behavior. Actual cache hits and charges depend on the provider.",
-  'optimization.reasoning': "Automatic reasoning: observation mode",
-  'optimization.reasoningHint': "Record effort recommendations from current task length, tool calls and errors for evaluation. Does not switch models or change actual reasoning effort. Off by default.",
+  'optimization.reasoning': "Record reasoning recommendations",
+  'optimization.automaticReasoning': "Adjust reasoning effort automatically",
+  'optimization.automaticReasoningHint': "Select from the model’s enabled levels using current task length, tool calls and errors, up to high. A manually chosen level is the ceiling. The trace records the actual level; saved settings and models are unchanged. Off by default.",
+  'optimization.reasoningHint': "When automatic adjustment is off, record recommendations from current task length, tool calls and errors without changing the actual effort. Automatic adjustment always records its selection.",
 
   'plugins.configurationConflict': "Session configuration is being updated. Try again shortly; your edits are preserved.",
   'codeMap.maxFiles': "Maximum files per map",
@@ -1816,8 +1820,10 @@ export const ko: Record<SettingsKey, string> = {
 
   'optimization.promptCache': "프롬프트 접두부 캐싱",
   'optimization.promptCacheHint': "Anthropic Messages의 안정적인 시스템 지침에 캐시 지점을 추가합니다. 기본값은 꺼짐입니다. 다른 프로토콜은 기존 공급자 캐싱을 유지하며 실제 적중과 요금은 공급자에 따릅니다.",
-  'optimization.reasoning': "자동 추론 강도: 관찰 모드",
-  'optimization.reasoningHint': "현재 작업 길이, 도구 호출과 오류를 바탕으로 평가용 강도 제안을 기록합니다. 모델이나 실제 추론 강도는 변경하지 않으며 기본값은 꺼짐입니다.",
+  'optimization.reasoning': "추론 강도 제안 기록",
+  'optimization.automaticReasoning': "추론 강도 자동 조절",
+  'optimization.automaticReasoningHint': "현재 작업 길이, 도구 호출과 오류를 바탕으로 모델에 활성화된 수준 중 최대 높음까지 선택합니다. 수동으로 선택한 수준이 상한입니다. 실제 수준을 실행 기록에 남기며 모델이나 저장된 설정은 바꾸지 않습니다. 기본값은 꺼짐입니다.",
+  'optimization.reasoningHint': "자동 조절이 꺼져 있으면 현재 작업 길이, 도구 호출과 오류에 따른 제안만 기록하고 실제 수준은 바꾸지 않습니다. 자동 조절은 실제 선택을 항상 기록합니다.",
 
   'plugins.configurationConflict': "세션 구성을 업데이트하고 있습니다. 잠시 후 다시 시도하세요. 편집 내용은 유지됩니다.",
   'codeMap.maxFiles': "분석당 최대 파일 수",
