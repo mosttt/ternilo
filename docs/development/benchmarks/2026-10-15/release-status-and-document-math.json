@@ -1,0 +1,66 @@
+{
+  "date": "2026-10-15",
+  "scope": "Read-only release status and offline Markdown formulas",
+  "unit_tests": {
+    "release_selector_and_encoded_tag": 1,
+    "markdown_math_and_literals": 1
+  },
+  "browser": [
+    {
+      "contract": "project-delivery-browser-e2e.test.mjs",
+      "seconds": 25.09,
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "mobile_width": 320,
+      "read_only_release_queries": true,
+      "release_pagination": true,
+      "asset_pagination": true,
+      "draft_and_prerelease_metadata": true,
+      "missing_tag_error": true,
+      "localized_release_tool_title": true,
+      "document_math_screenshots": true,
+      "unexpected_errors": []
+    },
+    {
+      "contract": "project-delivery-platform-browser-e2e.test.mjs",
+      "seconds": 59.11,
+      "execution_targets": [
+        "node",
+        "worker"
+      ],
+      "node_release_queries": true,
+      "worker_network_boundary": true,
+      "worker_math_offline": true,
+      "screenshots_survive_worker_exit": true,
+      "unexpected_errors": []
+    }
+  ],
+  "math": {
+    "inline_and_display": true,
+    "fractions_matrices_summation": true,
+    "invalid_formula_rejected": true,
+    "external_formula_command_rejected": true,
+    "formula_overflow_blocks_pass": true,
+    "desktop_and_mobile_widths": [
+      1024,
+      320
+    ],
+    "source_version_review_binding": true,
+    "worker_visual_acceptance": true,
+    "embedded_css_and_fonts": true
+  },
+  "checks": {
+    "builtins_local_all_targets_clippy": true,
+    "typescript": true,
+    "ui_i18n": true,
+    "web_build": true,
+    "matched_cli_server_worker_build": true,
+    "formal_docs": 114,
+    "screenshots_reviewed": true
+  },
+  "published": false,
+  "note": "Synthetic GitHub upstream only; no public release was created. Native MathML initially depended on absent Worker fonts; embedded KaTeX fonts and CSS fixed missing glyphs, verified in final screenshots. Timings are local validation results."
+}

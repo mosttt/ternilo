@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { verifyTeamUsage } from './team-usage-fixture.mjs'
-import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap } from './coordination-fixture.mjs'
+import { modelFixture, verifyToolDiscovery, verifyToolBudgetAndMap, verifyContextComposition, verifyAutomaticReasoning, verifyReasoningDisplay } from './coordination-fixture.mjs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -31,7 +31,7 @@ test('coordination settings persist in all locales and a real delegated call use
     assert.ok((await (await fetch(`${origin}/assets/app.js`)).text()).includes('data-notification-region'))
     const request = await localApi(origin)
     await request('/providers', { body: { id: 'coordination-fixture', display_name: 'Coordination Fixture', base_url: upstream.baseUrl,
-      protocol: 'openai-chat-completions', api_key_ref: null, defaults: { context_window: 128_000, max_output_tokens: 4096 },
+      protocol: 'openai-chat-completions', api_key_ref: null, defaults: { context_window: 128_000, max_output_tokens: 4096, reasoning: { default_effort: 'medium', efforts: { low: 'low', medium: 'medium', high: 'high' } } },
       models: ['lead-model', 'role-model'].map(id => ({ id, display_name: id, settings: { mode: 'inherit' } })), timeout_ms: 30_000, max_attempts: 1, retry_base_delay_ms: 10 } })
     const folder = path.join(directory, 'workspace'); await mkdir(folder)
     const workspace = await request('/workspaces', { body: { path: folder } })
@@ -134,12 +134,39 @@ test('coordination settings persist in all locales and a real delegated call use
         assert.equal(saved.profile_plugins.find(entry => entry.id === id).config[field], Number(configuredValue))
       }
       const optimization = dialog.locator('[data-plugin-id="agent-loop"]')
+      const sessionConfig = dialog.locator('[data-plugin-id="session"]')
+      await sessionConfig.locator('button[aria-expanded][aria-label]').click()
+      const perTool = { read_file: 2048 + Object.keys(locales).indexOf(locale) }
+      const limitsInput = sessionConfig.locator('#plugin-session-tool_result_limits')
+      await limitsInput.fill('{"read_file":12}')
+      assert.equal(await sessionConfig.getByRole('button', { name: labels.save, exact: true }).isEnabled(), false)
+      await limitsInput.fill(JSON.stringify(perTool))
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+        const dismiss = page.getByRole('button', { name: labels.dismiss, exact: true })
+        while (await dismiss.count()) await dismiss.first().click()
+        await limitsInput.evaluate(element => element.scrollIntoView({ block: 'center' }))
+        await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `per-tool-budget-${locale}.png`) })
+      }
+      await sessionConfig.getByRole('button', { name: labels.save, exact: true }).click()
+      await until(() => sessionConfig.locator('button[aria-expanded][aria-label]').getAttribute('aria-expanded'), value => value === 'false', 'saved per-tool limits')
+      const savedLimits = (await request('/state')).sessions.find(item => item.identity.session_id === session.identity.session_id)
+      assert.deepEqual(savedLimits.profile_plugins.find(entry => entry.id === 'session').config.tool_result_limits, perTool)
       await optimization.locator('button[aria-expanded][aria-label]').click()
       for (const field of ['prompt_cache', 'observe_reasoning']) {
         const toggle = optimization.locator(`#plugin-agent-loop-${field}`)
         if (await toggle.getAttribute('aria-checked') === 'false') await toggle.click()
         assert.equal(await toggle.getAttribute('aria-checked'), 'true')
       }
+      const automatic = optimization.locator('#plugin-agent-loop-automatic_reasoning')
+      assert.equal(await automatic.getAttribute('aria-checked'), 'false')
+      await automatic.click()
+      assert.equal(await automatic.getAttribute('aria-checked'), 'true')
+      await optimization.getByRole('button', { name: labels.save, exact: true }).click()
+      await until(() => optimization.locator('button[aria-expanded][aria-label]').getAttribute('aria-expanded'), value => value === 'false', 'saved automatic reasoning')
+      const savedAutomatic = (await request('/state')).sessions.find(item => item.identity.session_id === session.identity.session_id)
+      assert.equal(savedAutomatic.profile_plugins.find(entry => entry.id === 'agent-loop').config.automatic_reasoning, true)
+      await optimization.locator('button[aria-expanded][aria-label]').click()
+      await automatic.click()
       const optimizationSave = optimization.getByRole('button', { name: labels.save, exact: true })
       if (await optimizationSave.isEnabled()) {
         await optimizationSave.click()
@@ -173,14 +200,33 @@ test('coordination settings persist in all locales and a real delegated call use
       await observed.getByText({ zh: '推理强度观察', en: 'Reasoning effort observation', ko: '추론 강도 관찰' }[locale], { exact: true }).waitFor()
       assert.ok((await observed.innerText()).includes({ zh: '实际模型与推理设置保持不变', en: 'actual model and reasoning settings are unchanged', ko: '실제 모델 및 추론 설정은 변경되지 않습니다' }[locale]))
       await verifyTeamUsage(page, request, session.identity.session_id, locale)
+      await verifyContextComposition(page, request, session.identity.session_id, locale)
       await context.close()
     }
     await verifyToolBudgetAndMap(request, session.identity.session_id, upstream)
+    await verifyAutomaticReasoning(request, session.identity.session_id, upstream)
+    for (const locale of Object.keys(locales)) {
+      const context = await browser.newContext({ viewport: locale === 'ko' ? { width: 320, height: 560 } : { width: 1280, height: 900 }, serviceWorkers: 'block' })
+      await context.addInitScript(({ locale, id, workspaceId }) => { localStorage.setItem('ternilo.locale', locale); localStorage.setItem('ternilo.current-session', id); localStorage.setItem('ternilo.current-workspace', workspaceId) }, { locale, id: session.identity.session_id, workspaceId: workspace.workspace_id })
+      const page = await context.newPage(); activePage = page
+      page.on('pageerror', error => errors.page.push(error.message))
+      page.on('console', message => { if (message.type() === 'error') errors.console.push(message.text()) })
+      page.on('response', response => { if (response.status() >= 400) errors.http.push(`${response.status()} ${response.url()}`) })
+      await page.goto(origin)
+      await verifyReasoningDisplay(page, locale)
+      await context.close()
+    }
     assert.deepEqual(errors, { page: [], console: [], http: [] })
     console.log(JSON.stringify({ locales: Object.keys(locales), roleModel: child.model.model, childReadOnly: true, errors }))
   } catch (error) {
     console.error(app?.diagnostics().slice(-6000))
-    if (activePage && !activePage.isClosed()) console.error((await activePage.locator('body').innerText()).slice(-10000))
+    if (activePage && !activePage.isClosed()) {
+      console.error((await activePage.locator('body').innerText()).slice(-10000))
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+        await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+        await activePage.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'coordination-failure.png') })
+      }
+    }
     throw error
   } finally {
     await browser?.close(); await upstream?.close(); await stopProcess(app)

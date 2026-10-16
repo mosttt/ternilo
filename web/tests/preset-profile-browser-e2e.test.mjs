@@ -54,6 +54,8 @@ test('preset switches retain their shape and complete previews preserve editable
     assert.ok(JSON.parse(await complete.inputValue()).plugins.length > before.profile.plugins.length)
     const toggle = editor.locator(`[data-plugin-id="${inherited.id}"] [role="switch"]`)
     const checkSwitch = async element => {
+      // Measure the final hit target, not the dialog's 95% entrance scale.
+      await editor.evaluate(dialog => Promise.all(dialog.getAnimations().map(animation => animation.finished)))
       await element.scrollIntoViewIfNeeded()
       const root = await element.boundingBox()
       const track = await element.locator('[data-slot="switch-track"]').boundingBox()

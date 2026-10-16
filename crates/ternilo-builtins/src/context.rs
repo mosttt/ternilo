@@ -319,6 +319,7 @@ impl ContextManager {
             .models
             .complete(
                 ModelRequest {
+                    reasoning_recommendation: None,
                     prompt_cache: false,
                     run_id,
                     system_prompt:

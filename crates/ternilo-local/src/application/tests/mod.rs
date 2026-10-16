@@ -6,11 +6,16 @@ use ternilo_protocol::{
 };
 
 pub(super) fn test_data_dir() -> PathBuf {
+    static NEXT_DIR: AtomicU64 = AtomicU64::new(0);
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    std::env::temp_dir().join(format!("ternilo-local-test-{}-{nonce}", std::process::id()))
+    let sequence = NEXT_DIR.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "ternilo-local-test-{}-{nonce}-{sequence}",
+        std::process::id()
+    ))
 }
 
 pub(super) async fn open_test_application(data_dir: PathBuf) -> LocalApplication {

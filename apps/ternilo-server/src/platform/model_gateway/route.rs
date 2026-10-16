@@ -76,6 +76,11 @@ pub(super) fn resolve(
             max_tokens: Some(max_output),
             temperature: None,
             reasoning_effort,
+            automatic_reasoning_efforts: ternilo_protocol::automatic_reasoning_efforts(
+                snapshot.defaults.reasoning.as_ref(),
+                resolved.model.defaults.reasoning.as_ref(),
+                snapshot.reasoning_effort,
+            ),
             max_attempts: resolved.provider.max_attempts,
             retry_base_delay_ms: resolved.provider.retry_base_delay_ms,
         },
@@ -150,6 +155,7 @@ mod tests {
     #[test]
     fn conservative_budget_covers_wire_overhead_and_the_frozen_output_limit() {
         let request = ModelRequest {
+            reasoning_recommendation: None,
             prompt_cache: false,
             run_id: ternilo_protocol::RunId::new("model-test-run"),
             system_prompt: "System".to_owned(),

@@ -1,4 +1,11 @@
 export const zh = {
+  'tools.perToolInvalid': "请使用有效的工具名称，并为每项填写至少 256 的整数字符上限。",
+
+  'tools.perToolLimit': "按工具设置单条输出上限（字符）",
+  'tools.perToolLimitHint': "用 JSON 填写工具名称与字符数，例如 {\"read_file\":4096,\"search_files\":2048}。每项至少 256；未列出的工具使用默认值，总预算仍生效。{} 表示不单独设置。",
+  'tools.defaultResultLimit': "默认单条工具输出上限（字符）",
+  'tools.defaultResultLimitHint': "未单独设置的工具使用此上限。超长完整结果保存为附件，模型收到截短内容。",
+
   "plugins.overviewTab": "集中配置",
   "plugins.overviewDescription": "在此直接编辑可配置插件。与插件配置及团队面板共享草稿；每个插件独立保存或恢复继承。",
   "plugins.configSearch": "搜索插件或参数",
@@ -29,8 +36,10 @@ export const zh = {
 
   'optimization.promptCache': "提示前缀缓存",
   'optimization.promptCacheHint': "为 Anthropic Messages 的稳定系统提示添加缓存标记；默认关闭。其他协议保持供应商原有缓存行为。实际命中和费用以供应商返回为准。",
-  'optimization.reasoning': "自动推理强度：观察模式",
-  'optimization.reasoningHint': "按当前任务长度、工具调用和错误记录推理强度建议，用于评估。不会切换模型或更改实际推理强度，默认关闭。",
+  'optimization.reasoning': "记录推理强度建议",
+  'optimization.automaticReasoning': "自动调整推理强度",
+  'optimization.automaticReasoningHint': "按当前任务的输入长度、工具调用和错误，在模型已启用的档位中自动选择，最高到高档；手动所选档位作为上限。运行轨迹记录实际档位，不切换模型或改写已保存设置。默认关闭。",
+  'optimization.reasoningHint': "自动调整关闭时，按本轮输入长度、工具调用和错误记录建议，不改变实际档位。开启自动调整后会始终记录实际档位。",
 
   'plugins.configurationConflict': "会话配置正在更新，请稍后重试。已编辑内容会保留。",
   'codeMap.maxFiles': "一次分析的文件数上限",
@@ -860,6 +869,13 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  'tools.perToolInvalid': "Use valid tool names and an integer limit of at least 256 characters for each tool.",
+
+  'tools.perToolLimit': "Per-tool result limits (characters)",
+  'tools.perToolLimitHint': "Enter tool names and limits as JSON, for example {\"read_file\":4096,\"search_files\":2048}. Each limit must be at least 256. Unlisted tools use the default; the total history budget still applies. {} removes individual limits.",
+  'tools.defaultResultLimit': "Default tool result limit (characters)",
+  'tools.defaultResultLimitHint': "Used for tools without an individual limit. Full oversized results are retained as attachments; the model receives a shortened result.",
+
   "plugins.overviewTab": "All settings",
   "plugins.overviewDescription": "Edit configurable plugins here. Drafts are shared with Plugin configuration and the team panel; save or restore inheritance for each plugin separately.",
   "plugins.configSearch": "Search plugins or parameters",
@@ -890,8 +906,10 @@ export const en: Record<SettingsKey, string> = {
 
   'optimization.promptCache': "Prompt prefix caching",
   'optimization.promptCacheHint': "Add a cache breakpoint to stable system instructions for Anthropic Messages. Off by default. Other protocols keep their existing provider caching behavior. Actual cache hits and charges depend on the provider.",
-  'optimization.reasoning': "Automatic reasoning: observation mode",
-  'optimization.reasoningHint': "Record effort recommendations from current task length, tool calls and errors for evaluation. Does not switch models or change actual reasoning effort. Off by default.",
+  'optimization.reasoning': "Record reasoning recommendations",
+  'optimization.automaticReasoning': "Adjust reasoning effort automatically",
+  'optimization.automaticReasoningHint': "Select from the model’s enabled levels using current task length, tool calls and errors, up to high. A manually chosen level is the ceiling. The trace records the actual level; saved settings and models are unchanged. Off by default.",
+  'optimization.reasoningHint': "When automatic adjustment is off, record recommendations from current task length, tool calls and errors without changing the actual effort. Automatic adjustment always records its selection.",
 
   'plugins.configurationConflict': "Session configuration is being updated. Try again shortly; your edits are preserved.",
   'codeMap.maxFiles': "Maximum files per map",
@@ -1765,6 +1783,13 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  'tools.perToolInvalid': "유효한 도구 이름과 도구별 최소 256자의 정수 한도를 입력하세요.",
+
+  'tools.perToolLimit': "도구별 단일 출력 한도 (문자)",
+  'tools.perToolLimitHint': "도구 이름과 문자 수를 JSON으로 입력하세요. 예: {\"read_file\":4096,\"search_files\":2048}. 각 한도는 최소 256입니다. 지정하지 않은 도구는 기본값을 사용하며 총예산도 적용됩니다. {}는 개별 한도를 해제합니다.",
+  'tools.defaultResultLimit': "기본 단일 도구 출력 한도 (문자)",
+  'tools.defaultResultLimitHint': "개별 한도가 없는 도구에 적용됩니다. 긴 결과의 원문은 첨부파일로 보존되고 모델에는 줄인 내용이 전달됩니다.",
+
   "plugins.overviewTab": "통합 설정",
   "plugins.overviewDescription": "설정 가능한 플러그인을 바로 편집합니다. 플러그인 설정 및 팀 패널과 초안을 공유하며, 각 플러그인을 따로 저장하거나 상속 설정으로 복원합니다.",
   "plugins.configSearch": "플러그인 또는 매개변수 검색",
@@ -1795,8 +1820,10 @@ export const ko: Record<SettingsKey, string> = {
 
   'optimization.promptCache': "프롬프트 접두부 캐싱",
   'optimization.promptCacheHint': "Anthropic Messages의 안정적인 시스템 지침에 캐시 지점을 추가합니다. 기본값은 꺼짐입니다. 다른 프로토콜은 기존 공급자 캐싱을 유지하며 실제 적중과 요금은 공급자에 따릅니다.",
-  'optimization.reasoning': "자동 추론 강도: 관찰 모드",
-  'optimization.reasoningHint': "현재 작업 길이, 도구 호출과 오류를 바탕으로 평가용 강도 제안을 기록합니다. 모델이나 실제 추론 강도는 변경하지 않으며 기본값은 꺼짐입니다.",
+  'optimization.reasoning': "추론 강도 제안 기록",
+  'optimization.automaticReasoning': "추론 강도 자동 조절",
+  'optimization.automaticReasoningHint': "현재 작업 길이, 도구 호출과 오류를 바탕으로 모델에 활성화된 수준 중 최대 높음까지 선택합니다. 수동으로 선택한 수준이 상한입니다. 실제 수준을 실행 기록에 남기며 모델이나 저장된 설정은 바꾸지 않습니다. 기본값은 꺼짐입니다.",
+  'optimization.reasoningHint': "자동 조절이 꺼져 있으면 현재 작업 길이, 도구 호출과 오류에 따른 제안만 기록하고 실제 수준은 바꾸지 않습니다. 자동 조절은 실제 선택을 항상 기록합니다.",
 
   'plugins.configurationConflict': "세션 구성을 업데이트하고 있습니다. 잠시 후 다시 시도하세요. 편집 내용은 유지됩니다.",
   'codeMap.maxFiles': "분석당 최대 파일 수",

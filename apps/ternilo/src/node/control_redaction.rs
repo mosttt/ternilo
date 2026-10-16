@@ -219,6 +219,7 @@ mod tests {
             occurred_at_ms: 1_234,
             run_id: RunId::new("run-local"),
             kind: SessionEventKind::ModelRequestStarted {
+                context_usage: None,
                 step: 2,
                 system_prompt: format!("Working directory: {workspace}"),
             },

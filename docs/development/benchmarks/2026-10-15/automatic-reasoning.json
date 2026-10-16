@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-15",
+  "scope": "Opt-in automatic reasoning using configured model effort mappings",
+  "tests": {
+    "protocol": 40,
+    "builtins_filtered": 7,
+    "direct_provider_cases": 2,
+    "native_protocols": [
+      "openai-chat-completions",
+      "openai-responses",
+      "deepseek-responses",
+      "google-gemini",
+      "anthropic-messages"
+    ],
+    "source_computer_forwarding": 1,
+    "current_mapping_and_manual_ceiling": true,
+    "unsupported_native_budget_retains_existing_behavior": true
+  },
+  "browser": [
+    {
+      "contract": "coordination-browser-e2e.test.mjs",
+      "seconds": 46.23,
+      "locales": [
+        "zh",
+        "en",
+        "ko"
+      ],
+      "mobile_width": 320,
+      "settings_saved": true,
+      "trace_above_composer": true,
+      "unexpected_errors": []
+    },
+    {
+      "contract": "coordination-platform-browser-e2e.test.mjs",
+      "seconds": 44.18,
+      "execution_targets": [
+        "node",
+        "worker"
+      ],
+      "trace_persists_after_reload": true,
+      "unexpected_errors": []
+    }
+  ],
+  "request_assertions": {
+    "automatic_sequence": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "next_run_sequence": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "manual_low_ceiling": [
+      "low",
+      "low",
+      "low"
+    ],
+    "saved_model_unchanged": true
+  },
+  "checks": {
+    "protocol_builtins_local_cli_server_worker_all_targets_clippy": true,
+    "control_cloud_transport_store_transport_all_targets_check": true,
+    "typescript": true,
+    "ui_i18n": true,
+    "matched_builds": true,
+    "screenshots_reviewed": true
+  },
+  "published": false,
+  "note": "Deterministic task-length/tool/error policy; no provider-price or task-quality improvement is inferred from these functional checks."
+}

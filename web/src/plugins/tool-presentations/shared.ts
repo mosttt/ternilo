@@ -64,6 +64,8 @@ const exactTitles: Record<string, Parameters<Translate<'chat'>>[0]> = {
   git_inspect: 'tool.repositoryInspect',
   git_commit_paths: 'tool.repositoryCommit',
   github_list_prs: 'tool.pullList',
+  github_list_releases: 'tool.releaseList',
+  github_release_status: 'tool.releaseStatus',
   github_review_pr: 'tool.pullReview',
   github_create_pr: 'tool.pullCreate',
   github_merge_pr: 'tool.pullMerge',

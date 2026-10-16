@@ -73,6 +73,7 @@ impl Fixture {
                 reasoning_effort: None,
                 max_attempts: 3,
                 request: ModelRequest {
+                    reasoning_recommendation: None,
                     prompt_cache: false,
                     run_id: RunId::new("remote-run"),
                     system_prompt: "remote system prompt".to_owned(),
@@ -164,6 +165,27 @@ async fn next(
 async fn source_calls_upstream_streams_results_and_returns_tools_without_executing_them() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let mut fixture = Fixture::new(listener.local_addr().unwrap()).await;
+    let mut provider = fixture.application.provider_profiles().await.remove(0);
+    provider.defaults.reasoning = Some(serde_json::from_value(json!({"default_effort":"medium","efforts":{"low":"low","medium":"medium","high":"high"}})).unwrap());
+    fixture.request.defaults.reasoning = provider.defaults.reasoning.clone();
+    fixture
+        .request
+        .defaults
+        .reasoning
+        .as_mut()
+        .unwrap()
+        .efforts
+        .insert(
+            ternilo_protocol::ReasoningEffort::High,
+            Some("untrusted-high".into()),
+        );
+    fixture.request.request.reasoning_recommendation =
+        Some(ternilo_protocol::ReasoningEffort::High);
+    fixture
+        .application
+        .upsert_provider_profile(provider)
+        .await
+        .unwrap();
     // The current source configuration may reduce a previously selected limit.
     fixture.request.defaults.max_output_tokens = 512;
     let (continue_tx, continue_rx) = tokio::sync::oneshot::channel();
@@ -171,6 +193,10 @@ async fn source_calls_upstream_streams_results_and_returns_tools_without_executi
         let (mut socket, request) = accept_request(&listener).await;
         assert_eq!(request["model"], "test-model");
         assert_eq!(request["max_tokens"], 128);
+        assert_eq!(
+            request["reasoning_effort"], "medium",
+            "source policy excludes the changed snapshot mapping"
+        );
         assert_eq!(request["messages"][0]["content"], "remote system prompt");
         socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n").await.unwrap();
         send_chunk(
@@ -201,6 +227,10 @@ async fn source_calls_upstream_streams_results_and_returns_tools_without_executi
     let ModelGatewayFrame::Complete { response } = next(&mut receiver, &id).await else {
         panic!("expected completion")
     };
+    assert_eq!(
+        response.reasoning_selection.unwrap().selected,
+        Some(ternilo_protocol::ReasoningEffort::Medium)
+    );
     assert_eq!(response.tool_calls[0].name, "write_file");
     assert_eq!(response.tool_calls[0].arguments["path"], "result.txt");
     assert_eq!(response.usage.unwrap().input_tokens, 11);

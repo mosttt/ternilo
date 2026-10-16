@@ -311,6 +311,121 @@ async fn oversized_tool_output_is_spilled_and_resolves_after_restart() {
     tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
 }
 
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep limit overrides, invalid-save rollback and durable output recovery in one contract."
+)]
+async fn per_tool_result_limits_preserve_full_output_and_persist_across_restart() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("workspace");
+    tokio::fs::create_dir(&directory).await.unwrap();
+    let app = open_test_application(root.path().join("data")).await;
+    let workspace = app
+        .add_workspace(directory.to_str().unwrap())
+        .await
+        .unwrap();
+    let session = app
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let id = session.identity.session_id.as_str();
+    let config = |default, limit| {
+        vec![PluginEntry {
+            id: "session".into(),
+            kind: "ternilo.session.log".into(),
+            enabled: true,
+            config: serde_json::json!({"max_tool_result_chars":default,"tool_result_limits":{"read_file":limit}}),
+        }]
+    };
+    app.update_profile_plugins(id, config(12_000, 512))
+        .await
+        .unwrap();
+    assert!(
+        app.update_profile_plugins(id, config(12_000, 128))
+            .await
+            .is_err()
+    );
+    let payload = "文字내용".repeat(250);
+    tokio::fs::write(directory.join("result.txt"), &payload)
+        .await
+        .unwrap();
+    app.run_turn(id, None, "/read result.txt".into())
+        .await
+        .unwrap();
+    let retained = app
+        .events(id)
+        .await
+        .unwrap()
+        .into_iter()
+        .find_map(|event| match event.kind {
+            SessionEventKind::ToolCallFinished {
+                retained_output: Some(retained),
+                name,
+                ..
+            } if name == "read_file" => Some(retained),
+            _ => None,
+        })
+        .expect("the per-tool limit spills output below the default threshold");
+    app.shutdown().await.unwrap();
+    drop(app);
+    let restored = open_test_application(root.path().join("data")).await;
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(
+            &restored.resolve_attachment(retained).await.unwrap().content
+        )
+        .unwrap()["content"],
+        payload
+    );
+    let saved = restored
+        .snapshot()
+        .await
+        .sessions
+        .into_iter()
+        .find(|s| s.identity.session_id == session.identity.session_id)
+        .unwrap();
+    assert_eq!(
+        saved
+            .profile_plugins
+            .iter()
+            .find(|p| p.id == "session")
+            .unwrap()
+            .config["tool_result_limits"]["read_file"],
+        512
+    );
+    restored
+        .update_profile_plugins(id, config(256, 4096))
+        .await
+        .unwrap();
+    restored
+        .run_turn(id, None, "/read result.txt".into())
+        .await
+        .unwrap();
+    let events = restored.events(id).await.unwrap();
+    let latest = events
+        .iter()
+        .rev()
+        .find_map(|event| match &event.kind {
+            SessionEventKind::ToolCallFinished {
+                name,
+                output,
+                retained_output,
+                ..
+            } if name == "read_file" => Some((output, retained_output)),
+            _ => None,
+        })
+        .unwrap();
+    assert!(
+        latest.1.is_none(),
+        "an explicit larger limit replaces the default"
+    );
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&latest.0.content).unwrap()["content"],
+        payload
+    );
+    restored.shutdown().await.unwrap();
+}
+
 async fn verify_jobs_and_planning(application: &LocalApplication, session_id: &str) {
     let started_job = application
         .run_turn(

@@ -1,5 +1,8 @@
 #[path = "tool_output_budget.rs"]
 mod tool_output_budget;
+#[cfg(test)]
+#[path = "tool_result_limit_tests.rs"]
+mod tool_result_limit_tests;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -52,6 +55,13 @@ pub fn factory() -> PluginFactory {
                     "session max_tool_result_chars must be at least 256; max_tool_history_chars must be zero or at least 1024",
                 ));
             }
+            if config.tool_result_limits.iter().any(|(name, limit)| {
+                name.is_empty() || name.len() > 128 || name.chars().any(char::is_whitespace) || *limit < 256
+            }) {
+                return Err(HarnessError::composition(
+                    "tool_result_limits requires tool names and limits of at least 256 characters",
+                ));
+            }
             Ok(Arc::new(SessionLogPlugin { config }))
         },
     )
@@ -67,6 +77,8 @@ struct SessionLogConfig {
     max_tool_result_chars: usize,
     #[serde(default = "default_tool_history_chars")]
     max_tool_history_chars: usize,
+    #[serde(default)]
+    tool_result_limits: BTreeMap<String, usize>,
 }
 
 const fn default_tool_history_chars() -> usize {
@@ -103,6 +115,7 @@ impl HarnessPlugin for SessionLogPlugin {
         let scope = context.scope().clone();
         let max_tool_result_chars = self.config.max_tool_result_chars;
         let max_tool_history_chars = self.config.max_tool_history_chars;
+        let tool_result_limits = self.config.tool_result_limits.clone();
         Activation::Once(Box::pin(async move {
             let mut events = environment
                 .load_events()
@@ -128,6 +141,7 @@ impl HarnessPlugin for SessionLogPlugin {
                 commits: Arc::clone(&commits),
                 max_tool_result_chars,
                 max_tool_history_chars,
+                tool_result_limits,
             });
             scope
                 .provide::<Sessions>(&route, provider)
@@ -349,6 +363,7 @@ struct SessionLog {
     commits: Arc<SessionCommits>,
     max_tool_result_chars: usize,
     max_tool_history_chars: usize,
+    tool_result_limits: BTreeMap<String, usize>,
 }
 
 struct SessionLogState {
@@ -447,7 +462,12 @@ impl SessionLog {
             return Ok(());
         };
         let characters = output.content.chars().count();
-        if characters <= self.max_tool_result_chars {
+        let limit = self
+            .tool_result_limits
+            .get(name.as_str())
+            .copied()
+            .unwrap_or(self.max_tool_result_chars);
+        if characters <= limit {
             return Ok(());
         }
         let attachment = self
@@ -460,7 +480,7 @@ impl SessionLog {
             .await?;
         output.content = format!(
             "{}\n\n<tool_result_retained reference={:?} original_chars={characters} />",
-            prune_tool_result(&output.content, self.max_tool_result_chars),
+            prune_tool_result(&output.content, limit),
             attachment.content
         );
         *retained_output = Some(attachment);
@@ -610,8 +630,11 @@ impl SessionsProvider for SessionLog {
         _: CallContext<()>,
     ) -> Pin<Box<dyn Future<Output = Vec<ModelMessage>> + Send + 'a>> {
         Box::pin(async move {
-            let mut messages =
-                derive_model_messages(&self.state.lock().await.events, self.max_tool_result_chars);
+            let mut messages = derive_model_messages_with_limits(
+                &self.state.lock().await.events,
+                self.max_tool_result_chars,
+                &self.tool_result_limits,
+            );
             tool_output_budget::apply(&mut messages, self.max_tool_history_chars);
             messages
         })
@@ -636,6 +659,14 @@ fn command_only_runs(events: &[SessionEvent]) -> BTreeSet<RunId> {
 pub(crate) fn derive_model_messages(
     events: &[SessionEvent],
     max_tool_result_chars: usize,
+) -> Vec<ModelMessage> {
+    derive_model_messages_with_limits(events, max_tool_result_chars, &BTreeMap::new())
+}
+
+fn derive_model_messages_with_limits(
+    events: &[SessionEvent],
+    max_tool_result_chars: usize,
+    tool_result_limits: &BTreeMap<String, usize>,
 ) -> Vec<ModelMessage> {
     let active = ternilo_protocol::conversation_events(events);
     let events = active.as_ref();
@@ -731,6 +762,7 @@ pub(crate) fn derive_model_messages(
                 &event.run_id,
                 &response.tool_calls,
                 max_tool_result_chars,
+                tool_result_limits,
             ));
         }
     }
@@ -742,6 +774,7 @@ fn model_tool_responses(
     run_id: &RunId,
     calls: &[ToolCall],
     max_chars: usize,
+    tool_result_limits: &BTreeMap<String, usize>,
 ) -> Vec<ModelMessage> {
     let mut outputs = BTreeMap::new();
     let mut started = BTreeSet::new();
@@ -770,8 +803,13 @@ fn model_tool_responses(
     calls
         .iter()
         .filter_map(|call| {
+            let limit = tool_result_limits.get(&call.name);
             let content = if let Some(output) = outputs.get(call.id.as_str()) {
-                prune_tool_result(&output.content, max_chars)
+                if limit.is_some() {
+                    output.content.clone()
+                } else {
+                    prune_tool_result(&output.content, max_chars)
+                }
             } else {
                 // Live batches are not failures. Compaction and inspection may
                 // derive their current history while a tool is still running.
@@ -780,6 +818,10 @@ fn model_tool_responses(
                     started.contains(call.id.as_str()),
                 )
                 .content
+            };
+            let content = match limit {
+                Some(limit) => tool_output_budget::preview(&content, *limit),
+                None => content,
             };
             Some(tool_message(call.id.clone(), content))
         })
@@ -1269,6 +1311,7 @@ mod tests {
                         provider_request_id: None,
                         attempts: 1,
                         request_digest: None,
+                        reasoning_selection: None,
                         replayed: false,
                     },
                 },

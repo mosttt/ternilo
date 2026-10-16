@@ -18,6 +18,7 @@ fn model(protocol: ProviderProtocol, effort: Option<&str>) -> ProviderModel {
         max_tokens: Some(8192),
         temperature: None,
         reasoning_effort: effort.map(str::to_owned),
+        automatic_reasoning_efforts: ternilo_protocol::AutomaticReasoningEfforts::new(),
         max_attempts: 1,
         retry_base_delay_ms: 1,
         client: reqwest::Client::new(),
@@ -362,6 +363,7 @@ async fn native_http_streams_use_real_auth_endpoints_and_wait_for_complete_usage
             max_tokens: Some(8192),
             temperature: None,
             reasoning_effort: Some("high".to_owned()),
+            automatic_reasoning_efforts: ternilo_protocol::AutomaticReasoningEfforts::new(),
             max_attempts: 1,
             retry_base_delay_ms: 1,
         };

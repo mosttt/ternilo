@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "vite build && node scripts/write-pwa-version.mjs",
+    "build": "node scripts/build-document-math.mjs && vite build && node scripts/write-pwa-version.mjs",
     "typecheck": "tsc --noEmit",
     "verify:i18n": "node scripts/verify-core-ui-i18n.mjs",
     "verify:docs": "node scripts/verify-formal-docs.mjs",

@@ -9,6 +9,8 @@ use ternilo_kernel::{
 };
 use ternilo_protocol::{HarnessError, ToolOutput, ToolSpec};
 
+mod releases;
+
 pub const KIND: &str = "ternilo.tools.github";
 component_descriptor! { static DESCRIPTOR: () { id: "ternilo/builtin-github-tools@1", requires: [Tools, RunEnvironment], provides: [], } }
 #[derive(Clone, Deserialize, schemars::JsonSchema)]
@@ -50,6 +52,8 @@ struct Plugin {
 enum Operation {
     List,
     Review,
+    ListReleases,
+    ReleaseStatus,
     Create,
     Merge,
 }
@@ -76,7 +80,10 @@ impl HarnessPlugin for Plugin {
                         .register_tool(ToolRegistration {
                             spec,
                             effect: match operation {
-                                Operation::List | Operation::Review => ToolEffect::ReadOnly,
+                                Operation::List
+                                | Operation::Review
+                                | Operation::ListReleases
+                                | Operation::ReleaseStatus => ToolEffect::ReadOnly,
                                 Operation::Create | Operation::Merge => ToolEffect::Dangerous,
                             },
                             handler: Arc::new(GitHub {
@@ -109,6 +116,8 @@ fn specifications() -> Vec<(Operation, ToolSpec)> {
     [
         (Operation::List, "github_list_prs", "List repository pull requests. Read-only; authentication is optional for public repositories.", json!({"repository":repository,"state":{"type":"string","enum":["open","closed","all"]},"page":{"type":"integer","minimum":1}}), vec!["repository"]),
         (Operation::Review, "github_review_pr", "Read the exact PR head, changed files, commit statuses and check runs before reviewing or merging. Pagination flags identify incomplete results; fetch remaining pages before claiming a complete review.", json!({"repository":repository,"number":{"type":"integer","minimum":1},"files_page":{"type":"integer","minimum":1},"checks_page":{"type":"integer","minimum":1},"statuses_page":{"type":"integer","minimum":1},"expected_head":{"type":"string","description":"Require the head SHA from an earlier review page"}}), vec!["repository","number"]),
+        (Operation::ListReleases, "github_list_releases", "List releases visible to the configured GitHub identity, including drafts and prereleases when permitted. Read-only; follow has_more before claiming a complete list. Use github_release_status for the paginated asset inventory of a release.", json!({"repository":repository,"page":{"type":"integer","minimum":1}}), vec!["repository"]),
+        (Operation::ReleaseStatus, "github_release_status", "Read release metadata and a page of published asset metadata. Select tag or release_id, not both; omit both for GitHub's latest non-draft, non-prerelease release. Use release_id from github_list_releases for drafts. Follow has_more_assets before claiming a complete inventory. This does not download or verify assets, resolve a tag to a commit, or prove installation works.", json!({"repository":repository,"tag":{"type":"string"},"release_id":{"type":"integer","minimum":1},"assets_page":{"type":"integer","minimum":1}}), vec!["repository"]),
         (Operation::Create, "github_create_pr", "Publish a pull request only within the user's authorization. Defaults to a draft. Include the problem, behavior and validation in the body. Requires a configured credential and normal tool approval.", json!({"repository":repository,"title":{"type":"string"},"body":{"type":"string"},"head":{"type":"string"},"base":{"type":"string"},"draft":{"type":"boolean","default":true}}), vec!["repository","title","body","head","base"]),
         (Operation::Merge, "github_merge_pr", "Merge an authorized, reviewed pull request only at its expected head SHA. Review changes and checks first. GitHub enforces repository permissions; this does not delete branches or add a bypass flag. Requires configured credentials and normal tool approval.", json!({"repository":repository,"number":{"type":"integer","minimum":1},"expected_head":{"type":"string"},"method":{"type":"string","enum":["merge","squash","rebase"]}}), vec!["repository","number","expected_head"]),
     ].into_iter().map(|(operation,name,description,properties,required)| (operation, ToolSpec { name: name.into(), description: description.into(), input_schema: json!({"type":"object","properties":properties,"required":required,"additionalProperties":false}) })).collect()
@@ -351,6 +360,8 @@ impl GitHub {
                 )
             }
             Operation::Review => self.review(decode(arguments)?, key).await,
+            Operation::ListReleases => self.list_releases(decode(arguments)?, key).await,
+            Operation::ReleaseStatus => self.release_status(decode(arguments)?, key).await,
             Operation::Create => {
                 let args: Create = decode(arguments)?;
                 if args.title.trim().is_empty()

@@ -4,6 +4,7 @@ use ternilo_protocol::{
 
 pub(crate) fn observe(events: &[SessionEvent], run_id: &RunId) -> ReasoningObservation {
     let mut observation = ReasoningObservation {
+        selection: None,
         recommended: ReasoningEffort::Low,
         task_chars: 0,
         tool_calls: 0,

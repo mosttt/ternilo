@@ -100,6 +100,9 @@ struct ProviderModelConfig {
     temperature: Option<f32>,
     #[serde(default)]
     reasoning_effort: Option<String>,
+    #[serde(default)]
+    #[schemars(skip)]
+    automatic_reasoning_efforts: ternilo_protocol::AutomaticReasoningEfforts,
     #[serde(default = "default_max_attempts")]
     max_attempts: u32,
     #[serde(default = "default_retry_base_delay_ms")]
@@ -130,6 +133,7 @@ pub struct ProviderModelRoute {
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
     pub reasoning_effort: Option<String>,
+    pub automatic_reasoning_efforts: ternilo_protocol::AutomaticReasoningEfforts,
     pub max_attempts: u32,
     pub retry_base_delay_ms: u64,
 }
@@ -229,6 +233,7 @@ impl HarnessPlugin for ProviderModelPlugin {
             max_tokens: self.config.max_tokens,
             temperature: self.config.temperature,
             reasoning_effort: self.config.reasoning_effort.clone(),
+            automatic_reasoning_efforts: self.config.automatic_reasoning_efforts.clone(),
             max_attempts: self.config.max_attempts,
             retry_base_delay_ms: self.config.retry_base_delay_ms,
             client: self.client.clone(),
@@ -257,6 +262,7 @@ impl HarnessPlugin for ProviderModelPlugin {
     }
 }
 
+#[derive(Clone)]
 struct ProviderModel {
     provider: String,
     endpoint: String,
@@ -269,6 +275,7 @@ struct ProviderModel {
     max_tokens: Option<u32>,
     temperature: Option<f32>,
     reasoning_effort: Option<String>,
+    automatic_reasoning_efforts: ternilo_protocol::AutomaticReasoningEfforts,
     max_attempts: u32,
     retry_base_delay_ms: u64,
     client: reqwest::Client,
@@ -334,6 +341,7 @@ impl From<&ProviderModelConfig> for ProviderModelRoute {
             max_tokens: config.max_tokens,
             temperature: config.temperature,
             reasoning_effort: config.reasoning_effort.clone(),
+            automatic_reasoning_efforts: config.automatic_reasoning_efforts.clone(),
             max_attempts: config.max_attempts,
             retry_base_delay_ms: config.retry_base_delay_ms,
         }
@@ -373,6 +381,7 @@ pub async fn complete_provider_model(
         max_tokens: route.max_tokens,
         temperature: route.temperature,
         reasoning_effort: route.reasoning_effort,
+        automatic_reasoning_efforts: route.automatic_reasoning_efforts,
         max_attempts: route.max_attempts,
         retry_base_delay_ms: route.retry_base_delay_ms,
         client,

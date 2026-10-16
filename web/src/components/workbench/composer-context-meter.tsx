@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { Popover } from 'radix-ui'
 import { executionTargetKey, type ExecutionTarget } from '@/domain/execution-target'
 import {
   loadProviderInventory, peekProviderInventory, subscribeProviderInventory,
@@ -6,7 +7,7 @@ import {
 import { resolvedProviderModel } from '@/domain/provider-model'
 import { currentCloudModel, loadCloudModelInventory, peekCloudModelInventory, subscribeCloudModelInventory } from '@/domain/cloud-model-inventory'
 import type { Translate } from '@/i18n/runtime'
-import type { ModelSelection, SessionEvent } from '@/types'
+import type { ModelContextUsage, ModelSelection, SessionEvent } from '@/types'
 import css from './composer-context-meter.module.css'
 
 const RADIUS = 5.5
@@ -56,6 +57,22 @@ function latestMeasuredUsage(events: readonly SessionEvent[]): { input: number; 
   return null
 }
 
+const contextParts = [
+  ['system_chars', 'context.system'],
+  ['tool_schema_chars', 'context.tools'],
+  ['conversation_chars', 'context.messages'],
+  ['tool_output_chars', 'context.toolResults'],
+  ['additional_state_chars', 'context.additionalState'],
+] as const
+
+function latestContextUsage(events: readonly SessionEvent[]): ModelContextUsage | null {
+  const request = events.findLast(event => event.type === 'model_request_started')
+  const usage = request?.context_usage
+  if (!usage || ![...contextParts.map(([key]) => usage[key]), usage.unmeasured_attachments]
+    .every(value => Number.isSafeInteger(value) && value >= 0)) return null
+  return usage
+}
+
 export function ComposerContextMeter({
   model,
   events,
@@ -69,48 +86,33 @@ export function ComposerContextMeter({
 }) {
   const contextWindow = useContextWindow(model, target)
   const usage = React.useMemo(() => latestMeasuredUsage(events), [events])
+  const contextUsage = React.useMemo(() => latestContextUsage(events), [events])
   const [open, setOpen] = React.useState(false)
-  const rootRef = React.useRef<HTMLSpanElement>(null)
   const used = usage ? usage.input + usage.output : 0
-  const available = contextWindow !== null && usage !== null && used > 0
-
-  React.useEffect(() => {
-    if (!open) return
-    const pointer = (event: PointerEvent) => {
-      if (event.target instanceof Node && rootRef.current?.contains(event.target)) return
-      setOpen(false)
-    }
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
-    document.addEventListener('pointerdown', pointer)
-    document.addEventListener('keydown', key)
-    return () => {
-      document.removeEventListener('pointerdown', pointer)
-      document.removeEventListener('keydown', key)
-    }
-  }, [open])
-
+  const measured = contextWindow !== null && usage !== null && used > 0
+  const available = measured || contextUsage !== null
   React.useEffect(() => { if (!available) setOpen(false) }, [available])
-  if (!available || contextWindow === null || usage === null) return null
-  const percent = Math.min(100, Math.max(1, Math.round(used / contextWindow * 100)))
+  if (!available) return null
+  const ratio = measured ? Math.min(100, used / contextWindow * 100) : 0
+  const percent = Math.round(ratio)
+  const percentLabel = ratio < 1 ? '<1' : String(percent)
+  const textTotal = contextUsage ? contextParts.reduce((total, [key]) => total + contextUsage[key], 0) : 0
   return (
-    <span ref={rootRef} className={css.root}>
-      <button
-        type="button"
-        className={css.trigger}
-        aria-label={t('context.aria', { percent })}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(value => !value)}
-      >
-        <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-          <circle className={css.track} cx="7" cy="7" r={RADIUS} />
-          <circle className={css.fill} data-warning={percent >= 80 || undefined} cx="7" cy="7" r={RADIUS} strokeDasharray={`${CIRCUMFERENCE * percent / 100} ${CIRCUMFERENCE}`} transform="rotate(-90 7 7)" />
-        </svg>
-      </button>
-      {open && (
-        <div className={css.panel} role="dialog" aria-label={t('context.used')}>
-          <div className={css.header}><strong>{percent}%</strong><span>{t('context.used')}</span><code>{compact(used)} / {compact(contextWindow)}</code></div>
-          <div className={css.bar}><span style={{ width: `${percent}%` }} /></div>
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <span className={css.root}>
+        <Popover.Trigger asChild><button type="button" className={css.trigger} data-context-meter
+          aria-label={measured ? t('context.aria', { percent: percentLabel }) : t('context.details')}>
+          <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+            <circle className={css.track} cx="7" cy="7" r={RADIUS} />
+            <circle className={css.fill} data-warning={percent >= 80 || undefined} cx="7" cy="7" r={RADIUS}
+              strokeDasharray={`${CIRCUMFERENCE * ratio / 100} ${CIRCUMFERENCE}`} transform="rotate(-90 7 7)" />
+          </svg>
+        </button></Popover.Trigger>
+      </span>
+      <Popover.Portal><Popover.Content className={css.panel} side="top" align="end" sideOffset={8} collisionPadding={12} aria-label={t('context.details')}>
+        {measured && <>
+          <div className={css.header}><strong>{percentLabel}%</strong><span>{t('context.used')}</span><code>{compact(used)} / {compact(contextWindow)}</code></div>
+          <div className={css.bar}><span style={{ width: `${ratio}%` }} /></div>
           <dl>
             <div><dt>{t('context.input')}</dt><dd>{compact(usage.input)}</dd></div>
             <div><dt>{t('context.output')}</dt><dd>{compact(usage.output)}</dd></div>
@@ -118,10 +120,21 @@ export function ComposerContextMeter({
             <div><dt>{t('context.reasoning')}</dt><dd>{compact(usage.reasoning)}</dd></div>
             <div><dt>{t('context.window')}</dt><dd>{compact(contextWindow)}</dd></div>
           </dl>
-          <p>{t('context.measurement')}</p>
-          {percent >= 80 && <p>{t('context.warning')}</p>}
-        </div>
-      )}
-    </span>
+          <p className={css.note}>{t('context.measurement')}</p>
+        </>}
+        {contextUsage && <section className={css.composition} data-context-composition>
+          <div className={css.header}><strong>{t('context.composition')}</strong><code>{textTotal.toLocaleString()}</code></div>
+          <div className={css.compositionBar} aria-hidden="true">
+            {contextParts.map(([key], index) => <span key={key} data-part={index} style={{ width: `${textTotal ? contextUsage[key] / textTotal * 100 : 0}%` }} />)}
+          </div>
+          <dl>{contextParts.map(([key, label], index) => <div key={key} data-context-part={key}>
+            <dt><span className={css.swatch} data-part={index} />{t(label)}</dt><dd>{contextUsage[key].toLocaleString()}</dd>
+          </div>)}</dl>
+          <p className={css.note}>{t('context.compositionMeasurement')}</p>
+          {contextUsage.unmeasured_attachments > 0 && <p className={css.note}>{t('context.unmeasuredAttachments', { count: contextUsage.unmeasured_attachments })}</p>}
+        </section>}
+        {percent >= 80 && <p className={css.warning}>{t('context.warning')}</p>}
+      </Popover.Content></Popover.Portal>
+    </Popover.Root>
   )
 }

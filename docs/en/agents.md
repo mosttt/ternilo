@@ -56,9 +56,15 @@ The Usage tab shows the coordinator, descendants and totals for readable members
 
 The composer context indicator uses the selected model's context capacity and the last reported response's input, output, cache and reasoning usage. Later requests and compaction can change actual usage; it does not predict the exact size of the next request.
 
+Open the context indicator to see the latest request's text composition: system instructions, tool definitions and arguments, conversation, tool results, and reasoning/continuation state. These counts use the host request after compaction, lazy tool loading and output budgeting. Text uses Unicode character counts and structured values use JSON character counts, without converting them to tokens. Images and unresolved references are listed as unmeasured attachments. Older requests without composition records are not reconstructed from history; new records remain visible without a model window or upstream usage report.
+
+If tool definitions dominate, enable on-demand tool loading. If tool results dominate, adjust output budgets below. For long conversations, use `/compact`. On small screens, the panel stays within the viewport and scrolls internally.
+
 ## Tool output budgets and file read caching
 
 The session log plugin's history tool output budget defaults to 48,000 characters across results sent to the model, favoring recent results. Set 0 to disable this aggregate limit; the per-result limit still applies. Truncated results are labeled and retain call/result pairing. Durable history and full output attachments remain intact.
+
+To give individual tools different limits, enter JSON in “Per-tool output limits”, for example `{"read_file":4096,"search_files":2048}`. Use full tool names and at least 256 characters per entry. Each override replaces the default per-result limit and includes truncation notices; the aggregate history budget still applies afterward. Unlisted tools retain the default; `{}` clears overrides. Full oversized output is retained in attachments across restarts. These settings affect main-model tool results; compaction keeps its own summary budget.
 
 The local file plugin's read cache is a per-session byte budget and is disabled by default; 8,388,608 enables 8 MiB. Reads still check workspace paths, permissions, file type and file metadata. Tool writes and detected external changes invalidate entries. Directories, searches, commands and failures are not cached. A program that deliberately preserves all visible file metadata can evade version checks; disable caching when that behavior is expected.
 
@@ -68,11 +74,17 @@ The local file plugin's read cache is a per-session byte budget and is disabled 
 
 Defaults are 16 files and 256 KiB per file. Truncation and parse errors are reported; partial results are not a complete dependency graph. Dynamic calls are not resolved through type inference. The plugin is enabled locally by default. For managed execution, enable `code-map` and ensure Worker policy allows `ternilo.tools.code_map`.
 
-## Prompt caching and reasoning observation
+To assess a function or method change, select its symbol `id` from the map, pass it as `impact_symbol`, and list related files in `paths`. Results include direct and indirect candidate callers, locations and candidate files. `impact_depth` defaults to 8 and accepts 1–16; cycles are bounded. Ambiguous declarations, unknown dynamic targets, read/parse errors, truncation and depth limits are reported separately. Matching uses syntax names in the selected files, without resolving import aliases, types or dynamic dispatch; inspect the returned paths and lines.
 
-The agent loop exposes two options, both off by default. Prompt prefix caching adds Anthropic Messages cache markers to stable system instructions, with session identity and dynamic tool information following the stable block. Other protocols retain upstream behavior. Cache usage depends on provider reporting and does not guarantee savings.
+## Prompt caching and reasoning effort
 
-Automatic reasoning observation records a suggested effort and its evidence for each step. It uses current-turn input length, tool calls and errors. This deterministic observation does not switch models, change actual reasoning effort or check which effort levels the model supports. Change actual effort using the main or role model picker.
+Prompt prefix caching is off by default. It adds Anthropic Messages cache markers to stable system instructions, with session identity and dynamic tool information following the stable block. Other protocols retain upstream behavior. Cache usage depends on provider reporting.
+
+“Automatically adjust reasoning effort” in Agent loop settings is also off by default. Each main-model step suggests low, medium or high effort from the current turn's input length, tool calls and errors; the execution host selects a configured level supported by that model. More than 1,500 input characters, at least eight tool calls or any tool error suggests high. More than 240 characters or any tool call suggests medium; otherwise it suggests low. Errors from earlier turns do not affect a new task.
+
+Automatic selection is capped at high and by any lower manually selected main or role-model effort. For example, a role set to low cannot be raised to high automatically. The host prefers available levels no higher than the suggestion, then the lowest available level. Without an automatic mapping it retains the original setting and reports that choice. Model source and saved settings remain unchanged. Server and source computers verify the trusted mapping; Worker requests cannot expand it. Auxiliary title and compaction requests retain their settings.
+
+After a successful response, the conversation process shows the actual effort, suggestion and basis. “Record reasoning suggestions” provides observation-only behavior when automatic adjustment is off. Automatic adjustment always records its actual selection.
 
 ## Project memory and history search
 
@@ -86,6 +98,14 @@ Sessions using the same workspace directory share memory. Defaults are 64 entrie
 
 The GitHub plugin is off by default. `github_list_prs` and `github_review_pr` read PRs, changed files and checks; pagination flags indicate incomplete results. A head change during review requires a fresh review. `github_create_pr` defaults to a draft. `github_merge_pr` requires the reviewed head SHA and checks the returned `merged` flag rather than treating every successful HTTP response as a merge.
 
+`github_list_releases` lists releases visible to the configured identity, including drafts and prereleases when permitted. Follow `has_more` to read later pages. `github_release_status` selects the latest stable release by default; pass either `tag` or a `release_id` from the list for another release. Assets are paginated separately until `has_more_assets` is false.
+
+```json
+{"repository":"owner/repository","tag":"v1.0.0","assets_page":1}
+```
+
+The result preserves draft/prerelease flags, publication time, the target branch or commit string, and asset names, states, sizes and download URLs. `target_commitish` is not a resolved tag commit. Use these read-only results to choose what to download and verify; the query does not publish a release.
+
 Configure an API URL and a credential reference resolved on the execution host, not a literal token. Public reads can omit credentials. Private reads and publishing require suitable credentials and repository permissions; publishing also uses normal tool authorization. Nodes use credentials stored on that computer. Current managed Workers have no external network access: perform GitHub operations locally or on a connected computer. Enabling the plugin in an isolated Worker returns a clear restriction for GitHub calls without blocking other tools.
 
 ## Render and review documents
@@ -93,5 +113,7 @@ Configure an API URL and a credential reference resolved on the execution host, 
 Enable `ternilo.tools.document_review` and install Chrome/Chromium on the execution host. In a Worker, the browser must be available inside its existing isolation boundary. The browser command defaults to `chromium` and can be an executable name or path. Use a model that accepts images. The plugin is off by default locally and in managed execution; Worker policy must also allow it.
 
 Write Markdown or static HTML, call `render_document`, inspect every screenshot, correct the source and render again, then call `record_document_review` with a verdict and findings. Source is limited to 512 KiB, viewport width to 320–1920 pixels, viewport height to 480–1600 pixels, and output to eight screenshot pages. Page scripts and external/file URL resources are blocked; embed styles and images. This tool is intended for static documents.
+
+Markdown formulas use embedded KaTeX styles and fonts, with accessible MathML retained. Formulas render without external resources or host-installed math fonts; screenshots wait for fonts to load. Invalid formulas and untrusted HTML/link commands are rejected before screenshots. Formula overflow still requires correcting and rendering the document again.
 
 The conversation card shows durable screenshots, horizontal overflow, missing images, blocked resources and whether the rendered version awaits review, needs changes or was reviewed. Screenshots survive restarts and enter subsequent model requests. A changed source or newer render prevents passing an old screenshot. Detected layout/resource problems also prevent a pass. These metrics cover only part of document quality; accuracy and visual quality still require actually inspecting the screenshots.

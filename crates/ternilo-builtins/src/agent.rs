@@ -44,6 +44,8 @@ struct AgentConfig {
     prompt_cache: bool,
     #[serde(default)]
     observe_reasoning: bool,
+    #[serde(default)]
+    automatic_reasoning: bool,
     /// Maximum Agent steps requested per turn; 0 means no plugin limit. The host may impose a lower ceiling.
     #[serde(default = "default_max_steps")]
     max_steps: u32,
@@ -103,6 +105,7 @@ impl HarnessPlugin for ReactAgentPlugin {
         let provider: Arc<dyn AgentsProvider> = Arc::new(ReactAgent {
             prompt_cache: self.config.prompt_cache,
             observe_reasoning: self.config.observe_reasoning,
+            automatic_reasoning: self.config.automatic_reasoning,
             max_steps: self.config.max_steps,
             max_tool_calls: self.config.max_tool_calls,
             max_goal_rounds: self.config.goal_round_limit,
@@ -159,6 +162,7 @@ impl HarnessPlugin for ReactAgentPlugin {
 struct ReactAgent {
     prompt_cache: bool,
     observe_reasoning: bool,
+    automatic_reasoning: bool,
     max_steps: u32,
     max_tool_calls: u32,
     max_goal_rounds: u32,
@@ -1180,31 +1184,44 @@ impl ReactAgent {
                 }
                 system_prompt.push_str(&section);
             }
-            if self.observe_reasoning {
-                let observation =
-                    crate::reasoning_observation::observe(&self.sessions.events().await, &run_id);
+            let reasoning_observation = if self.observe_reasoning || self.automatic_reasoning {
+                Some(crate::reasoning_observation::observe(
+                    &self.sessions.events().await,
+                    &run_id,
+                ))
+            } else {
+                None
+            };
+            if !self.automatic_reasoning
+                && let Some(observation) = reasoning_observation.clone()
+            {
                 self.append(
                     &run_id,
                     SessionEventKind::ReasoningEffortObserved { step, observation },
                 )
                 .await?;
             }
-            self.append(
-                &run_id,
-                SessionEventKind::ModelRequestStarted {
-                    step,
-                    system_prompt: system_prompt.clone(),
-                },
-            )
-            .await?;
             let request = ModelRequest {
                 prompt_cache: self.prompt_cache,
+                reasoning_recommendation: reasoning_observation
+                    .as_ref()
+                    .filter(|_| self.automatic_reasoning)
+                    .map(|observation| observation.recommended),
                 run_id: run_id.clone(),
                 system_prompt,
                 messages: self.sessions.derive_messages().await,
                 tools: presentation.tools,
                 step,
             };
+            self.append(
+                &run_id,
+                SessionEventKind::ModelRequestStarted {
+                    step,
+                    system_prompt: request.system_prompt.clone(),
+                    context_usage: Some(request.context_usage()),
+                },
+            )
+            .await?;
             let output: Arc<dyn ModelOutput> = Arc::new(SessionModelOutput {
                 run_id: run_id.clone(),
                 step,
@@ -1221,6 +1238,22 @@ impl ReactAgent {
             };
             if let Err(error) = cancellation.check() {
                 return Err(self.fail(&run_id, error).await);
+            }
+            if self.automatic_reasoning
+                && let Some(mut observation) = reasoning_observation
+            {
+                observation.selection = Some(response.reasoning_selection.clone().unwrap_or(
+                    ternilo_protocol::ReasoningSelection {
+                        recommended: observation.recommended,
+                        selected: None,
+                        value: None,
+                    },
+                ));
+                self.append(
+                    &run_id,
+                    SessionEventKind::ReasoningEffortObserved { step, observation },
+                )
+                .await?;
             }
             self.append(
                 &run_id,
