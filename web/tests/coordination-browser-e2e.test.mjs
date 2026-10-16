@@ -220,7 +220,13 @@ test('coordination settings persist in all locales and a real delegated call use
     console.log(JSON.stringify({ locales: Object.keys(locales), roleModel: child.model.model, childReadOnly: true, errors }))
   } catch (error) {
     console.error(app?.diagnostics().slice(-6000))
-    if (activePage && !activePage.isClosed()) console.error((await activePage.locator('body').innerText()).slice(-10000))
+    if (activePage && !activePage.isClosed()) {
+      console.error((await activePage.locator('body').innerText()).slice(-10000))
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+        await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+        await activePage.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'coordination-failure.png') })
+      }
+    }
     throw error
   } finally {
     await browser?.close(); await upstream?.close(); await stopProcess(app)

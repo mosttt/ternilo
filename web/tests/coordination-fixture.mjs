@@ -187,12 +187,19 @@ export async function verifyReasoningDisplay(page, locale, artifact = locale) {
   const expected = { zh: '本步使用：低；建议：高', en: 'Used this step: Low; recommended: High', ko: '이번 단계: 낮음; 제안: 높음' }[locale]
   await until(() => observed.innerText(), text => text.includes(expected), 'recorded automatic reasoning selection')
   const tail = page.getByRole('button', { name: { zh: '回到底部', en: 'Back to bottom', ko: '맨 아래로' }[locale], exact: true })
-  if (await tail.isVisible()) await tail.click()
-  await until(() => observed.evaluate(element => {
+  const geometry = () => observed.evaluate(element => {
     const bounds = element.getBoundingClientRect()
     const composer = document.querySelector('[data-composer-seat]')?.getBoundingClientRect()
-    return bounds.top >= 0 && bounds.bottom <= (composer?.top ?? innerHeight)
-  }), value => value, 'automatic reasoning card is readable above the composer')
+    const scroll = element.closest('[data-conversation-scroll]')
+    return { top: bounds.top, bottom: bounds.bottom, composerTop: composer?.top ?? innerHeight,
+      scrollTop: scroll?.scrollTop, scrollHeight: scroll?.scrollHeight, clientHeight: scroll?.clientHeight }
+  })
+  const readable = value => value.top >= 0 && value.bottom <= value.composerTop
+  // Expanding a turn updates the tail control through ResizeObserver.
+  await until(async () => ({ ...await geometry(), canScroll: await tail.isVisible() }),
+    value => readable(value) || value.canScroll, 'expanded reasoning layout exposes its card or tail control')
+  if (await tail.isVisible()) await tail.click()
+  await until(geometry, readable, 'automatic reasoning card is readable above the composer')
   if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
     await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
     await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `automatic-reasoning-${artifact}.png`) })
