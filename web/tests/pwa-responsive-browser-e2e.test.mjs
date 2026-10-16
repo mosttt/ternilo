@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 import test from 'node:test'
 import { chromium } from 'playwright'
+import { until } from './model-device-fixture.mjs'
 
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const repository = path.resolve(webRoot, '..')
@@ -184,7 +185,8 @@ test('PWA installs, upgrades, opens an explicit credential-free offline shell, a
       })
     })
     await page.locator('[data-pwa-update]').waitFor()
-    await page.waitForFunction(async () => !(await caches.keys()).includes('ternilo-web-obsolete-browser-fixture'))
+    await until(() => page.evaluate(async () => !(await caches.keys()).includes('ternilo-web-obsolete-browser-fixture')),
+      value => value, 'obsolete PWA cache removed')
     const updateButton = page.getByRole('button', { name: '刷新应用' })
     await updateButton.waitFor()
     const updateBox = await updateButton.boundingBox()
@@ -235,6 +237,13 @@ test('PWA installs, upgrades, opens an explicit credential-free offline shell, a
       updateButton.click(),
     ])
     await page.getByText('visible-online-workspace', { exact: true }).first().waitFor()
+    // Reload registers the canonical worker again after the update fixture.
+    await until(() => page.evaluate(async () => {
+      const registration = await navigator.serviceWorker.getRegistration()
+      return registration?.active?.scriptURL === new URL('/service-worker.js', location.href).href
+        && !registration.installing && !registration.waiting
+        && navigator.serviceWorker.controller === registration.active
+    }), value => value, 'canonical service worker controls the reloaded page')
 
     await context.setOffline(true)
     await page.reload({ waitUntil: 'domcontentloaded' })
@@ -247,10 +256,22 @@ test('PWA installs, upgrades, opens an explicit credential-free offline shell, a
 
     await context.setOffline(false)
     // Observe an uncached network response before testing the offline-shell retry.
-    await page.waitForFunction(async () => {
-      try { const response = await fetch('/assets/boot.js', { cache: 'no-store' }); return response.ok }
+    await until(() => page.evaluate(async () => {
+      try { const response = await fetch('/service-worker.js', { cache: 'no-store' }); return response.ok }
       catch { return false }
-    })
+    }), value => value, 'page network recovery')
+    // Navigations fetch through the worker's network target, not the page's.
+    const controllerUrl = await page.evaluate(() => navigator.serviceWorker.controller.scriptURL)
+    await until(async () => {
+      const worker = context.serviceWorkers().findLast(candidate => candidate.url() === controllerUrl)
+      if (!worker) return { ok: false, error: 'controlling service worker target missing' }
+      return worker.evaluate(async () => {
+        try {
+          const response = await fetch('/service-worker.js', { cache: 'no-store' })
+          return { ok: response.ok, status: response.status }
+        } catch (error) { return { ok: false, error: String(error) } }
+      })
+    }, value => value.ok, 'controlling service worker network recovery')
     // Verify recovery below without coupling the click to service-worker navigation bookkeeping.
     await offlineAlert.getByRole('button', { name: '重试连接' }).click({ noWaitAfter: true })
     await page.waitForFunction(() => window.__TERNILO_BOOT__?.offline !== true)
@@ -260,7 +281,7 @@ test('PWA installs, upgrades, opens an explicit credential-free offline shell, a
   } catch (error) {
     const artifact = process.env.TERNILO_E2E_ARTIFACT_DIR
     if (artifact && page) { await mkdir(artifact, { recursive: true }); await page.screenshot({ path: path.join(artifact, 'pwa-failure.png') }).catch(() => {}) }
-    error.message += `\nNavigation evidence: ${JSON.stringify(navigations)}; current URL: ${page?.url()}`
+    console.error(`Navigation evidence: ${JSON.stringify(navigations)}; current URL: ${page?.url()}`)
     throw error
   } finally {
     if (context) await context.close()
