@@ -9,3 +9,5 @@
 首轮 [PR #5 检查](https://github.com/mosttt/ternilo/actions/runs/38914734255)发现 Rustls 0.23.45 和 Wasmtime 48.0.5 的新安全公告。依赖已分别定向升级至 0.23.46 和 48.0.6，并同步 Wasmtime 的 Cranelift 依赖；未增加公告忽略项。本机 `cargo deny --locked check advisories licenses sources`、5 项 WASM 合同及 Worker 构建通过；[补丁后的 CI](https://github.com/mosttt/ternilo/actions/runs/38917013948)安全审计、四平台检查、Rust 检查、SDK 和受限 PostgreSQL 合同也通过。
 
 该次 CI 在自动推理卡片的浏览器可见性检查失败。定位为测试在展开过程后立即读取“回到底部”按钮，早于 ResizeObserver 更新；错过按钮后便一直等待卡片自行移入视口。测试改为先等待卡片可见或导航按钮出现，再点击并检查卡片完整位于输入区上方，保留几何断言并增加失败截图。修复后的中英韩实际浏览器合同通过，页面、控制台和相关请求错误为空；继续等待最终 PR 检查。
+
+下一轮 macOS ARM 检查暴露了旧测试目录命名的并发碰撞：两个 fork 测试仅以进程号与系统时钟命名，在同一时钟刻度创建了同一个工作区目录。共享测试辅助函数增加进程内原子序号，保持原有“返回尚未创建的路径”约定；未改动产品代码或改为吞掉目录已存在错误。3 项 fork 合同本机通过，macOS 由后续原生 CI 验证。
