@@ -88,7 +88,8 @@ export function ComposerProjectionDock({ projection, busy = false, onGoalCommand
     if (await runGoalAction(action, objective)) setEditing(false)
   }
 
-  if (!visibleGoal && todos.length === 0) return null
+  const showTodos = todos.some(item => item.status !== 'completed')
+  if (!visibleGoal && !showTodos) return null
   const completed = todos.filter(item => item.status === 'completed').length
   const active = todos.filter(item => item.status === 'in_progress').length
   return (
@@ -136,7 +137,7 @@ export function ComposerProjectionDock({ projection, busy = false, onGoalCommand
           {error && <span className={css.goalError} role="alert">{error}</span>}
         </section>
       )}
-      {todos.length > 0 && (
+      {showTodos && (
         <section className={css.todos}>
           <button type="button" className={css.todoHeader} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
             <CheckCircle2 />

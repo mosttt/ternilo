@@ -21,11 +21,13 @@ import css from './session-toolbar.module.css'
 export function SessionToolbar({
   session,
   onSetPermissions,
+  lockedReason,
   open,
   onOpenChange,
 }: {
   session: LocalSession
   onSetPermissions(value: PermissionPreset): Promise<void>
+  lockedReason?: string
   open?: boolean
   onOpenChange?(open: boolean): void
 }) {
@@ -48,9 +50,10 @@ export function SessionToolbar({
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="start">
           <DropdownMenuLabel>{t('session.permissionCurrent')}</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={session.permissions} onValueChange={value => { if (canConfigure) void onSetPermissions(value as PermissionPreset) }}>
+          {lockedReason && <p className="max-w-64 px-2 py-1.5 text-sm text-muted-foreground" role="status">{lockedReason}</p>}
+          <DropdownMenuRadioGroup value={session.permissions} onValueChange={value => { if (canConfigure && !lockedReason) void onSetPermissions(value as PermissionPreset) }}>
             {permissionPresetsForPlacement(session.placement).map(value => (
-              <DropdownMenuRadioItem key={value} value={value} disabled={!canConfigure}>{permissionLabels[value]}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem key={value} value={value} disabled={!canConfigure || Boolean(lockedReason)}>{permissionLabels[value]}</DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>

@@ -162,6 +162,21 @@ async function waitForMember(id: string) {
   })
 }
 
+it('opens a mapped Node child from the canonical Team tree even when its event has a local ID', async () => {
+  const owner = session('owner')
+  const child = childSession('public-child', 'agent-node')
+  const unrelated = { ...childSession('other-child', 'agent-node'), parent_session_id: 'other-owner' }
+  vi.mocked(agentTeamApi.snapshot).mockResolvedValue(teamSnapshot([{ id: 'agent-node', label: 'Node reviewer' }]))
+  const open = vi.fn()
+  const events = [subagentEvent(1, { subagent_id: 'agent-node', session_id: 'node-private-id', transcript_kind: 'conversation' })]
+  render(surface(events, <AgentTeamTrigger />, { sessions: [owner, unrelated, child], onOpenSession: open }))
+  await act(async () => { button(host, '打开 Agent Team').click() })
+  await waitForMember('agent-node')
+  act(() => button(dialog(), '打开独立会话').click())
+  expect(open).toHaveBeenCalledWith('public-child')
+  expect(document.body.textContent).not.toContain('node-private-id')
+})
+
 describe('AgentTeamSurface', () => {
   it('uses the canonical child Session terminal event instead of a stale parent running event', async () => {
     vi.mocked(agentTeamApi.snapshot).mockResolvedValue(teamSnapshot([

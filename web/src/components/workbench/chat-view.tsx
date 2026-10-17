@@ -1,3 +1,4 @@
+import { useExecutionAvailability } from './execution-availability'
 import * as React from 'react'
 import { Hourglass } from 'lucide-react'
 import { currentTurnActivity, type ExecutionPhase } from '@/domain/turn-activity'
@@ -75,7 +76,8 @@ export function runningTurnStartedAt(events: SessionEvent[]) {
 }
 
 function TurnStatus({ startedAt, phase, t }: { startedAt: number; phase: ExecutionPhase; t: ChatTranslate }) {
-  const waiting = phase !== 'running'
+  const availability = useExecutionAvailability()
+  const waiting = phase !== 'running' || availability !== 'live'
   const [now, setNow] = React.useState(Date.now())
   React.useEffect(() => {
     if (waiting) return
@@ -84,10 +86,12 @@ function TurnStatus({ startedAt, phase, t }: { startedAt: number; phase: Executi
     return () => window.clearInterval(timer)
   }, [startedAt, waiting])
   const seconds = Math.floor(Math.max(0, now - startedAt) / 1_000)
-  const label = phase === 'waiting_for_workspace' ? 'chat.waitingForWorkspace'
+  const label = availability === 'offline' ? 'chat.offlineRun'
+    : availability === 'reconnecting' ? 'chat.reconnectingRun'
+    : phase === 'waiting_for_workspace' ? 'chat.waitingForWorkspace'
     : phase === 'waiting_for_subagents' ? 'chat.waitingForSubagents'
       : phase === 'waiting_for_capacity' ? 'chat.waitingForCapacity' : 'chat.deepDiving'
-  return <div className={css.running} role="status" aria-live="polite" data-execution-phase={phase} data-workspace-waiting={phase === 'waiting_for_workspace' || undefined}>
+  return <div className={css.running} role="status" aria-live="polite" data-execution-phase={availability === 'live' ? phase : 'unknown'} data-workspace-waiting={phase === 'waiting_for_workspace' || undefined}>
     {waiting ? <Hourglass size={13} className={css.waitingIcon} aria-hidden /> : <span className={css.runningDot} aria-hidden />}
     <span>{t(label)}</span>
     {!waiting && seconds >= 15 && <span>{t('duration.seconds', { seconds })}</span>}

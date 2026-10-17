@@ -1,3 +1,4 @@
+import { useExecutionAvailability } from './execution-availability'
 import * as React from 'react'
 import {
   Check, ChevronRight, CircleAlert, LoaderCircle, PanelRight,
@@ -18,6 +19,7 @@ function ToolBranch({ trace, selectedCallId, onSelect, t }: {
   onSelect(trace: ToolTrace): void
   t: ChatTranslate
 }) {
+  const available = useExecutionAvailability() === 'live'
   const presentation = useToolPresentation(trace)
   const [open, setOpen] = React.useState(false)
   if (!presentation) throw new Error('tool presentation registry has no matching contribution')
@@ -27,11 +29,11 @@ function ToolBranch({ trace, selectedCallId, onSelect, t }: {
   const badge = presentation.contribution.badge?.(trace, t)
   const expandable = presentation.result !== null
   const state = !trace.output
-    ? 'running'
+    ? available ? 'running' : 'unknown'
     : trace.output.content === 'tool_call_cancelled'
       ? 'cancelled'
       : trace.output.is_error ? 'error' : 'complete'
-  const statusLabel = state === 'running'
+  const statusLabel = state === 'unknown' ? t('row.unknown') : state === 'running'
     ? t('row.running')
     : state === 'cancelled'
       ? t('row.cancelled')
@@ -52,9 +54,9 @@ function ToolBranch({ trace, selectedCallId, onSelect, t }: {
         <Icon className={css.icon} aria-hidden />
         <strong>{title}</strong>
         {badge && <span className={css.codeBadge} data-tool-badge="">{badge}</span>}
-        <span className={css.state} aria-hidden>{state === 'running' ? <LoaderCircle className="animate-spin" /> : state === 'error' || state === 'cancelled' ? <CircleAlert /> : <Check />}</span>
+        <span className={css.state} aria-hidden>{state === 'running' ? <LoaderCircle className="animate-spin" /> : state === 'error' || state === 'cancelled' || state === 'unknown' ? <CircleAlert /> : <Check />}</span>
         {target && <code className={css.target}>{target}</code>}
-        <span className={css.duration}>{state === 'cancelled' ? t('row.cancelled') : trace.output ? formatDuration(trace.durationMs) : t('row.running')}</span>
+        <span className={css.duration}>{state === 'cancelled' ? t('row.cancelled') : trace.output ? formatDuration(trace.durationMs) : statusLabel}</span>
         {expandable && <ChevronRight className={css.chevron} data-open={open || undefined} aria-hidden />}
       </button>
       <button type="button" className={css.inspect} data-tool-call-inspect="" aria-label={t('tool.inspect', { name: trace.name })} onClick={() => onSelect(trace)}><PanelRight aria-hidden /></button>

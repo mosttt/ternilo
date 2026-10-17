@@ -84,3 +84,14 @@ test('highlights an open streaming code fence and keeps its token tree when sett
   assert.equal(streamingCode.innerHTML, settledCode?.innerHTML)
   assert.equal(open.textContent, '')
 })
+
+
+test('recognizes Node-redacted image paths without rewriting code or opening host URLs', () => {
+  const source = '![Result](<local-workspace>/map.png)'
+  const rendered = fragment(source)
+  assert.equal(rendered.querySelector('[data-workspace-image]')?.getAttribute('data-workspace-image'), '%3Clocal-workspace%3E/map.png')
+  assert.equal(rendered.querySelector('img'), null)
+  const code = fragment('`' + source + '`')
+  assert.equal(code.querySelector('code')?.textContent, source)
+  assert.equal(code.querySelector('[data-workspace-image]'), null)
+})

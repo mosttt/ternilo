@@ -10,7 +10,7 @@ import { fileBlob, fileBytes, fileImage, textFile } from '@/domain/file-content'
 import { useLocale, useTranslate } from '@/i18n/provider'
 import { localeTag } from '@/i18n/runtime'
 import { useWorkbench } from '@/state/workbench'
-import { fileFilters, fileKey, filesLocation, listFiles, readFileContent, type FileFilters, type FilePage, type SessionFile, type SessionFileContent } from './files-api'
+import { fileFilters, fileKey, groupFileVersions, filesLocation, listFiles, readFileContent, type FileFilters, type FilePage, type SessionFile, type SessionFileContent } from './files-api'
 import css from './files-page.module.css'
 import { FilesNavigation } from './files-navigation'
 import { fileInventoryKey, fileInventoryRevision, invalidateFileInventory, peekFileInventory, rememberFileInventory, subscribeFileInventory } from '@/domain/file-inventory'
@@ -160,13 +160,15 @@ function FileList({ filters }: { filters: FileFilters }) {
     if (canOpenSession(file)) { selectSession(file.session_id); navigate('/') }
     else navigate(filesLocation({ session_id: file.session_id }))
   }
+  const groups = React.useMemo(() => groupFileVersions(page.items), [page.items])
   const dates = React.useMemo(() => new Intl.DateTimeFormat(localeTag(locale), { dateStyle: 'medium', timeStyle: 'medium' }), [locale])
   const offlineNames = [...new Set(page.offline_sources.map(source => snapshot.workspaces.find(workspace => workspace.workspace_id === source.workspace_id)?.title || source.workspace_id))]
   return <div className={css.results} data-file-results="">
     {page.offline_sources.length > 0 && <div className={css.offlineNotice} role="status" data-files-offline=""><CloudOff /><div><p>{t('offlineNotice')}</p><p>{t('offlineWorkspaces', { names: offlineNames.join('、') })}</p></div></div>}
-    {page.items.length > 0 && <p className={css.loadedCount}>{t('loadedCount', { count: page.items.length })}</p>}
+    {page.items.length > 0 && <p className={css.loadedCount}>{t('loadedCount', { count: groups.length })}</p>}
     <ul className={css.fileList} aria-label={t('title')}>
-      {page.items.map(file => {
+      {groups.map(versions => {
+        const file = versions[0]!
         const key = fileKey(file)
         const Icon = file.media_type.startsWith('image/') ? FileImage : FileText
         return <li className={css.fileRow} key={key} data-file-id={file.id} data-file-session={file.session_id}>
@@ -176,6 +178,15 @@ function FileList({ filters }: { filters: FileFilters }) {
             {file.path && file.path !== file.name && <p className={css.filePath} title={file.path}>{file.path}</p>}
             <div className={css.fileMeta}><span>{file.workspace_name}</span><span>{file.session_title}</span><button onClick={() => openSource(file)}>{t(canOpenSession(file) ? 'openSession' : 'sessionFiles')}<ArrowUpRight /></button>{!canOpenSession(file) && <span>{t(file.session_archived ? 'archivedSession' : 'unloadedSession')}</span>}</div>
             <div className={css.fileMeta}><span className={css.kind}>{t(file.kind)}</span><time dateTime={new Date(file.occurred_at_ms).toISOString()}>{dates.format(file.occurred_at_ms)}</time>{file.kind === 'generated' && <span>{t('generatedRecord', { event: file.event_seq })}</span>}{file.source_status === 'offline' && <span className={css.offline}><CloudOff />{t('offline')}</span>}</div>
+            {versions.length > 1 && <details className={css.versions} data-file-versions="">
+              <summary>{t('versions', { count: versions.length })}</summary>
+              <ul>{versions.map((version, index) => <li key={fileKey(version)}>
+                <button type="button" onClick={() => setSelected(version)}>{index === 0 ? `${t('latestVersion')} · ` : ''}{dates.format(version.occurred_at_ms)} · {version.session_title} · {t('generatedRecord', { event: version.event_seq })}</button>
+                <Button type="button" variant="ghost" size="icon" disabled={downloading !== null}
+                  aria-label={t('downloadVersion', { event: version.event_seq })} onClick={() => void download(version)}><Download /></Button>
+                {downloadError?.key === fileKey(version) && fileKey(version) !== key && <p role="alert">{t('downloadError', { message: downloadError.message })}</p>}
+              </li>)}</ul>
+            </details>}
             {downloadError?.key === key && <p className={css.actionError} role="alert">{t('downloadError', { message: downloadError.message })}</p>}
           </div>
           <Button variant="ghost" size="icon" className={css.download} disabled={downloading !== null} aria-label={t('downloadFile', { name: file.name })} title={t('downloadFile', { name: file.name })} onClick={() => void download(file)}>{downloading === key ? <LoaderCircle className={css.spinner} /> : <Download />}</Button>

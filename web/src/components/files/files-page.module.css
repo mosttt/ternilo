@@ -96,3 +96,10 @@
 }
 @media (max-width: 420px) { .searchField { grid-column: 1 / -1; } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+.versions { margin-top: 10px; font-size: 13px; color: var(--label-secondary); }
+.versions summary { cursor: pointer; padding: 6px 0; }
+.versions ul { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
+.versions li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.versions li > button:first-child { min-width: 0; flex: 1; text-align: left; overflow-wrap: anywhere; padding: 6px 0; }
+.versions button:hover { color: var(--foreground); text-decoration: underline; }

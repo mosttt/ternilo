@@ -1,6 +1,8 @@
+import { useExecutionAvailability } from './execution-availability'
 import * as React from 'react'
 import { Bot, ExternalLink, LoaderCircle, Mail, Send, Square, UserRound } from 'lucide-react'
-import { addressableSubagentSession, type SubagentView } from '@/domain/observability'
+import type { SubagentView } from '@/domain/observability'
+import { teamSessionIds } from '@/domain/team-usage'
 import type { Translate } from '@/i18n/runtime'
 import type { AgentTeamSnapshot, LocalSession } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -30,15 +32,9 @@ function readOnlyReason(subagent: SubagentView, t: Translate<'observability'>) {
   return t('team.readOnly.settled')
 }
 
-function memberSession(memberId: string | null | undefined, live: SubagentView | undefined, sessions: readonly LocalSession[]) {
-  if (!memberId) return null
-  if (!live?.sessionId) return sessions.find(session => session.subagent?.subagent_id === memberId) ?? null
-  if (live.transcriptKind !== 'conversation') return null
-  return addressableSubagentSession(live, sessions)
-}
-
 export function AgentTeamRoster({
   snapshot,
+  currentSessionId,
   subagents,
   sessions,
   selectedMemberId,
@@ -52,6 +48,7 @@ export function AgentTeamRoster({
   t,
 }: {
   snapshot: AgentTeamSnapshot
+  currentSessionId: string
   subagents: readonly SubagentView[]
   sessions: readonly LocalSession[]
   selectedMemberId: string | null
@@ -65,6 +62,8 @@ export function AgentTeamRoster({
   t: Translate<'observability'>
 }) {
   const settings = useTranslate('settings')
+  const available = useExecutionAvailability() === 'live'
+  const memberSessions = teamSessionIds(snapshot, currentSessionId, sessions)
   const roleLabels = {
     investigator: settings('coordination.role.investigator'),
     implementer: settings('coordination.role.implementer'),
@@ -94,11 +93,12 @@ export function AgentTeamRoster({
   return <div className={css.roster} role="list" aria-label={t('team.roster')}>
     {snapshot.members.map(member => {
       const live = member.subagent_id ? liveById.get(member.subagent_id) : undefined
-      const addressed = memberSession(member.subagent_id, live, sessions)
+      const addressed = sessions.find(session => session.identity.session_id === memberSessions.get(member.id)
+        && session.identity.session_id !== currentSessionId)
       const current = member.id === snapshot.current_member_id
       const selected = member.id === selectedMemberId
-      const canFollowup = !readOnly && live?.supportsFollowup === true && (live.status === 'idle' || live.status === 'failed')
-      const canStop = allowStop && live?.status === 'running'
+      const canFollowup = available && !readOnly && live?.supportsFollowup === true && (live.status === 'idle' || live.status === 'failed')
+      const canStop = available && allowStop && live?.status === 'running'
       const followupKey = `followup:${live?.id ?? member.id}`
       const stopKey = `stop:${live?.id ?? member.id}`
       const draft = drafts[member.id] ?? ''
@@ -108,7 +108,7 @@ export function AgentTeamRoster({
         ref={selected ? selectedRef : undefined}
         className={css.member}
         data-agent-team-member={member.subagent_id ?? member.id}
-        data-status={live?.status ?? (current ? 'current' : 'available')}
+        data-status={!available && live?.status === 'running' ? 'unknown' : live?.status ?? (current ? 'current' : 'available')}
         data-selected={selected || undefined}
         style={{ '--team-member-depth': memberDepth(member.id, snapshot) } as React.CSSProperties}
         role="listitem"
@@ -120,8 +120,8 @@ export function AgentTeamRoster({
             <strong>{member.label}{current ? <em>{t('team.member.you')}</em> : null}</strong>
             <small>{member.role === 'lead' ? t('team.role.lead') : addressed?.subagent?.role ? roleLabels[addressed.subagent.role] : member.provider || t('team.providerUnknown')}</small>
           </span>
-          <span className={css.dot} data-status={live?.status ?? (current ? 'current' : 'available')} aria-hidden="true" />
-          <span className={css.status}>{live ? liveStatusLabel(live.status, t) : current ? t('team.member.current') : t('team.member.available')}</span>
+          <span className={css.dot} data-status={!available && live?.status === 'running' ? 'unknown' : live?.status ?? (current ? 'current' : 'available')} aria-hidden="true" />
+          <span className={css.status}>{live ? !available && live.status === 'running' ? t('activity.unconfirmed') : liveStatusLabel(live.status, t) : current ? t('team.member.current') : t('team.member.available')}</span>
         </header>
         {parentName && <div className={css.memberMeta}>{t('team.member.reportsTo', { name: parentName })}</div>}
         <section className={css.fact}>

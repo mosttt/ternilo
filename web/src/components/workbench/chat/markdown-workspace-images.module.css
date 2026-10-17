@@ -1,0 +1,9 @@
+.notice { display: inline-flex; max-width: 100%; align-items: center; gap: 8px; font-size: 14px; color: var(--label-secondary); overflow-wrap: anywhere; }
+.notice svg { width: 16px; height: 16px; flex: none; }
+.notice button { padding: 6px; border-radius: 6px; }
+.preview { display: block; max-width: 100%; padding: 0; border: 0; border-radius: 8px; overflow: hidden; cursor: zoom-in; }
+.preview img { display: block; max-width: 100%; max-height: 560px; object-fit: contain; }
+.preview:focus-visible, .notice button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

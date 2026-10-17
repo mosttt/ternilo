@@ -69,6 +69,25 @@ describe('Session permission placement policy', () => {
     expect(onSetPermissions).not.toHaveBeenCalled()
   })
 
+  it('explains why a running turn locks permissions and enables them again when idle', () => {
+    const update = vi.fn(async () => undefined)
+    const show = (lockedReason?: string) => act(() => root.render(<LocaleProvider>
+      <SessionToolbar session={{ ...session, placement: 'local_node' }} lockedReason={lockedReason} onSetPermissions={update} open />
+    </LocaleProvider>))
+    show('当前轮次正在运行，请等待结束或停止后再修改权限。')
+    expect(document.querySelector('[role="menu"]')?.textContent).toContain('当前轮次正在运行')
+    for (const item of document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')) {
+      expect(item.hasAttribute('data-disabled')).toBe(true)
+      act(() => item.click())
+    }
+    expect(update).not.toHaveBeenCalled()
+    show()
+    const option = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(item => item.textContent === '只读')!
+    expect(option.hasAttribute('data-disabled')).toBe(false)
+    act(() => option.click())
+    expect(update).toHaveBeenCalledWith('read_only')
+  })
+
   it('hides full access for Cloud Sessions and keeps it for local-node Sessions', () => {
     expect(render(session)).toEqual(['只读', '工作区写入'])
     act(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))

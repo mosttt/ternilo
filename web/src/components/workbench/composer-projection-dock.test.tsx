@@ -36,6 +36,16 @@ describe('ComposerProjectionDock', () => {
     expect(host.textContent).toContain('完成 Composer')
   })
 
+  it('removes completed todos from the dock without changing their retained projection', () => {
+    const projection = { session_id: 's', as_of_seq: 3, values: { todos: { items: [{ step: 'Deliver', status: 'completed' }] } } }
+    act(() => root.render(<ComposerProjectionDock t={t} projection={projection} />))
+    expect(host.innerHTML).toBe('')
+    expect(projection.values.todos.items).toHaveLength(1)
+    projection.values.todos.items.push({ step: 'Follow up', status: 'pending' })
+    act(() => root.render(<ComposerProjectionDock t={t} projection={projection} />))
+    expect(host.textContent).toContain('1/2')
+  })
+
   it('does not invent a dock when the projection capability is absent', () => {
     act(() => root.render(<ComposerProjectionDock t={t} projection={{ session_id: 's', as_of_seq: null, values: {} }} />))
     expect(host.innerHTML).toBe('')

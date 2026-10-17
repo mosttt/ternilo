@@ -1,3 +1,5 @@
+import { api } from '@/api/client'
+import { WorkspaceImageContext } from './markdown-workspace-images'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,10 +33,43 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
+  vi.restoreAllMocks()
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
 })
 
 describe('AssistantMarkdown code copy', () => {
+  it('loads local images through the session workspace and discards them on account changes', async () => {
+    const request = vi.spyOn(api, 'request').mockResolvedValue({ encoding: 'base64', media_type: 'image/png', content: 'iVBORw0KGgo=', truncated: false })
+    const render = (source: string, scope = 'owner') => act(async () => root.render(
+      <WorkspaceImageContext.Provider value={{ sessionId: 'public-session', root: '/home/project', scope }}>
+        <AssistantMarkdown source={source} streaming={false} t={t} />
+      </WorkspaceImageContext.Provider>,
+    ))
+    await render('![Map](/home/project/image.png)')
+    expect(request).toHaveBeenCalledWith('/sessions/public-session/workspace', expect.objectContaining({ method: 'POST', body: { kind: 'read', path: 'image.png' } }))
+    expect(host.querySelector('img')?.src).toBe('data:image/png;base64,iVBORw0KGgo=')
+    await render('![Map](/home/project/image.png)')
+    expect(host.querySelector('img')).not.toBeNull()
+    expect(request).toHaveBeenCalledTimes(1)
+    request.mockRejectedValue(new Error('denied'))
+    await render('![Map](/home/project/image.png)', 'other-account')
+    expect(host.querySelector('img')).toBeNull()
+    expect(host.textContent).toContain('image.workspaceUnavailable')
+    await render('![Secret](/etc/secret.png)')
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(host.textContent).toContain('image.outsideWorkspace')
+  })
+
+  it('renders a redacted Node workspace destination as an image, not literal Markdown', async () => {
+    const request = vi.spyOn(api, 'request').mockResolvedValue({ encoding: 'base64', media_type: 'image/png', content: 'iVBORw0KGgo=', truncated: false })
+    await act(async () => root.render(<WorkspaceImageContext.Provider value={{ sessionId: 'node-session', root: '/home/project', scope: 'owner' }}>
+      <AssistantMarkdown source={'Delivered.\n\n![Result](<local-workspace>/image.png)'} streaming={false} t={t} />
+    </WorkspaceImageContext.Provider>))
+    expect(request).toHaveBeenCalledWith('/sessions/node-session/workspace', expect.objectContaining({ body: { kind: 'read', path: 'image.png' } }))
+    expect(host.querySelector('img')?.alt).toBe('Result')
+    expect(host.textContent).not.toContain('![Result]')
+  })
+
   it('shows a localized result instead of leaking a rejected clipboard promise', async () => {
     act(() => root.render(<AssistantMarkdown source={'```rust\nfn main() {}\n```'} streaming={false} t={t} />))
     const copy = host.querySelector<HTMLButtonElement>('.markdown-copy')!

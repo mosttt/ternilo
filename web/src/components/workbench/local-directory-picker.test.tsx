@@ -116,6 +116,23 @@ function key(element: Element, value: string) {
 }
 
 describe('DirectoryBrowser navigation', () => {
+  it('shows the actual home path and navigates above home without editing it', async () => {
+    const listDirectory = vi.fn(async (path?: string) => path === '/home' || path === '/' ? {
+      path, home: HOME, crumbs: listing().crumbs.filter(crumb => path === '/' ? crumb.path === '/' : crumb.path !== HOME),
+      entries: [], truncated: false,
+    } : listing(path))
+    renderBrowser({ listDirectory })
+    await flush()
+    expect(document.querySelector('[data-directory-path]')?.textContent).toBe(HOME)
+    click(button('上级目录'))
+    await flush()
+    expect(listDirectory).toHaveBeenCalledWith('/home', expect.any(AbortSignal))
+    click(button('上级目录'))
+    await flush()
+    expect(document.querySelector('[data-directory-path]')?.textContent).toBe('/')
+    expect(button('上级目录').disabled).toBe(true)
+  })
+
   it('lands a selected directory as a Miller pair and aborts a superseded child scan', async () => {
     let resolveChild!: (value: DirectoryListing) => void
     let childSignal: AbortSignal | undefined

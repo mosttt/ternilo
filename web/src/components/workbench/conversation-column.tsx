@@ -1,3 +1,6 @@
+import { WorkspaceImageContext } from './chat/markdown-workspace-images'
+import { ExecutionAvailabilityContext } from './execution-availability'
+import { SubagentActivity } from './subagent-activity'
 import { PluginsSettings } from '@/components/settings/plugins-settings'
 import { HistoryScrollPreserver } from './history-scroll-preserver'
 import { ComposerTakeover } from './composer-takeover'
@@ -5,7 +8,7 @@ import { canAnswerQuestion, ownsExecutionConfiguration, resourcePermissions } fr
 import * as React from 'react'
 import { BrandMark } from '@/components/ui/brand-mark'
 import { AlertCircle, Bot, Check, ChevronDown, CircleGauge, Ellipsis, FolderOpen, LoaderCircle, Menu, RotateCcw } from 'lucide-react'
-import { api } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import { ConversationScrollMemory, type ConversationView } from '@/domain/conversation-scroll-memory'
 import { followAfterScroll, outerScrollReceives, touchScrollTarget, visibleOutputPosition, type ScrollIntent } from '@/domain/conversation-follow'
 import { presentRuntimeError } from '@/domain/runtime-error'
@@ -206,6 +209,18 @@ export function ConversationColumn({
   const [modelLimitSessionId, setModelLimitSessionId] = React.useState<string | null>(null)
   const [fullAccessOpen, setFullAccessOpen] = React.useState(false)
   const [fullAccessBusy, setFullAccessBusy] = React.useState(false)
+  const permissionRequest = React.useRef<symbol | null>(null)
+  const permissionLockedReason = runtime.busy ? t('permission.busy')
+    : runtime.loading || runtime.historyError || nodeOffline ? t('permission.unavailable')
+      : fullAccessBusy ? t('permission.fullAccessApplying') : undefined
+  React.useEffect(() => {
+    permissionRequest.current = null
+    setFullAccessOpen(false)
+    setFullAccessBusy(false)
+  }, [accountScope, currentSession?.identity.session_id])
+  React.useEffect(() => {
+    if (runtime.busy || !permissions.configure) setFullAccessOpen(false)
+  }, [runtime.busy, permissions.configure])
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false)
   const [permissionMenuOpen, setPermissionMenuOpen] = React.useState(false)
   React.useEffect(() => { setModelMenuOpen(false); setPermissionMenuOpen(false) }, [currentSession?.identity.session_id])
@@ -642,32 +657,44 @@ export function ConversationColumn({
       notify(cause instanceof Error ? cause.message : String(cause), 'error')
     }
   }
-  const applyPermissions = async (permissions: PermissionPreset) => {
-    if (!currentSession) return false
-    try {
-      await updateSession(currentSession.identity.session_id, { permissions })
-      notify(t('permission.updated'))
-      return true
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : String(cause), 'error')
+  const applyPermissions = async (next: PermissionPreset) => {
+    if (!currentSession || !permissions.configure || permissionRequest.current) return false
+    if (permissionLockedReason) {
+      notify(permissionLockedReason, 'error')
+      setFullAccessOpen(false)
       return false
     }
-  }
-  const setPermissions = async (permissions: PermissionPreset) => {
-    if (permissions !== 'full_access') {
-      await applyPermissions(permissions)
-      return
-    }
-    setFullAccessOpen(true)
-  }
-  const confirmFullAccess = async () => {
+    const token = Symbol('permission-update')
+    permissionRequest.current = token
     setFullAccessBusy(true)
     try {
-      if (await applyPermissions('full_access')) setFullAccessOpen(false)
+      await updateSession(currentSession.identity.session_id, { permissions: next })
+      if (permissionRequest.current !== token) return false
+      notify(t('permission.updated'))
+      setFullAccessOpen(false)
+      return true
+    } catch (cause) {
+      if (permissionRequest.current === token) {
+        notify(cause instanceof ApiError && cause.status === 409 && cause.message.includes('Session is busy.')
+          ? t('permission.busy') : cause instanceof Error ? cause.message : String(cause), 'error')
+        setFullAccessOpen(false)
+      }
+      return false
     } finally {
-      setFullAccessBusy(false)
+      if (permissionRequest.current === token) {
+        permissionRequest.current = null
+        setFullAccessBusy(false)
+      }
     }
   }
+  const setPermissions = async (next: PermissionPreset) => {
+    if (permissionLockedReason) { notify(permissionLockedReason, 'error'); return }
+    if (next === currentSession?.permissions) return
+    setPermissionMenuOpen(false)
+    if (next !== 'full_access') { await applyPermissions(next); return }
+    setFullAccessOpen(true)
+  }
+  const confirmFullAccess = () => applyPermissions('full_access')
   const presetLocked = !currentSession?.blank || runtime.busy || Boolean(runtime.inbox?.items.length) || runtime.pendingSubmissions.length > 0
   const setPreset = async (agentPreset: string) => {
     if (!currentSession) return
@@ -801,6 +828,7 @@ export function ConversationColumn({
   }
   return (
     <WorkspaceDisplayContext.Provider value={workspaceDisplay.replacement}>
+    <ExecutionAvailabilityContext.Provider value={nodeOffline ? 'offline' : runtime.liveStatus === 'ready' ? 'live' : 'reconnecting'}>
     <AgentTeamSurface
       sessionId={currentSession?.identity.session_id ?? null}
       events={runtime.events}
@@ -814,6 +842,7 @@ export function ConversationColumn({
       onFollowup={followupSubagent}
       onStop={stopSubagent}
     >
+    <WorkspaceImageContext.Provider value={currentSessionId ? { sessionId: currentSessionId, root: workspaceDisplay.path, scope: accountScope ?? 'local' } : null}>
     <HistoryScrollPreserver
       sessionId={currentSessionId}
       view={activeViewId}
@@ -998,6 +1027,8 @@ export function ConversationColumn({
                 regenerateDisabled: runtime.busy || Boolean(runtime.inbox?.items.length) || submissionBlocked || forkCreatingCurrent,
               })}
             />
+            <SubagentActivity sessionId={currentSession.identity.session_id} events={runtime.events}
+              sessions={snapshot.sessions} activity={sessionActivity} onOpenSession={selectSession} />
             {runtime.metadataWarning && (
               <div role="alert" className={css.warning}>
                 <strong>{t('warning.metadataTitle')}</strong>
@@ -1030,7 +1061,7 @@ export function ConversationColumn({
                     <strong>{currentSession.access ? workspaceT('sharing.noSubmit') : t('viewer.title')}</strong>
                     {!currentSession.access && <p>{t('viewer.description')}</p>}
                     {permissions.stop && runtime.busy && <Button size="sm" variant="outline" onClick={() => void runtime.cancel()}>{t('input.stop')}</Button>}
-                    {permissions.configure && <div className="mt-2 flex gap-2"><SessionToolbar session={currentSession} onSetPermissions={setPermissions} /><ModelPicker compact effectiveProfile={runtime.effectiveProfile} rememberDefault={configurationOwner} onConfigureModels={configurationOwner ? onOpenModels : undefined} /></div>}
+                    {permissions.configure && <div className="mt-2 flex gap-2"><SessionToolbar session={currentSession} onSetPermissions={setPermissions} lockedReason={permissionLockedReason} /><ModelPicker compact effectiveProfile={runtime.effectiveProfile} rememberDefault={configurationOwner} onConfigureModels={configurationOwner ? onOpenModels : undefined} /></div>}
                   </div>
                 </div>
               ) : lifecycleOnly ? (
@@ -1088,7 +1119,7 @@ export function ConversationColumn({
                 providerTarget={{ sessionId: currentSession.identity.session_id, workspaceId: currentSession.workspace_id, placement: currentSession.placement }}
                 stats={runtime.stats}
                 inbox={runtime.inbox}
-                sessionControls={<SessionToolbar session={currentSession} onSetPermissions={setPermissions} open={permissionMenuOpen} onOpenChange={setPermissionMenuOpen} />}
+                sessionControls={<SessionToolbar session={currentSession} onSetPermissions={setPermissions} lockedReason={permissionLockedReason} open={permissionMenuOpen} onOpenChange={setPermissionMenuOpen} />}
                 modelControl={<ModelPicker compact effectiveProfile={runtime.effectiveProfile} disabled={!permissions.configure} rememberDefault={configurationOwner} onConfigureModels={configurationOwner ? onOpenModels : undefined} onReadinessChange={setModelReadiness} open={modelMenuOpen} onOpenChange={setModelMenuOpen} />}
                 sessionMode={currentSession.mode}
                 sessionActions={{
@@ -1161,7 +1192,9 @@ export function ConversationColumn({
       </Dialog>
     </main>
     </HistoryScrollPreserver>
+    </WorkspaceImageContext.Provider>
     </AgentTeamSurface>
+    </ExecutionAvailabilityContext.Provider>
     </WorkspaceDisplayContext.Provider>
   )
 }

@@ -239,6 +239,7 @@ export function AgentTeamSurface({
             </section>
             <section id="agent-team-roster-panel" role="tabpanel" aria-labelledby="agent-team-roster-tab" hidden={view !== 'roster'}>
               {view === 'roster' && <AgentTeamRoster
+                currentSessionId={sessionId!}
                 snapshot={visibleSnapshot}
                 subagents={subagents}
                 sessions={sessions}

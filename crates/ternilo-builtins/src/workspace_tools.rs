@@ -883,7 +883,7 @@ fn planning_tool_definitions() -> [(ToolSpec, PlanningOperation); 4] {
         (
             ToolSpec {
                 name: "todo_write".to_owned(),
-                description: "Publish the current concise todo list.".to_owned(),
+                description: "Publish the complete current todo list, replacing the previous list. Update it as work progresses and reconcile every item before the final response. Mark an item completed only after its work is actually finished; keep unfinished work pending or in_progress.".to_owned(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
