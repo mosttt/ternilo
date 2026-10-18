@@ -181,6 +181,7 @@ export function ConversationColumn({
     notify,
   } = useWorkbench()
   const canOperate = !platform || (currentTenantRole !== null && currentTenantRole !== 'viewer')
+  const nodeOffline = platform && (currentSession?.node_connected === false || (currentWorkspace?.placement === 'local_node' && currentWorkspace.status === 'offline'))
   const permissions = resourcePermissions(currentSession?.access, canOperate)
   const configurationOwner = ownsExecutionConfiguration(currentWorkspace, currentSession, canOperate)
   const t = useTranslate('conversation')
@@ -295,7 +296,7 @@ export function ConversationColumn({
   }, [notify, refresh, runtime.events, snapshot.sessions])
 
   const cloudModel = platform && currentSession?.placement === 'cloud'
-  const submissionBlocked = runtime.loading || Boolean(runtime.historyError) || !modelReadiness.canSubmit
+  const submissionBlocked = nodeOffline || runtime.loading || Boolean(runtime.historyError) || !modelReadiness.canSubmit
   const submissionBlockedMessage = runtime.loading
     ? chatT('chat.loadingHistory')
     : runtime.historyError
@@ -835,9 +836,9 @@ export function ConversationColumn({
       sessions={snapshot.sessions}
       liveSnapshot={runtime.agentTeam}
       liveActivity={sessionActivity}
-      readOnly={!permissions.submit}
-      canStop={permissions.stop}
-      configuration={permissions.configure ? <PluginsSettings onlyKind="ternilo.subagents.in_process" onChanged={refresh} /> : undefined}
+      readOnly={nodeOffline || !permissions.submit}
+      canStop={!nodeOffline && permissions.stop}
+      configuration={!nodeOffline && permissions.configure ? <PluginsSettings onlyKind="ternilo.subagents.in_process" onChanged={refresh} /> : undefined}
       onOpenSession={selectSession}
       onFollowup={followupSubagent}
       onStop={stopSubagent}
@@ -884,6 +885,7 @@ export function ConversationColumn({
                 onSetPreset={setPreset}
                 onTogglePlan={togglePlan}
                 readOnly={!permissions.configure && !permissions.submit}
+                available={!nodeOffline}
                 planLocked={runtime.busy}
                 presetLocked={presetLocked}
                 forkLocked={forkLocked}
@@ -1054,7 +1056,12 @@ export function ConversationColumn({
             <div className={`${css.composerStack} ${blankSession ? css.composerHero : ''}`}>
               {blankSession && <HeroGlow className={css.heroGlow} />}
               {blankSession && <HeroShell t={t} />}
-              {!permissions.submit ? (
+              {nodeOffline ? (
+                <div className={css.lifecycleNotice} data-node-offline="" role="status">
+                  <AlertCircle aria-hidden="true" />
+                  <div><strong>{t('offline.title')}</strong><p>{t('offline.description')}</p></div>
+                </div>
+              ) : !permissions.submit ? (
                 <div className={css.lifecycleNotice} data-viewer-read-only="" role="note">
                   <Bot aria-hidden="true" />
                   <div>
@@ -1095,7 +1102,7 @@ export function ConversationColumn({
                   </div>
                 </div>
               ) : null}
-              {!permissions.submit && runtime.questions.length > 0 && <div className={css.readOnlyQuestions}><ComposerTakeover
+              {!nodeOffline && !permissions.submit && runtime.questions.length > 0 && <div className={css.readOnlyQuestions}><ComposerTakeover
                 questions={runtime.questions}
                 canAnswer={item => canAnswerQuestion(item.question, permissions, ownsExecutionConfiguration(currentWorkspace, currentSession, canOperate))}
                 onAnswer={runtime.answerQuestion}
@@ -1106,6 +1113,7 @@ export function ConversationColumn({
               {permissions.submit && !lifecycleOnly && <InputBar
                 key={JSON.stringify([accountScope, currentSession.identity.session_id])}
                 accountScope={accountScope}
+                available={!nodeOffline}
                 sessionId={currentSession.identity.session_id}
                 commandCatalogRevision={`${currentSession.agent_preset}:${currentSession.mode}:${currentSession.updated_at_ms}`}
                 connectionStatus={runtime.liveStatus}
@@ -1133,7 +1141,7 @@ export function ConversationColumn({
                 heroControls={blankSession ? heroControls : undefined}
                 onSubmit={submit}
                 onCancel={runtime.cancel}
-                canStop={permissions.stop}
+                canStop={!nodeOffline && permissions.stop}
                 canAnswerQuestion={item => canAnswerQuestion(item.question, permissions, ownsExecutionConfiguration(currentWorkspace, currentSession, canOperate))}
                 onAnswerQuestion={runtime.answerQuestion}
                 onInspectApproval={inspectApproval}

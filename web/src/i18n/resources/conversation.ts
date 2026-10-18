@@ -1,4 +1,6 @@
 export const zh = {
+  'offline.title': '电脑离线',
+  'offline.description': '正在显示已同步的历史记录。电脑重新连接后即可继续对话，未发送的草稿会保留。',
   'context.details': "上下文详情",
   'context.composition': "最近请求文本（字符）",
   'context.system': "系统指令",
@@ -229,6 +231,8 @@ export const zh = {
 } satisfies Record<string, string>
 export type ConversationKey = keyof typeof zh
 export const en = {
+  'offline.title': 'Computer offline',
+  'offline.description': 'Showing synced history. You can continue when the computer reconnects. Unsent drafts are kept.',
   'context.details': "Context details",
   'context.composition': "Latest request text (characters)",
   'context.system': "System instructions",
@@ -458,6 +462,8 @@ export const en = {
   'queue.steered': 'Steered into current turn',
 } satisfies Record<ConversationKey, string>
 export const ko = {
+  'offline.title': '컴퓨터 오프라인',
+  'offline.description': '동기화된 기록을 표시하고 있습니다. 컴퓨터가 다시 연결되면 대화를 계속할 수 있습니다. 보내지 않은 초안은 유지됩니다.',
   'context.details': "컨텍스트 상세",
   'context.composition': "최근 요청 텍스트 (문자)",
   'context.system': "시스템 지침",

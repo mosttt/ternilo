@@ -68,6 +68,7 @@ export function SessionHeaderActions({
   onSetPreset,
   onTogglePlan,
   readOnly = false,
+  available = true,
   planLocked = false,
   presetLocked = !session.blank,
   forkLocked = false,
@@ -83,6 +84,7 @@ export function SessionHeaderActions({
   onSetPreset(value: string): Promise<void>
   onTogglePlan(): Promise<void>
   readOnly?: boolean
+  available?: boolean
   planLocked?: boolean
   presetLocked?: boolean
   forkLocked?: boolean
@@ -96,11 +98,11 @@ export function SessionHeaderActions({
   const t = useTranslate('conversation')
   const builtins = useTranslate('builtins')
   const observabilityT = useTranslate('observability')
-  const permissions = resourcePermissions(session.access, !readOnly)
+  const permissions = resourcePermissions(available ? session.access : undefined, available && !readOnly)
   const openTeam = useOpenAgentTeam()
   const [moreOpen, setMoreOpen] = React.useState(false)
   const [servicesOpen, setServicesOpen] = React.useState(false)
-  const servicesDialog = servicesOpen ? <SessionServicesDialog key={session.identity.session_id} session={session} readOnly={readOnly} onClose={() => setServicesOpen(false)} /> : null
+  const servicesDialog = available && servicesOpen ? <SessionServicesDialog key={session.identity.session_id} session={session} readOnly={readOnly} onClose={() => setServicesOpen(false)} /> : null
   const preset = presets.presets.find(item => item.id === session.agent_preset)
   const displayPreset = preset ? localizeAgentPreset(preset, builtins) : undefined
   const displayPresets = presets.presets.map(item => localizeAgentPreset(item, builtins))
@@ -115,7 +117,7 @@ export function SessionHeaderActions({
         </TooltipTrigger>
         <TooltipContent>{observabilityT('team.title')}</TooltipContent>
       </Tooltip>}
-      <Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon-xs" className={`${css.headerAction} ${css.headerService}`} aria-label={t('services.title')} onClick={() => setServicesOpen(true)}><Plug /></Button></TooltipTrigger><TooltipContent>{t('services.title')}</TooltipContent></Tooltip>
+      <Tooltip><TooltipTrigger asChild><Button type="button" disabled={!available} variant="ghost" size="icon-xs" className={`${css.headerAction} ${css.headerService}`} aria-label={t('services.title')} onClick={() => setServicesOpen(true)}><Plug /></Button></TooltipTrigger><TooltipContent>{t('services.title')}</TooltipContent></Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button type="button" variant="ghost" size="icon-xs" className={css.headerAction} aria-label={t('session.export')} onClick={() => void onExport()}><Download /></Button>

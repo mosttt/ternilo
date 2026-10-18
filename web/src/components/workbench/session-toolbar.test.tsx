@@ -96,6 +96,26 @@ describe('Session permission placement policy', () => {
 })
 
 describe('Session header actions', () => {
+  it('keeps export available while an offline computer disables runtime actions', () => {
+    const onExport = vi.fn(async () => undefined)
+    const renderHeader = (available: boolean) => act(() => root.render(<LocaleProvider><TooltipProvider>
+      <SessionHeaderActions
+        session={{ ...session, placement: 'local_node', access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: true, is_owner: true, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: true, configure: true } } }}
+        available={available} presets={{ default_id: 'standard', authorable: false, presets: [] }}
+        onSetPreset={vi.fn(async () => undefined)} onTogglePlan={vi.fn(async () => undefined)} onChooseWorkspace={vi.fn()}
+        onRename={vi.fn()} onFork={vi.fn(async () => undefined)} onArchive={vi.fn(async () => undefined)} onExport={onExport}
+      />
+    </TooltipProvider></LocaleProvider>))
+    renderHeader(false)
+    expect(host.querySelector('[data-session-read-only-actions]')).not.toBeNull()
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="后台服务"]')?.disabled).toBe(true)
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="导出会话"]')!.click())
+    expect(onExport).toHaveBeenCalledOnce()
+    renderHeader(true)
+    expect(host.querySelector('[data-session-read-only-actions]')).toBeNull()
+    expect(host.querySelector('[aria-label="更多会话操作"]')).not.toBeNull()
+  })
+
   it('offers the usage limit only for Cloud sessions and respects revoked configuration access', () => {
     const onEditModelLimit = vi.fn()
     const renderHeader = (placement: 'cloud' | 'local_node', configure: boolean) => act(() => root.render(<LocaleProvider><TooltipProvider>

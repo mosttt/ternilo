@@ -71,6 +71,7 @@ function touchComposer() {
 
 export interface InputBarProps {
   sessionId: string
+  available?: boolean
   accountScope?: string
   commandCatalogRevision?: string | number
   connectionStatus?: LiveConnectionStatus
@@ -109,6 +110,7 @@ export interface InputBarProps {
 
 export function InputBar({
   sessionId,
+  available = true,
   accountScope,
   commandCatalogRevision = '',
   connectionStatus = 'ready',
@@ -170,9 +172,9 @@ export function InputBar({
   const inputScrollRef = React.useRef<HTMLDivElement>(null)
   const fileRef = React.useRef<HTMLInputElement>(null)
   const busyEnter = useBusyEnterBehavior()
-  const commandCatalog = useCommandCatalog(sessionId, commandCatalogRevision, t, connectionStatus)
+  const commandCatalog = useCommandCatalog(sessionId, commandCatalogRevision, t, connectionStatus, available)
   const skillsAvailable = commandCatalog.commands.some(command => command.value === '/skills')
-  const skillCatalog = useSkillCatalog(sessionId, commandCatalogRevision, skillsAvailable, connectionStatus)
+  const skillCatalog = useSkillCatalog(sessionId, commandCatalogRevision, available && skillsAvailable, connectionStatus)
   const typedTrigger = composerTriggerAt(draft, selection)
   const trigger = launcherOpen
     ? { kind: 'command' as const, query: '', range: typedTrigger?.kind === 'command' ? typedTrigger.range : { start: 0, end: 0 } }
@@ -186,7 +188,7 @@ export function InputBar({
     sessionId,
     referenceDirectory,
     referenceFragment,
-    trigger?.kind === 'reference' && referenceCandidates === undefined,
+    available && trigger?.kind === 'reference' && referenceCandidates === undefined,
   )
   const availableReferences = referenceCandidates ?? referenceCatalog.references
   const visibleInbox = visibleInboxItems(inbox?.items ?? [], events)
@@ -226,7 +228,7 @@ export function InputBar({
   const primaryStops = busy && empty
   const pendingCatalogSubmit = React.useRef(false)
   const submissionContext = React.useRef(0)
-  React.useEffect(() => () => { submissionContext.current += 1 }, [sessionId, commandCatalogRevision])
+  React.useEffect(() => () => { submissionContext.current += 1 }, [sessionId, commandCatalogRevision, available])
   const catalogMenu = menuOpen ? trigger?.kind : null
   const previousCatalogMenu = React.useRef<typeof catalogMenu>(null)
 
@@ -265,7 +267,7 @@ export function InputBar({
     }
     element.addEventListener('wheel', onWheel, { passive: false })
     return () => element.removeEventListener('wheel', onWheel)
-  }, [])
+  }, [available])
 
   const changeSelection = (next: ComposerSelection) => {
     selectionRef.current = next
@@ -363,6 +365,7 @@ export function InputBar({
   }
 
   const send = async (delivery: SubmissionDelivery = 'queue') => {
+    if (!available) return
     if (delivery === 'steer' && busy && !canStop) return
     if (pendingCatalogSubmit.current) return
     const submittedDraft = draftRef.current
@@ -538,6 +541,7 @@ export function InputBar({
     ? busyEnter === 'queue' ? t('placeholder.steerQueue') : t('placeholder.steerPreferred')
     : variant === 'hero' ? t('placeholder.hero') : t('placeholder.default')
 
+  if (!available) return null
   return (
     <div className={cn(css.root, variant === 'hero' && css.hero)} data-input-bar="">
       <div className={css.contextStack}>

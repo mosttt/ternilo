@@ -1300,7 +1300,12 @@ impl<'a> EdgeAdapter<'a> {
         path: String,
     ) -> Result<WorkbenchSession, HarnessError> {
         let access = self.require_action(&mapping, ResourceAction::View).await?;
-        Ok(WorkbenchSession::edge(mapping, path).with_access(access))
+        let connected = self
+            .state
+            .edge
+            .is_connected(&mapping.tenant_id, &mapping.executor_id)
+            .await;
+        Ok(WorkbenchSession::edge(mapping, path, connected).with_access(access))
     }
 
     pub(crate) async fn sanitized_export(
