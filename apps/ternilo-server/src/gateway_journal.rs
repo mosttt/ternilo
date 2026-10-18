@@ -683,7 +683,7 @@ async fn require_lease(
     .map_err(database_error)?
     .is_some();
     if !found {
-        return Err(HarnessError::policy(
+        return Err(HarnessError::unavailable(
             "gateway no longer owns the Node lease",
         ));
     }
@@ -848,11 +848,13 @@ mod tests {
         );
         let reply =
             CommandReply::success(command.command_id.clone(), 1_103, json!({"result":"完成"}));
-        assert!(
+        assert_eq!(
             journal
                 .complete(&route, &first, &reply, 1_103)
                 .await
-                .is_err()
+                .unwrap_err()
+                .code,
+            ternilo_protocol::ErrorCode::Unavailable
         );
         journal
             .complete(&route, &next, &reply, 1_103)

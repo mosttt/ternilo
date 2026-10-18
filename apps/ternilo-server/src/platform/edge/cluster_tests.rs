@@ -782,13 +782,15 @@ async fn cluster_two_gateways_follow_committed_events_leases_and_revoked_credent
         .unwrap()
         .unwrap();
     assert!(newer.fencing_token > fixture.connection.lease.fencing_token);
-    assert!(
+    assert_eq!(
         fixture
             .edge
             .journal
             .check_lease(&fixture.route, &fixture.connection.lease, now)
             .await
-            .is_err()
+            .unwrap_err()
+            .code,
+        ternilo_protocol::ErrorCode::Unavailable
     );
     assert!(
         gateway_b

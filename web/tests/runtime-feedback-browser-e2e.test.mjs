@@ -101,6 +101,11 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     const origin = `http://127.0.0.1:${await freePort()}`
     const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolled.enrollment.executor_id, '--gateway-url', proxy.url, '--allow-insecure-gateway'], { HOME: home, TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'state') }); processes.push(node)
     await waitForHttp(origin, node)
+    for (const address of [server.origin, origin]) {
+      const served = await fetch(`${address}/assets/app.js`)
+      assert.equal(served.status, 200)
+      assert.ok(Buffer.from(await served.arrayBuffer()).equals(await readFile(path.join(repository, 'web/dist/assets/app.js'))), `the fixture at ${address} serves the current UI`)
+    }
     const local = await localApi(origin)
     await local('/providers', { body: { id: 'fixture', display_name: 'Fixture', base_url: model.url, protocol: 'openai-chat-completions', api_key_ref: null,
       defaults: { context_window: 128000, max_output_tokens: 4096 }, models: ['lead', 'child'].map(id => ({ id, settings: { mode: 'inherit' } })), timeout_ms: 0, max_attempts: 1, retry_base_delay_ms: 10 } })
@@ -112,6 +117,28 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     const resource = `/sessions/${parentId}`
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' })
+    let holdMetadata = false, interruptMetadata
+    let historyGate = null
+    await page.routeWebSocket('**/api/v1/live', socket => {
+      const upstream = socket.connectToServer()
+      socket.onMessage(message => upstream.send(message))
+      upstream.onMessage(message => {
+        const frame = JSON.parse(String(message))
+        if (holdMetadata && frame.type === 'session_metadata' && frame.session_id === parentId) {
+          holdMetadata = false
+          interruptMetadata = () => {
+            // Reproduce the known initial-metadata failure after history has arrived.
+            socket.send(JSON.stringify({ type: 'error', subscription_id: frame.subscription_id,
+              code: 'unavailable', message: 'selected Ternilo node is offline' }))
+            proxy.available(false)
+          }
+        } else socket.send(message)
+      })
+    })
+    await page.route(`**/sessions/${parentId}/history?*`, async route => {
+      if (historyGate) await historyGate
+      await route.continue()
+    })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })
@@ -129,6 +156,7 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     await until(() => picker.locator('[data-directory-path]').textContent(), value => value === directory, 'navigate above home')
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape')
     for (const [locale, text] of Object.entries(labels)) {
+      await page.setViewportSize(locale === 'ko' ? { width: 390, height: 844 } : { width: 1366, height: 900 })
       await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale); await page.reload()
       await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: `hold-${locale}` } } })
       await page.locator('[data-execution-phase="running"]').waitFor()
@@ -142,11 +170,32 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
       const history = await request(`${resource}/history?limit=20`); assert.ok(history.events.length)
       const catalogs = ['commands', 'skills'].map(kind => page.waitForResponse(response =>
         new URL(response.url()).pathname === `/api/v1/sessions/${parentId}/${kind}` && response.status() === 200))
+      holdMetadata = true; interruptMetadata = undefined
       await page.reload()
       for (const response of await Promise.all(catalogs)) await response.finished()
       await page.locator('[data-session-state="ready"]').waitFor()
       await page.locator('[data-history-state="backfilling"]').waitFor({ state: 'detached' })
+      await until(async () => Boolean(interruptMetadata), Boolean, 'held initial metadata')
+      interruptMetadata()
+      await page.locator('[data-history-state="error"]').waitFor()
+      await page.locator('[data-node-offline]').waitFor()
+      const retainedPrompt = page.locator('[data-role="user"]').getByText(`hold-${locale}`, { exact: true })
+      assert.equal(await retainedPrompt.count(), 1, 'a metadata error must not hide accepted history')
+      assert.equal(await page.locator('[data-execution-phase="running"]').count(), 0)
+      let resumeHistory
+      historyGate = new Promise(resolve => { resumeHistory = resolve })
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+        await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+        await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `interrupted-history-${locale}.png`) })
+        await page.locator('[data-history-state="error"]').screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `history-warning-${locale}.png`) })
+      }
+      proxy.available(true)
+      await page.locator('[data-history-state="backfilling"]').waitFor()
+      assert.equal(await retainedPrompt.count(), 1, 'automatic retry keeps the readable history in place')
+      resumeHistory(); historyGate = null
+      await page.locator('[data-history-state="error"], [data-history-state="backfilling"]').waitFor({ state: 'detached' })
       await page.locator('[data-execution-phase="running"]').waitFor()
+      assert.equal(await retainedPrompt.count(), 1, 'fresh history replaces the old baseline without duplicates')
       proxy.available(false)
       await page.getByText(text.offline, { exact: true }).waitFor()
       assert.equal(await page.locator('[data-execution-phase="running"]').count(), 0)

@@ -1,6 +1,7 @@
 import { createSessionEventBuffer, mergeSessionEventBuffer, type SessionEventBuffer } from '@/domain/session-event-buffer'
 import { visibleSubmissionEchoes } from '@/domain/submission-echo'
 import { conversationEvents } from '@/domain/conversation-events'
+import { ApiError } from '@/api/client'
 import type {
   LiveConnectionStatus,
   LiveServerFrame,
@@ -138,6 +139,11 @@ function errorMessage(cause: unknown) {
   return cause instanceof Error ? cause.message : String(cause)
 }
 
+function historyAccessDenied(cause: unknown) {
+  return cause instanceof ApiError && (cause.code === 'policy_denied' || cause.code === 'invalid_input'
+    || cause.status === 401 || cause.status === 403 || cause.status === 404)
+}
+
 function terminalTurn(event: SessionEvent) {
   return event.type === 'turn_finished' || event.type === 'turn_failed' || event.type === 'turn_cancelled'
 }
@@ -255,6 +261,7 @@ export class SessionController implements SessionRuntimeActions {
   private scopeKey = ''
   private sessionId: string | null = null
   private enabled = false
+  private available = true
   private generation = 0
   private eventBuffer: SessionEventBuffer = createSessionEventBuffer(null)
   private historyEvents: SessionEvent[] | null = null
@@ -279,8 +286,13 @@ export class SessionController implements SessionRuntimeActions {
     this.disposeLiveStatus = this.dependencies.live.onStatus(status => this.handleLiveStatus(status))
   }
 
-  setTarget(sessionId: string | null, enabled: boolean, scopeKey = 'host') {
-    if (this.sessionId === sessionId && this.enabled === enabled && this.scopeKey === scopeKey) return
+  setTarget(sessionId: string | null, enabled: boolean, scopeKey = 'host', available = true) {
+    const recovered = available && !this.available
+    this.available = available
+    if (this.sessionId === sessionId && this.enabled === enabled && this.scopeKey === scopeKey) {
+      if (recovered) this.resumeHistory()
+      return
+    }
     const scopeChanged = this.scopeKey !== scopeKey
     const liveStatus = this.getSnapshot().liveStatus
     if (!scopeChanged) this.rememberTarget()
@@ -415,6 +427,10 @@ export class SessionController implements SessionRuntimeActions {
     try {
       const page = await this.readHistoryBatch(sessionId, signal, undefined, page => {
         if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return false
+        if (!accepted.page) {
+          this.eventBuffer = createSessionEventBuffer(sessionId)
+          this.updateSnapshot({ events: [], historyError: '', olderHistoryError: '' })
+        }
         accepted.page = page
         this.mergeEvents(sessionId, page.events)
         this.updateSnapshot({ loadedSessionId: sessionId, loading: false })
@@ -428,6 +444,10 @@ export class SessionController implements SessionRuntimeActions {
       this.updateSnapshot({ nextBeforeSeq: page.next_before_seq })
     } catch (cause) {
       if (!this.isCurrent(sessionId, generation, signal) || revision !== this.historyRevision) return
+      if (historyAccessDenied(cause)) {
+        this.revokeHistory(errorMessage(cause))
+        return
+      }
       this.updateSnapshot({
         loadedSessionId: sessionId,
         loading: false,
@@ -457,7 +477,8 @@ export class SessionController implements SessionRuntimeActions {
       this.updateSnapshot({ nextBeforeSeq: page.next_before_seq })
     } catch (cause) {
       if (this.isCurrent(sessionId, generation, signal) && revision === this.historyRevision) {
-        this.updateSnapshot({ olderHistoryError: errorMessage(cause) })
+        if (historyAccessDenied(cause)) this.revokeHistory(errorMessage(cause))
+        else this.updateSnapshot({ olderHistoryError: errorMessage(cause) })
       }
     } finally {
       if (this.isCurrent(sessionId, generation, signal) && revision === this.historyRevision) this.updateSnapshot({ loadingOlder: false })
@@ -465,7 +486,29 @@ export class SessionController implements SessionRuntimeActions {
   }
 
   private handleLiveStatus(status: LiveConnectionStatus) {
+    const recovered = status === 'ready' && this.getSnapshot().liveStatus !== 'ready'
     this.updateSnapshot({ liveStatus: status })
+    if (recovered) this.resumeHistory()
+  }
+
+  private revokeHistory(message: string) {
+    if (this.streamTimer !== null) clearTimeout(this.streamTimer)
+    this.streamTimer = null
+    this.streamEvents = []
+    this.historyRevision += 1
+    this.abortController?.abort()
+    if (this.sessionId) this.cachedSessions.delete(this.sessionId)
+    this.eventBuffer = createSessionEventBuffer(this.sessionId)
+    this.historyEvents = null
+    this.replaceSnapshot({ ...initialSnapshot(), liveStatus: this.getSnapshot().liveStatus,
+      loadedSessionId: this.sessionId, historyError: message })
+  }
+
+  private resumeHistory() {
+    const snapshot = this.getSnapshot()
+    if (!this.enabled || !this.available || snapshot.loadingHistory) return
+    if (snapshot.historyError) this.retryHistory()
+    else if (snapshot.olderHistoryError) void this.loadOlderHistory()
   }
 
   private handleLiveFrame(frame: LiveServerFrame) {
@@ -490,12 +533,8 @@ export class SessionController implements SessionRuntimeActions {
     this.flushStreamEvents()
     if (frame.type === 'error') {
       if (frame.code === 'policy_denied' || frame.code === 'invalid_input') {
-        this.historyRevision += 1
-        this.abortController?.abort()
-        this.cachedSessions.delete(sessionId)
-        this.eventBuffer = createSessionEventBuffer(sessionId)
-        this.historyEvents = null
-        this.replaceSnapshot({ ...initialSnapshot(), liveStatus: this.getSnapshot().liveStatus })
+        this.revokeHistory(frame.message)
+        return
       }
       if (this.historyEvents !== null) {
         this.mergeEvents(sessionId, this.historyEvents)
@@ -724,12 +763,8 @@ export class SessionController implements SessionRuntimeActions {
   readonly retryHistory = () => {
     if (!this.sessionId || !this.enabled) return
     const sessionId = this.sessionId
-    const liveStatus = this.getSnapshot().liveStatus
-    this.eventBuffer = createSessionEventBuffer(sessionId)
-    this.historyEvents = null
-    const pending = this.pendingBySession.get(sessionId) ?? []
-    this.replaceSnapshot({ ...initialSnapshot(pending), liveStatus })
     this.stopTarget()
+    this.updateSnapshot({ historyError: '', olderHistoryError: '', loadingOlder: false })
     this.startTarget(sessionId)
   }
 

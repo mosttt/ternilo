@@ -14,6 +14,8 @@ export type { SessionRuntime } from './session-controller'
 export function useSessionRuntime(): SessionRuntime {
   const {
     currentSessionId,
+    currentSession,
+    currentWorkspace,
     refresh,
     notify,
     acceptLiveWorkbench,
@@ -55,6 +57,8 @@ export function useSessionRuntime(): SessionRuntime {
     now: () => Date.now(),
   }))
   const snapshot = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
+  const nodeOffline = currentSession?.node_connected === false
+    || (currentWorkspace?.placement === 'local_node' && currentWorkspace.status === 'offline')
 
   React.useLayoutEffect(() => {
     controller.start()
@@ -66,8 +70,9 @@ export function useSessionRuntime(): SessionRuntime {
       currentSessionId,
       !workbenchLoading && !authRequired,
       authRequired ? 'signed-out' : JSON.stringify([accountScope ?? currentTenantId ?? 'host', Boolean(onlineComputersOnly)]),
+      !nodeOffline,
     )
-  }, [accountScope, authRequired, controller, currentSessionId, currentTenantId, workbenchLoading, onlineComputersOnly])
+  }, [accountScope, authRequired, controller, currentSessionId, currentTenantId, workbenchLoading, onlineComputersOnly, nodeOffline])
 
   React.useEffect(() => {
     if (workbenchLoading || authRequired) {

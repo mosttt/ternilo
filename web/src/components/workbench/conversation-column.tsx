@@ -804,6 +804,16 @@ export function ConversationColumn({
   ) : null
 
   const phase = blankSession ? 'hero' : 'active'
+  const readableHistory = runtime.loadedSessionId === currentSessionId && runtime.events.length > 0
+  const historyFailure = runtime.historyError && <div
+    className={readableHistory ? css.warning : css.historyState} data-history-state="error" role="alert"
+  >
+    <strong>{chatT('chat.loadError', { message: runtime.historyError })}</strong>
+    {readableHistory && <p>{chatT('chat.historyRetained')}</p>}
+    <Button type="button" variant="outline" size="sm" onClick={runtime.retryHistory}>
+      <RotateCcw />{chatT('chat.retryHistory')}
+    </Button>
+  </div>
   const sessionState = !currentSession
     ? 'empty'
     : runtime.loading
@@ -829,7 +839,7 @@ export function ConversationColumn({
   }
   return (
     <WorkspaceDisplayContext.Provider value={workspaceDisplay.replacement}>
-    <ExecutionAvailabilityContext.Provider value={nodeOffline ? 'offline' : runtime.liveStatus === 'ready' ? 'live' : 'reconnecting'}>
+    <ExecutionAvailabilityContext.Provider value={nodeOffline ? 'offline' : runtime.liveStatus === 'ready' && !runtime.loading && !runtime.historyError ? 'live' : 'reconnecting'}>
     <AgentTeamSurface
       sessionId={currentSession?.identity.session_id ?? null}
       events={runtime.events}
@@ -906,7 +916,7 @@ export function ConversationColumn({
             : undefined}
         />
       )}
-      {currentSession && !runtime.loading && runtime.loadedSessionId === currentSessionId
+      {currentSession && runtime.loadedSessionId === currentSessionId
         && !runtime.historyError && (runtime.loadingHistory || runtime.loadingOlder) && (
         <div className={css.historyProgress} data-history-state="backfilling" role="status" aria-live="polite" aria-busy="true">
           <LoaderCircle className={css.spin} aria-hidden="true" />
@@ -992,7 +1002,7 @@ export function ConversationColumn({
             <strong>{t('session.forking')}</strong>
             <p>{t('session.forkingDescription')}</p>
           </div>
-        ) : runtime.loading || runtime.loadedSessionId !== currentSessionId ? (
+        ) : (runtime.loading || runtime.loadedSessionId !== currentSessionId) && !readableHistory ? (
           <div className={css.historyState} data-history-state="loading" role="status" aria-live="polite" aria-busy="true">
             <LoaderCircle className={css.spin} aria-hidden="true" />
             <strong>{chatT(forkHydratingCurrent ? 'chat.loadingForkHistory' : 'chat.loadingHistory')}</strong>
@@ -1000,16 +1010,11 @@ export function ConversationColumn({
               ? 'chat.loadingForkHistoryDescription'
               : 'chat.loadingHistoryDescription')}</p>
           </div>
-        ) : runtime.historyError ? (
-          <div className={css.historyState} data-history-state="error" role="alert">
-            <AlertCircle aria-hidden="true" />
-            <strong>{chatT('chat.loadError', { message: runtime.historyError })}</strong>
-            <Button type="button" variant="outline" size="sm" onClick={runtime.retryHistory}>
-              <RotateCcw />{chatT('chat.retryHistory')}
-            </Button>
-          </div>
+        ) : runtime.historyError && !readableHistory ? (
+          historyFailure
         ) : !blankSession ? (
           <div ref={setContentElement} className={css.sessionFlow}>
+            {historyFailure}
             <ConversationSession
               view={activeViewId}
               views={registeredViews.map(item => item.id)}
