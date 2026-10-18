@@ -484,3 +484,5 @@
     padding-bottom: 6px;
   }
 }
+
+.actualPath { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 20px; color: var(--label-secondary); }

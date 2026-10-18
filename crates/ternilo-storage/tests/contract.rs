@@ -356,3 +356,61 @@ async fn sqlite_queued_writers_leave_readers_available_and_cancel_without_partia
     resumed.commit().await.unwrap();
     database.close().await;
 }
+
+#[tokio::test]
+async fn sqlite_engine_rollback_does_not_poison_the_pooled_writer() {
+    let directory = tempfile::tempdir().unwrap();
+    let url = format!(
+        "sqlite://{}",
+        directory.path().join("rollback.sqlite3").display()
+    );
+    let database = Database::connect(&url, 4).await.unwrap();
+    database
+        .initialize(
+            "rollback-contract",
+            1,
+            "CREATE TABLE retained (id BIGINT PRIMARY KEY); INSERT INTO retained VALUES (1);",
+            "",
+        )
+        .await
+        .unwrap();
+    let mut transaction = database.begin().await.unwrap();
+    sqlx::query("INSERT INTO retained VALUES (2)")
+        .execute(&mut *transaction)
+        .await
+        .unwrap();
+    // SQLite can roll back an entire transaction on an execution error. The
+    // driver must not hand that connection to the next request with stale depth.
+    let error = sqlx::query("INSERT OR ROLLBACK INTO retained VALUES (1)")
+        .execute(&mut *transaction)
+        .await
+        .unwrap_err();
+    assert!(error.as_database_error().unwrap().is_unique_violation());
+    drop(transaction);
+    for id in 3_i64..6 {
+        let mut next = database
+            .begin()
+            .await
+            .expect("a failed request must not poison later writers");
+        let retained: Vec<i64> = sqlx::query_scalar("SELECT id FROM retained ORDER BY id")
+            .fetch_all(&mut *next)
+            .await
+            .unwrap();
+        assert!(
+            !retained.contains(&2),
+            "the failed transaction must be rolled back"
+        );
+        assert!(
+            retained.contains(&1),
+            "previous committed data must survive"
+        );
+        sqlx::query("INSERT INTO retained VALUES ($1)")
+            .bind(id)
+            .execute(&mut *next)
+            .await
+            .unwrap();
+        next.commit().await.unwrap();
+    }
+    database.health().await.unwrap();
+    database.close().await;
+}

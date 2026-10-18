@@ -1,0 +1,12 @@
+.root { display: flex; min-width: 0; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
+.heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--label-secondary); font-size: 14px; }
+.heading svg, .member svg { width: 16px; height: 16px; flex: none; }
+.heading button { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 6px 8px; border-radius: 6px; }
+.member { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; text-align: left; font-size: 14px; }
+.member span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member svg:last-child { margin-left: auto; color: var(--label-tertiary); }
+.heading button:hover, .member:hover { background: var(--interactive-hover); }
+.heading button:focus-visible, .member:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

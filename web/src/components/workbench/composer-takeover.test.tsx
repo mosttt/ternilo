@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Translate } from '@/i18n/runtime'
-import { en, zh } from '@/i18n/resources/conversation'
+import { en, ko, zh } from '@/i18n/resources/conversation'
 import { ComposerTakeover } from './composer-takeover'
 
 function translate(dict: typeof zh): Translate<'conversation'> {
@@ -45,6 +45,34 @@ afterEach(() => {
 })
 
 describe('ComposerTakeover', () => {
+  it.each([zh, en, ko])('explains the operation before exposing the exact command', dictionary => {
+    const command = 'kill -TERM 48763 48795; ss -ltnp'
+    const explanation = { action: '停止占用 1420 端口的开发服务', reason: '释放端口，以便重新启动项目', impact: '当前开发服务会中断' }
+    act(() => root.render(<ComposerTakeover questions={[{ session_id: 's', question: {
+      id: 'shell-approval', question: '', options: [{ label: 'Allow once' }, { label: 'Deny' }], multi_select: false,
+      tool_approval: { tool_name: 'shell', call_id: 'c', reason: 'technical reason', arguments: { command, full_access: true, approval: explanation } },
+    } }]} onAnswer={vi.fn()} onError={vi.fn()} t={translate(dictionary)} />))
+    const content = host.querySelector('[data-approval-explanation]')!
+    expect([...content.querySelectorAll('dt')].map(item => item.textContent)).toEqual([dictionary['approval.action'], dictionary['approval.reason'], dictionary['approval.impact']])
+    expect([...content.querySelectorAll('dd')].map(item => item.textContent)).toEqual(Object.values(explanation))
+    expect(content.textContent).not.toContain('technical reason')
+    const details = content.querySelector('details')!
+    expect(details.open).toBe(false)
+    expect(details.querySelector('code')?.textContent).toBe(command)
+    expect(content.textContent).toContain(dictionary['approval.hostAccess'])
+  })
+
+  it('keeps legacy commands inspectable without inventing their intent', () => {
+    const command = 'echo legacy'
+    act(() => root.render(<ComposerTakeover questions={[{ session_id: 's', question: {
+      id: 'old-shell', question: '', options: [{ label: 'Allow once' }, { label: 'Deny' }], multi_select: false,
+      tool_approval: { tool_name: 'shell', call_id: 'c', reason: `the command requests access outside the workspace sandbox:\n\n${command}`, arguments: { command, full_access: true } },
+    } }]} onAnswer={vi.fn()} onError={vi.fn()} t={t} />))
+    expect(host.textContent).toContain(zh['approval.missingExplanation'])
+    expect(host.textContent).not.toContain('the command requests access')
+    expect(host.querySelector('[data-approval-command] code')?.textContent).toBe(command)
+  })
+
   it('keeps denied request details readable and reacts to a later grant', async () => {
     const onAnswer = vi.fn(async () => {})
     const item = { session_id: 's', question: {
@@ -163,7 +191,7 @@ describe('ComposerTakeover', () => {
       onInspectApproval={onInspectApproval}
       t={t}
     />))
-    expect(host.querySelector('[data-tool-approval]')?.textContent).toContain('shell')
+    expect(host.querySelector('[data-tool-approval]')?.textContent).toContain('执行命令')
     act(() => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('查看调用详情'))!.click())
     expect(onInspectApproval).toHaveBeenCalledWith('call-1')
     await act(async () => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('允许一次'))!.click())

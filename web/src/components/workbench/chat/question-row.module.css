@@ -40,9 +40,9 @@
 }
 
 .body { display: flex; min-width: 0; flex-direction: column; gap: 7px; padding: 0 11px 10px 32px; }
-.prompt, .reason, .verdict, .interrupted { min-width: 0; margin: 0; font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.prompt, .verdict, .interrupted { min-width: 0; margin: 0; font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 .prompt { color: var(--label-secondary); }
-.reason, .label { color: var(--label-tertiary); }
+.label { color: var(--label-tertiary); }
 .optionGroup { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .label { font-size: 11px; line-height: 16px; }
 .options { display: flex; min-width: 0; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }

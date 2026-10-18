@@ -1028,6 +1028,9 @@ impl<'a> EdgeAdapter<'a> {
             .list_accessible_edge_sessions(self.actor, self.tenant_id)
             .await?;
         for event in events {
+            if let SessionEventKind::SubagentUpdated { subagent } = &mut event.kind {
+                translate_subagent_session_from_node(mapping, &mappings, subagent);
+            }
             if let SessionEventKind::UserMessage { references, .. } = &mut event.kind {
                 translate_reference_ids_from_node(mapping, &mappings, references);
             }
@@ -1297,7 +1300,12 @@ impl<'a> EdgeAdapter<'a> {
         path: String,
     ) -> Result<WorkbenchSession, HarnessError> {
         let access = self.require_action(&mapping, ResourceAction::View).await?;
-        Ok(WorkbenchSession::edge(mapping, path).with_access(access))
+        let connected = self
+            .state
+            .edge
+            .is_connected(&mapping.tenant_id, &mapping.executor_id)
+            .await;
+        Ok(WorkbenchSession::edge(mapping, path, connected).with_access(access))
     }
 
     pub(crate) async fn sanitized_export(
@@ -1467,6 +1475,29 @@ fn validate_node_snapshot(
     // Prove the host path was parsed, then deliberately discard it.
     let _ = snapshot.workspace_path.len();
     snapshot.metadata(None).validate()
+}
+
+fn translate_subagent_session_from_node(
+    parent: &EdgeSessionRecord,
+    accessible: &[EdgeSessionRecord],
+    subagent: &mut ternilo_protocol::SubagentSnapshot,
+) {
+    subagent.session_id = subagent.session_id.as_ref().and_then(|node_id| {
+        accessible
+            .iter()
+            .find(|child| {
+                child.tenant_id == parent.tenant_id
+                    && child.executor_id == parent.executor_id
+                    && child.node_session_id == *node_id
+                    && child.metadata.parent_session_id.as_ref() == Some(&parent.session_id)
+                    && child
+                        .metadata
+                        .subagent
+                        .as_ref()
+                        .is_some_and(|binding| binding.subagent_id == subagent.subagent_id)
+            })
+            .map(|child| child.session_id.clone())
+    });
 }
 
 fn translate_reference_ids_from_node(
@@ -1712,6 +1743,60 @@ mod tests {
             }),
             "/skill review\n\ncheck this"
         );
+    }
+
+    #[test]
+    fn subagent_navigation_uses_only_the_accessible_child_on_the_same_node() {
+        use ternilo_protocol::{
+            SubagentId, SubagentSessionMetadata, SubagentSnapshot, SubagentStatus,
+            SubagentTranscriptKind,
+        };
+        let parent = edge_session("public-parent", "node-parent");
+        let mut child = edge_session("public-child", "node-child");
+        child.metadata.parent_session_id = Some(parent.session_id.clone());
+        child.metadata.subagent = Some(SubagentSessionMetadata {
+            role: None,
+            subagent_id: SubagentId::new("agent-1"),
+            provider: "in-process".into(),
+            transcript_kind: SubagentTranscriptKind::Conversation,
+        });
+        let snapshot = SubagentSnapshot {
+            role: None,
+            subagent_id: SubagentId::new("agent-1"),
+            provider: "in-process".into(),
+            label: "Review".into(),
+            task: "Inspect".into(),
+            supports_followup: true,
+            session_id: Some(SessionId::new("node-child")),
+            transcript_kind: SubagentTranscriptKind::Conversation,
+            status: SubagentStatus::Running,
+            output: None,
+            error: None,
+            created_at_ms: 1,
+            updated_at_ms: 1,
+        };
+        let mut projected = snapshot.clone();
+        translate_subagent_session_from_node(&parent, &[child.clone()], &mut projected);
+        assert_eq!(projected.session_id, Some(child.session_id.clone()));
+        for mismatch in 0..5 {
+            let mut unavailable = child.clone();
+            match mismatch {
+                0 => unavailable.tenant_id = TenantId::new("other-space"),
+                1 => unavailable.executor_id = ExecutorId::new("other-node"),
+                2 => unavailable.metadata.parent_session_id = Some(SessionId::new("other-parent")),
+                3 => {
+                    unavailable.metadata.subagent.as_mut().unwrap().subagent_id =
+                        SubagentId::new("other-agent");
+                }
+                _ => unavailable.node_session_id = SessionId::new("other-child"),
+            }
+            let mut projected = snapshot.clone();
+            translate_subagent_session_from_node(&parent, &[unavailable], &mut projected);
+            assert!(projected.session_id.is_none());
+        }
+        let mut hidden = snapshot;
+        translate_subagent_session_from_node(&parent, &[], &mut hidden);
+        assert!(hidden.session_id.is_none());
     }
 
     #[test]

@@ -244,19 +244,22 @@ impl LocalApplication {
         let changes_team_label = update.title.is_some();
         let changes_preset = update.agent_preset.is_some();
         let changes_plugins = update.profile_plugins.is_some();
+        let requires_idle = changes_plugins || update.permissions.is_some();
         let restarts_runtime = update.restarts_runtime();
         let lifecycle = self.session_lifecycle(session_id).await;
-        let busy_plugins = || {
-            HarnessError::conflict(
-                "Session is busy. Wait for the task to finish, or stop it before saving plugin settings.",
-            )
+        let busy_configuration = || {
+            HarnessError::conflict(if changes_plugins {
+                "Session is busy. Wait for the task to finish, or stop it before saving plugin settings."
+            } else {
+                "Session is busy. Wait for the current turn to finish, or stop it before changing permissions."
+            })
         };
-        let _lifecycle = if changes_plugins {
+        let _lifecycle = if requires_idle {
             if let Some(managed) = self.live.read().await.get(session_id).cloned() {
                 drop(
                     Arc::clone(&managed.gate)
                         .try_lock_owned()
-                        .map_err(|_| busy_plugins())?,
+                        .map_err(|_| busy_configuration())?,
                 );
             }
             // Metadata reads also use this lock. Give them time to finish without
@@ -267,13 +270,13 @@ impl LocalApplication {
         } else {
             lifecycle.lock().await
         };
-        let idle_runtime = if changes_plugins {
+        let idle_runtime = if requires_idle {
             let managed = self.live.read().await.get(session_id).cloned();
             match managed {
                 Some(managed) => Some(
                     Arc::clone(&managed.gate)
                         .try_lock_owned()
-                        .map_err(|_| busy_plugins())?,
+                        .map_err(|_| busy_configuration())?,
                 ),
                 None => None,
             }

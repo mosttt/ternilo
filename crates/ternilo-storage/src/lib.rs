@@ -5,7 +5,7 @@ mod json;
 use std::{str::FromStr, time::Duration};
 
 use sqlx::{
-    Any, AnyConnection, AnyPool,
+    Any, AnyConnection, AnyPool, Connection,
     any::{AnyConnectOptions, AnyPoolOptions},
 };
 use ternilo_protocol::{HarnessError, TenantId, UserId};
@@ -60,7 +60,7 @@ impl Database {
         }
         let split_writer = backend == Backend::Sqlite && !memory && max_connections > 1;
         let writer_pool = if split_writer {
-            Some(connect_pool(options.clone(), 1, backend).await?)
+            Some(connect_pool(options.clone(), 1, backend, !memory).await?)
         } else {
             None
         };
@@ -71,7 +71,7 @@ impl Database {
         } else {
             max_connections
         };
-        let pool = connect_pool(options, readers, backend).await?;
+        let pool = connect_pool(options, readers, backend, !memory).await?;
         Ok(Self {
             pool,
             backend,
@@ -305,16 +305,35 @@ async fn connect_pool(
     options: AnyConnectOptions,
     max_connections: u32,
     backend: Backend,
+    file_backed: bool,
 ) -> Result<AnyPool, HarnessError> {
-    AnyPoolOptions::new()
-            .max_connections(max_connections)
-            .acquire_timeout(Duration::from_secs(15))
-            .after_connect(move |connection, _| Box::pin(async move {
+    let mut pool = AnyPoolOptions::new()
+        .max_connections(max_connections)
+        .acquire_timeout(Duration::from_secs(15))
+        .after_connect(move |connection, _| {
+            Box::pin(async move {
                 if backend == Backend::Sqlite {
                     sqlx::raw_sql("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 15000; PRAGMA journal_mode = WAL;")
                         .execute(connection).await?;
                 }
                 Ok(())
-            }))
-            .connect_with(options).await.map_err(database_error)
+            })
+        });
+    if backend == Backend::Sqlite && file_backed {
+        pool = pool.before_acquire(|connection, _| {
+            Box::pin(async move {
+                // SQLx pings before this hook, so queued drop rollbacks have completed.
+                // SQLite can abort a transaction itself while the driver retains its
+                // depth. Never reuse that connection for another request.
+                if connection.is_in_transaction() {
+                    eprintln!(
+                        "discarding SQLite connection with an unfinished transaction after rollback"
+                    );
+                    return Ok(false);
+                }
+                Ok(true)
+            })
+        });
+    }
+    pool.connect_with(options).await.map_err(database_error)
 }

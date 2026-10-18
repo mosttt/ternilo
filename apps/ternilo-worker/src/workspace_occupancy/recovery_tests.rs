@@ -295,11 +295,13 @@ async fn recovery_terminates_the_verified_orphan_namespace_before_releasing_its_
     child.kill().await.unwrap();
     child.wait().await.unwrap();
     let previous = std::fs::metadata(&writes).unwrap().len();
-    tokio::time::sleep(Duration::from_millis(60)).await;
-    assert!(
-        std::fs::metadata(&writes).unwrap().len() > previous,
-        "the fixture namespace must actually survive its original supervisor"
-    );
+    let survived = tokio::time::timeout(Duration::from_secs(5), async {
+        while std::fs::metadata(&writes).unwrap().len() <= previous {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .is_ok();
     tokio::time::timeout(Duration::from_secs(5), async {
         while !WorkspaceOccupancy::recover(&root, &ticket).unwrap() {
             tokio::time::sleep(Duration::from_millis(5)).await;
@@ -307,6 +309,10 @@ async fn recovery_terminates_the_verified_orphan_namespace_before_releasing_its_
     })
     .await
     .unwrap();
+    assert!(
+        survived,
+        "the fixture namespace must actually survive its original supervisor"
+    );
     let stopped = std::fs::metadata(&writes).unwrap().len();
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(std::fs::metadata(&writes).unwrap().len(), stopped);

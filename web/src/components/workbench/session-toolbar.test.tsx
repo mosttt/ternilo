@@ -69,6 +69,25 @@ describe('Session permission placement policy', () => {
     expect(onSetPermissions).not.toHaveBeenCalled()
   })
 
+  it('explains why a running turn locks permissions and enables them again when idle', () => {
+    const update = vi.fn(async () => undefined)
+    const show = (lockedReason?: string) => act(() => root.render(<LocaleProvider>
+      <SessionToolbar session={{ ...session, placement: 'local_node' }} lockedReason={lockedReason} onSetPermissions={update} open />
+    </LocaleProvider>))
+    show('当前轮次正在运行，请等待结束或停止后再修改权限。')
+    expect(document.querySelector('[role="menu"]')?.textContent).toContain('当前轮次正在运行')
+    for (const item of document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')) {
+      expect(item.hasAttribute('data-disabled')).toBe(true)
+      act(() => item.click())
+    }
+    expect(update).not.toHaveBeenCalled()
+    show()
+    const option = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(item => item.textContent === '只读')!
+    expect(option.hasAttribute('data-disabled')).toBe(false)
+    act(() => option.click())
+    expect(update).toHaveBeenCalledWith('read_only')
+  })
+
   it('hides full access for Cloud Sessions and keeps it for local-node Sessions', () => {
     expect(render(session)).toEqual(['只读', '工作区写入'])
     act(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
@@ -77,6 +96,26 @@ describe('Session permission placement policy', () => {
 })
 
 describe('Session header actions', () => {
+  it('keeps export available while an offline computer disables runtime actions', () => {
+    const onExport = vi.fn(async () => undefined)
+    const renderHeader = (available: boolean) => act(() => root.render(<LocaleProvider><TooltipProvider>
+      <SessionHeaderActions
+        session={{ ...session, placement: 'local_node', access: { owner_user_id: 'owner', storage_user_id: 'owner', ownership_revision: 0, is_execution_owner: true, is_owner: true, sources: [], role_limited: false, permissions: { view: true, submit: true, stop: true, configure: true } } }}
+        available={available} presets={{ default_id: 'standard', authorable: false, presets: [] }}
+        onSetPreset={vi.fn(async () => undefined)} onTogglePlan={vi.fn(async () => undefined)} onChooseWorkspace={vi.fn()}
+        onRename={vi.fn()} onFork={vi.fn(async () => undefined)} onArchive={vi.fn(async () => undefined)} onExport={onExport}
+      />
+    </TooltipProvider></LocaleProvider>))
+    renderHeader(false)
+    expect(host.querySelector('[data-session-read-only-actions]')).not.toBeNull()
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="后台服务"]')?.disabled).toBe(true)
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="导出会话"]')!.click())
+    expect(onExport).toHaveBeenCalledOnce()
+    renderHeader(true)
+    expect(host.querySelector('[data-session-read-only-actions]')).toBeNull()
+    expect(host.querySelector('[aria-label="更多会话操作"]')).not.toBeNull()
+  })
+
   it('offers the usage limit only for Cloud sessions and respects revoked configuration access', () => {
     const onEditModelLimit = vi.fn()
     const renderHeader = (placement: 'cloud' | 'local_node', configure: boolean) => act(() => root.render(<LocaleProvider><TooltipProvider>

@@ -70,3 +70,18 @@ export function readFileContent(file: Pick<SessionFile, 'session_id' | 'id'>, si
 export function fileKey(file: Pick<SessionFile, 'session_id' | 'id'>): string {
   return JSON.stringify([file.session_id, file.id])
 }
+
+/** Group retained generated versions without dropping their source Session bindings. */
+export function groupFileVersions(files: readonly SessionFile[]): SessionFile[][] {
+  const groups = new Map<string, SessionFile[]>()
+  for (const file of files) {
+    const key = file.kind === 'generated' && file.path
+      ? JSON.stringify([file.kind, file.workspace_id, file.path]) : fileKey(file)
+    const group = groups.get(key)
+    if (group) { if (!group.some(item => fileKey(item) === fileKey(file))) group.push(file) }
+    else groups.set(key, [file])
+  }
+  return [...groups.values()].map(group => group.sort((left, right) =>
+    right.occurred_at_ms - left.occurred_at_ms || (right.event_seq ?? 0) - (left.event_seq ?? 0),
+  ))
+}

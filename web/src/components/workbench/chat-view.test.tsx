@@ -1,3 +1,4 @@
+import { ExecutionAvailabilityContext, type ExecutionAvailability } from './execution-availability'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,8 +66,8 @@ function processTurn(complete: boolean) {
   ]
 }
 
-function render(events: SessionEvent[], selection: DetailsSelection = null, onReaderNavigate: () => void = () => undefined) {
-  act(() => root.render(<div className="conversation-column"><div className="conversation-scroll"><ChatView
+function render(events: SessionEvent[], selection: DetailsSelection = null, onReaderNavigate: () => void = () => undefined, availability: ExecutionAvailability = 'live') {
+  act(() => root.render(<ExecutionAvailabilityContext.Provider value={availability}><div className="conversation-column"><div className="conversation-scroll"><ChatView
     sessionId="session-1"
     events={events}
     pendingSubmissions={[]}
@@ -75,7 +76,7 @@ function render(events: SessionEvent[], selection: DetailsSelection = null, onRe
     selection={selection}
     onSelect={() => undefined}
     onReaderNavigate={onReaderNavigate}
-  /></div></div>))
+  /></div></div></ExecutionAvailabilityContext.Provider>))
 }
 
 beforeEach(() => {
@@ -151,8 +152,8 @@ describe('ChatView turn process and navigation', () => {
     expect(row?.getAttribute('data-state')).toBe('answered')
     expect(row?.getAttribute('data-question-kind')).toBe('tool-approval')
     expect(row?.textContent).toContain('工具授权')
-    expect(row?.textContent).toContain('是否允许 shell 执行一次？')
-    expect(row?.textContent).toContain('原因：运行聚焦测试')
+    expect(row?.textContent).toContain('是否允许执行这条命令？')
+    expect(row?.textContent).toContain('运行聚焦测试')
     expect(row?.textContent).toContain('回答允许一次')
     expect(row?.textContent).not.toContain('等待回答')
     expect(row?.textContent).not.toContain('DO NOT USE BACKEND UI COPY')
@@ -334,6 +335,27 @@ describe('ChatView turn process and navigation', () => {
     expect(body?.textContent).toBe(prompt)
     expect(body?.querySelector('strong')).toBeNull()
     expect(host.querySelector('[data-turn-process]')).toBeNull()
+  })
+
+  it('replaces stale running indicators and timers while offline, then resumes on reconnect', () => {
+    vi.useFakeTimers()
+    const events = [event(1, 'turn_started'), event(2, 'assistant_reasoning_delta', 'run-1', { step: 1, delta: 'Inspecting' })]
+    render(events)
+    expect(host.querySelector('[data-execution-phase="running"]')).not.toBeNull()
+    render(events, null, undefined, 'offline')
+    expect(host.textContent).toContain('电脑离线，运行状态待确认')
+    expect(host.textContent).not.toContain('正在深入思考')
+    expect(host.querySelector('[data-reasoning-duration]')).toBeNull()
+    const text = host.textContent
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(host.textContent).toBe(text)
+    render(events, null, undefined, 'reconnecting')
+    expect(host.textContent).toContain('连接中断，正在重新同步运行状态')
+    render(events)
+    expect(host.textContent).toContain('正在深入思考')
+    render([...events, event(3, 'turn_finished')])
+    expect(host.querySelector('[data-execution-phase]')).toBeNull()
+    vi.useRealTimers()
   })
 
   it('keeps one neutral turn-level thinking status for an open run', () => {

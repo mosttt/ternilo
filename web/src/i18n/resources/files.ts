@@ -1,6 +1,9 @@
 export const zh = {
   title: '文件',
-  description: '查看上传的附件和生成的文件，保留每次生成的版本。',
+  description: '查看上传附件和生成文件；同一路径的生成记录归并显示，历史版本可展开查看。',
+  versions: '历史版本（已加载 {count} 个）',
+  latestVersion: '最新版本',
+  downloadVersion: '下载生成记录 #{event}',
   sessionFiles: '查看会话文件',
   archivedSession: '归档会话',
   unloadedSession: '会话不在当前列表中',
@@ -78,7 +81,10 @@ export const zh = {
 
 export const en: Record<keyof typeof zh, string> = {
   title: 'Files',
-  description: 'Browse uploaded attachments and generated files, with each generated version preserved.',
+  description: 'Browse uploads and generated files. Generated versions at the same path are grouped; expand to view their history.',
+  versions: 'Version history ({count} loaded)',
+  latestVersion: 'Latest version',
+  downloadVersion: 'Download generated record #{event}',
   sessionFiles: 'View conversation files',
   archivedSession: 'Archived conversation',
   unloadedSession: 'Conversation is not in the current list',
@@ -156,7 +162,10 @@ export const en: Record<keyof typeof zh, string> = {
 
 export const ko = {
   title: '파일',
-  description: '업로드한 첨부 파일과 생성된 파일을 찾아봅니다. 생성된 각 버전은 보존됩니다.',
+  description: '업로드와 생성 파일을 확인하세요. 같은 경로의 생성 기록은 묶어서 표시되며, 펼쳐서 이전 버전을 볼 수 있습니다.',
+  versions: '이전 버전 ({count}개 로드됨)',
+  latestVersion: '최신 버전',
+  downloadVersion: '생성 기록 #{event} 다운로드',
   sessionFiles: '세션 파일 보기',
   archivedSession: '보관된 세션',
   unloadedSession: '현재 목록에 없는 세션',

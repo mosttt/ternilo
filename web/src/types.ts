@@ -318,6 +318,7 @@ export interface LocalSession {
   identity: SessionIdentity
   workspace_id: string
   placement?: 'local_node' | 'cloud'
+  node_connected?: boolean
   workspace_path: string
   parent_session_id?: string | null
   subagent?: {

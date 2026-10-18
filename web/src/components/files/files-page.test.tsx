@@ -71,7 +71,7 @@ async function click(label: string) {
   await act(async () => button!.click())
 }
 
-it('loads metadata with URL filters and appends cursor pages without merging generated versions', async () => {
+it('groups generated versions across cursor pages while preserving preview and source bindings', async () => {
   history.replaceState({}, '', '/files?session_id=session-a&kind=generated&query=report')
   request.mockResolvedValue(page()).mockResolvedValueOnce(page([file()], 'opaque +/token')).mockResolvedValueOnce(page([file({ id: 'generated-11-0', event_seq: 11 })]))
   await render()
@@ -83,7 +83,9 @@ it('loads metadata with URL filters and appends cursor pages without merging gen
   expect(request).toHaveBeenCalledTimes(1)
   await click('加载更多')
   expect(new URL(request.mock.calls[1][0], 'http://localhost').searchParams.get('cursor')).toBe('opaque +/token')
-  expect(host.querySelectorAll('[data-file-id]')).toHaveLength(2)
+  expect(host.querySelectorAll('[data-file-id]')).toHaveLength(1)
+  expect(host.querySelector('[data-file-versions]')?.textContent).toContain('已加载 2 个')
+  expect(host.querySelector('[data-file-id]')?.getAttribute('data-file-id')).toBe('generated-11-0')
   expect(host.textContent).toContain('生成记录 #10')
   expect(host.textContent).toContain('生成记录 #11')
   expect(request.mock.calls.every(([path]) => !path.endsWith('/content'))).toBe(true)
@@ -104,7 +106,7 @@ it('waits for Server account and space bootstrap before requesting any inventory
 })
 
 it('reuses loaded cursor pages on return, but refreshes invalidated and expired metadata', async () => {
-  request.mockResolvedValueOnce(page([file()], 'next')).mockResolvedValueOnce(page([file({ id: 'second', name: 'second.txt' })]))
+  request.mockResolvedValueOnce(page([file()], 'next')).mockResolvedValueOnce(page([file({ id: 'second', name: 'second.txt', path: 'output/second.txt' })]))
   await render()
   await click('加载更多')
   await act(async () => root.render(null))

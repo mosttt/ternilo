@@ -109,6 +109,7 @@ export function useCommandCatalog(
   compositionRevision: string | number,
   t: Translate<'conversation'>,
   connectionStatus: LiveConnectionStatus = 'ready',
+  enabled = true,
 ): {
   commands: ComposerCommand[]
   loading: boolean
@@ -131,6 +132,11 @@ export function useCommandCatalog(
   }, [connectionStatus, error, loading])
 
   React.useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      setError('')
+      return
+    }
     const controller = new AbortController()
     const requestCatalog = () => api.request<SessionCommandCatalog>(
       `/sessions/${encodeURIComponent(sessionId)}/commands`,
@@ -173,7 +179,7 @@ export function useCommandCatalog(
       controller.abort()
       if (reader.current === read) reader.current = null
     }
-  }, [compositionKey, compositionRevision, revision, sessionId])
+  }, [compositionKey, compositionRevision, revision, sessionId, enabled])
 
   let commands: ComposerCommand[]
   let catalogError = error

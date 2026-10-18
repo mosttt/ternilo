@@ -60,6 +60,7 @@
 .approvalIcon { display: grid; width: 32px; height: 32px; flex: none; place-items: center; border-radius: 9px; background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
 .approvalIcon svg { width: 18px; height: 18px; }
 .approval > p { margin: 0; padding: 0 16px 10px; color: var(--label-secondary); font-size: 13px; line-height: 20px; }
+.explanation { padding: 0 16px 10px; }
 .detailButton { display: flex; align-items: center; gap: 6px; margin: 0 16px; color: var(--label-tertiary); font-size: 12px; }
 .detailButton svg { width: 13px; height: 13px; }
 .detailButton svg:last-child { margin-left: 2px; }

@@ -1,5 +1,6 @@
+import { isWorkspaceImageReference } from './src/domain/workspace-image.ts'
 import createDOMPurify from 'dompurify'
-import { marked } from 'marked'
+import { marked, Tokenizer } from 'marked'
 import markedKatex from 'marked-katex-extension'
 import { highlightToHtml } from './src/domain/streaming-highlight.ts'
 
@@ -46,7 +47,9 @@ const renderer = {
   },
   image({ href, title, text }) {
     const safe = safeUrl(href)
-    if (!safe) return escapeHtml(text || href)
+    if (!safe) return isWorkspaceImageReference(href)
+      ? `<span class="markdown-workspace-image" data-workspace-image="${escapeHtml(href)}" data-workspace-image-alt="${escapeHtml(text ?? '')}">${escapeHtml(text || href)}</span>`
+      : escapeHtml(text || href)
     const titleAttribute = title ? ` title="${escapeHtml(title)}"` : ''
     return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text ?? '')}" loading="lazy" referrerpolicy="no-referrer"${titleAttribute}>`
   },
@@ -57,6 +60,18 @@ marked.use({
   breaks: false,
   pedantic: false,
   renderer,
+  tokenizer: {
+    link(source) {
+      // Node history redacts its host root with this placeholder. Encode only
+      // an image destination, leaving prose and code examples untouched.
+      const normalized = source.replace(/^(!\[(?:\\.|[^\]\\])*\]\()<local-workspace>\//, '$1%3Clocal-workspace%3E/')
+      if (normalized === source) return false
+      const token = Tokenizer.prototype.link.call(this, normalized)
+      if (!token || token.type !== 'image') return false
+      token.raw = token.raw.replace('%3Clocal-workspace%3E/', '<local-workspace>/')
+      return token
+    },
+  },
 })
 marked.use(markedKatex({
   throwOnError: false,
@@ -68,7 +83,7 @@ const sanitizeOptions = {
   USE_PROFILES: { html: true, mathMl: true },
   ALLOW_ARIA_ATTR: true,
   ALLOW_DATA_ATTR: false,
-  ADD_ATTR: ['target', 'rel', 'loading', 'referrerpolicy', 'tabindex'],
+  ADD_ATTR: ['data-workspace-image', 'data-workspace-image-alt', 'target', 'rel', 'loading', 'referrerpolicy', 'tabindex'],
   FORBID_TAGS: ['form', 'option', 'select', 'style', 'textarea'],
 }
 

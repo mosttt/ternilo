@@ -283,7 +283,7 @@ async fn active_turn_can_be_cancelled_and_releases_interaction_state() {
 }
 
 #[tokio::test]
-async fn lifecycle_update_closes_interaction_without_event_reads_booting_another_runtime() {
+async fn permission_changes_reject_active_turns_without_blocking_history() {
     let data_dir = test_data_dir();
     let workspace_dir = data_dir.with_extension("workspace");
     tokio::fs::create_dir(&workspace_dir).await.unwrap();
@@ -322,50 +322,47 @@ async fn lifecycle_update_closes_interaction_without_event_reads_booting_another
     .await
     .unwrap();
 
-    let update = {
-        let application = Arc::clone(&application);
-        let session_id = session_id.clone();
-        tokio::spawn(async move {
-            application
-                .update_permissions(&session_id, PermissionPreset::ReadOnly)
-                .await
-        })
-    };
-    tokio::time::timeout(std::time::Duration::from_secs(2), async {
-        loop {
-            if !application.live.read().await.contains_key(&session_id) {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
+    let error = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        application.update_permissions(&session_id, PermissionPreset::ReadOnly),
+    )
     .await
+    .expect("permission changes must not wait behind a running turn")
+    .unwrap_err();
+    assert_eq!(error.code, ternilo_protocol::ErrorCode::Conflict);
+    assert!(!running.is_finished());
+    let events = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        application.events(&session_id),
+    )
+    .await
+    .expect("history remains readable while permissions are rejected")
     .unwrap();
-
-    let event_read = {
-        let application = Arc::clone(&application);
-        let session_id = session_id.clone();
-        tokio::spawn(async move { application.events(&session_id).await })
-    };
-    running.await.unwrap().unwrap();
-    let updated = update.await.unwrap().unwrap();
-    assert_eq!(updated.permissions, PermissionPreset::ReadOnly);
-    let events = tokio::time::timeout(std::time::Duration::from_secs(2), event_read)
-        .await
-        .expect("event read completes after the pending interaction is closed")
-        .unwrap()
-        .unwrap();
     assert!(
         events
             .iter()
             .any(|event| matches!(event.kind, SessionEventKind::UserQuestionAsked { .. }))
     );
-    assert!(
-        application
-            .pending_questions(Some(&session_id))
-            .await
-            .is_empty()
+    let pending = application.pending_questions(Some(&session_id)).await;
+    assert_eq!(
+        pending.len(),
+        1,
+        "rejecting configuration must not cancel the question"
     );
+    application
+        .answer_question(ternilo_protocol::UserAnswer {
+            question_id: pending[0].question.id.clone(),
+            selected: Vec::new(),
+            custom: Some("Continue".into()),
+        })
+        .await
+        .unwrap();
+    running.await.unwrap().unwrap();
+    let updated = application
+        .update_permissions(&session_id, PermissionPreset::ReadOnly)
+        .await
+        .unwrap();
+    assert_eq!(updated.permissions, PermissionPreset::ReadOnly);
     assert!(application.live.read().await.is_empty());
     application
         .run_turn(&session_id, None, "/code \"runtime reopened\"".to_owned())

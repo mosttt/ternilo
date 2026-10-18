@@ -1,6 +1,6 @@
 import * as React from 'react'
 import {
-  Check, ChevronRight, Edit3, Folder, FolderOpen, FolderSearch, Plus,
+  ArrowUp, Check, ChevronRight, Edit3, Folder, FolderOpen, FolderSearch, Plus,
 } from 'lucide-react'
 import { api } from '@/api/client'
 import {
@@ -330,6 +330,7 @@ export function DirectoryBrowser({
     ? null
     : directoryDraftParts(crumbSource, pathDraft, scanned.current).prefix
   const crumbs = crumbSource === null ? [] : displayDirectoryCrumbs(crumbSource, t('browser.home'))
+  const parentPath = crumbSource === null ? null : directoryParentPath(crumbSource)
   const crumbTail = crumbs.at(-1)?.path
   React.useEffect(() => {
     const trail = crumbTrailRef.current
@@ -459,6 +460,10 @@ export function DirectoryBrowser({
             <DialogTitle className={styles.title}>{dialogTitle}</DialogTitle>
             <DialogDescription className={styles.description}>{dialogDescription}</DialogDescription>
             <div className={styles.crumbBar}>
+              <Button type="button" variant="ghost" size="icon"
+                aria-label={t('browser.parent')} title={t('browser.parent')}
+                disabled={parentInert || !parentPath || pathDraft !== null}
+                onClick={() => { if (parentPath) navigate(parentPath) }}><ArrowUp aria-hidden="true" /></Button>
               {pathDraft === null ? (
                 <>
                   <span className={styles.crumbTrail} role="navigation" aria-label={t('browser.editPath')} ref={crumbTrailRef}>
@@ -526,6 +531,7 @@ export function DirectoryBrowser({
                 />
               )}
             </div>
+            {targetPath && <p className={styles.actualPath} title={targetPath} data-directory-path="">{targetPath}</p>}
           </header>
 
           <div className={styles.content}>

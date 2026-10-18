@@ -1,6 +1,5 @@
 import { selectChoice } from './browser-select-fixture.mjs'
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -44,15 +43,15 @@ test('Local Files preserves upload bytes, immutable versions, filters, paginatio
   })
   await new Promise((resolve, reject) => { model.once('error', reject); model.listen(0, '127.0.0.1', resolve) })
   let browser
-  const observations = { pageErrors: [], consoleErrors: [], httpErrors: [], failedRequests: [], assetHashes: {} }
+  const observations = { pageErrors: [], consoleErrors: [], httpErrors: [], failedRequests: [], assets: {} }
   try {
     await waitForHttp(origin, local)
     for (const asset of ['app.js', 'app.css']) {
       const response = await fetch(`${origin}/assets/${asset}`)
       assert.equal(response.status, 200)
-      const hash = bytes => createHash('sha256').update(bytes).digest('hex')
-      observations.assetHashes[asset] = hash(Buffer.from(await response.arrayBuffer()))
-      assert.equal(observations.assetHashes[asset], hash(await readFile(path.join(repository, 'web/dist/assets', asset))), `Local embeds current ${asset}`)
+      const served = Buffer.from(await response.arrayBuffer())
+      assert.deepEqual(served, await readFile(path.join(repository, 'web/dist/assets', asset)), `Local embeds current ${asset}`)
+      observations.assets[asset] = { bytes: served.length, matches: true }
     }
     const html = await (await fetch(origin)).text()
     const token = JSON.parse(html.match(/window\.__TERNILO_BOOT__\s*=\s*(\{[^<]+\});/)[1]).apiToken
@@ -118,7 +117,7 @@ test('Local Files preserves upload bytes, immutable versions, filters, paginatio
     assert.equal(new URL(page.url()).pathname, '/files')
     assert.equal(new URL(page.url()).searchParams.get('session_id'), sessions[0])
     await page.locator('[data-file-id]').first().waitFor()
-    assert.equal(await page.locator('[data-file-id]').count(), 4)
+    assert.equal(await page.locator('[data-file-id]').count(), 3)
     assert.equal(await page.locator('[data-app-frame]:visible').count(), 0, 'Files uses its independent page shell')
     const uploaded = page.locator('[data-file-id]').filter({ hasText: 'literal-upload.txt' })
     await uploaded.getByRole('button', { name: '预览 literal-upload.txt', exact: true }).click()
@@ -134,10 +133,13 @@ test('Local Files preserves upload bytes, immutable versions, filters, paginatio
     assert.deepEqual(imageDownload.bytes, normalizedImage, 'the retained normalized upload is downloaded without re-encoding')
     await page.getByRole('button', { name: '关闭预览', exact: true }).click()
     const generated = page.locator('[data-file-id]').filter({ hasText: 'report.txt' })
-    assert.equal(await generated.count(), 2)
+    assert.equal(await generated.count(), 1)
+    await generated.locator('[data-file-versions] summary').click()
+    const versionRows = generated.locator('[data-file-versions] li')
+    assert.equal(await versionRows.count(), 2)
     const versions = []
     for (let index = 0; index < 2; index++) {
-      const result = await downloadedBytes(page, generated.nth(index).getByRole('button', { name: '下载 report.txt', exact: true }))
+      const result = await downloadedBytes(page, versionRows.nth(index).getByRole('button').last())
       versions.push(result.bytes.toString('utf8'))
     }
     assert.deepEqual(versions.sort(), ['first-version', 'second-version'])
@@ -177,7 +179,7 @@ test('Local Files preserves upload bytes, immutable versions, filters, paginatio
 
     await api(`/sessions/${sessions[0]}/archive`, {}, 'POST')
     await page.goto(`${origin}/files?session_id=${sessions[0]}&query=report.txt`)
-    await until(() => page.locator('[data-file-id]').count(), count => count === 2, 'archived files remain available')
+    await until(() => page.locator('[data-file-id]').count(), count => count === 1, 'archived file group remains available')
     assert.equal(await page.getByRole('button', { name: '打开原会话', exact: true }).count(), 0)
     await page.getByRole('button', { name: '查看会话文件', exact: true }).first().click()
     assert.equal(new URL(page.url()).pathname, '/files')
@@ -189,9 +191,9 @@ test('Local Files preserves upload bytes, immutable versions, filters, paginatio
     await selectChoice(mobileFilters.getByLabel('文件类型', { exact: true }), 'upload')
     await page.getByText('没有符合条件的文件。', { exact: true }).waitFor()
     await selectChoice(mobileFilters.getByLabel('文件类型', { exact: true }), 'generated')
-    await until(() => page.locator('[data-file-id]').count(), count => count === 2, 'mobile file kind filter')
+    await until(() => page.locator('[data-file-id]').count(), count => count === 1, 'mobile file kind filter')
     assert.equal(new URL(page.url()).searchParams.get('kind'), 'generated')
-    assert.equal(await mobileFilters.getByLabel('会话', { exact: true }).inputValue(), sessions[0], 'archived session filter is retained on mobile')
+    assert.equal(await mobileFilters.getByLabel('会话', { exact: true }).getAttribute('data-choice-value'), sessions[0], 'archived session filter is retained on mobile')
     await page.screenshot({ path: path.join(artifacts, 'files-local-mobile-filters.png') })
     await mobileFilters.locator('summary').click()
     await page.getByRole('button', { name: '预览 report.txt', exact: true }).first().click()

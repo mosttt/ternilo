@@ -337,6 +337,10 @@ async fn load_state_by_archive(
             .unwrap_or_else(|| "云端 / 未分组".to_owned());
         WorkbenchSession::cloud(session, path)
     });
+    let connected = match &online {
+        Some(ids) => ids.clone(),
+        None => state.edge.online_executor_ids(tenant_id).await?,
+    };
     let edge = if let Some(ids) = &online {
         state
             .store
@@ -355,7 +359,8 @@ async fn load_state_by_archive(
             .get(&session.workspace_id)
             .cloned()
             .unwrap_or_else(|| "此电脑 / 未分组".to_owned());
-        WorkbenchSession::edge(session, path)
+        let node_connected = connected.contains(&session.executor_id);
+        WorkbenchSession::edge(session, path, node_connected)
     });
     let mut sessions = cloud.chain(edge).collect::<Vec<_>>();
     for session in &mut sessions {
@@ -708,6 +713,7 @@ mod tests {
             },
             workspace_id: WorkspaceId::new("workspace-a"),
             placement: ternilo_control::WorkspacePlacement::Cloud,
+            node_connected: None,
             workspace_path: "cloud / workspace-a".to_owned(),
             parent_session_id: None,
             subagent: None,

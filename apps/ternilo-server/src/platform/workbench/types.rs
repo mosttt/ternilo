@@ -216,6 +216,8 @@ pub(crate) struct WorkbenchSession {
     pub(crate) identity: SessionIdentity,
     pub(crate) workspace_id: WorkspaceId,
     pub(crate) placement: WorkspacePlacement,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) node_connected: Option<bool>,
     pub(crate) workspace_path: String,
     pub(crate) parent_session_id: Option<SessionId>,
     pub(crate) subagent: Option<SubagentSessionMetadata>,
@@ -251,6 +253,7 @@ impl WorkbenchSession {
             },
             workspace_id: session.workspace_id,
             placement: WorkspacePlacement::Cloud,
+            node_connected: None,
             workspace_path,
             parent_session_id: session.parent_session_id,
             subagent: session.subagent,
@@ -273,7 +276,11 @@ impl WorkbenchSession {
         }
     }
 
-    pub(crate) fn edge(session: EdgeSessionRecord, workspace_path: String) -> Self {
+    pub(crate) fn edge(
+        session: EdgeSessionRecord,
+        workspace_path: String,
+        connected: bool,
+    ) -> Self {
         let metadata = session.metadata;
         Self {
             access: None,
@@ -285,6 +292,7 @@ impl WorkbenchSession {
             },
             workspace_id: session.workspace_id,
             placement: WorkspacePlacement::LocalNode,
+            node_connected: Some(connected),
             workspace_path,
             parent_session_id: metadata.parent_session_id,
             subagent: metadata.subagent,

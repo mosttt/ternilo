@@ -148,6 +148,24 @@ function write(textarea: HTMLTextAreaElement, value: string) {
   })
 }
 
+it('keeps drafts through computer disconnection without requesting its command catalog', async () => {
+  const value = props({ available: false })
+  await act(async () => root.render(<InputBar {...value} />))
+  expect(host.querySelector('[data-input-bar]')).toBeNull()
+  expect(fetchMock).not.toHaveBeenCalled()
+  await act(async () => root.render(<InputBar {...value} available />))
+  write(host.querySelector('textarea')!, 'Retained while offline')
+  await act(async () => root.render(<InputBar {...value} />))
+  const calls = fetchMock.mock.calls.length
+  expect(host.querySelector('[data-input-bar]')).toBeNull()
+  await act(async () => root.render(<InputBar {...value} commandCatalogRevision="offline-change" />))
+  expect(fetchMock.mock.calls.length).toBe(calls)
+  await act(async () => root.render(<InputBar {...value} available commandCatalogRevision="online-change" />))
+  expect(host.querySelector('textarea')?.value).toBe('Retained while offline')
+  expect(fetchMock.mock.calls.length).toBeGreaterThan(calls)
+  expect(value.onSubmit).not.toHaveBeenCalled()
+})
+
 function select(textarea: HTMLTextAreaElement, start: number, end = start) {
   act(() => {
     textarea.focus()

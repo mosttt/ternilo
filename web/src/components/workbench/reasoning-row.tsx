@@ -1,3 +1,4 @@
+import { useExecutionAvailability } from './execution-availability'
 import * as React from 'react'
 import { Brain } from 'lucide-react'
 import type { AssistantReasoning } from '@/domain/events'
@@ -24,17 +25,19 @@ export interface ReasoningDisclosure {
 
 export function ReasoningRow({ reasoning, disclosure }: { reasoning: AssistantReasoning; disclosure?: ReasoningDisclosure }) {
   const t = useTranslate('chat')
+  const available = useExecutionAvailability() === 'live'
+  const running = reasoning.running && available
   const [open, setOpen] = React.useState(false)
   const [now, setNow] = React.useState(Date.now())
   const summaryRef = React.useRef<HTMLSpanElement>(null)
   const summary = reasoning.running ? latestLine(reasoning.text) : firstLine(reasoning.text)
-  const duration = reasoning.running ? Math.max(0, now - reasoning.startedAt) : reasoning.durationMs
+  const duration = reasoning.running ? available ? Math.max(0, now - reasoning.startedAt) : null : reasoning.durationMs
 
   React.useEffect(() => {
-    if (!reasoning.running) return
+    if (!running) return
     const timer = window.setInterval(() => setNow(Date.now()), 100)
     return () => window.clearInterval(timer)
-  }, [reasoning.running, reasoning.startedAt])
+  }, [running, reasoning.startedAt])
 
   React.useLayoutEffect(() => {
     const element = summaryRef.current
@@ -42,8 +45,8 @@ export function ReasoningRow({ reasoning, disclosure }: { reasoning: AssistantRe
     element.scrollLeft = reasoning.running ? element.scrollWidth - element.clientWidth : 0
   }, [reasoning.running, summary])
 
-  return <div className={css.root} data-reasoning-row="" data-state={reasoning.running ? 'running' : 'complete'}>
-    {reasoning.running && <span className={css.visuallyHidden}>{t('row.running')}</span>}
+  return <div className={css.root} data-reasoning-row="" data-state={reasoning.running ? available ? 'running' : 'unknown' : 'complete'}>
+    {reasoning.running && <span className={css.visuallyHidden}>{t(available ? 'row.running' : 'row.unknown')}</span>}
     <ChatDisclosure
       icon={<Brain />}
       title={t('message.think')}

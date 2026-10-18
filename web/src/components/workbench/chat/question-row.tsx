@@ -2,6 +2,7 @@ import { ChevronRight, CircleDot, ListChecks, ShieldCheck } from 'lucide-react'
 import type { QuestionLifecycle } from '@/domain/events'
 import type { Translate } from '@/i18n/runtime'
 import { declarativeToolIcon } from '@/plugins/tool-presentations/declarative-contribution'
+import { ApprovalExplanation } from '../approval-explanation'
 import css from './question-row.module.css'
 
 type ChatTranslate = Translate<'chat'>
@@ -15,6 +16,7 @@ function title(lifecycle: QuestionLifecycle, t: ChatTranslate) {
 function prompt(lifecycle: QuestionLifecycle, t: ChatTranslate) {
   if (lifecycle.kind === 'tool-approval') {
     const approval = lifecycle.question.tool_approval
+    if (approval?.tool_name === 'shell') return t('question.shellApprovalPrompt')
     return t('question.approvalPrompt', { tool: approval?.presentation?.title ?? approval?.tool_name ?? '' })
   }
   if (lifecycle.kind === 'plan-review') {
@@ -69,7 +71,7 @@ export function QuestionRow({ lifecycle, onSelect, t }: {
       ? declarativeToolIcon(lifecycle.question.tool_approval.presentation)
       : ShieldCheck
     : lifecycle.kind === 'plan-review' ? ListChecks : CircleDot
-  const approvalReason = lifecycle.question.tool_approval?.reason
+  const approval = lifecycle.question.tool_approval
   return <section
     className={css.root}
     data-question-lifecycle=""
@@ -85,7 +87,7 @@ export function QuestionRow({ lifecycle, onSelect, t }: {
     </button>
     <div className={css.body}>
       <p className={css.prompt}>{prompt(lifecycle, t)}</p>
-      {approvalReason && <p className={css.reason}>{t('question.reason', { reason: approvalReason })}</p>}
+      {approval && <ApprovalExplanation approval={approval} />}
       {lifecycle.question.options.length > 0 && <div className={css.optionGroup}>
         <span className={css.label}>{t('question.options')}</span>
         <ul className={css.options} data-question-options="">
