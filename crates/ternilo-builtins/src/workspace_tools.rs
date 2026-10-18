@@ -517,13 +517,24 @@ impl HarnessPlugin for ShellToolPlugin {
                 .register_tool(ToolRegistration {
                     spec: ToolSpec {
                         name: "shell".to_owned(),
-                        description: "Run a platform shell command in the workspace sandbox. Set full_access only when the task requires host access; the user may be asked to approve it.".to_owned(),
+                        description: "Run a platform shell command in the workspace sandbox. Set full_access only when the task requires host access; the user may be asked to approve it. When requesting full_access, always include approval in the user's language: state the concrete action and targets, why it is needed for their task, and its effects or risks (for example service interruption or file deletion). Describe the whole command, not just its harmless first step. Do not paste the command or merely say that sandbox access is needed.".to_owned(),
                         input_schema: json!({
                             "type": "object",
                             "properties": {
                                 "command": { "type": "string" },
                                 "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 300_000, "default": 30000 },
-                                "full_access": { "type": "boolean", "default": false }
+                                "full_access": { "type": "boolean", "default": false },
+                                "approval": {
+                                    "type": "object",
+                                    "description": "Concise explanation for the person approving this operation, in their language.",
+                                    "properties": {
+                                        "action": { "type": "string", "minLength": 1, "description": "What will happen, including the affected files, services, ports or processes." },
+                                        "reason": { "type": "string", "minLength": 1, "description": "Why this action is needed to fulfill the user's request." },
+                                        "impact": { "type": "string", "minLength": 1, "description": "Expected changes, interruptions, deletion or external effects. For inspection, say what is only read. Do not claim safety beyond what the command establishes." }
+                                    },
+                                    "required": ["action", "reason", "impact"],
+                                    "additionalProperties": false
+                                }
                             },
                             "required": ["command"],
                             "additionalProperties": false
@@ -556,6 +567,16 @@ struct ShellArguments {
     timeout_ms: u64,
     #[serde(default)]
     full_access: bool,
+    #[serde(default, rename = "approval")]
+    _approval: Option<ShellApproval>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ShellApproval {
+    action: String,
+    reason: String,
+    impact: String,
 }
 
 const fn default_shell_timeout() -> u64 {
@@ -564,6 +585,19 @@ const fn default_shell_timeout() -> u64 {
 
 impl ToolHandler for ShellTool {
     fn approval_reason(&self, arguments: &Value) -> Option<String> {
+        if let Some(approval) = arguments
+            .get("approval")
+            .and_then(|value| serde_json::from_value::<ShellApproval>(value.clone()).ok())
+        {
+            let parts = [
+                approval.action.trim(),
+                approval.reason.trim(),
+                approval.impact.trim(),
+            ];
+            if parts.iter().all(|part| !part.is_empty()) {
+                return Some(parts.join("\n"));
+            }
+        }
         if !arguments
             .get("full_access")
             .and_then(Value::as_bool)
@@ -571,14 +605,7 @@ impl ToolHandler for ShellTool {
         {
             return None;
         }
-        let command = arguments
-            .get("command")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        let command = command.chars().take(2_000).collect::<String>();
-        Some(format!(
-            "the command requests access outside the workspace sandbox:\n\n{command}"
-        ))
+        Some("the shell call requests one-time access outside the workspace sandbox".to_owned())
     }
 
     fn execute<'a>(

@@ -10,6 +10,7 @@ import { isPlanReview, PlanReviewPanel } from './plan-review-panel'
 import { AssistantMarkdown } from './chat/assistant-markdown'
 import { presentationDisplayValue, presentationValue } from '@/domain/tool-presentation'
 import { declarativeToolIcon } from '@/plugins/tool-presentations/declarative-contribution'
+import { ApprovalExplanation } from './approval-explanation'
 
 type SharedProps = {
   onAnswer(id: string, answer: UserQuestionAnswer): Promise<void>
@@ -48,10 +49,10 @@ function ToolApproval({ item, disabled, onAnswer, onError, onInspectApproval, t 
         <span className={css.approvalIcon}>{approval.presentation ? <ApprovalIcon /> : <ShieldAlert />}</span>
         <div>
           <div className={css.eyebrow}>{t('approval.title')}</div>
-          <h2 id={`approval-${item.question.id}`}>{approval.presentation?.title ?? approval.tool_name}</h2>
+          <h2 id={`approval-${item.question.id}`}>{approval.presentation?.title ?? (approval.tool_name === 'shell' ? t('approval.shell') : approval.tool_name)}</h2>
         </div>
       </header>
-      <p>{approval.reason || item.question.question}</p>
+      <ApprovalExplanation approval={approval} className={css.explanation} t={t} />
       <button
         type="button"
         className={css.detailButton}

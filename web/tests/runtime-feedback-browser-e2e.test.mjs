@@ -52,6 +52,11 @@ async function slowModel(folder) {
       pending.add(release); response.on('close', () => pending.delete(release)); return
     }
     if (prompt.includes('delegate') && !tool('spawn')) return call('spawn', 'spawn_agent', { task: 'Inspect fixture evidence', label: 'Review fixture', role: 'investigator', background: false })
+    const approvalLocale = Object.keys(approvalCopy).find(locale => prompt.includes(`approval-${locale}`))
+    if (approvalLocale && !tool('shell-approval')) {
+      const { action, reason, impact } = approvalCopy[approvalLocale]
+      return call('shell-approval', 'shell', { command: `printf approved > approval-${approvalLocale}.txt`, full_access: true, approval: { action, reason, impact } })
+    }
     if (prompt.includes('delivery')) {
       if (!tool('todo-start')) return call('todo-start', 'todo_write', { items: [{ step: 'Deliver files', status: 'in_progress' }] })
       if (!tool('version-one')) return call('version-one', 'write_file', { path: 'report.txt', content: 'version one' })
@@ -70,6 +75,12 @@ const labels = {
   zh: { permission: '会话权限', busy: '当前轮次正在运行', read: '只读', full: '完整访问', confirm: '允许完整访问', team: '打开 Agent Team', open: '打开独立会话', offline: '电脑离线，运行状态待确认', parent: '上级目录' },
   en: { permission: 'Session permission', busy: 'Wait for the current turn', read: 'Read only', full: 'Full access', confirm: 'Allow full access', team: 'Open Agent Team', open: 'Open independent session', offline: 'Computer offline. Run status is unconfirmed.', parent: 'Parent folder' },
   ko: { permission: '세션 권한', busy: '현재 실행이 끝나거나', read: '읽기 전용', full: '전체 접근', confirm: '전체 접근 허용', team: '에이전트 팀 열기', open: '독립 세션 열기', offline: '컴퓨터가 오프라인입니다. 실행 상태를 확인할 수 없습니다.', parent: '상위 폴더' },
+}
+
+const approvalCopy = {
+  zh: { action: '创建授权验证文件', reason: '确认用户同意后，才能执行这项操作', impact: '将在当前工作区写入一个测试文件', allow: '允许一次', deny: '拒绝', command: '查看完整命令' },
+  en: { action: 'Create the approval test file', reason: 'Verify that the operation runs only after approval', impact: 'Writes one test file in the current workspace', allow: 'Allow once', deny: 'Deny', command: 'View full command' },
+  ko: { action: '승인 확인 파일 만들기', reason: '사용자가 승인한 뒤에만 작업이 실행되는지 확인합니다', impact: '현재 작업 공간에 테스트 파일 하나를 씁니다', allow: '한 번 허용', deny: '거부', command: '전체 명령 보기' },
 }
 
 test('real Node permissions, child navigation, offline feedback and delivered files', { timeout: 300_000 }, async () => {
@@ -149,6 +160,41 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
       await page.getByRole('dialog').getByRole('button', { name: text.confirm, exact: true }).click()
       await page.getByRole('dialog').waitFor({ state: 'detached' })
     }
+    await request(resource, { method: 'PATCH', body: { permissions: 'workspace_write' } })
+    for (const [locale, copy] of Object.entries(approvalCopy)) {
+      await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale)
+      await page.setViewportSize(locale === 'ko' ? { width: 390, height: 844 } : { width: 1366, height: 900 })
+      await page.reload()
+      const card = page.locator('[data-tool-approval]')
+      const enqueue = () => request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: `approval-${locale}` } } })
+      await enqueue()
+      await card.getByText(copy.action, { exact: true }).waitFor()
+      await card.getByText(copy.reason, { exact: true }).waitFor()
+      await card.getByText(copy.impact, { exact: true }).waitFor()
+      await assert.rejects(readFile(path.join(folder, `approval-${locale}.txt`)), { code: 'ENOENT' })
+      const history = page.locator('[data-question-kind="tool-approval"][data-state="pending"]')
+      assert.equal(await history.getByText(copy.action, { exact: true }).count(), 1)
+      const command = card.locator('[data-approval-command]')
+      assert.equal(await command.locator('pre').isVisible(), false)
+      await command.locator('summary').click()
+      assert.equal(await command.locator('code').textContent(), `printf approved > approval-${locale}.txt`)
+      await command.locator('summary').click()
+      assert.ok(await card.getByRole('button', { name: copy.allow, exact: true }).isVisible())
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `approval-${locale}.png`) })
+      if (locale === 'zh') {
+        await card.getByRole('button', { name: copy.deny, exact: true }).click()
+        await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'denied shell finishes')
+        await assert.rejects(readFile(path.join(folder, `approval-${locale}.txt`)), { code: 'ENOENT' })
+        await enqueue()
+        await card.getByText(copy.action, { exact: true }).waitFor()
+      }
+      await card.getByRole('button', { name: copy.allow, exact: true }).click()
+      await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'approved shell finishes')
+      assert.equal(await readFile(path.join(folder, `approval-${locale}.txt`), 'utf8'), 'approved')
+    }
+    await request(resource, { method: 'PATCH', body: { permissions: 'full_access' } })
+    await page.setViewportSize({ width: 1366, height: 900 })
     await page.evaluate(() => localStorage.setItem('ternilo.locale', 'zh')); await page.reload()
     await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: 'delegate' } } })
     await page.locator('[data-subagent-activity]').getByText('正在启动子 Agent…', { exact: true }).waitFor()
