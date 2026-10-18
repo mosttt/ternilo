@@ -1,0 +1,215 @@
+{
+  "version": "0.2.17",
+  "release_url": "https://github.com/mosttt/ternilo/releases/tag/v0.2.17",
+  "checks_url": "https://github.com/mosttt/ternilo/actions/runs/39096855443",
+  "release_workflow_url": "https://github.com/mosttt/ternilo/actions/runs/39099664217",
+  "release_workflow_result": "success",
+  "public_assets": {
+    "version": "0.2.17",
+    "source": {
+      "version": "0.2.17",
+      "commit": "03499a86bd5b8733791003330c6500b3f416f97e",
+      "linorun": "46cca18d63d1bef1c5475ac6912f18f5426a115b"
+    },
+    "asset_count": 42,
+    "all_sizes_and_digests_match": true,
+    "individual_archive_checksums_match": true,
+    "archives": [
+      {
+        "file": "ternilo-0.2.17-aarch64-apple-darwin.tar.gz",
+        "target": "aarch64-apple-darwin",
+        "programs": [
+          "ternilo",
+          "ternilo-plugin"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-0.2.17-aarch64-pc-windows-msvc.zip",
+        "target": "aarch64-pc-windows-msvc",
+        "programs": [
+          "ternilo-plugin.exe",
+          "ternilo-sandbox-windows.exe",
+          "ternilo.exe"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-0.2.17-aarch64-unknown-linux-gnu.tar.gz",
+        "target": "aarch64-unknown-linux-gnu",
+        "programs": [
+          "ternilo",
+          "ternilo-plugin"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-0.2.17-x86_64-apple-darwin.tar.gz",
+        "target": "x86_64-apple-darwin",
+        "programs": [
+          "ternilo",
+          "ternilo-plugin"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-0.2.17-x86_64-pc-windows-msvc.zip",
+        "target": "x86_64-pc-windows-msvc",
+        "programs": [
+          "ternilo-plugin.exe",
+          "ternilo-sandbox-windows.exe",
+          "ternilo.exe"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-0.2.17-x86_64-unknown-linux-gnu.tar.gz",
+        "target": "x86_64-unknown-linux-gnu",
+        "programs": [
+          "ternilo",
+          "ternilo-plugin"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-server-0.2.17-aarch64-apple-darwin.tar.gz",
+        "target": "aarch64-apple-darwin",
+        "programs": [
+          "ternilo-server"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-server-0.2.17-aarch64-pc-windows-msvc.zip",
+        "target": "aarch64-pc-windows-msvc",
+        "programs": [
+          "ternilo-server.exe"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-server-0.2.17-aarch64-unknown-linux-gnu.tar.gz",
+        "target": "aarch64-unknown-linux-gnu",
+        "programs": [
+          "ternilo-server"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-server-0.2.17-x86_64-apple-darwin.tar.gz",
+        "target": "x86_64-apple-darwin",
+        "programs": [
+          "ternilo-server"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-server-0.2.17-x86_64-pc-windows-msvc.zip",
+        "target": "x86_64-pc-windows-msvc",
+        "programs": [
+          "ternilo-server.exe"
+        ],
+        "documentation_files": 117
+      },
+      {
+        "file": "ternilo-server-0.2.17-x86_64-unknown-linux-gnu.tar.gz",
+        "target": "x86_64-unknown-linux-gnu",
+        "programs": [
+          "ternilo-server"
+        ],
+        "documentation_files": 117
+      }
+    ],
+    "installers_format_checked": [
+      "aarch64-apple-darwin-Ternilo_0.2.17_aarch64.dmg",
+      "aarch64-pc-windows-msvc-Ternilo_0.2.17_arm64-setup.exe",
+      "aarch64-unknown-linux-gnu-Ternilo_0.2.17_aarch64.AppImage",
+      "aarch64-unknown-linux-gnu-Ternilo_0.2.17_arm64.deb",
+      "x86_64-apple-darwin-Ternilo_0.2.17_x64.dmg",
+      "x86_64-pc-windows-msvc-Ternilo_0.2.17_x64-setup.exe",
+      "x86_64-pc-windows-msvc-Ternilo_0.2.17_x64_en-US.msi",
+      "x86_64-unknown-linux-gnu-Ternilo_0.2.17_amd64.AppImage",
+      "x86_64-unknown-linux-gnu-Ternilo_0.2.17_amd64.deb"
+    ],
+    "limitations": "Installer format and archive architecture validation do not replace physical installation on every platform."
+  },
+  "public_programs": {
+    "version": "0.2.17",
+    "source": {
+      "version": "0.2.17",
+      "commit": "03499a86bd5b8733791003330c6500b3f416f97e",
+      "linorun": "46cca18d63d1bef1c5475ac6912f18f5426a115b"
+    },
+    "programs": "public Linux x86_64 CLI and Server archives",
+    "groups": [
+      {
+        "name": "runtime-feedback",
+        "seconds": 120.59,
+        "exit_code": 0
+      }
+    ]
+  },
+  "public_image": {
+    "image": "ghcr.io/mosttt/ternilo-server:0.2.17",
+    "anonymous": true,
+    "index_digest": "sha256:86fe5ee5b95eea362c597835c72ff5e4eb46c5d95179d084086c8f81905d1cb1",
+    "latest_digest": "sha256:86fe5ee5b95eea362c597835c72ff5e4eb46c5d95179d084086c8f81905d1cb1",
+    "platform_digests": {
+      "amd64": "sha256:28ec68fe2654c5b9020f4cf4d2246ba3bb124158a8fc3a4bfafb20f039a5d154",
+      "arm64": "sha256:f204b7896d1e2575896d230cb4361873737bf2acb016e75ff63ec463c901fdda"
+    },
+    "source_commit": "03499a86bd5b8733791003330c6500b3f416f97e",
+    "user": "10001"
+  },
+  "image_smoke": "passed: non-root, read-only root, initialization, login, settings, embedded Web, persistent restart",
+  "screenshots_inspected": [
+    "approval-ko.png",
+    "file-versions.png",
+    "delivery-ko.png"
+  ],
+  "branch_cleanup": {
+    "main": "03499a86bd5b8733791003330c6500b3f416f97e",
+    "local": {
+      "docs/release-0.2.13-acceptance": "c4e047b0e34c1907a6af99019d0f55b32fdd6e93",
+      "docs/release-0.2.14-acceptance": "97add7b729b0296222c22f3d98b97cdb43d94efb",
+      "docs/release-0.2.16-acceptance": "11b4cb2cb8683ddfdb0b681d66c8dbd7ddd45d40",
+      "feat/agent-coordination": "c6a8f2792d0921b78c170f272d4a14a1971ec6ca",
+      "feat/capability-completion": "3e744702db9ffd95cf9a013c8bc74049c5f6a71b",
+      "feat/plugin-settings-overview": "557ed135ff53fda6565ff1e68da9c1187c44c252",
+      "release/0.2.15": "09e424fcbd2aaddd92135fd7942c4c580e1e4dd0",
+      "release/0.2.16": "09f794f97915c6f9042cd5915e64bdc47c966f78",
+      "release/0.2.17": "a7be5c1e518dde8465801e85c634d8559993c796"
+    },
+    "remote": {
+      "feat/agent-coordination": "c6a8f2792d0921b78c170f272d4a14a1971ec6ca",
+      "feat/plugin-settings-overview": "557ed135ff53fda6565ff1e68da9c1187c44c252",
+      "release/0.2.15": "09e424fcbd2aaddd92135fd7942c4c580e1e4dd0",
+      "release/0.2.16": "09f794f97915c6f9042cd5915e64bdc47c966f78",
+      "release/0.2.17": "a7be5c1e518dde8465801e85c634d8559993c796"
+    },
+    "retained": [
+      "main",
+      "backup/pre-pr-integration",
+      "feat/resource-migration-completion",
+      "feat/resource-migration-recovery"
+    ],
+    "worktree_policy": "keep all files; detach the two clean completed worktrees at their existing commit",
+    "completed": true,
+    "remaining_local": [
+      "(HEAD detached at github/main)",
+      "backup/pre-pr-integration",
+      "feat/resource-migration-completion",
+      "feat/resource-migration-recovery",
+      "main"
+    ],
+    "remaining_remote": [
+      "03499a86bd5b8733791003330c6500b3f416f97e\trefs/heads/main"
+    ]
+  },
+  "first_public_browser_attempt": {
+    "passed": false,
+    "reason": "Disconnected the fixture immediately after running status appeared, before history and skills initialization completed; history unavailable and 503 skills",
+    "response": "Wait for successful commands/skills responses, completed history loading and running status before deliberate stable-state disconnection. Public binaries unchanged; all assertions retained.",
+    "remaining_investigation": "Disconnect during initial history loading can show load-error instead of cached activity; separate from hydrated-session offline acceptance."
+  }
+}
