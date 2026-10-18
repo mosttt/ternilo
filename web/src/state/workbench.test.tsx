@@ -414,6 +414,32 @@ describe('remote access token lifetime', () => {
 })
 
 describe('WorkbenchProvider request epochs', () => {
+  it.each([true, false])('restores offline configuration with workspace visibility %s when the computer reconnects', async visibleWorkspace => {
+    window.__TERNILO_BOOT__ = {}
+    const node = { ...workspace('workspace-node'), placement: 'local_node' as const, status: 'offline' as const }
+    const state: ApplicationState = {
+      workspaces: visibleWorkspace ? [node] : [], sessions: [{ ...session('session-node', node.workspace_id, 1), placement: 'local_node', node_connected: false }],
+    }
+    const request = vi.spyOn(api, 'request').mockImplementation(async (path: string) => {
+      if (path === '/state') return state as never
+      if (route(path) === '/catalog') return catalog('reconnected') as never
+      if (route(path) === '/agent-presets') return presets('reconnected') as never
+      throw new Error(`unexpected request ${path}`)
+    })
+    await mount()
+    await act(async () => { await current.refresh() })
+    expect(request.mock.calls.every(([path]) => path === '/state')).toBe(true)
+    expect(current.currentSessionId).toBe('session-node')
+    expect(current.catalog).toBeNull()
+    act(() => current.acceptLiveWorkbench({ ...state, workspaces: visibleWorkspace ? [{ ...node, status: 'online' }] : [], sessions: [{ ...state.sessions[0]!, node_connected: true }] }, 1, []))
+    await vi.waitFor(() => expect(current.catalog?.revision).toBe('reconnected'))
+    expect(current.presets.default_id).toBe('reconnected')
+    const calls = request.mock.calls.length
+    act(() => current.acceptLiveWorkbench(state, 2, []))
+    expect(current.catalog).toBeNull()
+    expect(request.mock.calls.length).toBe(calls)
+  })
+
   it('keeps an offline Node session and its cached state visible when target configuration is unavailable', async () => {
     window.__TERNILO_BOOT__ = {}
     localStorage.setItem('ternilo.current-workspace', 'workspace-node')

@@ -126,7 +126,14 @@ async function readTargetConfiguration(target: ExecutionTarget) {
   return { catalog, presets }
 }
 
-async function readAvailableTargetConfiguration(target: ExecutionTarget) {
+function targetOffline(snapshot: ApplicationState, target: ExecutionTarget) {
+  const session = snapshot.sessions.find(item => item.identity.session_id === target.sessionId)
+  const workspace = snapshot.workspaces.find(item => item.workspace_id === (session?.workspace_id ?? target.workspaceId))
+  return session?.node_connected === false || (workspace?.placement === 'local_node' && workspace.status === 'offline')
+}
+
+async function readAvailableTargetConfiguration(target: ExecutionTarget, snapshot: ApplicationState) {
+  if (targetOffline(snapshot, target)) return null
   try {
     return await readTargetConfiguration(target)
   } catch {
@@ -493,7 +500,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       const target = selectionTarget(initialSelection.workspaceId, initialSelection.sessionId)
       const targetKey = executionTargetKey(target)
       const configurationRequestId = ++configurationRequestRef.current
-      const configuration = await readAvailableTargetConfiguration(target)
+      const configuration = await readAvailableTargetConfiguration(target, nextSnapshot)
       if (!isCurrent(platform ? tenantId : undefined)) return
       const latestSelection = selectionRef.current
       const liveChanged = liveEpoch !== liveWorkbenchEpochRef.current
@@ -505,7 +512,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         setCatalog(configuration.catalog)
         setPresets(configuration.presets)
       } else {
-        configurationTargetRef.current = targetKey === finalTargetKey ? targetKey : null
+        configurationTargetRef.current = targetOffline(nextSnapshot, target) ? null : targetKey === finalTargetKey ? targetKey : null
         setCatalog(null)
         setPresets(emptyPresets)
       }
@@ -533,10 +540,18 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     else localStorage.removeItem(storage.session)
   }, [currentSessionId, currentWorkspaceId])
 
+  const configurationOffline = targetOffline(snapshot, selectionTarget(currentWorkspaceId, currentSessionId))
   React.useEffect(() => {
     if (loading || authRequired || (platform && !tenantRef.current)) return
     const target = selectionTarget(currentWorkspaceId, currentSessionId)
     const targetKey = executionTargetKey(target)
+    if (configurationOffline) {
+      configurationRequestRef.current += 1
+      configurationTargetRef.current = null
+      setCatalog(null)
+      setPresets(emptyPresets)
+      return
+    }
     if (configurationTargetRef.current === targetKey) return
     const requestId = ++configurationRequestRef.current
     configurationTargetRef.current = null
@@ -560,7 +575,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         setCatalog(null)
         setPresets(emptyPresets)
       })
-  }, [authRequired, currentSessionId, currentWorkspaceId, loading, platform])
+  }, [authRequired, currentSessionId, currentWorkspaceId, loading, platform, configurationOffline])
 
   const refresh = React.useCallback(async () => {
     const requestId = ++refreshRequestRef.current
@@ -580,7 +595,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       const target = selectionTarget(initialSelection.workspaceId, initialSelection.sessionId)
       const targetKey = executionTargetKey(target)
       const configurationRequestId = ++configurationRequestRef.current
-      const configuration = await readAvailableTargetConfiguration(target)
+      const configuration = await readAvailableTargetConfiguration(target, nextSnapshot)
       if (!isCurrent()) return
       const latestSelection = selectionRef.current
       const liveChanged = liveEpoch !== liveWorkbenchEpochRef.current
@@ -593,7 +608,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
           setCatalog(configuration.catalog)
           setPresets(configuration.presets)
         } else {
-          configurationTargetRef.current = targetKey === finalTargetKey ? targetKey : null
+          configurationTargetRef.current = targetOffline(nextSnapshot, target) ? null : targetKey === finalTargetKey ? targetKey : null
           setCatalog(null)
           setPresets(emptyPresets)
         }

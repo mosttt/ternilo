@@ -234,7 +234,7 @@ function WorkbenchShell({ runtime }: { runtime: SessionRuntime }) {
     setDetailsState({ scope: selectionScope, selection });
   }, [selectionScope]);
   const workspacePanel = useWorkspacePanel(
-    !loading && !authRequired && (!platform || currentTenantRole !== null) ? currentSession?.identity.session_id ?? null : null,
+    !loading && !authRequired && (!platform || (currentTenantRole !== null && currentSession?.node_connected !== false && currentWorkspace?.status !== 'offline')) ? currentSession?.identity.session_id ?? null : null,
     accountScope ?? undefined,
     JSON.stringify([currentWorkspace?.access, currentWorkspace?.status, runtime.liveStatus]),
     () => { setSelection(null); setMobileSidebar(false); },

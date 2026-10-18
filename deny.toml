@@ -17,6 +17,9 @@ ignore = [
     { id = "RUSTSEC-2025-0098", reason = "urlpattern is private Tauri plumbing and has no maintained replacement selectable by Ternilo" },
     { id = "RUSTSEC-2025-0100", reason = "urlpattern is private Tauri plumbing and has no maintained replacement selectable by Ternilo" },
     { id = "RUSTSEC-2026-0249", reason = "Rhai requires smartstring internally and exposes no replacement feature" },
+    { id = "RUSTSEC-2026-0370", reason = "Tauri Linux dialog, notification and single-instance plugins require zbus 5; remove when those upstream plugins adopt zbus 6, which absorbs zvariant" },
+    { id = "RUSTSEC-2026-0371", reason = "Tauri Linux dialog, notification and single-instance plugins require zbus 5; remove when those upstream plugins adopt zbus 6, which absorbs zbus_names" },
+    { id = "RUSTSEC-2026-0372", reason = "Tauri Linux dialog, notification and single-instance plugins require zbus 5; remove when those upstream plugins adopt zbus 6, which absorbs zvariant_derive" },
 ]
 
 [licenses]

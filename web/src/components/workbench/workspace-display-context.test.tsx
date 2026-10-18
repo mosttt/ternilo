@@ -54,6 +54,15 @@ it('does not read a private path for a shared viewer or an offline computer', as
   expect(host.querySelector('[data-path]')?.getAttribute('data-path')).toBe('')
 })
 
+it('keeps a session-only Node share labeled as a computer when its workspace is private', async () => {
+  fixture.workspace = null
+  await render()
+  expect(host.textContent).toContain('目录路径仅所有者可见')
+  expect(host.textContent).not.toContain('文件保存在云端工作区')
+  expect(fixture.request).not.toHaveBeenCalled()
+  expect(host.querySelector('[data-path]')?.getAttribute('data-path')).toBe('')
+})
+
 it('discards a late private path response after an account switch', async () => {
   let resolve!: (value: unknown) => void
   fixture.request.mockReturnValueOnce(new Promise(done => { resolve = done })).mockResolvedValue({ status: 'available', path: '/bob/project' })

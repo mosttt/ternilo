@@ -14,8 +14,8 @@ export function useWorkspaceDisplay() {
   const key = JSON.stringify([accountScope, currentTenantId, workspace?.workspace_id])
   const projectId = workspace?.management_project_id ?? workspace?.project_id
   const projectKey = JSON.stringify([key, projectId])
-  const remote = platform && workspace?.placement === 'local_node'
-  const readable = remote && workspace.access?.is_owner !== false && workspace.status !== 'offline' && workspace.status !== 'error'
+  const remote = platform && (workspace?.placement ?? session?.placement) === 'local_node'
+  const readable = remote && Boolean(workspace && workspace.access?.is_owner !== false && workspace.status !== 'offline' && workspace.status !== 'error')
   const [resolved, setResolved] = React.useState<{ key: string; path: string | null; status: string } | null>(null)
   const [project, setProject] = React.useState<{ key: string; name: string } | null>(null)
   React.useEffect(() => {
@@ -38,7 +38,7 @@ export function useWorkspaceDisplay() {
   const location = readable && resolved?.key === key ? resolved : null
   const path = !platform ? workspace?.path ?? session?.workspace_path ?? '' : location?.status === 'available' ? location.path ?? '' : ''
   const identity = workspace ? [workspacePlacementLabel(workspace, t), workspace.title].join(' · ') : workspaceDisplayPath(workspace, session, t)
-  const hint = remote ? workspace.access?.is_owner === false ? t('location.ownerOnly') : !readable || location?.status === 'offline' ? t('location.offline') : !location ? t('location.loading') : t('location.unavailable') : platform ? t('location.cloud') : ''
+  const hint = remote ? !workspace || workspace.access?.is_owner === false ? t('location.ownerOnly') : !readable || location?.status === 'offline' ? t('location.offline') : !location ? t('location.loading') : t('location.unavailable') : platform ? t('location.cloud') : ''
   return {
     label: identity,
     path,
