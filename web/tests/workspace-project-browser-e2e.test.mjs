@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -81,7 +80,7 @@ test('workspace project moves preserve real Node files and history, revoke inher
     await assert.rejects(reader.request(endpoint, { method: 'PUT', body: { project_id: destination.project_id, expected_project_id: source.project_id, expected_revision: 0, inherit_project_sharing: false } }), /403/)
     for (const asset of ['app.js', 'app.css']) {
       const served = Buffer.from(await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer())
-      assert.equal(createHash('sha256').update(served).digest('hex'), createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex'))
+      assert.deepEqual(served, await readFile(path.join(repository, 'web/dist/assets', asset)))
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     const ownerContext = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1280, height: 800 }, hasTouch: true, serviceWorkers: 'block' })
@@ -99,9 +98,14 @@ test('workspace project moves preserve real Node files and history, revoke inher
       page.on('console', message => { if (message.type() === 'error') observations.consoleErrors.push({ url: message.location().url, text: message.text() }) })
       page.on('response', response => {
         if (response.status() < 400) return
-        const failure = { url: response.url(), status: response.status(), actor: page === ownerPage ? 'owner' : 'previous-reader', revoking, restarting, body: null }
+        const failure = { url: response.url(), status: response.status(), actor: page === ownerPage ? 'owner' : 'previous-reader', revoking, restarting, aborted: false, body: null }
         observations.httpErrors.push(failure)
-        responseBodies.push(response.json().then(body => { failure.body = body }).catch(error => { observations.pageErrors.push(`Unreadable error response: ${error.message}`) }))
+        responseBodies.push((async () => {
+          await response.finished()
+          // Revocation and disconnect invalidate reads while their responses are arriving.
+          failure.aborted = response.request().failure()?.errorText === 'net::ERR_ABORTED'
+          if (!failure.aborted) failure.body = await response.json()
+        })().catch(error => { observations.pageErrors.push(`Unreadable error response ${JSON.stringify(failure)}: ${error.message}`) }))
       })
     }
     await login(ownerPage, origin, server.owner, tenant)
@@ -179,10 +183,10 @@ test('workspace project moves preserve real Node files and history, revoke inher
     for (const failure of observations.httpErrors) {
       const resourceRead = new URL(failure.url).pathname.startsWith(`/api/v1/sessions/${id}/`)
       const revoked = failure.actor === 'previous-reader' && failure.revoking && [400, 403].includes(failure.status)
-        && ['policy_denied', 'invalid_input'].includes(failure.body?.error?.code)
+        && (failure.aborted || ['policy_denied', 'invalid_input'].includes(failure.body?.error?.code))
       const offline = failure.restarting && failure.status === 503
-        && failure.body?.error?.code === 'unavailable'
-        && failure.body?.error?.message?.startsWith('selected Ternilo node is offline')
+        && (failure.aborted || (failure.body?.error?.code === 'unavailable'
+          && failure.body?.error?.message?.startsWith('selected Ternilo node is offline')))
       assert.ok(resourceRead && (revoked || offline), JSON.stringify(failure))
     }
     for (const failure of observations.consoleErrors) assert.ok(observations.httpErrors.some(value => value.url === failure.url) && failure.text.startsWith('Failed to load resource:'), JSON.stringify(failure))
