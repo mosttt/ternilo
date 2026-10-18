@@ -180,7 +180,9 @@ async fn complete(
 }
 
 fn visible_error(mut error: HarnessError) -> HarnessError {
-    if error.code == ErrorCode::Execution {
+    if error.code == ErrorCode::Execution
+        && ternilo_builtins::ProviderHttpFailure::from_public_message(&error.message).is_none()
+    {
         "model request failed; check the Server model request log".clone_into(&mut error.message);
     }
     error
