@@ -1,6 +1,5 @@
 import { selectChoice } from './browser-select-fixture.mjs'
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -110,10 +109,9 @@ test('native Server Files preserves Node versions, enforces ownership and explai
     for (const asset of ['app.js', 'app.css']) {
       const response = await fetch(`${origin}/assets/${asset}`)
       assert.equal(response.status, 200)
-      const served = createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex')
-      const expected = createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex')
-      observations.assets[asset] = { served, expected }
-      assert.equal(served, expected, `Server embeds the current ${asset}`)
+      const served = Buffer.from(await response.arrayBuffer())
+      assert.deepEqual(served, await readFile(path.join(repository, 'web/dist/assets', asset)), `Server embeds the current ${asset}`)
+      observations.assets[asset] = { bytes: served.length, matches: true }
     }
     const token = application.owner.session.access_token
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
@@ -159,14 +157,17 @@ test('native Server Files preserves Node versions, enforces ownership and explai
     assert.notEqual(oldest.session_id, session.identity.session_id, 'Server routes its mapped session ID to the Node')
     await owner.reload()
     await selectSpace(owner, tenantId)
-    await until(() => owner.locator('[data-file-id]').count(), count => count === 2, 'owner sees both generated versions')
+    await until(() => owner.locator('[data-file-id]').count(), count => count === 1, 'owner sees one grouped generated file')
     const identityAfterSpaceChange = await browserRequest(owner, '/auth/session')
     assert.equal(identityAfterSpaceChange.body.user.user_id, application.owner.session.user.user_id, 'switching spaces keeps the same account ID')
     assert.equal(await owner.locator('[data-files-offline]').count(), 0)
     await assertNoOverflow(owner)
     await owner.screenshot({ path: path.join(artifacts, 'files-server-online.png'), fullPage: true })
-    const oldRow = owner.locator(`[data-file-id="${oldest.id}"]`)
-    await oldRow.getByRole('button', { name: `预览 ${fileName}`, exact: true }).click()
+    const history = owner.locator('[data-file-versions]')
+    await history.locator('summary').click()
+    assert.equal(await history.locator('li').count(), 2)
+    const oldRow = history.locator('li').last()
+    await oldRow.getByRole('button').first().click()
     const preview = owner.getByRole('dialog', { name: fileName, exact: true })
     await preview.getByLabel('文件文本内容', { exact: true }).waitFor()
     assert.equal(await preview.getByLabel('文件文本内容', { exact: true }).textContent(), versions[0], 'older preview retains its original bytes')
@@ -211,15 +212,17 @@ test('native Server Files preserves Node versions, enforces ownership and explai
     await until(() => serverRequest(origin, '/files', { token, tenantId }), page => page.items.length === 2 && page.items.every(file => file.source_status === 'offline'), 'Server marks the stopped Node offline')
     await owner.getByRole('button', { name: '刷新', exact: true }).click()
     await owner.locator('[data-files-offline]').getByText('部分文件来源离线，当前列表可能不完整。重新连接后刷新查看。', { exact: true }).waitFor()
-    assert.equal(await owner.locator('[data-file-id]').count(), 2, 'cached file metadata remains visible offline')
-    assert.equal(await owner.getByText('来源离线', { exact: true }).count(), 2)
+    assert.equal(await owner.locator('[data-file-id]').count(), 1, 'cached file group remains visible offline')
+    assert.equal(await history.locator('li').count(), 2, 'both retained versions remain accessible')
+    assert.equal(await owner.getByText('来源离线', { exact: true }).count(), 1)
+    if (await history.getAttribute('open') === null) await history.locator('summary').click()
     expectedErrors.set(`owner:${contentPath}`, new Set([503]))
-    await oldRow.getByRole('button', { name: `预览 ${fileName}`, exact: true }).click()
+    await oldRow.getByRole('button').first().click()
     await preview.getByRole('alert').getByText('无法预览此文件', { exact: true }).waitFor()
     assert.match(await preview.getByRole('alert').textContent(), /node is offline/i)
     await owner.screenshot({ path: path.join(artifacts, 'files-server-offline-preview.png'), fullPage: true })
     await preview.getByRole('button', { name: '关闭预览', exact: true }).click()
-    await oldRow.getByRole('button', { name: `下载 ${fileName}`, exact: true }).click()
+    await oldRow.getByRole('button').last().click()
     await oldRow.getByRole('alert').waitFor()
     assert.match(await oldRow.getByRole('alert').textContent(), /下载失败.*node is offline/i)
     await owner.screenshot({ path: path.join(artifacts, 'files-server-offline.png'), fullPage: true })
