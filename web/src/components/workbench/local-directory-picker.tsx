@@ -460,7 +460,7 @@ export function DirectoryBrowser({
             <DialogTitle className={styles.title}>{dialogTitle}</DialogTitle>
             <DialogDescription className={styles.description}>{dialogDescription}</DialogDescription>
             <div className={styles.crumbBar}>
-              <Button type="button" variant="ghost" size="icon-sm"
+              <Button type="button" variant="ghost" size="icon"
                 aria-label={t('browser.parent')} title={t('browser.parent')}
                 disabled={parentInert || !parentPath || pathDraft !== null}
                 onClick={() => { if (parentPath) navigate(parentPath) }}><ArrowUp aria-hidden="true" /></Button>
