@@ -193,7 +193,7 @@ test('Local Files preserves upload bytes, immutable versions, filters, paginatio
     await selectChoice(mobileFilters.getByLabel('文件类型', { exact: true }), 'generated')
     await until(() => page.locator('[data-file-id]').count(), count => count === 1, 'mobile file kind filter')
     assert.equal(new URL(page.url()).searchParams.get('kind'), 'generated')
-    assert.equal(await mobileFilters.getByLabel('会话', { exact: true }).inputValue(), sessions[0], 'archived session filter is retained on mobile')
+    assert.equal(await mobileFilters.getByLabel('会话', { exact: true }).getAttribute('data-choice-value'), sessions[0], 'archived session filter is retained on mobile')
     await page.screenshot({ path: path.join(artifacts, 'files-local-mobile-filters.png') })
     await mobileFilters.locator('summary').click()
     await page.getByRole('button', { name: '预览 report.txt', exact: true }).first().click()
