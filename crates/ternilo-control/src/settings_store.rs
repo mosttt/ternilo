@@ -74,6 +74,18 @@ impl ControlStore {
         actor: &ControlUser,
         tenant_id: &TenantId,
     ) -> Result<DefaultModelSelection, HarnessError> {
+        Ok(self
+            .user_default_model_preference(actor, tenant_id)
+            .await?
+            .unwrap_or_default())
+    }
+
+    /// Distinguishes an untouched preference from an explicit request to choose each time.
+    pub async fn user_default_model_preference(
+        &self,
+        actor: &ControlUser,
+        tenant_id: &TenantId,
+    ) -> Result<Option<DefaultModelSelection>, HarnessError> {
         let mut transaction = self.user_settings_transaction(actor, tenant_id).await?;
         let selection = sqlx::query_scalar::<_, Json<DefaultModelSelection>>(
             "SELECT default_model FROM control_user_preferences
@@ -84,12 +96,14 @@ impl ControlStore {
         .fetch_optional(&mut *transaction)
         .await
         .map_err(|error| database_error(&error))?
-        .map_or_else(DefaultModelSelection::default, |selection| selection.0);
+        .map(|selection| selection.0);
         transaction
             .commit()
             .await
             .map_err(|error| database_error(&error))?;
-        selection.validate()?;
+        if let Some(selection) = &selection {
+            selection.validate()?;
+        }
         Ok(selection)
     }
 

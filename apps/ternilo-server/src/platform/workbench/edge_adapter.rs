@@ -60,6 +60,71 @@ impl<'a> EdgeAdapter<'a> {
         &self,
         request: CreateSessionRequest,
     ) -> Result<WorkbenchSession, HarnessError> {
+        let model = self.new_session_default().await?;
+        let (mapping, label) = self.create_on_node(request).await?;
+        let Some(model) = model else {
+            return self.present(mapping, label).await;
+        };
+        let result = self
+            .update(
+                mapping.clone(),
+                UpdateSessionRequest {
+                    model: Some(model),
+                    title: None,
+                    permissions: None,
+                    model_token_limit: None,
+                    agent_preset: None,
+                    profile_plugins: None,
+                    mode: None,
+                },
+            )
+            .await;
+        if result.is_err() {
+            self.delete(mapping).await?;
+        }
+        result
+    }
+
+    pub(crate) async fn new_session_default(&self) -> Result<Option<Value>, HarnessError> {
+        let personal = self
+            .state
+            .store
+            .account_provider_space(&self.actor.user_id)
+            .await?;
+        let preference = if self.tenant_id == &personal {
+            self.state
+                .store
+                .user_default_model_preference(self.actor, &personal)
+                .await?
+        } else {
+            None
+        };
+        // Resolve before creating anything; unavailable defaults must not silently use a device model.
+        if let Some(selection) = preference {
+            let snapshot = super::model_options::resolve_selection(
+                self.state,
+                self.actor,
+                &personal,
+                &self.actor.user_id,
+                selection,
+            )
+            .await?;
+            Ok(Some(
+                serde_json::to_value(snapshot.as_ref().map_or(
+                    ternilo_protocol::DefaultModelSelection::ProfileDefault,
+                    ternilo_protocol::RunModelSnapshot::selection,
+                ))
+                .map_err(|error| HarnessError::invalid(error.to_string()))?,
+            ))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn create_on_node(
+        &self,
+        request: CreateSessionRequest,
+    ) -> Result<(EdgeSessionRecord, String), HarnessError> {
         let target = PlacementResolver::new(self.state, self.actor, self.tenant_id)
             .workspace(&request.workspace_id)
             .await?;
@@ -143,8 +208,7 @@ impl<'a> EdgeAdapter<'a> {
                 return Err(error);
             }
         };
-        self.present(mapping, format!("此电脑 / {}", workspace.name))
-            .await
+        Ok((mapping, format!("此电脑 / {}", workspace.name)))
     }
 
     pub(crate) async fn update(

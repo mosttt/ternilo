@@ -197,11 +197,11 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     await ownerPage.getByRole('button', { name: '我的模型', exact: true }).click()
     const firstSettings = ownerPage.locator('[data-model-access-shell]')
     await ownerPage.reload()
-    await firstSettings.getByRole('heading', { name: '个人空间 · 托管新会话默认模型', exact: true }).waitFor()
+    await firstSettings.getByRole('heading', { name: '个人空间 · 新会话默认模型', exact: true }).waitFor()
     const defaultOptions = await serverRequest(origin, '/model-options', { token, tenantId: application.owner.session.personal_tenant_id })
     assert.equal(defaultOptions.current, null)
     const defaultOption = defaultOptions.options[0]
-    const defaultPicker = await modelDirectory(ownerPage, '选择模型', false, firstSettings)
+    const defaultPicker = await modelDirectory(ownerPage, '每次新会话时选择', false, firstSettings)
     assert.ok(!defaultOption.grant_name.includes('Published model'))
     await defaultPicker.getByRole('textbox', { name: '搜索模型或预算名称', exact: true }).fill('Published model')
     await defaultPicker.getByRole('button', { name: '搜索', exact: true }).click()
@@ -228,7 +228,7 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     await ownerPage.getByRole('button', { name: '我的模型', exact: true }).click()
     userSettings = ownerPage.locator('[data-model-access-shell]')
     await ownerPage.reload()
-    await userSettings.getByRole('heading', { name: '个人空间 · 托管新会话默认模型', exact: true }).waitFor()
+    await userSettings.getByRole('heading', { name: '个人空间 · 新会话默认模型', exact: true }).waitFor()
     for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 740 }, { width: 844, height: 390 }]) {
       await ownerPage.setViewportSize(viewport)
       await assertLayout(ownerPage, userSettings)

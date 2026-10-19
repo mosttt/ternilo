@@ -174,17 +174,17 @@ function QuestionFlow({ items, disabled, onAnswer, onError, t }: { items: Pendin
 
   return (
     <section className={`${css.question} ${minimized ? css.minimized : ''}`} data-question-takeover="" aria-labelledby={`question-${question.id}`}>
-      <header>
-        <div className={css.heading}>
-          <div className={css.eyebrow}>{question.header || t('question.waiting')}</div>
-          <h2 id={`question-${question.id}`} data-question-heading="">{question.question}</h2>
-        </div>
-        <button type="button" className={css.iconButton} aria-label={minimized ? t('question.expand') : t('question.collapse')} onClick={() => setMinimized(value => !value)}>
-          {minimized ? <ChevronUp /> : <ChevronDown />}
-        </button>
-      </header>
-      {!minimized && (
-        <>
+      <div key={question.id} className={css.questionScroll} data-question-scroll="" tabIndex={0} role="region" aria-labelledby={`question-${question.id}`}>
+        <header>
+          <div className={css.heading}>
+            <div className={css.eyebrow}>{question.header || t('question.waiting')}</div>
+            <h2 id={`question-${question.id}`} data-question-heading="">{question.question}</h2>
+          </div>
+          <button type="button" className={css.iconButton} aria-label={minimized ? t('question.expand') : t('question.collapse')} onClick={() => setMinimized(value => !value)}>
+            {minimized ? <ChevronUp /> : <ChevronDown />}
+          </button>
+        </header>
+        {!minimized && (
           <div className={css.questionBody} data-question-body="">
             {question.detail && <div className={css.questionDetail}><AssistantMarkdown source={question.detail} streaming={false} t={chatT} /></div>}
             {question.options.length > 0 && (
@@ -234,21 +234,23 @@ function QuestionFlow({ items, disabled, onAnswer, onError, t }: { items: Pendin
               />
             </div>
           </div>
-          <footer className={css.questionFooter}>
-            <div className={css.pager}>
-              <button type="button" aria-label={t('question.previous')} disabled={safeIndex === 0 || submitting} onClick={() => { setIndex(value => value - 1); setFeedback('') }}><ChevronLeft /></button>
-              <span>{safeIndex + 1} / {items.length}</span>
-              <button type="button" aria-label={t('question.next')} disabled={safeIndex === items.length - 1 || submitting} onClick={() => { setIndex(value => value + 1); setFeedback('') }}><ChevronRight /></button>
-            </div>
-            <span className={css.feedback} role="status">{disabled ? t('question.permissionDenied') : feedback}</span>
-            <div className={css.questionActions}>
-              <button type="button" className={css.skip} disabled={submitting || disabled} onClick={skip}><SkipForward />{t('question.skip')}</button>
-              <button type="button" className={css.continue} disabled={disabled || submitting || !answered(draft)} onClick={continueFlow}>
-                {safeIndex === items.length - 1 ? t('question.submit') : t('question.next')}
-              </button>
-            </div>
-          </footer>
-        </>
+        )}
+      </div>
+      {!minimized && (
+        <footer className={css.questionFooter}>
+          <div className={css.pager}>
+            <button type="button" aria-label={t('question.previous')} disabled={safeIndex === 0 || submitting} onClick={() => { setIndex(value => value - 1); setFeedback('') }}><ChevronLeft /></button>
+            <span>{safeIndex + 1} / {items.length}</span>
+            <button type="button" aria-label={t('question.next')} disabled={safeIndex === items.length - 1 || submitting} onClick={() => { setIndex(value => value + 1); setFeedback('') }}><ChevronRight /></button>
+          </div>
+          <span className={css.feedback} role="status">{disabled ? t('question.permissionDenied') : feedback}</span>
+          <div className={css.questionActions}>
+            <button type="button" className={css.skip} disabled={submitting || disabled} onClick={skip}><SkipForward />{t('question.skip')}</button>
+            <button type="button" className={css.continue} disabled={disabled || submitting || !answered(draft)} onClick={continueFlow}>
+              {safeIndex === items.length - 1 ? t('question.submit') : t('question.next')}
+            </button>
+          </div>
+        </footer>
       )}
     </section>
   )

@@ -314,6 +314,7 @@ export class SessionController implements SessionRuntimeActions {
       this.reconcilePending(sessionId, cached.buffer.events, cached.snapshot.inbox)
       this.abortController = new AbortController()
       this.dependencies.live.setSession(sessionId, { afterSeq: cached.buffer.events.at(-1)?.seq ?? null })
+      if ((cached.snapshot.loadingHistory || cached.snapshot.loadingOlder) && cached.snapshot.nextBeforeSeq !== null) void this.loadOlderHistory()
     } else {
       this.replaceSnapshot({ ...initialSnapshot(pending), liveStatus })
       if (sessionId && enabled) this.startTarget(sessionId)
@@ -334,7 +335,7 @@ export class SessionController implements SessionRuntimeActions {
 
   private rememberTarget() {
     const snapshot = this.getSnapshot()
-    if (!this.sessionId || !this.enabled || snapshot.loadingHistory || this.historyEvents !== null
+    if (!this.sessionId || !this.enabled || this.historyEvents !== null
       || snapshot.loadedSessionId !== this.sessionId || snapshot.historyError) return
     // Keep recent conversations in memory only; cap both large events and session count.
     const bytes = JSON.stringify(this.eventBuffer.events).length * 2
@@ -433,7 +434,7 @@ export class SessionController implements SessionRuntimeActions {
         }
         accepted.page = page
         this.mergeEvents(sessionId, page.events)
-        this.updateSnapshot({ loadedSessionId: sessionId, loading: false })
+        this.updateSnapshot({ loadedSessionId: sessionId, loading: false, nextBeforeSeq: page.next_before_seq })
         if (!subscribed) {
           subscribed = true
           this.dependencies.live.setSession(sessionId, { afterSeq: page.events.at(-1)?.seq ?? null })
@@ -464,8 +465,8 @@ export class SessionController implements SessionRuntimeActions {
 
   readonly loadOlderHistory = async () => {
     const sessionId = this.sessionId
-    const { nextBeforeSeq, loadingOlder } = this.getSnapshot()
-    if (!sessionId || !this.enabled || nextBeforeSeq === null || loadingOlder) return
+    const { nextBeforeSeq, loadingOlder, loadingHistory } = this.getSnapshot()
+    if (!sessionId || !this.enabled || nextBeforeSeq === null || loadingOlder || loadingHistory) return
     const generation = this.generation
     const revision = this.historyRevision
     const signal = this.abortController?.signal

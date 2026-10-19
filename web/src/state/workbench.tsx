@@ -785,7 +785,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         if (snapshotRef.current.sessions.some(available)) {
           const [state, model, preset] = await Promise.all([
             readWorkbenchState(),
-            api.request<ModelSelection>(executionTargetPath('/default-model', { workspaceId })),
+            api.request<ModelSelection>(executionTargetPath('/default-model', { workspaceId }, platform ? { for_new_session: 'true' } : {})),
             api.request<AgentPresetDocument>(executionTargetPath(`/agent-presets/${encodeURIComponent(selectedPreset)}`, { workspaceId })),
           ])
           ensureCurrent()

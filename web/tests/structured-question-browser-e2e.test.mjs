@@ -10,9 +10,10 @@ import { chromium } from 'playwright'
 
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const repository = path.resolve(webRoot, '..')
-const binary = path.join(repository, 'target', 'debug', 'ternilo')
+const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target', 'debug', 'ternilo')
 const LONG_QUESTION = '先选择执行策略，并确认该策略能够覆盖依赖核对、实现、验证和发布说明等完整交付要求'
 const LONG_OPTION = '先完成依赖梳理、接口核对和真实浏览器验证，再开始跨端发布流程'
+const MANY_OPTIONS = ['测试', '核对依赖', '检查日志', '保留镜像', '复核存储', '部署检查', '准备回滚', '说明影响', '文档']
 const LONG_DESCRIPTION = '这个说明需要在窄屏上完整换行，并让选项按钮按内容自然增高，不能覆盖后续选项。'
 
 function startTernilo(dataDirectory) {
@@ -102,7 +103,7 @@ async function startModelFixture() {
           {
             id: 'surfaces',
             question: '选择要覆盖的表面',
-            options: [{ label: '测试' }, { label: '文档' }, { label: '实现' }],
+            options: MANY_OPTIONS.map(label => ({ label, description: `${LONG_DESCRIPTION} ${LONG_DESCRIPTION}` })),
             multi_select: true,
           },
         ] })
@@ -253,18 +254,99 @@ async function assertLongQuestionMobileLayout(page, takeover) {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true)
 }
 
-test('Local Chromium completes structured single and multi-select ask_user', { timeout: 60_000 }, async () => {
+async function assertQuestionFitsViewport(page, takeover) {
+  const bounds = await takeover.boundingBox()
+  const header = await page.locator('#conversation-main > header').boundingBox()
+  const footer = await takeover.locator('footer').boundingBox()
+  assert.ok(bounds && bounds.y >= header.y + header.height - 1 && bounds.y + bounds.height <= page.viewportSize().height + 1,
+    JSON.stringify({ bounds, header, viewport: page.viewportSize() }))
+  assert.ok(footer && footer.y >= bounds.y && footer.y + footer.height <= bounds.y + bounds.height)
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true)
+}
+
+async function swipeQuestion(page, scroller, direction) {
+  const rect = await scroller.boundingBox()
+  assert.ok(rect && rect.height > 40)
+  const x = rect.x + rect.width / 2
+  const from = rect.y + rect.height * (direction === 'down' ? .8 : .2)
+  const to = rect.y + rect.height * (direction === 'down' ? .2 : .8)
+  const cdp = await page.context().newCDPSession(page)
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: from }] })
+    for (let step = 1; step <= 10; step += 1) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: from + (to - from) * step / 10 }] })
+      await page.waitForTimeout(20)
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await page.waitForTimeout(80)
+  } finally {
+    await cdp.detach()
+  }
+}
+
+async function swipeToEnd(page, scroller) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (await scroller.evaluate(element => element.scrollHeight - element.clientHeight - element.scrollTop < 2)) return
+    await swipeQuestion(page, scroller, 'down')
+  }
+  assert.fail('Touch scrolling did not reach the last option and custom answer')
+}
+
+async function assertManyOptions(page, takeover, artifacts) {
+  for (const [locale, width, height, submit, skip] of [
+    ['zh', 390, 844, '提交', '跳过'],
+    ['en', 844, 390, 'Submit', 'Skip'],
+    ['ko', 320, 560, '제출', '건너뛰기'],
+  ]) {
+    await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale)
+    await page.setViewportSize({ width, height })
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await takeover.getByRole('radio', { name: '稳妥' }).click()
+    const scroller = takeover.locator('[data-question-scroll]')
+    await assertQuestionFitsViewport(page, takeover)
+    assert.equal(await scroller.evaluate(element => element.scrollTop), 0, 'A new question starts at its heading')
+    assert.equal(await scroller.evaluate(element => element.scrollHeight > element.clientHeight), true)
+    assert.equal(await takeover.getByRole('button', { name: submit, exact: true }).isVisible(), true)
+    assert.equal(await takeover.getByRole('button', { name: skip, exact: true }).isVisible(), true)
+    const outer = page.locator('[data-conversation-scroll]')
+    const outerTop = await outer.evaluate(element => element.scrollTop)
+    await swipeQuestion(page, scroller, 'down')
+    assert.ok(await scroller.evaluate(element => element.scrollTop) > 0, 'Touch on option copy scrolls the question')
+    await swipeToEnd(page, scroller)
+    const last = takeover.getByRole('checkbox', { name: '文档', exact: true })
+    const bounds = await last.boundingBox(), viewport = await scroller.boundingBox()
+    assert.ok(bounds.y >= viewport.y - 1 && bounds.y + bounds.height <= viewport.y + viewport.height + 1)
+    await last.tap()
+    const atEnd = await scroller.evaluate(element => element.scrollTop)
+    await swipeQuestion(page, scroller, 'up')
+    assert.ok(await scroller.evaluate(element => element.scrollTop) < atEnd, 'Options scroll in both directions')
+    assert.ok(Math.abs((await outer.evaluate(element => element.scrollTop)) - outerTop) <= 2, 'Question gestures do not pull the chat history')
+    await assertQuestionFitsViewport(page, takeover)
+    if (artifacts) await page.screenshot({ path: path.join(artifacts, `ask-scroll-${locale}.png`) })
+  }
+  await page.evaluate(() => localStorage.setItem('ternilo.locale', 'zh'))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await takeover.getByRole('radio', { name: '稳妥' }).click()
+}
+
+test('Local Chromium completes structured single and multi-select ask_user', { timeout: 180_000 }, async () => {
   const dataDirectory = await mkdtemp(path.join(tmpdir(), 'ternilo-structured-question-'))
   const workspace = path.join(dataDirectory, 'workspace')
   await mkdir(workspace)
   const model = await startModelFixture()
   const ternilo = startTernilo(dataDirectory)
+  const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
+  if (artifacts) await mkdir(artifacts, { recursive: true })
   let browser
   try {
-    browser = await chromium.launch({ headless: true })
-    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 820 } })
+    browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
+    const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 820 }, hasTouch: true, serviceWorkers: 'block' })
     const pageErrors = []
+    const consoleErrors = [], responseErrors = []
     page.on('pageerror', error => pageErrors.push(error.message))
+    page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+    page.on('response', response => { if (response.status() >= 400) responseErrors.push(`${response.status()} ${response.url()}`) })
     await page.goto(await ternilo.origin, { waitUntil: 'networkidle' })
     await chooseWorkspace(page, workspace)
     await configureFixture(page, model.baseUrl)
@@ -281,10 +363,31 @@ test('Local Chromium completes structured single and multi-select ask_user', { t
     await takeover.getByRole('radio', { name: '稳妥' }).click()
 
     await takeover.getByText('选择要覆盖的表面', { exact: true }).waitFor()
-    await takeover.getByRole('checkbox', { name: '测试' }).click()
+    await assertManyOptions(page, takeover, artifacts)
+    await takeover.getByRole('checkbox', { name: '测试' }).tap()
+    await swipeToEnd(page, takeover.locator('[data-question-scroll]'))
     await takeover.getByRole('checkbox', { name: '文档' }).click()
     await takeover.getByRole('textbox', { name: '输入回答' }).fill('发布说明')
+    await takeover.getByRole('button', { name: '上一个问题' }).click()
+    await takeover.getByRole('button', { name: '下一个问题', exact: true }).last().click()
+    assert.equal(await takeover.locator('[data-question-scroll]').evaluate(element => element.scrollTop), 0)
+    assert.equal(await takeover.getByRole('checkbox', { name: '测试' }).getAttribute('aria-checked'), 'true')
+    await takeover.getByRole('button', { name: '收起问题' }).click()
+    await takeover.getByRole('button', { name: '展开问题' }).click()
+    await swipeToEnd(page, takeover.locator('[data-question-scroll]'))
+    assert.equal(await takeover.getByRole('checkbox', { name: '文档' }).getAttribute('aria-checked'), 'true')
+    assert.equal(await takeover.getByRole('textbox', { name: '输入回答' }).inputValue(), '发布说明')
+    // Exercise the reduced content viewport used when a mobile keyboard is open.
+    await page.setViewportSize({ width: 390, height: 360 })
+    await takeover.getByRole('textbox', { name: '输入回答' }).focus()
+    await swipeToEnd(page, takeover.locator('[data-question-scroll]'))
+    await assertQuestionFitsViewport(page, takeover)
+    const input = await takeover.getByRole('textbox', { name: '输入回答' }).boundingBox()
+    const footer = await takeover.locator('footer').boundingBox()
+    assert.ok(input.y >= 0 && input.y + input.height <= footer.y)
+    if (artifacts) await page.screenshot({ path: path.join(artifacts, 'ask-small-input.png') })
     await takeover.getByRole('button', { name: '提交' }).click()
+    await page.setViewportSize({ width: 390, height: 844 })
 
     const request = await model.resumed()
     const output = findToolOutput(request)
@@ -303,7 +406,15 @@ test('Local Chromium completes structured single and multi-select ask_user', { t
     await page.reload({ waitUntil: 'domcontentloaded' })
     assert.equal(await (await revealQuestion(page, '选择要覆盖的表面')).locator('[data-question-answer]').textContent(), '回答测试, 文档, 发布说明')
     assert.deepEqual(pageErrors, [])
+    assert.deepEqual(consoleErrors, [])
+    assert.deepEqual(responseErrors, [])
     assert.equal(ternilo.diagnostics().includes('panicked'), false, ternilo.diagnostics())
+  } catch (error) {
+    if (process.env.TERNILO_E2E_ARTIFACT_DIR && browser?.contexts()[0]?.pages()[0]) {
+      await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+      await browser.contexts()[0].pages()[0].screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'ask-failure.png') })
+    }
+    throw error
   } finally {
     await browser?.close()
     await stopProcess(ternilo.child)

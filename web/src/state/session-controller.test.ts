@@ -846,7 +846,7 @@ it('shows the first page before slower earlier pages and completes one long thin
   controller.start()
   controller.setTarget('thinking', true)
   await flush()
-  expect(controller.getSnapshot()).toMatchObject({ loadedSessionId: 'thinking', loading: false, loadingHistory: true, nextBeforeSeq: null })
+  expect(controller.getSnapshot()).toMatchObject({ loadedSessionId: 'thinking', loading: false, loadingHistory: true, nextBeforeSeq: 12000 })
   expect(controller.getSnapshot().events).toHaveLength(1_000)
   expect(live.targets.at(-1)?.options?.afterSeq).toBe(12_999)
   live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'thinking', reset: false,
@@ -912,6 +912,37 @@ it('ignores a failed obsolete backfill after Live resets the history baseline', 
   await flush()
   expect(controller.getSnapshot()).toMatchObject({ events: [event(0)], loading: false, loadingHistory: false,
     nextBeforeSeq: null, historyError: '', olderHistoryError: '' })
+  controller.dispose()
+})
+
+it('restores a readable partial history immediately and resumes at its oldest accepted cursor', async () => {
+  let finishOldPage!: (value: SessionEventPage) => void
+  let requests = 0
+  const api = new FakeApi(async path => {
+    if (path.includes('/second/')) return { events: [], next_before_seq: null }
+    if (!path.includes('before_seq=')) return { events: Array.from({ length: 1000 }, (_, i) => event(1000 + i)), next_before_seq: 1000 }
+    requests += 1
+    if (requests === 1) return new Promise(resolve => { finishOldPage = resolve })
+    return { events: [event(999)], next_before_seq: 999 }
+  })
+  const { deps, live } = dependencies(api)
+  const controller = new SessionController(deps)
+  controller.start()
+  controller.setTarget('first', true)
+  await flush()
+  expect(controller.getSnapshot()).toMatchObject({ loading: false, loadingHistory: true, nextBeforeSeq: 1000 })
+  controller.setTarget('second', true)
+  await flush()
+  controller.setTarget('first', true)
+  expect(controller.getSnapshot()).toMatchObject({ loadedSessionId: 'first', loading: false, loadingOlder: true })
+  expect(controller.getSnapshot().events).toHaveLength(1000)
+  expect(live.targets.at(-1)).toEqual({ sessionId: 'first', options: { afterSeq: 1999 } })
+  await flush()
+  finishOldPage({ events: [event(0)], next_before_seq: null })
+  await flush()
+  expect(controller.getSnapshot().events[0].seq).toBe(999)
+  expect(controller.getSnapshot().nextBeforeSeq).toBe(999)
+  expect(api.calls.filter(call => call.path === '/sessions/first/history?limit=1000')).toHaveLength(1)
   controller.dispose()
 })
 

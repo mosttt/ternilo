@@ -303,6 +303,8 @@ export function ConversationColumn({
       ? chatT('chat.loadError', { message: runtime.historyError })
       : modelReadiness.status === 'error'
         ? modelT(cloudModel ? 'cloud.loadFailed' : 'provider.loadFailed', { message: modelReadiness.error })
+        : modelReadiness.status === 'unselected'
+          ? modelT('readiness.chooseDescription')
         : modelReadiness.status === 'ready'
           ? (cloudModel ? modelReadiness.error || modelT('cloud.unavailable') : modelT('readiness.selectionDescription'))
           : modelT(cloudModel ? 'cloud.description' : 'readiness.description')
@@ -1087,14 +1089,18 @@ export function ConversationColumn({
               ) : !runtime.loading && !forkCreatingCurrent && (modelReadiness.status !== 'ready' || !modelReadiness.canSubmit) ? (
                 <div className={css.modelNotice} data-model-onboarding="" data-state={modelReadiness.status} role={modelReadiness.status === 'error' ? 'alert' : 'status'}>
                   <div>
-                    <strong>{modelReadiness.status === 'empty'
+                    <strong>{modelReadiness.status === 'unselected'
+                      ? modelT('readiness.chooseTitle')
+                      : modelReadiness.status === 'empty'
                       ? modelT('readiness.title')
                       : modelReadiness.status === 'ready'
                         ? modelT('readiness.selectionTitle')
                         : modelReadiness.status === 'error'
                           ? modelT(cloudModel ? 'cloud.loadFailed' : 'provider.loadFailed', { message: modelReadiness.error })
                           : modelT(cloudModel ? 'cloud.loading' : 'provider.loading')}</strong>
-                    <p>{modelReadiness.status === 'loading'
+                    <p>{modelReadiness.status === 'unselected'
+                      ? modelT('readiness.chooseDescription')
+                      : modelReadiness.status === 'loading'
                       ? modelT(cloudModel ? 'cloud.loadingDescription' : 'provider.loadingDescription')
                       : modelReadiness.status === 'ready'
                         ? (cloudModel ? modelReadiness.error || modelT('cloud.unavailable') : modelT('readiness.selectionDescription'))
@@ -1103,7 +1109,9 @@ export function ConversationColumn({
                   {!permissions.configure && <p>{workspaceT('sharing.noConfigure')}</p>}
                   <div className={css.modelNoticeActions}>
                     {modelReadiness.status === 'error' && <Button type="button" size="sm" variant="outline" onClick={modelReadiness.retry}><RotateCcw />{modelT('provider.retry')}</Button>}
-                    {modelReadiness.status !== 'loading' && configurationOwner && <Button type="button" size="sm" onClick={onOpenModels}>{modelT('provider.configure')}</Button>}
+                    {modelReadiness.status === 'unselected'
+                      ? permissions.configure && <Button type="button" size="sm" onClick={() => setModelMenuOpen(true)}>{modelT('cloud.choose')}</Button>
+                      : modelReadiness.status !== 'loading' && configurationOwner && <Button type="button" size="sm" onClick={onOpenModels}>{modelT('provider.configure')}</Button>}
                   </div>
                 </div>
               ) : null}

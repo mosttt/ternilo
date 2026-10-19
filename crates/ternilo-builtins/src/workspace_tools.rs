@@ -517,7 +517,7 @@ impl HarnessPlugin for ShellToolPlugin {
                 .register_tool(ToolRegistration {
                     spec: ToolSpec {
                         name: "shell".to_owned(),
-                        description: "Run a platform shell command in the workspace sandbox. Set full_access only when the task requires host access; the user may be asked to approve it. When requesting full_access, always include approval in the user's language: state the concrete action and targets, why it is needed for their task, and its effects or risks (for example service interruption or file deletion). Describe the whole command, not just its harmless first step. Do not paste the command or merely say that sandbox access is needed.".to_owned(),
+                        description: "Run a platform shell command in the workspace sandbox. Set full_access only when the task requires host access; the user may be asked to approve it. When requesting full_access, include approval as one short sentence or paragraph in the user's language explaining what will happen, why it is needed, and material effects or risks. Do not use labeled sections or a list. Describe the whole command, not just its harmless first step. Do not paste the command or merely say that sandbox access is needed.".to_owned(),
                         input_schema: json!({
                             "type": "object",
                             "properties": {
@@ -525,8 +525,9 @@ impl HarnessPlugin for ShellToolPlugin {
                                 "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 300_000, "default": 30000 },
                                 "full_access": { "type": "boolean", "default": false },
                                 "approval": {
+                                    "description": "Write one concise sentence or short paragraph for the user. Explain the action, its purpose and any material risk together, without labels or a list. The object format is accepted for compatibility with older calls.",
+                                    "anyOf": [{ "type": "string", "minLength": 1 }, {
                                     "type": "object",
-                                    "description": "Concise explanation for the person approving this operation, in their language.",
                                     "properties": {
                                         "action": { "type": "string", "minLength": 1, "description": "What will happen, including the affected files, services, ports or processes." },
                                         "reason": { "type": "string", "minLength": 1, "description": "Why this action is needed to fulfill the user's request." },
@@ -534,6 +535,7 @@ impl HarnessPlugin for ShellToolPlugin {
                                     },
                                     "required": ["action", "reason", "impact"],
                                     "additionalProperties": false
+                                    }]
                                 }
                             },
                             "required": ["command"],
@@ -572,11 +574,14 @@ struct ShellArguments {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ShellApproval {
-    action: String,
-    reason: String,
-    impact: String,
+#[serde(untagged, deny_unknown_fields)]
+enum ShellApproval {
+    Summary(String),
+    Legacy {
+        action: String,
+        reason: String,
+        impact: String,
+    },
 }
 
 const fn default_shell_timeout() -> u64 {
@@ -589,13 +594,21 @@ impl ToolHandler for ShellTool {
             .get("approval")
             .and_then(|value| serde_json::from_value::<ShellApproval>(value.clone()).ok())
         {
-            let parts = [
-                approval.action.trim(),
-                approval.reason.trim(),
-                approval.impact.trim(),
-            ];
-            if parts.iter().all(|part| !part.is_empty()) {
-                return Some(parts.join("\n"));
+            match approval {
+                ShellApproval::Summary(summary) if !summary.trim().is_empty() => {
+                    return Some(summary.trim().to_owned());
+                }
+                ShellApproval::Legacy {
+                    action,
+                    reason,
+                    impact,
+                } => {
+                    let parts = [action.trim(), reason.trim(), impact.trim()];
+                    if parts.iter().all(|part| !part.is_empty()) {
+                        return Some(parts.join(" "));
+                    }
+                }
+                ShellApproval::Summary(_) => {}
             }
         }
         if !arguments
