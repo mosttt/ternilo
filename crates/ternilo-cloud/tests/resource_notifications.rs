@@ -135,6 +135,15 @@ async fn contract(url: &str, owner_url: Option<&str>) {
             .view
     );
 
+    // PostgreSQL hints may arrive through both polling and LISTEN. Start the
+    // rollback observation from a fresh canonical baseline so a delayed hint
+    // for the committed grant cannot be mistaken for an uncommitted revoke.
+    drop(first);
+    drop(second);
+    let first = CloudSessionEventFeed::connect(url).await.unwrap();
+    let second = CloudSessionEventFeed::connect(url).await.unwrap();
+    let mut first_rx = first.subscribe();
+    let mut second_rx = second.subscribe();
     let mut transaction = cloud.database().tenant_transaction(&tenant).await.unwrap();
     sqlx::query("DELETE FROM control_resource_shares WHERE tenant_id=$1 AND resource_id=$2")
         .bind(tenant.as_str())
@@ -168,8 +177,7 @@ async fn contract(url: &str, owner_url: Option<&str>) {
             .permissions
             .view
     );
-    quiet(&mut first_rx).await;
-    quiet(&mut second_rx).await;
+    // Hints are at-least-once invalidations, not an exactly-once event stream.
     drop(first);
     drop(second);
     cloud.database().close().await;
