@@ -74,13 +74,37 @@ OpenAI Responses 在配置了非 `none` 的实际推理强度时，同时请求 
 
 上下文窗口决定占用比例和自动压缩时机。默认达到估算窗口的 80% 时自动压缩；模型没有声明窗口时，不会使用一个猜测的固定阈值，仍可输入 `/compact` 手动压缩。最大输出 token 和推理设置会用于实际模型请求。
 
-新会话可以使用默认模型；修改新会话默认值不会更换已有会话的选择。会话也可以使用 Agent 预设中的 `profile_default` 模型。临时 OpenAI-compatible 路由及通过环境变量引用 Key 适合单次调试，长期使用建议保存为命名 Provider。
+在 Server 的“我的模型 → 账号自有 → 个人空间 · 新会话默认模型”中选择模型后，从 Server 在个人空间新建的会话都会使用它，包括接入电脑和托管会话。选择“每次新会话时选择”可清除这一默认值，刷新后仍保留；已有会话、团队空间和电脑本地的默认设置不变。未设置过账号默认值的用户仍沿用原来的电脑默认行为；在电脑本地网页或桌面新建会话也继续使用电脑自己的默认值。普通“新会话”只复用模型等配置匹配的空白会话，不会为了套用新默认值而改写旧会话。已有可用模型但当前会话未选择时，点击“选择模型”即可，无需再次添加 Provider。
+
+会话也可以使用 Agent 预设中的 `profile_default` 模型。临时 OpenAI-compatible 路由及通过环境变量引用 Key 适合单次调试，长期使用建议保存为命名 Provider。
 
 正在被会话引用的 Provider 或模型不能直接删除。允许保存的连接设置更新，会在相关会话下一轮生效。设备本地 Provider 由所在电脑或 VPS 的 `ternilo` 直连上游；接入电脑选择账号自有或平台授权模型时，由 Server 代为请求上游，文件和工具仍在所选电脑执行，不把上游 Key 下发给 Node。托管任务也由 Server 请求模型，Worker 不取得模型 API Key。配置究竟保存在哪里，见[设置目标与数据归属](settings.md#设置目标与数据归属)。
 
 托管会话的“更多会话操作 → 任务用量上限”设置每次新任务可使用的 token 总量，包括输入、输出和多次模型调用。默认上限为 32,768 tokens；图片、较大输出或较长任务可能需要提高。提交前若预留不足，页面会提示所需最低额度并保留草稿和附件；提高上限后可以重新提交。这个最低值是提交前估算，历史上下文、工具结果和重试仍可能需要更多额度。
 
 任务提交时预留额度，结束后释放未使用部分；用量未确认的部分保留待核对。修改会话上限只影响后续提交，已经排队或运行的任务保持原上限。个人模型授权和空间额度仍然生效，提高任务上限不会增加可用余额。这个设置仅用于托管任务，本机和自己的电脑不受它控制。
+
+### DeepSeek 调用失败时
+
+看到“DeepSeek 余额不足”时，需要为当前 API Key 所属的 **DeepSeek 账号**[充值](https://platform.deepseek.com/top_up)后重试，或在会话中切换模型；增加 Ternilo 的任务额度不能补足上游余额。若使用其他人提供的账号模型或平台共享模型，请联系模型提供者处理。
+
+提示按 [DeepSeek 官方 HTTP 错误码](https://api-docs.deepseek.com/zh-cn/quick_start/error_codes/)区分原因：401 检查或更换 API Key，402 充值，400／422 检查请求格式或模型参数，429 减少请求频率和并发，500／503 等待服务恢复。402 不自动重试；429 和服务端错误沿用 Provider 的重试设置。
+
+本机和 Server 接入会话均显示中英韩说明，历史与调用详情保留对应状态码。Server 仅传递固定的原因与处理建议，不公开可能包含密钥或内部地址的上游原始正文。适用范围为显式选择的 DeepSeek Responses，以及使用 `api.deepseek.com` 的兼容接口；其他服务的 402 不会被误标为 DeepSeek 余额不足。
+
+### OpenAI 与兼容接口调用失败时
+
+HTTP 429 不一定是请求过频。Ternilo 按 [OpenAI 官方错误码](https://developers.openai.com/api/docs/guides/error-codes)读取 `error.code`，区分需要处理账单的失败与可以等待重试的限流：
+
+- `credit_balance_exhausted`：API 预付余额已用尽，需要为 Key 所属组织[补充余额](https://platform.openai.com/settings/organization/billing)。
+- `organization_spend_limit_exceeded`／`project_spend_limit_exceeded`：组织或项目支出上限已到，需要其所有者调整对应上限，或等待月度重置。
+- `organization_usage_limit_exceeded`：达到服务商批准的组织使用额度，需要申请提高额度；与自行设置的支出上限不同。
+- `insufficient_quota`：没有更具体的原因时，提示检查 API 余额、账单和使用上限。上述余额／额度错误不自动重试，也不自动更换模型。
+- `rate_limit_exceeded`／`slow_down`：请求或 Token 速率过高，或流量增长过快。减少请求量，等待后重试；沿用 Provider 已配置的重试次数。
+
+401 提示检查 Key、组织／项目成员资格及 IP 白名单，403 检查资源权限和支持地区，404 检查模型和地址，400 保留上下文超限及 `service_tier` 的具体处理方向，500／503 提示服务故障或过载。未知的 429 不直接断言余额不足或请求过频。
+
+Chat Completions 和 Responses 共用这些原因与中英韩提示。兼容接口使用中性的“模型 API”称呼，不因选择 OpenAI 协议就被标成 OpenAI 官方服务。共享模型应由模型提供者处理其上游账号；Server 只传递固定说明，不转发上游原始正文。公开模型 API 的上游拒绝仍返回 HTTP 502，并带上具体安全错误码，不与 Ternilo 自身的 Key、额度或限速错误混淆。
 
 ## Gemini 与 Claude 原生协议
 

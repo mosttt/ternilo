@@ -6,10 +6,54 @@ export interface RuntimeErrorPresentation {
   raw: string
 }
 
+type ErrorKey = Parameters<Translate<'chat'>>[0]
+const deepseekErrors: Record<string, { title: ErrorKey; message: ErrorKey }> = {
+  400: { title: 'runtimeError.deepseek.request.title', message: 'runtimeError.deepseek.request.message' },
+  401: { title: 'runtimeError.deepseek.auth.title', message: 'runtimeError.deepseek.auth.message' },
+  402: { title: 'runtimeError.deepseek.balance.title', message: 'runtimeError.deepseek.balance.message' },
+  422: { title: 'runtimeError.deepseek.parameters.title', message: 'runtimeError.deepseek.parameters.message' },
+  429: { title: 'runtimeError.deepseek.rateLimit.title', message: 'runtimeError.deepseek.rateLimit.message' },
+  500: { title: 'runtimeError.deepseek.service.title', message: 'runtimeError.deepseek.service.message' },
+  503: { title: 'runtimeError.deepseek.overloaded.title', message: 'runtimeError.deepseek.overloaded.message' },
+}
+
+const apiErrors: Record<string, { title: ErrorKey; message: ErrorKey }> = {
+  invalid_request: { title: 'runtimeError.api.request.title', message: 'runtimeError.api.request.message' },
+  service_tier: { title: 'runtimeError.api.serviceTier.title', message: 'runtimeError.api.serviceTier.message' },
+  authentication_failed: { title: 'runtimeError.api.auth.title', message: 'runtimeError.api.auth.message' },
+  access_denied: { title: 'runtimeError.api.access.title', message: 'runtimeError.api.access.message' },
+  not_found: { title: 'runtimeError.api.notFound.title', message: 'runtimeError.api.notFound.message' },
+  credit_balance_exhausted: { title: 'runtimeError.api.balance.title', message: 'runtimeError.api.balance.message' },
+  organization_spend_limit_exceeded: { title: 'runtimeError.api.orgSpend.title', message: 'runtimeError.api.orgSpend.message' },
+  project_spend_limit_exceeded: { title: 'runtimeError.api.projectSpend.title', message: 'runtimeError.api.projectSpend.message' },
+  organization_usage_limit_exceeded: { title: 'runtimeError.api.orgUsage.title', message: 'runtimeError.api.orgUsage.message' },
+  insufficient_quota: { title: 'runtimeError.api.quota.title', message: 'runtimeError.api.quota.message' },
+  rate_limit_exceeded: { title: 'runtimeError.api.rateLimit.title', message: 'runtimeError.api.rateLimit.message' },
+  slow_down: { title: 'runtimeError.api.slowDown.title', message: 'runtimeError.api.slowDown.message' },
+  request_limited: { title: 'runtimeError.api.limited.title', message: 'runtimeError.api.limited.message' },
+  server_error: { title: 'runtimeError.api.service.title', message: 'runtimeError.api.service.message' },
+  server_is_overloaded: { title: 'runtimeError.api.overloaded.title', message: 'runtimeError.api.overloaded.message' },
+  context_length_exceeded: { title: 'runtimeError.context.title', message: 'runtimeError.context.message' },
+}
+
 export function presentRuntimeError(value: unknown, t: Translate<'chat'>): RuntimeErrorPresentation {
   const raw = value instanceof Error ? value.message : String(value ?? '')
   const normalized = raw.toLocaleLowerCase()
   const toolLimit = normalized.match(/turn exceeded max_tool_calls \((\d+)\)/)
+
+  const deepseekStatus = raw.match(/^(?:execution:\s*)?DeepSeek API error \(HTTP (400|401|402|422|429|500|503)\):/i)?.[1]
+  const deepseekError = deepseekErrors[deepseekStatus ?? '']
+  if (deepseekError) {
+    return {
+      title: t(deepseekError.title),
+      message: t(deepseekError.message),
+      raw,
+    }
+  }
+
+  const apiCode = raw.match(/^(?:execution:\s*)?Model API error \(HTTP \d{3}; ([a-z_]+)\):/)?.[1]
+  const apiError = apiCode && Object.hasOwn(apiErrors, apiCode) ? apiErrors[apiCode] : null
+  if (apiError) return { title: t(apiError.title), message: t(apiError.message), raw }
 
   if (/\bcapacity_exhausted\s*:/.test(normalized)) {
     return {

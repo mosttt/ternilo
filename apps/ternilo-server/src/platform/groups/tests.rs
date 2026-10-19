@@ -707,24 +707,27 @@ async fn assert_live_revocation(notify: bool) {
     }
     let mut revoked = false;
     let mut removed = false;
-    for _ in 0..8 {
-        match next_frame(&mut socket).await {
-            LiveServerFrame::Error {
-                subscription_id: Some(1),
-                code: ternilo_protocol::ErrorCode::PolicyDenied,
-                ..
-            } => revoked = true,
-            LiveServerFrame::Workbench { activity, .. } => {
-                removed = activity.iter().all(|item| item.session_id != session);
+    let completed = tokio::time::timeout(Duration::from_secs(7), async {
+        while !revoked || !removed {
+            match next_frame(&mut socket).await {
+                LiveServerFrame::Error {
+                    subscription_id: Some(1),
+                    code: ternilo_protocol::ErrorCode::PolicyDenied,
+                    ..
+                } => revoked = true,
+                LiveServerFrame::Workbench { activity, .. } => {
+                    removed = activity.iter().all(|item| item.session_id != session);
+                }
+                LiveServerFrame::Activity { .. } => {}
+                frame => panic!("unexpected frame after revocation: {frame:?}"),
             }
-            LiveServerFrame::Activity { .. } => {}
-            frame => panic!("unexpected frame after revocation: {frame:?}"),
         }
-        if revoked && removed {
-            break;
-        }
-    }
-    assert!(revoked && removed);
+    })
+    .await;
+    assert!(
+        completed.is_ok(),
+        "Live revocation did not settle: revoked={revoked}, removed={removed}"
+    );
     let resubscribe = LiveClientFrame::Subscribe {
         subscription_id: 2,
         session_id: session,

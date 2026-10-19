@@ -80,10 +80,12 @@ pub use model::{
 pub use model_discovery::{discover_provider_models, parse_openai_model_catalog};
 pub use project_memory::KIND as PROJECT_MEMORY_KIND;
 pub use repository_tools::KIND as REPOSITORY_TOOLS_KIND;
+mod provider_errors;
 mod provider_http;
 pub use model_replay::KIND as MODEL_REPLAY_KIND;
 pub use model_rule::{RuleCommand, parse_rule_command, rule_command_name};
 pub use projection::{session_stats, stats_unit};
+pub use provider_errors::ProviderHttpFailure;
 pub use provider_http::{apply_native_reasoning, provider_model_endpoint, provider_request};
 pub use schedule::{KIND as SCHEDULE_TOOL_KIND, has_pending_schedules, pending_schedules};
 pub use session::recovery_events as interrupted_history_events;

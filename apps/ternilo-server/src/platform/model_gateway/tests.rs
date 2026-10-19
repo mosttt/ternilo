@@ -635,6 +635,61 @@ fn frames(body: &str) -> Vec<WorkerModelFrame> {
         .collect()
 }
 
+#[test]
+fn public_provider_failure_survives_gateway_redaction_without_exposing_upstream_text() {
+    for status in [400, 401, 402, 422, 429, 500, 503] {
+        let failure = ternilo_builtins::ProviderHttpFailure::from_response(
+            ProviderProtocol::DeepSeekResponses,
+            "https://api.deepseek.com/responses",
+            status,
+            &[],
+        )
+        .unwrap();
+        let error = HarnessError::execution(failure.message);
+        assert_eq!(visible_error(error.clone()), error);
+        for raw in [
+            format!("{} secret-key", failure.message),
+            format!("model endpoint returned {status}: secret-key"),
+        ] {
+            let redacted = visible_error(HarnessError::execution(raw));
+            assert_eq!(
+                redacted.message,
+                "model request failed; check the Server model request log"
+            );
+        }
+    }
+    for code in [
+        "credit_balance_exhausted",
+        "organization_spend_limit_exceeded",
+        "project_spend_limit_exceeded",
+        "organization_usage_limit_exceeded",
+        "insufficient_quota",
+        "rate_limit_exceeded",
+        "slow_down",
+    ] {
+        let body = json!({"error":{"code":code,"message":"private-key"}}).to_string();
+        let failure = ternilo_builtins::ProviderHttpFailure::from_response(
+            ProviderProtocol::OpenAiResponses,
+            "https://api.openai.com/v1/responses",
+            429,
+            body.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            visible_error(HarnessError::execution(failure.message)).message,
+            failure.message
+        );
+        assert_eq!(
+            visible_error(HarnessError::execution(format!(
+                "{} private-key",
+                failure.message
+            )))
+            .message,
+            "model request failed; check the Server model request log"
+        );
+    }
+}
+
 async fn read_partial(response: &mut reqwest::Response) {
     tokio::time::timeout(Duration::from_secs(5), async {
         let mut bytes = Vec::new();

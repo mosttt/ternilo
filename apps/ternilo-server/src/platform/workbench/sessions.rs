@@ -72,6 +72,13 @@ pub(crate) async fn get_default_model(
                     .await?,
             )?,
             WorkspaceTarget::Edge { executor_id, .. } => {
+                if query.for_new_session
+                    && let Some(model) = EdgeAdapter::new(state, actor(depot), &tenant_id)
+                        .new_session_default()
+                        .await?
+                {
+                    return Ok(Json(model));
+                }
                 state
                     .edge
                     .call(

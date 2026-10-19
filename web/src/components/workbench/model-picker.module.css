@@ -26,3 +26,5 @@
   .platformItems button { min-width: 40px; min-height: 40px; }
   .platformItems input { min-height: 40px; }
 }
+
+.trigger.defaultTrigger { max-width: 100%; }

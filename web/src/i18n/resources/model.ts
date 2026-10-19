@@ -29,6 +29,10 @@ export const zh = {
 
   'default.title': '新会话默认模型',
   'default.updated': '默认模型已保存，新会话将使用此选择',
+  'default.chooseEachSession': '每次新会话时选择',
+  'default.cleared': '已清除默认模型，新会话需自行选择',
+  'readiness.chooseTitle': '为当前会话选择模型',
+  'readiness.chooseDescription': '已有可用模型，选择后即可发送；草稿会保留。',
   default: '默认模型',
   updated: '模型已更新，将在下一轮使用',
   defaultSaveFailed: '当前会话已更新，但默认模型保存失败：{message}',
@@ -85,6 +89,10 @@ export const en = {
 
   'default.title': 'Default model for new sessions',
   'default.updated': 'Default model saved for new sessions',
+  'default.chooseEachSession': 'Choose for each new session',
+  'default.cleared': 'Default cleared. Choose a model in each new session.',
+  'readiness.chooseTitle': 'Choose a model for this session',
+  'readiness.chooseDescription': 'Models are available. Choose one to send; your draft will be kept.',
   default: 'Default model',
   updated: 'Model updated; it will be used on the next turn',
   defaultSaveFailed: 'Current session updated, but saving the default model failed: {message}',
@@ -141,6 +149,10 @@ export const ko = {
 
   'default.title': '새 세션의 기본 모델',
   'default.updated': '새 세션의 기본 모델을 저장했습니다',
+  'default.chooseEachSession': '새 세션마다 선택',
+  'default.cleared': '기본 모델을 해제했습니다. 새 세션마다 모델을 선택하세요.',
+  'readiness.chooseTitle': '현재 세션에 사용할 모델을 선택하세요',
+  'readiness.chooseDescription': '사용 가능한 모델이 있습니다. 모델을 선택하면 전송할 수 있으며 초안은 유지됩니다.',
   default: '기본 모델',
   updated: '모델을 변경했습니다. 다음 턴부터 적용됩니다',
   defaultSaveFailed: '현재 세션은 업데이트했지만 기본 모델을 저장하지 못했습니다: {message}',

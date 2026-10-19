@@ -1,9 +1,5 @@
 .root { min-width: 0; color: var(--label-secondary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
-.root p, .root dl { margin: 0; }
-.root dl { display: flex; flex-direction: column; gap: 6px; }
-.root dl > div { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; }
-.root dt { min-width: 3em; color: var(--label-tertiary); }
-.root dd { min-width: 0; margin: 0; white-space: pre-wrap; }
+.root p { margin: 0; }
 .root .scope { margin-top: 8px; color: var(--label-tertiary); }
 .root details { margin-top: 8px; }
 .root summary { width: fit-content; min-height: 40px; align-content: center; cursor: pointer; }

@@ -67,6 +67,8 @@ pub(crate) struct PendingQuestionQuery {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DefaultModelTargetQuery {
+    #[serde(default)]
+    pub(crate) for_new_session: bool,
     pub(crate) session_id: Option<SessionId>,
     pub(crate) workspace_id: Option<WorkspaceId>,
 }

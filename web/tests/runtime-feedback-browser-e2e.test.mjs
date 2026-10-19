@@ -51,11 +51,18 @@ async function slowModel(folder) {
       const release = () => { pending.delete(release); finish({ content: 'Fixture finished.' }) }
       pending.add(release); response.on('close', () => pending.delete(release)); return
     }
+    if (prompt.includes('cache-history')) {
+      for (let index = 0; index < 1200; index += 1) send({ content: `Cache segment ${index}. ` })
+      return finish({ content: 'History cache proof complete.' })
+    }
     if (prompt.includes('delegate') && !tool('spawn')) return call('spawn', 'spawn_agent', { task: 'Inspect fixture evidence', label: 'Review fixture', role: 'investigator', background: false })
     const approvalLocale = Object.keys(approvalCopy).find(locale => prompt.includes(`approval-${locale}`))
     if (approvalLocale && !tool('shell-approval')) {
-      const { action, reason, impact } = approvalCopy[approvalLocale]
-      return call('shell-approval', 'shell', { command: `printf approved > approval-${approvalLocale}.txt`, full_access: true, approval: { action, reason, impact } })
+      const { summary } = approvalCopy[approvalLocale]
+      const approval = approvalLocale === 'en'
+        ? { action: 'Create one test file in this workspace', reason: 'to verify the approval flow.', impact: 'This runs only after you approve.' }
+        : summary
+      return call('shell-approval', 'shell', { command: `printf approved > approval-${approvalLocale}.txt`, full_access: true, approval })
     }
     if (prompt.includes('delivery')) {
       if (!tool('todo-start')) return call('todo-start', 'todo_write', { items: [{ step: 'Deliver files', status: 'in_progress' }] })
@@ -78,9 +85,9 @@ const labels = {
 }
 
 const approvalCopy = {
-  zh: { action: '创建授权验证文件', reason: '确认用户同意后，才能执行这项操作', impact: '将在当前工作区写入一个测试文件', allow: '允许一次', deny: '拒绝', command: '查看完整命令' },
-  en: { action: 'Create the approval test file', reason: 'Verify that the operation runs only after approval', impact: 'Writes one test file in the current workspace', allow: 'Allow once', deny: 'Deny', command: 'View full command' },
-  ko: { action: '승인 확인 파일 만들기', reason: '사용자가 승인한 뒤에만 작업이 실행되는지 확인합니다', impact: '현재 작업 공간에 테스트 파일 하나를 씁니다', allow: '한 번 허용', deny: '거부', command: '전체 명령 보기' },
+  zh: { summary: '为验证授权流程，将在当前工作区创建一个测试文件；只有你同意后才会执行。', allow: '允许一次', deny: '拒绝', command: '查看完整命令' },
+  en: { summary: 'Create one test file in this workspace to verify the approval flow. This runs only after you approve.', allow: 'Allow once', deny: 'Deny', command: 'View full command' },
+  ko: { summary: '승인 절차를 확인하기 위해 현재 작업 공간에 테스트 파일 하나를 만듭니다. 승인한 뒤에만 실행됩니다.', allow: '한 번 허용', deny: '거부', command: '전체 명령 보기' },
 }
 
 test('real Node permissions, child navigation, offline feedback and delivered files', { timeout: 300_000 }, async () => {
@@ -101,6 +108,11 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     const origin = `http://127.0.0.1:${await freePort()}`
     const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolled.enrollment.executor_id, '--gateway-url', proxy.url, '--allow-insecure-gateway'], { HOME: home, TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'state') }); processes.push(node)
     await waitForHttp(origin, node)
+    for (const address of [server.origin, origin]) {
+      const served = await fetch(`${address}/assets/app.js`)
+      assert.equal(served.status, 200)
+      assert.ok(Buffer.from(await served.arrayBuffer()).equals(await readFile(path.join(repository, 'web/dist/assets/app.js'))), `the fixture at ${address} serves the current UI`)
+    }
     const local = await localApi(origin)
     await local('/providers', { body: { id: 'fixture', display_name: 'Fixture', base_url: model.url, protocol: 'openai-chat-completions', api_key_ref: null,
       defaults: { context_window: 128000, max_output_tokens: 4096 }, models: ['lead', 'child'].map(id => ({ id, settings: { mode: 'inherit' } })), timeout_ms: 0, max_attempts: 1, retry_base_delay_ms: 10 } })
@@ -112,6 +124,31 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     const resource = `/sessions/${parentId}`
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' })
+    let holdMetadata = false, interruptMetadata
+    let historyGate = null, cacheBackfillGate = null, cacheHeadReads = 0
+    await page.routeWebSocket('**/api/v1/live', socket => {
+      const upstream = socket.connectToServer()
+      socket.onMessage(message => upstream.send(message))
+      upstream.onMessage(message => {
+        const frame = JSON.parse(String(message))
+        if (holdMetadata && frame.type === 'session_metadata' && frame.session_id === parentId) {
+          holdMetadata = false
+          interruptMetadata = () => {
+            // Reproduce the known initial-metadata failure after history has arrived.
+            socket.send(JSON.stringify({ type: 'error', subscription_id: frame.subscription_id,
+              code: 'unavailable', message: 'selected Ternilo node is offline' }))
+            proxy.available(false)
+          }
+        } else socket.send(message)
+      })
+    })
+    await page.route(`**/sessions/${parentId}/history?*`, async route => {
+      if (historyGate) await historyGate
+      if (new URL(route.request().url()).searchParams.has('before_seq')) {
+        if (cacheBackfillGate) await cacheBackfillGate
+      } else cacheHeadReads += 1
+      await route.continue()
+    })
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${new URL(response.url()).pathname}`) })
@@ -129,6 +166,7 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     await until(() => picker.locator('[data-directory-path]').textContent(), value => value === directory, 'navigate above home')
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape')
     for (const [locale, text] of Object.entries(labels)) {
+      await page.setViewportSize(locale === 'ko' ? { width: 390, height: 844 } : { width: 1366, height: 900 })
       await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale); await page.reload()
       await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: `hold-${locale}` } } })
       await page.locator('[data-execution-phase="running"]').waitFor()
@@ -142,11 +180,32 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
       const history = await request(`${resource}/history?limit=20`); assert.ok(history.events.length)
       const catalogs = ['commands', 'skills'].map(kind => page.waitForResponse(response =>
         new URL(response.url()).pathname === `/api/v1/sessions/${parentId}/${kind}` && response.status() === 200))
+      holdMetadata = true; interruptMetadata = undefined
       await page.reload()
       for (const response of await Promise.all(catalogs)) await response.finished()
       await page.locator('[data-session-state="ready"]').waitFor()
       await page.locator('[data-history-state="backfilling"]').waitFor({ state: 'detached' })
+      await until(async () => Boolean(interruptMetadata), Boolean, 'held initial metadata')
+      interruptMetadata()
+      await page.locator('[data-history-state="error"]').waitFor()
+      await page.locator('[data-node-offline]').waitFor()
+      const retainedPrompt = page.locator('[data-role="user"]').getByText(`hold-${locale}`, { exact: true })
+      assert.equal(await retainedPrompt.count(), 1, 'a metadata error must not hide accepted history')
+      assert.equal(await page.locator('[data-execution-phase="running"]').count(), 0)
+      let resumeHistory
+      historyGate = new Promise(resolve => { resumeHistory = resolve })
+      if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+        await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+        await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `interrupted-history-${locale}.png`) })
+        await page.locator('[data-history-state="error"]').screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `history-warning-${locale}.png`) })
+      }
+      proxy.available(true)
+      await page.locator('[data-history-state="backfilling"]').waitFor()
+      assert.equal(await retainedPrompt.count(), 1, 'automatic retry keeps the readable history in place')
+      resumeHistory(); historyGate = null
+      await page.locator('[data-history-state="error"], [data-history-state="backfilling"]').waitFor({ state: 'detached' })
       await page.locator('[data-execution-phase="running"]').waitFor()
+      assert.equal(await retainedPrompt.count(), 1, 'fresh history replaces the old baseline without duplicates')
       proxy.available(false)
       await page.getByText(text.offline, { exact: true }).waitFor()
       assert.equal(await page.locator('[data-execution-phase="running"]').count(), 0)
@@ -174,12 +233,11 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
       const card = page.locator('[data-tool-approval]')
       const enqueue = () => request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: `approval-${locale}` } } })
       await enqueue()
-      await card.getByText(copy.action, { exact: true }).waitFor()
-      await card.getByText(copy.reason, { exact: true }).waitFor()
-      await card.getByText(copy.impact, { exact: true }).waitFor()
+      await card.getByText(copy.summary, { exact: true }).waitFor()
+      assert.equal(await card.locator('[data-approval-explanation] dl').count(), 0)
       await assert.rejects(readFile(path.join(folder, `approval-${locale}.txt`)), { code: 'ENOENT' })
       const history = page.locator('[data-question-kind="tool-approval"][data-state="pending"]')
-      assert.equal(await history.getByText(copy.action, { exact: true }).count(), 1)
+      assert.equal(await history.getByText(copy.summary, { exact: true }).count(), 1)
       const command = card.locator('[data-approval-command]')
       assert.equal(await command.locator('pre').isVisible(), false)
       await command.locator('summary').click()
@@ -193,7 +251,7 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
         await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'denied shell finishes')
         await assert.rejects(readFile(path.join(folder, `approval-${locale}.txt`)), { code: 'ENOENT' })
         await enqueue()
-        await card.getByText(copy.action, { exact: true }).waitFor()
+        await card.getByText(copy.summary, { exact: true }).waitFor()
       }
       await card.getByRole('button', { name: copy.allow, exact: true }).click()
       await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'approved shell finishes')
@@ -262,6 +320,26 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     const saved = await download
     assert.equal(await readFile(await saved.path(), 'utf8'), 'version one')
     if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'file-versions.png') })
+    // Switching away during a slow earlier-page fetch must retain the already readable tail.
+    await page.goto(server.origin)
+    const second = await request('/sessions', { body: { workspace_id: state.sessions[0].workspace_id } })
+    await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: 'cache-history' } } })
+    await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'cache history generated')
+    let releaseBackfill
+    cacheBackfillGate = new Promise(resolve => { releaseBackfill = resolve })
+    await page.reload()
+    await page.getByText(/History cache proof complete/).last().waitFor()
+    await page.locator('[data-history-state="backfilling"]').waitFor()
+    const headReads = cacheHeadReads
+    await page.locator(`[data-sidebar-session-row][data-session-id="${second.identity.session_id}"]`).click()
+    await page.locator('[data-session-state="empty"]').waitFor()
+    await page.locator(`[data-sidebar-session-row][data-session-id="${parentId}"]`).click()
+    await page.getByText(/History cache proof complete/).last().waitFor({ timeout: 2000 })
+    assert.equal(await page.locator('[data-session-state="loading"]').count(), 0)
+    assert.equal(cacheHeadReads, headReads, 'returning to the partially loaded session does not reload its newest history page')
+    releaseBackfill(); cacheBackfillGate = null
+    await page.locator('[data-history-state="backfilling"]').waitFor({ state: 'detached' })
+    if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'history-cache-return.png') })
     assert.deepEqual(errors, [])
   } catch (error) {
     for (const process of processes) console.error(process.diagnostics().slice(-5000))

@@ -62,13 +62,17 @@ pub(super) async fn execute(
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
     if !response.status().is_success() {
-        // Upstream bodies can echo credentials and internal routes. Keep them private.
+        // Inspect only documented error codes; never expose the upstream body.
+        let status = response.status().as_u16();
+        let bytes = bounded_body(response).await?;
+        if let Some(failure) =
+            ternilo_builtins::ProviderHttpFailure::from_response(protocol, endpoint, status, &bytes)
+        {
+            return Err(GatewayError::upstream(failure.code, failure.message));
+        }
         return Err(GatewayError::upstream(
             "upstream_rejected_request",
-            &format!(
-                "upstream model rejected the request (HTTP {})",
-                response.status().as_u16()
-            ),
+            &format!("upstream model rejected the request (HTTP {status})"),
         ));
     }
     let is_stream = response

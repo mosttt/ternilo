@@ -11,7 +11,23 @@
   color: var(--foreground);
 }
 
-.question > header,
+.question {
+  display: flex;
+  max-height: min(560px, calc(var(--ternilo-visual-viewport-height, 100dvh) - 160px));
+  flex-direction: column;
+}
+
+.questionScroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  --ternilo-scrollbar-thumb: var(--scrollbar-elevated);
+  --ternilo-scrollbar-thumb-hover: var(--scrollbar-elevated-hover);
+}
+
+.questionScroll:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+.questionScroll > header,
 .approval > header { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px 10px; }
 .heading { min-width: 0; flex: 1; }
 .eyebrow { color: var(--primary); font-size: 12px; line-height: 18px; }
@@ -20,7 +36,7 @@
 .iconButton { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 8px; color: var(--label-tertiary); }
 .iconButton:hover { background: var(--interactive-hover); }
 .iconButton svg { width: 15px; height: 15px; }
-.minimized > header { padding-bottom: 14px; }
+.minimized .questionScroll > header { padding-bottom: 14px; }
 .questionBody { padding: 0 16px; }
 .questionDetail { min-width: 0; margin: 0 0 12px; overflow-wrap: anywhere; color: var(--label-secondary); font-size: 13px; line-height: 20px; }
 .options { display: flex; flex-direction: column; gap: 8px; }
@@ -35,7 +51,7 @@
 .optionCopy small { min-width: 0; overflow-wrap: anywhere; color: var(--label-tertiary); font-size: 12px; line-height: 18px; white-space: normal; }
 .customAnswer { display: flex; gap: 8px; margin-top: 10px; }
 .customAnswer > svg { width: 16px; height: 16px; flex: none; margin: 12px 0 0 3px; color: var(--label-tertiary); }
-.customAnswer textarea { min-height: 40px; max-height: 120px; flex: 1; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--surface-layer-1); color: var(--foreground); outline: none; font: inherit; }
+.customAnswer textarea { min-width: 0; min-height: 40px; max-height: 120px; flex: 1; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--surface-layer-1); color: var(--foreground); outline: none; font: inherit; }
 .customAnswer textarea:focus { border-color: var(--primary); }
 .customAnswer button,
 .allow,
@@ -45,7 +61,7 @@
 .customAnswer button:disabled,
 .allow:disabled,
 .deny:disabled { opacity: .5; }
-.questionFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 10px; }
+.questionFooter { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 10px; }
 .feedback { min-width: 0; flex: 1; color: var(--destructive); font-size: 12px; text-align: center; }
 .questionActions { display: flex; align-items: center; gap: 10px; }
 .pager { display: flex; align-items: center; gap: 7px; color: var(--label-tertiary); font-size: 12px; }

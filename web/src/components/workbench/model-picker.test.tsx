@@ -474,7 +474,7 @@ describe('Cloud model selection', () => {
     fixture.request.mockImplementation(async (path: string) => path.startsWith('/model-options') ? { current: null, options: [option('grant-a')], next_cursor: null } : path.startsWith('/providers') ? [] : inventory)
     const observed: ModelReadiness[] = []
     await act(async () => root.render(<ModelPicker effectiveProfile={{ plugins: [{ id: 'model', kind: 'ternilo.model.openai_compatible', enabled: true, config: { base_url: 'https://unused.test/v1', model: 'unused' } }] }} onReadinessChange={value => observed.push(value)} />))
-    expect(observed.at(-1)).toMatchObject({ status: 'empty', canSubmit: false })
+    expect(observed.at(-1)).toMatchObject({ status: 'unselected', canSubmit: false })
     expect(host.textContent).toContain('选择模型')
     expect(fixture.updateSession).not.toHaveBeenCalled()
   })
@@ -504,6 +504,49 @@ describe('Cloud model selection', () => {
       }
     }
     expect(fixture.notify).toHaveBeenCalledWith('默认模型已保存，新会话将使用此选择')
+  })
+
+  it.each([false, true])('clears an account default without touching the current computer session (failure=%s)', async failure => {
+    cloud()
+    fixture.placement = 'local_node'
+    let saved: ModelSelection = { provider: 'platform_model', grant_id: 'grant-a', model_id: 'same-model' }
+    fixture.request.mockImplementation(async (path: string, options?: { method?: string; body?: ModelSelection }) => {
+      if (path === '/default-model' && options?.method === 'PUT') {
+        if (failure) throw new Error('save failed')
+        saved = options.body!
+        return saved
+      }
+      if (path.startsWith('/model-options')) return { current: saved.provider === 'profile_default' ? null : { selection: saved, model: publicModel, available: true }, options: [], next_cursor: null }
+      return path === '/providers' ? [] : inventory
+    })
+    await act(async () => root.render(<ModelPicker defaultTenantId="personal" />))
+    await settle()
+    act(() => host.querySelector<HTMLButtonElement>('button')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+    const clear = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === '每次新会话时选择')!
+    expect(clear).toBeDefined()
+    await act(async () => clear.click())
+    await settle()
+    expect(fixture.request).toHaveBeenCalledWith('/default-model', { headers: { 'x-ternilo-tenant': 'personal' }, method: 'PUT', body: { provider: 'profile_default' } })
+    expect(fixture.updateSession).not.toHaveBeenCalled()
+    expect(host.textContent).toContain(failure ? 'Published model' : '每次新会话时选择')
+    expect(fixture.notify).toHaveBeenCalledWith(...(failure ? ['save failed', 'error'] : ['已清除默认模型，新会话需自行选择']))
+  })
+
+  it('offers selection rather than setup when an attached computer has only account models', async () => {
+    cloud({ provider: 'profile_default' })
+    fixture.placement = 'local_node'
+    fixture.request.mockImplementation(async (path: string) => {
+      if (path.startsWith('/model-options')) return { current: null, options: [], next_cursor: null }
+      if (path.startsWith('/providers')) return path === '/providers' ? [provider] : []
+      return inventory
+    })
+    const observed: ModelReadiness[] = []
+    await act(async () => root.render(<ModelPicker effectiveProfile={{ plugins: [] }} onReadinessChange={value => observed.push(value)} />))
+    await settle()
+    expect(observed.at(-1)).toMatchObject({ status: 'unselected', canSubmit: false })
+    expect(host.textContent).toContain('选择模型')
+    expect(host.textContent).not.toContain('设备本地')
+    expect(fixture.updateSession).not.toHaveBeenCalled()
   })
 
   it('keeps exact provider and budget tuples when changing or clearing reasoning', () => {
@@ -557,7 +600,7 @@ describe('Cloud model selection', () => {
 
   it('explains undeclared platform reasoning instead of inventing unsupported levels', async () => {
     cloud()
-    fixture.request.mockResolvedValue({ current: { selection: fixture.model, model: { ...publicModel, defaults: { ...publicModel.defaults, reasoning: null } }, selectable_reasoning: null, source_name: 'Budget grant-a', available: true }, options: [], next_cursor: null })
+    fixture.request.mockImplementation(async (path: string) => path.startsWith('/model-options') ? { current: { selection: fixture.model, model: { ...publicModel, defaults: { ...publicModel.defaults, reasoning: null } }, selectable_reasoning: null, source_name: 'Budget grant-a', available: true }, options: [], next_cursor: null } : path.startsWith('/providers') ? [] : inventory)
     await act(async () => root.render(<ModelPicker rememberDefault={false} />))
     await settle()
     act(() => host.querySelector<HTMLButtonElement>('button')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))

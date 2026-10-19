@@ -93,6 +93,38 @@ impl ControlStore {
         Ok(selection)
     }
 
+    /// Distinguishes an untouched preference from an explicit request to choose each time.
+    pub async fn personal_default_model_preference(
+        &self,
+        actor: &ControlUser,
+        tenant_id: &TenantId,
+    ) -> Result<Option<DefaultModelSelection>, HarnessError> {
+        tenant_id.validate()?;
+        actor.user_id.validate()?;
+        let mut transaction = self.database.tenant_transaction(tenant_id).await?;
+        let selection = sqlx::query_scalar::<_, Json<DefaultModelSelection>>(
+            "SELECT preferences.default_model FROM control_user_preferences AS preferences
+             JOIN control_account_spaces AS home ON home.user_id = preferences.user_id
+                 AND home.personal_tenant_id = preferences.tenant_id
+             WHERE preferences.tenant_id = $1 AND preferences.user_id = $2
+                 AND preferences.default_model IS NOT NULL",
+        )
+        .bind(tenant_id.as_str())
+        .bind(actor.user_id.as_str())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|error| database_error(&error))?
+        .map(|selection| selection.0);
+        transaction
+            .commit()
+            .await
+            .map_err(|error| database_error(&error))?;
+        if let Some(selection) = &selection {
+            selection.validate()?;
+        }
+        Ok(selection)
+    }
+
     pub async fn set_user_default_model(
         &self,
         actor: &ControlUser,

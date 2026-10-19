@@ -13,20 +13,16 @@ export function ApprovalExplanation({ approval, className, t: suppliedTranslate 
   const t = suppliedTranslate ?? translate
   const args = asRecord(approval.arguments)
   const explanation = asRecord(args.approval)
-  const fields = [
-    { key: 'action', label: t('approval.action') },
-    { key: 'reason', label: t('approval.reason') },
-    { key: 'impact', label: t('approval.impact') },
-  ]
-  const structured = fields.every(({ key }) => typeof explanation[key] === 'string' && explanation[key].trim())
+  const parts = ['action', 'reason', 'impact'].map(key => explanation[key])
+  const structured = parts.every(value => typeof value === 'string' && value.trim())
+  const summary = typeof args.approval === 'string' ? args.approval.trim()
+    : structured ? parts.map(value => String(value).trim()).join(' ') : ''
   const shell = approval.tool_name === 'shell'
   const reason = approval.reason.trim()
   const technical = reason.startsWith('the command requests access outside the workspace sandbox:')
     || reason === 'the shell call requests one-time access outside the workspace sandbox'
   return <div className={cn(css.root, className)} data-approval-explanation="">
-    {shell && structured ? <dl>
-      {fields.map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{String(explanation[key])}</dd></div>)}
-    </dl> : <p>{shell && (!reason || technical) ? t('approval.missingExplanation') : reason}</p>}
+    <p>{shell && summary ? summary : shell && (!reason || technical) ? t('approval.missingExplanation') : reason}</p>
     {shell && args.full_access === true && <p className={css.scope}>{t('approval.hostAccess')}</p>}
     {shell && typeof args.command === 'string' && <details data-approval-command="">
       <summary>{t('approval.command')}</summary>

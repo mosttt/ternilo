@@ -285,15 +285,49 @@ async fn wait_endpoint(profile: &Path) -> Result<String, HarnessError> {
     loop {
         if let Ok(value) = tokio::fs::read_to_string(profile.join("DevToolsActivePort")).await {
             let mut lines = value.lines();
-            let port = lines
-                .next()
-                .and_then(|value| value.parse::<u16>().ok())
-                .ok_or_else(|| HarnessError::execution("invalid document browser port"))?;
-            let path = lines
-                .next()
-                .ok_or_else(|| HarnessError::execution("missing document browser endpoint"))?;
-            return Ok(format!("ws://127.0.0.1:{port}{path}"));
+            // Chromium creates this file before writing its port and endpoint.
+            // A readable but incomplete file does not mean the browser is ready.
+            if let (Some(port), Some(path)) = (
+                lines.next().and_then(|value| value.parse::<u16>().ok()),
+                lines.next(),
+            ) && port != 0
+                && path.starts_with('/')
+            {
+                return Ok(format!("ws://127.0.0.1:{port}{path}"));
+            }
         }
         tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn endpoint_waits_for_chromium_to_finish_writing_its_port_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("DevToolsActivePort");
+        tokio::fs::write(&file, "").await.unwrap();
+        let waiting = wait_endpoint(directory.path());
+        tokio::pin!(waiting);
+        for partial in ["", "39523\n"] {
+            tokio::fs::write(&file, partial).await.unwrap();
+            assert!(
+                tokio::time::timeout(Duration::from_millis(60), &mut waiting)
+                    .await
+                    .is_err()
+            );
+        }
+        tokio::fs::write(&file, "39523\n/devtools/browser/render-test")
+            .await
+            .unwrap();
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), waiting)
+                .await
+                .unwrap()
+                .unwrap(),
+            "ws://127.0.0.1:39523/devtools/browser/render-test",
+        );
     }
 }

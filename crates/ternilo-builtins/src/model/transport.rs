@@ -256,6 +256,15 @@ impl ProviderModel {
         }
         report.retryable =
             status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error();
+        if let Some(failure) = crate::ProviderHttpFailure::from_response(
+            self.protocol,
+            &self.endpoint,
+            status.as_u16(),
+            &bytes,
+        ) {
+            report.retryable = failure.retryable;
+            return Err(HarnessError::execution(failure.message));
+        }
         Err(HarnessError::execution(format!(
             "model endpoint returned {status}: {}",
             retained_text(&bytes)

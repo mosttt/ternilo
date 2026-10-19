@@ -62,7 +62,7 @@ export function withReasoningEffort(selection: ModelSelection, effort?: Reasonin
   return effort === undefined ? model : { ...model, reasoning_effort: effort }
 }
 
-export type ModelReadinessStatus = 'loading' | 'error' | 'empty' | 'ready'
+export type ModelReadinessStatus = 'loading' | 'error' | 'empty' | 'unselected' | 'ready'
 
 export interface ModelReadiness {
   status: ModelReadinessStatus
@@ -148,7 +148,7 @@ export function ModelPicker({
   const targetKey = executionTargetKey(target)
   const [cachedProviders, setProviders] = React.useState<ProviderProfile[]>(() => peekProviderInventory(target)?.providers ?? [])
   const [cachedCredentials, setCredentials] = React.useState<CredentialInventory | null>(() => peekProviderInventory(target)?.credentials ?? null)
-  const [providerStatus, setStatus] = React.useState<Exclude<ModelReadinessStatus, 'empty'>>(() => (
+  const [providerStatus, setStatus] = React.useState<Exclude<ModelReadinessStatus, 'empty' | 'unselected'>>(() => (
     peekProviderInventory(target) ? 'ready' : 'loading'
   ))
   const [providerError, setLoadError] = React.useState('')
@@ -286,14 +286,18 @@ export function ModelPicker({
   const reasoning = serverBacked ? cloudCurrent?.selectable_reasoning : selectedDefaults?.reasoning
   const currentEffort = effectiveEffort(selection, selectedDefaults)
   const profileAvailable = profileModelIsUsable(effectiveProfile, catalog, credentials)
-  const selectedLabel = inheritedLabel && selection.provider === 'profile_default' ? inheritedLabel : cloud && selection.provider === 'profile_default' ? t('cloud.choose') : selection.provider === 'profile_default' && effectiveProfile && !profileAvailable
+  const choosingDefault = cloud && !currentSession && !onSelectOverride
+  const usableModels = usableProviderModels(providers, credentials)
+  const hasModels = usableModels > 0 || usableProviderModels(accounts.inventory?.providers ?? [], accounts.inventory?.credentials ?? null) > 0
+    || Boolean(cloudInventory?.options.length)
+  const needsSelection = selection.provider === 'profile_default' && (cloud || !profileAvailable) && hasModels
+  const selectedLabel = choosingDefault && selection.provider === 'profile_default' ? t('default.chooseEachSession') : needsSelection && !inheritedLabel ? t('cloud.choose') : inheritedLabel && selection.provider === 'profile_default' ? inheritedLabel : cloud && selection.provider === 'profile_default' ? t('cloud.choose') : selection.provider === 'profile_default' && effectiveProfile && !profileAvailable
     ? t('provider.configure')
     : modelLabel(selection, selectedProviders, t('default'), cloudCurrent)
-  const triggerLabel = `${selectedLabel}${selection.provider === 'computer_provider' ? ` · ${cloudCurrent?.source_name || t('source.computer')}` : selection.provider === 'account_provider' ? ` · ${t(sharedAccount ? 'source.sharedAccount' : 'source.account')}` : edge && selection.provider === 'platform_model' ? ` · ${t('cloud.platform')}` : edge ? ` · ${t('source.node')}` : cloud && selection.provider === 'named_provider' ? ` · ${t('cloud.byok')}` : ''}${currentEffort ? ` · ${currentEffort}` : ''}`
-  const usableModels = usableProviderModels(providers, credentials)
+  const triggerLabel = `${selectedLabel}${selection.provider === 'computer_provider' ? ` · ${cloudCurrent?.source_name || t('source.computer')}` : selection.provider === 'account_provider' ? ` · ${t(sharedAccount ? 'source.sharedAccount' : 'source.account')}` : edge && selection.provider === 'platform_model' ? ` · ${t('cloud.platform')}` : edge && !needsSelection ? ` · ${t('source.node')}` : cloud && selection.provider === 'named_provider' ? ` · ${t('cloud.byok')}` : ''}${currentEffort ? ` · ${currentEffort}` : ''}`
   const providerCatalogEmpty = status === 'ready' && usableModels === 0
   const profilePending = selection.provider === 'profile_default' && (!effectiveProfile || !catalog)
-  const readinessStatus: ModelReadinessStatus = selecting ? 'loading' : serverBacked
+  const readinessStatus: ModelReadinessStatus = selecting ? 'loading' : needsSelection ? 'unselected' : serverBacked
     ? cloudStatus !== 'ready' ? cloudStatus : selection.provider === 'profile_default' ? 'empty' : 'ready'
     : selection.provider === 'open_ai_compatible' || profileAvailable
     ? 'ready'
@@ -332,7 +336,7 @@ export function ModelPicker({
       try {
         await api.request(executionTargetPath('/default-model', target), { headers: executionTargetHeaders(target), method: 'PUT', body: model })
         if (platform) invalidateCloudModelInventory(target)
-        notify(t(currentSession ? 'updated' : 'default.updated'))
+        notify(t(currentSession ? 'updated' : model.provider === 'profile_default' ? 'default.cleared' : 'default.updated'))
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause)
         notify(currentSession ? t('defaultSaveFailed', { message }) : message, 'error')
@@ -402,7 +406,7 @@ export function ModelPicker({
           touchTrigger.current = false
           changeMenuOpen(!menuOpen)
         }}>
-        <Button type="button" data-model-picker="" disabled={disabled || selecting} size={compact ? 'xs' : 'sm'} variant="ghost" className={css.trigger} title={triggerLabel}>
+        <Button type="button" data-model-picker="" disabled={disabled || selecting} size={compact ? 'xs' : 'sm'} variant="ghost" className={`${css.trigger} ${choosingDefault ? css.defaultTrigger : ''}`} title={triggerLabel}>
           <Sparkles className="size-3.5" /><span className="truncate">{triggerLabel}</span><ChevronsUpDown className="size-3" />
         </Button>
       </DropdownMenuTrigger>
@@ -414,6 +418,12 @@ export function ModelPicker({
           {mobilePanel === 'models' ? modelItems : reasoningItems}
         </> : <>
         <DropdownMenuLabel>{t(currentSession ? 'session.title' : 'default.title')}</DropdownMenuLabel>
+        {choosingDefault && <>
+          <DropdownMenuItem onSelect={() => void select({ provider: 'profile_default' })}>
+            <CircleGauge /><span className="min-w-0 flex-1">{t('default.chooseEachSession')}</span>{selection.provider === 'profile_default' && <Check />}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>}
         {sharedAccount && selection.provider === 'account_provider' && <div className="px-2 pb-2 text-xs text-muted-foreground">{t('source.sharedAccount')}<span className="mt-1 block break-all font-mono">{selection.owner_user_id}</span></div>}
         {narrowMenu ? <DropdownMenuItem onSelect={event => { event.preventDefault(); setMobilePanel('models') }}><span>{t('model')}</span><span className="ml-auto max-w-40 truncate text-xs text-muted-foreground">{modelLabel(selection, selectedProviders, t('default'), cloudCurrent)}</span><ChevronRight /></DropdownMenuItem> : <DropdownMenuSub>
           <DropdownMenuSubTrigger><span>{t('model')}</span><span className="ml-auto max-w-40 truncate text-xs text-muted-foreground">{modelLabel(selection, selectedProviders, t('default'), cloudCurrent)}</span></DropdownMenuSubTrigger>

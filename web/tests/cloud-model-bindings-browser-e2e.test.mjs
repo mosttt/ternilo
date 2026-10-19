@@ -138,16 +138,16 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     const origin = `http://127.0.0.1:${await freePort()}`
     application = await initializeServer({ directory: path.join(directory, 'server'), origin, oidc: { issuer: oidc.issuer, audience: 'managed-model-browser', client_id: 'managed-model-browser' }, workerPolicy: policyPath, managedExecutionEnabled: true })
     const token = application.owner.session.access_token
-    const assetHashes = {}
+    const assets = {}
     const registrationPolicy = await serverRequest(origin, '/admin/registration', { token: token })
     await serverRequest(origin, '/admin/registration', { token: token, method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registrationPolicy.revision } })
     for (const asset of ['app.js', 'app.css']) {
       const response = await fetch(`${origin}/assets/${asset}`)
       assert.equal(response.status, 200)
-      const actual = createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex')
-      const expected = createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex')
-      assert.equal(actual, expected, `Server must embed the current ${asset}`)
-      assetHashes[asset] = actual
+      const actual = Buffer.from(await response.arrayBuffer())
+      const expected = await readFile(path.join(repository, 'web/dist/assets', asset))
+      assert.ok(actual.equals(expected), `Server must embed the current ${asset}`)
+      assets[asset] = 'matched current build'
     }
     const team = (await serverRequest(origin, '/tenants', { token, body: { slug: 'managed-models', display_name: 'Managed collaboration' } })).tenant
     const member = await registerOidcUser(origin, oidc.accessToken(), 'managed-collaborator')
@@ -197,11 +197,11 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     await ownerPage.getByRole('button', { name: '我的模型', exact: true }).click()
     const firstSettings = ownerPage.locator('[data-model-access-shell]')
     await ownerPage.reload()
-    await firstSettings.getByRole('heading', { name: '个人空间 · 托管新会话默认模型', exact: true }).waitFor()
+    await firstSettings.getByRole('heading', { name: '个人空间 · 新会话默认模型', exact: true }).waitFor()
     const defaultOptions = await serverRequest(origin, '/model-options', { token, tenantId: application.owner.session.personal_tenant_id })
     assert.equal(defaultOptions.current, null)
     const defaultOption = defaultOptions.options[0]
-    const defaultPicker = await modelDirectory(ownerPage, '选择模型', false, firstSettings)
+    const defaultPicker = await modelDirectory(ownerPage, '每次新会话时选择', false, firstSettings)
     assert.ok(!defaultOption.grant_name.includes('Published model'))
     await defaultPicker.getByRole('textbox', { name: '搜索模型或预算名称', exact: true }).fill('Published model')
     await defaultPicker.getByRole('button', { name: '搜索', exact: true }).click()
@@ -228,7 +228,7 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     await ownerPage.getByRole('button', { name: '我的模型', exact: true }).click()
     userSettings = ownerPage.locator('[data-model-access-shell]')
     await ownerPage.reload()
-    await userSettings.getByRole('heading', { name: '个人空间 · 托管新会话默认模型', exact: true }).waitFor()
+    await userSettings.getByRole('heading', { name: '个人空间 · 新会话默认模型', exact: true }).waitFor()
     for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 740 }, { width: 844, height: 390 }]) {
       await ownerPage.setViewportSize(viewport)
       await assertLayout(ownerPage, userSettings)
@@ -255,8 +255,9 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     assert.equal(await administration.locator('a[href="/models"], a[href^="/settings"], a[href="/spaces/current"]').count(), 0, 'platform administration has its own navigation')
     await administration.getByRole('link', { name: '返回工作台', exact: true }).click()
     context.diagnostic('Owner settings and platform administration are separate, with mobile model access and preserved configuration target')
-    await ownerPage.locator('[data-model-onboarding][data-state="empty"]').waitFor()
-    assert.match(await ownerPage.locator('[data-model-onboarding]').textContent(), /平台模型及预算/)
+    await ownerPage.locator('[data-model-onboarding][data-state="unselected"]').waitFor()
+    assert.match(await ownerPage.locator('[data-model-onboarding]').textContent(), /为当前会话选择模型/)
+    assert.equal(await ownerPage.locator('[data-model-onboarding]').getByRole('button', { name: '选择模型', exact: true }).isVisible(), true)
     await ownerPage.locator('[data-composer-input]').fill('Keep this draft before configuring a model')
     assert.equal(await ownerPage.locator('[data-input-bar]').getByRole('button', { name: '发送', exact: true }).isDisabled(), true)
     assert.equal(upstream.calls.length, 0, 'empty session has no automatic upstream calls')
@@ -594,7 +595,7 @@ test('managed model selection fixes resource-owner budgets and BYOK across shari
     context.diagnostic('Idle Cloud service inspection returned HTTP 200 with no services and showed task-scoped guidance on mobile without overflow')
     assert.deepEqual(errors, [])
     assert.deepEqual(memberDefaultWrites, [], 'shared Configure permission never changes the owner default model')
-    await writeFile(path.join(artifacts, 'managed-model-browser-result.json'), JSON.stringify({ assetHashes, sessionId, selectedBudget: chosen.grant_name, requests: shared.map(request => ({ request_id: request.request_id, actor_user_id: request.actor_user_id, grant_id: request.grant_id, accounted_tokens: request.accounted_tokens })), upstreamCalls: upstream.calls.length, requestSizes: upstream.calls.map(call => call.bytes), textRequestSizes, mobileModelGeometry, expectedValidation, errors }, null, 2))
+    await writeFile(path.join(artifacts, 'managed-model-browser-result.json'), JSON.stringify({ assets, sessionId, selectedBudget: chosen.grant_name, requests: shared.map(request => ({ request_id: request.request_id, actor_user_id: request.actor_user_id, grant_id: request.grant_id, accounted_tokens: request.accounted_tokens })), upstreamCalls: upstream.calls.length, requestSizes: upstream.calls.map(call => call.bytes), textRequestSizes, mobileModelGeometry, expectedValidation, errors }, null, 2))
   } catch (error) {
     if (application) {
       const token = application.owner.session.access_token

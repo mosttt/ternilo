@@ -8,7 +8,9 @@
 
 用户已明确选择下一资源入口：**选定个人工作区及其会话，转入已有团队，保留其余个人资源**。登记、执行路由及原账号清理保留已通过双库和实际浏览器验证，迁移预览／提交 HTTP 和界面尚未开放。已验证的中止与回执代码保留在独立分支 `feat/resource-migration-recovery`（`c6c2981`），当前分支不包含这些迁移改动。详细阶段结果保留在该分支的 `docs/development/personal-resource-migration.md`。[空白会话管理](blank-session-lifecycle.md)已完成，后续继续按下述顺序。
 
-公开程序验收另发现刷新后的初始历史尚未完成时断开 Node，会显示历史读取失败；需定向核实保留已读内容与重连恢复，不能以稳定状态断线测试替代。
+公开程序验收追加发现的初始历史断线问题已修复：保留已读正文、重连自动恢复，并将 Gateway 租约失效与真实撤权区分。定向三语浏览器与权限回归通过，尚未发行，见[修复记录](runtime-feedback-repairs.md)。
+
+DeepSeek 余额不足及 OpenAI 余额／支出／使用额度／限流的错误解释已补齐中英韩提示，并通过真实 Server／Node 浏览器合同，尚未发行，见[Provider 错误记录](runtime-feedback-repairs.md#2026-10-18provider-的余额额度与限流提示)。
 
 ## 下一阶段优先级（用户指定）
 

@@ -11,6 +11,7 @@ import type {
   PendingQuestion,
   Profile,
   SessionEvent,
+  SessionEventPage,
   SessionInboxSnapshot,
   SessionProjection,
   SessionStats,
@@ -286,7 +287,7 @@ describe('session controller live transport', async () => {
 
     controller.retryHistory()
     expect(controller.getSnapshot()).toMatchObject({
-      liveStatus: 'ready', loading: true, events: [], historyError: '',
+      liveStatus: 'ready', loading: true, events: [event(7)], historyError: '',
     })
     await flush()
     expect(live.targets.at(-1)).toEqual({ sessionId: 'session', options: { afterSeq: null } })
@@ -314,6 +315,91 @@ describe('session controller live transport', async () => {
     live.status('ready')
     expect(controller.getSnapshot().liveStatus).toBe('ready')
     controller.dispose()
+  })
+
+  it('preserves partial history through Node recovery and replaces it only when a fresh page arrives', async () => {
+    let page!: (value: SessionEventPage) => void
+    const api = new FakeApi(async path => path.includes('/history?')
+      ? new Promise(resolve => { page = resolve }) : metadata(path))
+    const { deps, live } = dependencies(api)
+    const controller = new SessionController(deps)
+    controller.start()
+    controller.setTarget('session', true, 'account')
+    page({ events: [event(0)], next_before_seq: null })
+    await flush()
+    live.emit({ type: 'error', subscription_id: 1, code: 'unavailable', message: 'Node offline' })
+    controller.setTarget('session', true, 'account', false)
+    const reads = api.calls.length
+    live.status('reconnecting'); live.status('ready')
+    expect(api.calls.length).toBe(reads)
+    controller.setTarget('session', true, 'account', true)
+    expect(controller.getSnapshot()).toMatchObject({ loading: true, events: [event(0)] })
+    controller.setTarget('session', true, 'account', true)
+    expect(api.calls.length).toBe(reads + 1)
+    page({ events: [event(4)], next_before_seq: null })
+    await flush()
+    expect(controller.getSnapshot()).toMatchObject({ loading: false, historyError: '', events: [event(4)] })
+    expect(live.targets.at(-1)).toEqual({ sessionId: 'session', options: { afterSeq: 4 } })
+    controller.dispose()
+  })
+
+  it('retries an initial failed history read when the browser connection recovers', async () => {
+    let available = false
+    const api = new FakeApi(async path => {
+      if (path.includes('/history?')) {
+        if (!available) throw new Error('Disconnected')
+        return { events: [event(0)], next_before_seq: null }
+      }
+      return metadata(path)
+    })
+    const { deps, live } = dependencies(api)
+    const controller = new SessionController(deps)
+    controller.start(); controller.setTarget('session', true)
+    await flush()
+    expect(controller.getSnapshot().historyError).toBe('Disconnected')
+    available = true
+    live.status('reconnecting'); live.status('ready')
+    await flush()
+    expect(controller.getSnapshot()).toMatchObject({ historyError: '', loading: false, events: [event(0)] })
+    controller.dispose()
+  })
+
+  it.each([false, true])('removes retained history when a REST retry denies access (older page: %s)', async older => {
+    let deny = false
+    const api = new FakeApi(async () => {
+      if (deny) throw new ApiError('Grant revoked', 403, 'policy_denied')
+      return { events: [event(5)], next_before_seq: 5 }
+    })
+    const { deps } = dependencies(api)
+    const controller = new SessionController(deps)
+    controller.start(); controller.setTarget('session', true)
+    await flush()
+    expect(controller.getSnapshot().events).toEqual([event(5)])
+    deny = true
+    if (older) await controller.loadOlderHistory()
+    else controller.retryHistory()
+    await flush()
+    expect(controller.getSnapshot()).toMatchObject({ events: [], inbox: null, stats: null, historyError: 'Grant revoked', loading: false })
+    controller.dispose()
+  })
+
+  it('drops queued stream fragments when an older history request reveals revoked access', async () => {
+    vi.useFakeTimers()
+    const api = new FakeApi(async path => {
+      if (path.includes('before_seq=')) throw new ApiError('Grant revoked', 403, 'policy_denied')
+      return { events: [event(5)], next_before_seq: 5 }
+    })
+    const { deps, live } = dependencies(api)
+    const controller = new SessionController(deps)
+    try {
+      controller.start(); controller.setTarget('session', true)
+      await flush()
+      live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
+        complete: false, events: [event(6, { type: 'assistant_reasoning_delta', delta: 'private' })], next_seq: 7 })
+      await controller.loadOlderHistory()
+      await vi.advanceTimersByTimeAsync(100)
+      expect(controller.getSnapshot()).toMatchObject({ events: [], historyError: 'Grant revoked' })
+    } finally { controller.dispose(); vi.useRealTimers() }
   })
 
   it('keeps optimistic identity out of requests and replaces it with the admitted author', async () => {
@@ -760,7 +846,7 @@ it('shows the first page before slower earlier pages and completes one long thin
   controller.start()
   controller.setTarget('thinking', true)
   await flush()
-  expect(controller.getSnapshot()).toMatchObject({ loadedSessionId: 'thinking', loading: false, loadingHistory: true, nextBeforeSeq: null })
+  expect(controller.getSnapshot()).toMatchObject({ loadedSessionId: 'thinking', loading: false, loadingHistory: true, nextBeforeSeq: 12000 })
   expect(controller.getSnapshot().events).toHaveLength(1_000)
   expect(live.targets.at(-1)?.options?.afterSeq).toBe(12_999)
   live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'thinking', reset: false,
@@ -799,7 +885,9 @@ it('keeps the last accepted history cursor retryable when background backfill fa
   live.emit({ type: 'event_batch', subscription_id: 1, session_id: 'session', reset: false,
     complete: true, events: [event(6_001)], next_seq: 6_002 })
   expect(controller.getSnapshot().olderHistoryError).toBe('backfill disconnected')
-  await controller.loadOlderHistory()
+  controller.setTarget('session', true, 'host', false)
+  controller.setTarget('session', true, 'host', true)
+  await vi.waitFor(() => expect(controller.getSnapshot().loadingOlder).toBe(false))
   expect(api.calls.at(-1)?.path).toContain('before_seq=5000')
   expect(controller.getSnapshot()).toMatchObject({ nextBeforeSeq: 4_999, olderHistoryError: '' })
   expect(controller.getSnapshot().events.at(0)?.seq).toBe(4_999)
@@ -824,6 +912,37 @@ it('ignores a failed obsolete backfill after Live resets the history baseline', 
   await flush()
   expect(controller.getSnapshot()).toMatchObject({ events: [event(0)], loading: false, loadingHistory: false,
     nextBeforeSeq: null, historyError: '', olderHistoryError: '' })
+  controller.dispose()
+})
+
+it('restores a readable partial history immediately and resumes at its oldest accepted cursor', async () => {
+  let finishOldPage!: (value: SessionEventPage) => void
+  let requests = 0
+  const api = new FakeApi(async path => {
+    if (path.includes('/second/')) return { events: [], next_before_seq: null }
+    if (!path.includes('before_seq=')) return { events: Array.from({ length: 1000 }, (_, i) => event(1000 + i)), next_before_seq: 1000 }
+    requests += 1
+    if (requests === 1) return new Promise(resolve => { finishOldPage = resolve })
+    return { events: [event(999)], next_before_seq: 999 }
+  })
+  const { deps, live } = dependencies(api)
+  const controller = new SessionController(deps)
+  controller.start()
+  controller.setTarget('first', true)
+  await flush()
+  expect(controller.getSnapshot()).toMatchObject({ loading: false, loadingHistory: true, nextBeforeSeq: 1000 })
+  controller.setTarget('second', true)
+  await flush()
+  controller.setTarget('first', true)
+  expect(controller.getSnapshot()).toMatchObject({ loadedSessionId: 'first', loading: false, loadingOlder: true })
+  expect(controller.getSnapshot().events).toHaveLength(1000)
+  expect(live.targets.at(-1)).toEqual({ sessionId: 'first', options: { afterSeq: 1999 } })
+  await flush()
+  finishOldPage({ events: [event(0)], next_before_seq: null })
+  await flush()
+  expect(controller.getSnapshot().events[0].seq).toBe(999)
+  expect(controller.getSnapshot().nextBeforeSeq).toBe(999)
+  expect(api.calls.filter(call => call.path === '/sessions/first/history?limit=1000')).toHaveLength(1)
   controller.dispose()
 })
 

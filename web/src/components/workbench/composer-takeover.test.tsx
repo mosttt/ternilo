@@ -53,13 +53,23 @@ describe('ComposerTakeover', () => {
       tool_approval: { tool_name: 'shell', call_id: 'c', reason: 'technical reason', arguments: { command, full_access: true, approval: explanation } },
     } }]} onAnswer={vi.fn()} onError={vi.fn()} t={translate(dictionary)} />))
     const content = host.querySelector('[data-approval-explanation]')!
-    expect([...content.querySelectorAll('dt')].map(item => item.textContent)).toEqual([dictionary['approval.action'], dictionary['approval.reason'], dictionary['approval.impact']])
-    expect([...content.querySelectorAll('dd')].map(item => item.textContent)).toEqual(Object.values(explanation))
+    expect(content.querySelector('dl')).toBeNull()
+    expect(content.querySelector('p')?.textContent).toBe(Object.values(explanation).join(' '))
     expect(content.textContent).not.toContain('technical reason')
     const details = content.querySelector('details')!
     expect(details.open).toBe(false)
     expect(details.querySelector('code')?.textContent).toBe(command)
     expect(content.textContent).toContain(dictionary['approval.hostAccess'])
+  })
+
+  it('shows a concise approval paragraph without splitting it into fields', () => {
+    const summary = '为检查内存占用，将在沙箱外读取进程列表，不修改文件或停止服务。'
+    act(() => root.render(<ComposerTakeover questions={[{ session_id: 's', question: {
+      id: 'shell-summary', question: '', options: [{ label: 'Allow once' }, { label: 'Deny' }], multi_select: false,
+      tool_approval: { tool_name: 'shell', call_id: 'c', reason: summary, arguments: { command: 'ps aux', full_access: true, approval: summary } },
+    } }]} onAnswer={vi.fn()} onError={vi.fn()} t={t} />))
+    expect(host.querySelector('[data-approval-explanation] > p')?.textContent).toBe(summary)
+    expect(host.querySelector('dl')).toBeNull()
   })
 
   it('keeps legacy commands inspectable without inventing their intent', () => {

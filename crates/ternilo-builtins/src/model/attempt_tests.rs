@@ -198,8 +198,109 @@ fn rejected() -> Reply {
     Reply { status:503,body:json!({"error":{"message":"temporary error"},"usage":{"prompt_tokens":7,"completion_tokens":2}}).to_string(),stream:false,stall:false }
 }
 
+#[tokio::test]
+async fn deepseek_http_failures_keep_safe_causes_and_the_documented_retry_behavior() {
+    for status in [400, 401, 402, 422, 429, 500, 503] {
+        let attempts = if matches!(status, 429 | 500 | 503) {
+            3
+        } else {
+            1
+        };
+        let replies = (0..attempts).map(|_| Reply {
+            status,
+            body: json!({"error":{"message":"Insufficient Balance; private-upstream-key private-route"}}).to_string(),
+            stream: false,
+            stall: false,
+        }).collect();
+        let (base_url, server) = upstream(replies).await;
+        let recorder = Arc::new(Recorder::default());
+        let error = complete_provider_model(
+            route(base_url.clone(), ProviderProtocol::DeepSeekResponses),
+            Some("private-upstream-key".into()),
+            request(),
+            recorder.clone(),
+            RunCancellation::default(),
+            Some(recorder.clone()),
+        )
+        .await
+        .unwrap_err();
+        let expected = crate::ProviderHttpFailure::from_response(
+            ProviderProtocol::DeepSeekResponses,
+            &base_url,
+            status,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(error.message, expected.message);
+        assert!(!error.message.contains("private-"));
+        assert_eq!(server.await.unwrap().len(), attempts);
+        let reports = recorder.reports.lock().unwrap();
+        assert_eq!(reports.len(), attempts);
+        assert!(
+            reports
+                .iter()
+                .all(|report| report.http_status == Some(status))
+        );
+        assert_eq!(
+            reports.last().unwrap().upstream_request_id,
+            Some(format!("attempt-{attempts}"))
+        );
+    }
+}
+
 fn completed() -> Reply {
     Reply { status:200,body:json!({"choices":[{"message":{"content":"complete"},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":80},"completion_tokens_details":{"reasoning_tokens":10}}}).to_string(),stream:false,stall:false }
+}
+
+#[tokio::test]
+async fn openai_billing_failures_stop_retrying_but_rate_limits_still_retry() {
+    for protocol in [
+        ProviderProtocol::OpenAiChatCompletions,
+        ProviderProtocol::OpenAiResponses,
+    ] {
+        for code in [
+            "credit_balance_exhausted",
+            "organization_spend_limit_exceeded",
+            "project_spend_limit_exceeded",
+            "organization_usage_limit_exceeded",
+            "insufficient_quota",
+            "rate_limit_exceeded",
+            "slow_down",
+        ] {
+            let attempts = if matches!(code, "rate_limit_exceeded" | "slow_down") {
+                3
+            } else {
+                1
+            };
+            let replies = (0..attempts).map(|_| Reply {
+                status: 429,
+                body: json!({"error":{"code":code,"type":"insufficient_quota","message":"private-api-key"}}).to_string(),
+                stream: false,
+                stall: false,
+            }).collect();
+            let (base_url, server) = upstream(replies).await;
+            let recorder = Arc::new(Recorder::default());
+            let error = complete_provider_model(
+                route(base_url, protocol),
+                None,
+                request(),
+                recorder.clone(),
+                RunCancellation::default(),
+                Some(recorder.clone()),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(
+                crate::ProviderHttpFailure::from_public_message(&error.message)
+                    .unwrap()
+                    .code,
+                code
+            );
+            assert!(!error.message.contains("private-api-key"));
+            assert_eq!(server.await.unwrap().len(), attempts);
+            assert_eq!(recorder.reports.lock().unwrap().len(), attempts);
+        }
+    }
 }
 
 #[tokio::test]

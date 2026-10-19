@@ -224,12 +224,9 @@ impl<'a> CloudAdapter<'a> {
         &self,
         selection: DefaultModelSelection,
     ) -> Result<DefaultModelSelection, HarnessError> {
-        if matches!(selection, DefaultModelSelection::ProfileDefault) {
-            return Err(HarnessError::invalid(
-                "choose an explicit model as the managed default",
-            ));
+        if !matches!(selection, DefaultModelSelection::ProfileDefault) {
+            self.model_update_value(selection.clone(), None).await?;
         }
-        self.model_update_value(selection.clone(), None).await?;
         self.state
             .store
             .set_user_default_model(self.actor, self.tenant_id, selection, now_ms()?)

@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-18",
+  "scope": "Preserve accepted history across initial Live metadata failure, recover on Node/browser connection and distinguish route loss from revocation",
+  "controller_tests": 34,
+  "chat_view_tests": 26,
+  "rust_contracts": [
+    {
+      "name": "sqlite_delivery_survives_process_restart_and_rejects_stale_owners",
+      "seconds": 0.05,
+      "passed": true
+    },
+    {
+      "name": "cluster_two_gateways_follow_committed_events_leases_and_revoked_credentials",
+      "seconds": 1.28,
+      "passed": true
+    }
+  ],
+  "browser": {
+    "test": "runtime-feedback-browser-e2e.test.mjs",
+    "passed": true,
+    "seconds": 104.59,
+    "actual_server_and_node": true,
+    "controlled_fault": "Replace a held initial session_metadata frame with unavailable, then actually disconnect the Node TCP proxy; delay retried HTTP history until retained content is checked",
+    "locales": [
+      "zh",
+      "en",
+      "ko"
+    ],
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "locale": "ko"
+    },
+    "checks": [
+      "accepted history remains readable during error and automatic retry",
+      "fresh history replaces old baseline without duplicate prompts",
+      "offline timers stop and reconnect restores active execution",
+      "permission changes, approval allow/deny, child navigation, image decoding/zoom and versioned downloads still pass"
+    ],
+    "unexpected_console_page_http_errors": [],
+    "screenshots_inspected": [
+      "history-warning-zh.png",
+      "history-warning-ko.png",
+      "interrupted-history-en.png"
+    ]
+  },
+  "build_checks": [
+    "TypeScript",
+    "core UI i18n",
+    "Web build",
+    "current served JS bytes on both binaries",
+    "formal and development docs"
+  ],
+  "access_checks": [
+    "401/403/404 and policy_denied/invalid_input clear retained REST history",
+    "queued stream fragments cannot repopulate revoked history",
+    "scope changes clear caches"
+  ],
+  "published": false
+}

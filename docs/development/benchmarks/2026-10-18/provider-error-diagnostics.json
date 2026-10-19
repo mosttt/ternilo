@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-18",
+  "status": "passed",
+  "sources": [
+    "https://api-docs.deepseek.com/zh-cn/quick_start/error_codes/",
+    "https://developers.openai.com/api/docs/guides/error-codes"
+  ],
+  "scope": [
+    "DeepSeek HTTP 400/401/402/422/429/500/503: actionable fixed diagnostics; 402 never retries; explicit DeepSeek adapter or exact api.deepseek.com hostname only",
+    "OpenAI Chat Completions/Responses: exact error.code takes precedence over broad error.type; credits, organization/project spend limits and organization approved usage distinct from rate and ramp limits",
+    "Known API billing/quota errors stop automatic retries; rate limits/server errors retain configured attempt counts",
+    "Server internal model forwarding preserves only canonical safe explanations; appended secrets and arbitrary upstream diagnostics remain redacted",
+    "Public model API retains HTTP502 for upstream rejection and returns the specific safe reason code",
+    "zh/en/ko chat, retained history, trajectory and details share localization; compatible endpoints are not branded as official OpenAI"
+  ],
+  "checks": {
+    "classification": "2 passed; 0.00s",
+    "real_http_attempts": "13 passed; 1.84s; includes both OpenAI protocols and all seven DeepSeek HTTP statuses, precise retry counts, request IDs, cancellation and partial-stream regression",
+    "server_redaction": "1 passed; 0.00s; exact whitelist and appended-secret rejection",
+    "web": "9 targeted runtime-error tests, TypeScript, i18n gate and production build passed",
+    "browser": "provider-errors-browser-e2e.test.mjs passed in 25.67s; actual Server/Node and isolated upstream fixtures; seven DeepSeek statuses, seven OpenAI quota/rate reasons; same request history, three languages, 390px, details, public API streaming and non-streaming failures; no console/page/HTTP errors",
+    "visual": "Inspected actual Chinese desktop DeepSeek balance, Korean mobile detail and English mobile OpenAI balance screenshots; error titles and corrective actions readable, no page/card overflow",
+    "clippy": "Builtins and Server all targets with -D warnings passed (5m09s); a lint-only is_ok_and rewrite leaves the accepted runtime behavior unchanged",
+    "docs": "fmt, diff and 212 Markdown document gate passed"
+  },
+  "environment": "Disposable local SQLite, Server and Node with synthetic upstream responses and fixture-only credentials. No paid API calls, real services or user data touched. Browser fixture stops its services and removes temporary data.",
+  "artifacts": "/home/move/.local/state/ternilo-validation/provider-errors-browser",
+  "logs": [
+    "provider-errors-classification.log",
+    "provider-errors-attempts.log",
+    "provider-errors-server.log",
+    "provider-errors-clippy.log",
+    "provider-errors-browser-build.log",
+    "provider-errors-browser.log"
+  ],
+  "release": "unreleased"
+}

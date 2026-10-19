@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { en, zh } from '@/i18n/resources/chat'
+import { en, ko, zh } from '@/i18n/resources/chat'
 import type { Translate } from '@/i18n/runtime'
 import { presentRuntimeError } from './runtime-error'
 
@@ -9,6 +9,42 @@ const translate = (resource: Record<keyof typeof zh, string>): Translate<'chat'>
 const t = translate(zh)
 
 describe('runtime error presentation', () => {
+  it('keeps OpenAI billing, spend, usage and rate limits distinct in every locale', () => {
+    const cases = {
+      credit_balance_exhausted: 'balance', organization_spend_limit_exceeded: 'orgSpend', project_spend_limit_exceeded: 'projectSpend',
+      organization_usage_limit_exceeded: 'orgUsage', insufficient_quota: 'quota', rate_limit_exceeded: 'rateLimit', slow_down: 'slowDown', request_limited: 'limited',
+    } as const
+    for (const resource of [zh, en, ko]) {
+      for (const [code, category] of Object.entries(cases)) {
+        const raw = `execution: Model API error (HTTP 429; ${code}): safe diagnostic`
+        const result = presentRuntimeError(raw, translate(resource))
+        expect(result).toEqual({ title: resource[`runtimeError.api.${category}.title`], message: resource[`runtimeError.api.${category}.message`], raw })
+      }
+    }
+    expect(presentRuntimeError('Model API error (HTTP 400; context_length_exceeded): too long', t).title).toBe('上下文超出模型限制')
+    expect(presentRuntimeError('Model API error (HTTP 400; service_tier): not allowed', t).message).toContain('service_tier')
+    expect(presentRuntimeError('credit_balance_exhausted.txt could not be opened', t).title).toBe('运行失败')
+    expect(() => presentRuntimeError('Model API error (HTTP 429; constructor): unknown code', t)).not.toThrow()
+  })
+
+  it('distinguishes DeepSeek balance from authentication and rate limits in all three locales', () => {
+    for (const [resource, title] of [[zh, 'DeepSeek 余额不足'], [en, 'Insufficient DeepSeek balance'], [ko, 'DeepSeek 잔액 부족']] as const) {
+      const raw = 'execution: DeepSeek API error (HTTP 402): the account balance is insufficient.'
+      const shown = presentRuntimeError(raw, translate(resource))
+      expect(shown).toMatchObject({ title, raw })
+      expect(shown.message).toContain('platform.deepseek.com/top_up')
+      expect(shown.message).not.toContain('Server model request log')
+      for (const [status, category] of [[400, 'request'], [401, 'auth'], [422, 'parameters'], [429, 'rateLimit'], [500, 'service'], [503, 'overloaded']] as const) {
+        const result = presentRuntimeError(`DeepSeek API error (HTTP ${status}): failure`, translate(resource))
+        expect(result.title).toBe(resource[`runtimeError.deepseek.${category}.title`])
+        expect(result.title).not.toBe(title)
+      }
+    }
+    const unrelated = 'read_file deepseek-402.txt: Permission denied'
+    expect(presentRuntimeError(unrelated, t)).toEqual({ title: '运行失败', message: unrelated, raw: unrelated })
+    expect(presentRuntimeError('model endpoint returned 402 Payment Required', t).title).not.toContain('DeepSeek')
+  })
+
   it('explains resident capacity exhaustion before generic Provider categories and preserves its raw diagnostic', () => {
     const raw = 'policy_denied: capacity_exhausted: all compatible Worker resident slots (429) are held by runs waiting for queued dependencies'
     expect(presentRuntimeError(raw, t)).toMatchObject({

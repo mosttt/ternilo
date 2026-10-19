@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-19",
+  "source_base": "baf93da",
+  "scope": [
+    "Ask scroll",
+    "personal Server new-session default and clear",
+    "existing-model selection onboarding",
+    "concise shell approval",
+    "partially-loaded session cache"
+  ],
+  "ui_tests": {
+    "model_picker": 34,
+    "composer_takeover": 17,
+    "session_controller": 35,
+    "workbench": 43
+  },
+  "checks": [
+    "TypeScript",
+    "i18n 294 source files",
+    "formal docs",
+    "production web build",
+    "strict Rust library Clippy 160s",
+    "strict Rust binary Clippy 213s",
+    "git diff --check"
+  ],
+  "browser": {
+    "ask": {
+      "seconds": 20.038,
+      "viewport_cases": [
+        "zh 390x844",
+        "en 844x390",
+        "ko 320x560",
+        "input 390x360"
+      ],
+      "touch": true,
+      "actual_answer_verified": true,
+      "log": "ask-overflow-after.log"
+    },
+    "defaults": {
+      "managed_disabled_seconds": 50.364,
+      "managed_enabled_seconds": 43.193,
+      "actual_node_tool_execution": true,
+      "unavailable_default_rejected_before_creation": true,
+      "local_defaults_and_existing_sessions_unchanged": true,
+      "new_blank_reuse_checked": true,
+      "log": "personal-default-final.log"
+    },
+    "runtime": {
+      "seconds": 107.364,
+      "real_server_node": true,
+      "approval_formats": [
+        "paragraph",
+        "legacy object"
+      ],
+      "cache_delayed_older_page_segments": 1200,
+      "cache_return_no_latest_page_refetch": true,
+      "console_page_http_unexpected_errors": [],
+      "log": "feedback-runtime-final.log"
+    }
+  },
+  "artifacts_local_root": "/home/move/.local/state/ternilo-validation",
+  "screenshots_inspected": [
+    "ask-overflow-after/ask-scroll-en.png",
+    "ask-overflow-after/ask-scroll-ko.png",
+    "ask-overflow-after/ask-small-input.png",
+    "personal-default-final/computers-only/default-cleared-zh.png",
+    "feedback-runtime-final/approval-ko.png",
+    "feedback-runtime-final/history-cache-return.png"
+  ],
+  "release": "Await v0.2.18 stable-branch CI and public artifact acceptance; unfinished migration excluded"
+}
