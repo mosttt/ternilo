@@ -105,6 +105,10 @@ test('service workspace grants, scoped Live, real SDK execution and revocation p
     await until(() => readLive.frames, frames => frames.some(frame => ['event_batch', 'error'].includes(frame.type)), 'read-scoped Live receives authorized history')
     assert.deepEqual(readLive.frames.filter(frame => frame.type === 'error'), [])
     await choose('允许执行')
+    await serverRequest(origin, '/default-model', { ...owner, method: 'PUT', body: { provider: 'profile_default' } })
+    const serviceSession = await serverRequest(origin, '/sessions', { ...runScope, body: { workspace_id: workspace.workspace_id } })
+    assert.equal(serviceSession.workspace_id, workspace.workspace_id, 'service session creation does not require a personal account space')
+    assert.equal(serviceSession.model.provider, 'profile_default')
     const config = { origin, token: runScope.token, tenant: owner.tenantId, session: sessionId }
     const environment = { ...process.env, TERNILO_SDK_TEST_CONFIG: JSON.stringify(config) }
     const typescript = await execute(process.execPath, ['--experimental-strip-types', path.join(repository, 'sdk/typescript/test/service-live-smoke.ts')], { cwd: repository, env: environment })

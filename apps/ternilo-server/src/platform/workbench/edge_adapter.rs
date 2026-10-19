@@ -86,25 +86,17 @@ impl<'a> EdgeAdapter<'a> {
     }
 
     pub(crate) async fn new_session_default(&self) -> Result<Option<Value>, HarnessError> {
-        let personal = self
+        let preference = self
             .state
             .store
-            .account_provider_space(&self.actor.user_id)
+            .personal_default_model_preference(self.actor, self.tenant_id)
             .await?;
-        let preference = if self.tenant_id == &personal {
-            self.state
-                .store
-                .user_default_model_preference(self.actor, &personal)
-                .await?
-        } else {
-            None
-        };
         // Resolve before creating anything; unavailable defaults must not silently use a device model.
         if let Some(selection) = preference {
             let snapshot = super::model_options::resolve_selection(
                 self.state,
                 self.actor,
-                &personal,
+                self.tenant_id,
                 &self.actor.user_id,
                 selection,
             )
