@@ -199,7 +199,22 @@ impl HarnessPlugin for IdentityPromptPlugin {
             let workspace = environment.workspace().await;
             let workspace_fact = workspace.map_or_else(
                 || "No workspace is attached to this session.".to_owned(),
-                |workspace| format!("Working directory: {}.", workspace.path),
+                |workspace| {
+                    format!(
+                        "Working directory: {}. \
+                         In Ternilo web and desktop chat, show an existing workspace PNG, JPEG, GIF or WebP \
+                         with a Markdown image in your answer, for example ![Image](output/image.png), \
+                         not a plain path, link or code block. Prefer workspace-relative paths with \
+                         forward slashes and encode spaces as %20. The client loads the image through \
+                         the authorized workspace preview; it does not open a file:// URL directly. \
+                         The path must stay inside this workspace. read_file reads UTF-8 text, but \
+                         reading image bytes with it is not required to display an existing image. \
+                         Displaying an image reference does not let you inspect its pixels; describe \
+                         visual contents only when image input or an image-capable tool actually \
+                         supplied them to you.",
+                        workspace.path
+                    )
+                },
             );
             let registration = prompts
                 .register(PromptSection {

@@ -64,7 +64,7 @@ marked.use({
     link(source) {
       // Node history redacts its host root with this placeholder. Encode only
       // an image destination, leaving prose and code examples untouched.
-      const normalized = source.replace(/^(!\[(?:\\.|[^\]\\])*\]\()<local-workspace>\//, '$1%3Clocal-workspace%3E/')
+      const normalized = source.replace(/^(!\[(?:\\.|[^\]\\])*\]\()(file:\/\/\/?)?<local-workspace>\//, '$1$2%3Clocal-workspace%3E/')
       if (normalized === source) return false
       const token = Tokenizer.prototype.link.call(this, normalized)
       if (!token || token.type !== 'image') return false
@@ -84,6 +84,8 @@ const sanitizeOptions = {
   ALLOW_ARIA_ATTR: true,
   ALLOW_DATA_ATTR: false,
   ADD_ATTR: ['data-workspace-image', 'data-workspace-image-alt', 'target', 'rel', 'loading', 'referrerpolicy', 'tabindex'],
+  // Inert renderer metadata, not browser URLs; workspace preview validates the path.
+  ADD_URI_SAFE_ATTR: ['data-workspace-image', 'data-workspace-image-alt'],
   FORBID_TAGS: ['form', 'option', 'select', 'style', 'textarea'],
 }
 

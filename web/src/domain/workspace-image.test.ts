@@ -2,11 +2,14 @@ import { expect, it } from 'vitest'
 import { workspaceImagePath } from './workspace-image'
 
 it('resolves relative, placeholder, POSIX and Windows images within the bound workspace', () => {
-  for (const source of ['figures/map.png', './figures/map.png', '<local-workspace>/figures/map.png', '/home/projects/figures/map.png', 'file:///home/projects/figures/map.png']) {
+  for (const source of ['figures/map.png', './figures/map.png', '<local-workspace>/figures/map.png', 'file://<local-workspace>/figures/map.png', 'file:///%3Clocal-workspace%3E/figures/map.png', '/home/projects/figures/map.png', 'file:///home/projects/figures/map.png']) {
     expect(workspaceImagePath(source, '/home/projects')).toBe('figures/map.png')
   }
   expect(workspaceImagePath('C:\\Projects\\map.png', 'c:\\projects')).toBe('map.png')
   expect(workspaceImagePath('file:///C:/Projects/map.png', 'C:\\Projects')).toBe('map.png')
+  expect(workspaceImagePath('file:///C:/Projects/map.png', '\\\\?\\C:\\Projects')).toBe('map.png')
+  expect(workspaceImagePath('\\\\?\\C:\\Projects\\map.png', 'C:\\Projects')).toBe('map.png')
+  expect(workspaceImagePath('C:/Projects-other/map.png', '\\\\?\\C:\\Projects')).toBeNull()
   expect(workspaceImagePath('figures/a%20b.png', '/project')).toBe('figures/a b.png')
 })
 it('never converts other workspaces, traversal or external destinations into local reads', () => {

@@ -7,7 +7,8 @@ export function isWorkspaceImageReference(value: string): boolean {
 
 export function workspaceImagePath(value: string, root: string): string | null {
   if (!isWorkspaceImageReference(value)) return null
-  let path = value
+  // Node path redaction can replace the root inside a file URL as well.
+  let path = value.replace(/^file:\/\/\/?(?=(?:<local-workspace>|%3Clocal-workspace%3E)\/)/i, '')
   try {
     if (/^file:\/\//i.test(path)) {
       const url = new URL(path)
@@ -16,8 +17,9 @@ export function workspaceImagePath(value: string, root: string): string | null {
     }
     path = decodeURIComponent(path)
   } catch { return null }
-  path = path.replaceAll('\\', '/')
-  const base = root.replaceAll('\\', '/').replace(/\/+$/, '')
+  const normalize = (value: string) => value.replaceAll('\\', '/').replace(/^\/\/\?\/(?=[a-z]:\/)/i, '')
+  path = normalize(path)
+  const base = normalize(root).replace(/\/+$/, '')
   const windows = /^[a-z]:\//i.test(path)
   if (path.startsWith('<local-workspace>/')) path = path.slice('<local-workspace>/'.length)
   else if (path.startsWith('/') || windows) {
