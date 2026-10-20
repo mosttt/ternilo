@@ -81,7 +81,7 @@ export function TerminalToolResult({ view, t }: {
       </div>
     </header>
     {copyState === 'failed' && <p className={css.copyError} role="alert">{t('message.copyFailed')}</p>}
-    {feedback && <p className={css.searchNotice} data-shell-feedback="" role="note">{feedback}</p>}
+    {feedback && <p className={cn(css.searchNotice, 'text-sm leading-relaxed')} data-shell-feedback="" role="note">{feedback}</p>}
     {view.stdout && <AnsiOutput label="stdout" value={view.stdout} />}
     {view.stderr && <AnsiOutput label="stderr" value={view.stderr} />}
     {!view.stdout && !view.stderr && <p className={css.empty}>{t('tool.noOutput')}</p>}
