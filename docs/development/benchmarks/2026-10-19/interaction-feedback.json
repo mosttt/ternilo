@@ -67,5 +67,5 @@
     "feedback-runtime-final/approval-ko.png",
     "feedback-runtime-final/history-cache-return.png"
   ],
-  "release": "Await v0.2.18 stable-branch CI and public artifact acceptance; unfinished migration excluded"
+  "release": "v0.2.18 publicly released and accepted; see ../2026-10-20/release-0.2.18-public.json; unfinished migration excluded"
 }
