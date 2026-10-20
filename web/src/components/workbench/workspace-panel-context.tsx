@@ -3,7 +3,8 @@ import { api } from '@/api/client'
 import { initialWorkspacePanel, readWorkspacePanel, type WorkspacePanelState } from './workspace-panel-state'
 
 export type WorkspaceApplication = { id: string; label: string; icon?: string }
-export type WorkspaceInfo = { root: string; can_browse: boolean; applications: WorkspaceApplication[] }
+export type SandboxReadiness = { backend: string; status: 'ready' | 'missing' | 'unusable'; detail?: string; install_command?: string }
+export type WorkspaceInfo = { root: string; can_browse: boolean; applications: WorkspaceApplication[]; sandbox?: SandboxReadiness }
 export type WorkspaceDirectory = { path: string; entries: { name: string; kind: 'directory' | 'file' | 'other' }[]; truncated: boolean }
 export type WorkspacePreview = { path: string; bytes: number; media_type: string; encoding: 'utf8' | 'base64' | 'unsupported'; content: string; truncated: boolean }
 

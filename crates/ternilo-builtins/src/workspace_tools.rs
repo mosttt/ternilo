@@ -641,10 +641,13 @@ impl ToolHandler for ShellTool {
                     },
                 )
                 .await?;
+            let is_error = result.timed_out || result.exit_code != Some(0);
             let value = serde_json::to_value(result).map_err(|error| {
                 HarnessError::execution(format!("serialize shell result: {error}"))
             })?;
-            json_output(&value)
+            let mut output = json_output(&value)?;
+            output.is_error = is_error;
+            Ok(output)
         })
     }
 }

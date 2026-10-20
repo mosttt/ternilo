@@ -103,6 +103,10 @@ Node 的工作区绝对路径绑定保留在电脑。目录浏览、创建及相
 
 Shell、后台 job 和持久 terminal 共用可信 `ternilo/sandbox@1` service。普通用户插件与 tenant Extension 不能提供或放宽它；缺少 backend 时不会退回裸进程。
 
+打开本机或 Server 接入电脑上的会话时，默认本地沙箱会执行一次有界的空命令自检。缺少依赖或自检失败时，会话显示安装／修复提示和“重新检查”；检查在该工作区的执行电脑进行，不在 Server 代跑。内置文件匹配与文本搜索不依赖外部 `rg`。缺少沙箱不会自动切换为完全访问。
+
+Windows 的 shell 输出按执行主机的 PowerShell 输出代码页解码，并优先识别 UTF-8 与 UTF-16 BOM。命令的退出码和 stderr 保留；界面区分受限语言模式禁止的方法调用与语法错误。ConstrainedLanguage 和现有系统策略仍然有效。
+
 | 权限/请求 | 执行方式 |
 |---|---|
 | `ReadOnly` | 平台 sandbox；工作区和宿主文件只读 |

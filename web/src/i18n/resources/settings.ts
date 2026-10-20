@@ -1,4 +1,13 @@
 export const zh = {
+  "sandbox.checking": "正在检查命令沙箱…",
+  "sandbox.unavailable": "命令沙箱不可用",
+  "sandbox.installLinux": "请在运行此工作区的电脑上安装 bubblewrap，而不是只在 Server 上安装。安装后点击“重新检查”。",
+  "sandbox.installWindows": "请在运行此工作区的 Windows 电脑上重新安装完整的 Ternilo 安装包，确保 ternilo-sandbox-windows.exe 与主程序在同一目录，然后重新检查。",
+  "sandbox.repair": "沙箱自检未通过。请让这台执行电脑的管理员查看下方诊断，检查沙箱程序和系统权限，修复后重新检查。",
+  "sandbox.otherTools": "仍可对话和使用内置文件工具。受限命令不会自动改为完全访问。",
+  "sandbox.details": "查看诊断",
+  "sandbox.retry": "重新检查",
+
   'tools.perToolInvalid': "请使用有效的工具名称，并为每项填写至少 256 的整数字符上限。",
 
   'tools.perToolLimit': "按工具设置单条输出上限（字符）",
@@ -869,6 +878,15 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  "sandbox.checking": "Checking command sandbox…",
+  "sandbox.unavailable": "Command sandbox unavailable",
+  "sandbox.installLinux": "Install bubblewrap on the computer running this workspace, not just on Server. Then select “Check again”.",
+  "sandbox.installWindows": "Reinstall the complete Ternilo package on the Windows computer running this workspace. Keep ternilo-sandbox-windows.exe beside the main executable, then check again.",
+  "sandbox.repair": "The sandbox check failed. Ask the administrator of this execution computer to review the diagnostics below, check the sandbox program and system permissions, and retry after repair.",
+  "sandbox.otherTools": "Chat and built-in file tools remain available. Restricted commands will not switch to full access automatically.",
+  "sandbox.details": "View diagnostics",
+  "sandbox.retry": "Check again",
+
   'tools.perToolInvalid': "Use valid tool names and an integer limit of at least 256 characters for each tool.",
 
   'tools.perToolLimit': "Per-tool result limits (characters)",
@@ -1783,6 +1801,15 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  "sandbox.checking": "명령 샌드박스 확인 중…",
+  "sandbox.unavailable": "명령 샌드박스를 사용할 수 없음",
+  "sandbox.installLinux": "Server가 아니라 이 작업 공간을 실행하는 컴퓨터에 bubblewrap을 설치하세요. 설치 후 “다시 확인”을 누르세요.",
+  "sandbox.installWindows": "이 작업 공간을 실행하는 Windows 컴퓨터에 Ternilo 전체 패키지를 다시 설치하세요. ternilo-sandbox-windows.exe를 기본 실행 파일과 같은 폴더에 두고 다시 확인하세요.",
+  "sandbox.repair": "샌드박스 자체 검사에 실패했습니다. 실행 컴퓨터의 관리자에게 아래 진단을 확인하고 샌드박스 프로그램과 시스템 권한을 점검한 뒤 다시 시도하도록 요청하세요.",
+  "sandbox.otherTools": "대화와 내장 파일 도구는 계속 사용할 수 있습니다. 제한된 명령이 자동으로 전체 접근으로 전환되지는 않습니다.",
+  "sandbox.details": "진단 보기",
+  "sandbox.retry": "다시 확인",
+
   'tools.perToolInvalid': "유효한 도구 이름과 도구별 최소 256자의 정수 한도를 입력하세요.",
 
   'tools.perToolLimit': "도구별 단일 출력 한도 (문자)",

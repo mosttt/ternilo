@@ -45,6 +45,19 @@ afterEach(() => {
 })
 
 describe('ToolCallTree', () => {
+  it('keeps failed shell output readable and explains the specific PowerShell failure', () => {
+    const stderr = 'FullyQualifiedErrorId : MethodInvocationNotSupportedInConstrainedLanguage\nEmptyPipeElement'
+    render(trace({ id: 'powershell-error', name: 'shell', arguments: { command: '[math]::Round(1.5)' },
+      output: { content: JSON.stringify({ exit_code: 1, stdout: '', stderr, timed_out: false }), is_error: true },
+    }))
+    act(() => host.querySelector<HTMLButtonElement>('[data-tool-call-toggle]')!.click())
+    expect(host.querySelector('[data-tool-call-id="powershell-error"]')?.getAttribute('data-state')).toBe('error')
+    expect(host.querySelector('[data-tool-view="terminal"]')).not.toBeNull()
+    expect(host.querySelector('[data-shell-feedback]')?.textContent).toContain('受限语言模式')
+    expect(host.querySelector('[data-shell-feedback]')?.textContent).toContain('引号')
+    expect(host.querySelector('[aria-label="stderr"]')?.textContent).toBe(stderr)
+  })
+
   it('renders recursive code dispatches once and selects the exact leaf', () => {
     const leaf = trace({
       id: 'leaf', name: 'read_file', kind: 'code', arguments: { path: 'src/a.rs' },

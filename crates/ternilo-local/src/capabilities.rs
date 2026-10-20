@@ -8,8 +8,6 @@ use std::{
     sync::Arc,
 };
 
-use base64::Engine as _;
-
 use linorun_core::{Activation, CallContext, ComponentContext, ComponentDescriptor};
 use linorun_macros::component_descriptor;
 use serde::Deserialize;
@@ -21,8 +19,8 @@ use ternilo_kernel::{
 };
 use ternilo_protocol::{
     FileContent, FileListRequest, FileListResult, FileReadRequest, FileReplaceRequest,
-    FileReplaceResult, FileSearchMatch, FileSearchRequest, FileSearchResult, FileWriteRequest,
-    FileWriteResult, HarnessError, ShellRequest, ShellResult,
+    FileReplaceResult, FileSearchRequest, FileSearchResult, FileWriteRequest, FileWriteResult,
+    HarnessError, ShellRequest, ShellResult,
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
@@ -30,6 +28,10 @@ use tokio::{
 };
 
 use crate::file_read_cache::{FileReadCache, FileVersion};
+
+mod search;
+#[cfg(any(windows, test))]
+mod shell_encoding;
 
 pub const LOCAL_FILES_KIND: &str = "ternilo.files.local";
 pub const LOCAL_SHELL_KIND: &str = "ternilo.shell.local";
@@ -432,39 +434,7 @@ impl WorkspaceFilesProvider for LocalFiles {
         _: CallContext<()>,
         request: FileListRequest,
     ) -> Pin<Box<dyn Future<Output = Result<FileListResult, HarnessError>> + Send + 'a>> {
-        Box::pin(async move {
-            if request.pattern.trim().is_empty() {
-                return Err(HarnessError::invalid("file glob must not be empty"));
-            }
-            let limit = usize::try_from(request.limit.clamp(1, 2_000)).unwrap_or(2_000);
-            let output = run_bounded(
-                Command::new("rg")
-                    .env("LC_ALL", "C")
-                    .arg("--files")
-                    .arg("--null")
-                    .arg("--hidden")
-                    .arg("--glob")
-                    .arg(&request.pattern)
-                    .arg(".")
-                    .current_dir(&self.root),
-                10_000,
-            )
-            .await?;
-            let warnings = search_warnings("rg --files", &output)?;
-            let mut files = complete_search_output(&output.stdout, b'\0')
-                .split('\0')
-                .filter(|path| !path.is_empty())
-                .take(limit + 1)
-                .map(|line| line.strip_prefix("./").unwrap_or(line).to_owned())
-                .collect::<Vec<_>>();
-            let truncated = output.stdout.truncated || files.len() > limit;
-            files.truncate(limit);
-            Ok(FileListResult {
-                files,
-                warnings,
-                truncated,
-            })
-        })
+        Box::pin(search::list_files(self.root.clone(), request))
     }
 
     fn search_text<'a>(
@@ -472,36 +442,7 @@ impl WorkspaceFilesProvider for LocalFiles {
         _: CallContext<()>,
         request: FileSearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<FileSearchResult, HarnessError>> + Send + 'a>> {
-        Box::pin(async move {
-            if request.pattern.trim().is_empty() {
-                return Err(HarnessError::invalid("search pattern must not be empty"));
-            }
-            let limit = usize::try_from(request.limit.clamp(1, 1_000)).unwrap_or(1_000);
-            let mut command = Command::new("rg");
-            command.env("LC_ALL", "C").arg("--json").arg("--hidden");
-            if let Some(file_glob) = request.file_glob.as_deref() {
-                command.arg("--glob").arg(file_glob);
-            }
-            command
-                .arg("--")
-                .arg(&request.pattern)
-                .arg(".")
-                .current_dir(&self.root);
-            let output = run_bounded(&mut command, 10_000).await?;
-            let warnings = search_warnings("rg search", &output)?;
-            let mut matches = complete_search_output(&output.stdout, b'\n')
-                .lines()
-                .filter_map(|line| parse_search_match(line).transpose())
-                .take(limit + 1)
-                .collect::<Result<Vec<_>, _>>()?;
-            let truncated = output.stdout.truncated || matches.len() > limit;
-            matches.truncate(limit);
-            Ok(FileSearchResult {
-                matches,
-                warnings,
-                truncated,
-            })
-        })
+        Box::pin(search::search_text(self.root.clone(), request))
     }
 }
 
@@ -629,12 +570,18 @@ impl ShellProvider for LocalShell {
             )
             .await?
             {
-                CaptureResult::Completed(output) => Ok(ShellResult {
-                    exit_code: output.status.code(),
-                    stdout: output.stdout.render(),
-                    stderr: output.stderr.render(),
-                    timed_out: false,
-                }),
+                CaptureResult::Completed(output) => {
+                    #[cfg(windows)]
+                    let (stdout, stderr) = shell_encoding::render_output(&output).await;
+                    #[cfg(not(windows))]
+                    let (stdout, stderr) = (output.stdout.render(), output.stderr.render());
+                    Ok(ShellResult {
+                        exit_code: output.status.code(),
+                        stdout,
+                        stderr,
+                        timed_out: false,
+                    })
+                }
                 CaptureResult::TimedOut => Ok(ShellResult {
                     exit_code: None,
                     stdout: String::new(),
@@ -653,7 +600,7 @@ fn command_from_program(program: OsString, arguments: Vec<OsString>, root: &Path
 }
 
 #[cfg(unix)]
-fn native_script_command(script: &str) -> (OsString, Vec<OsString>) {
+pub(super) fn native_script_command(script: &str) -> (OsString, Vec<OsString>) {
     (
         OsString::from("bash"),
         vec![OsString::from("-lc"), OsString::from(script)],
@@ -661,7 +608,7 @@ fn native_script_command(script: &str) -> (OsString, Vec<OsString>) {
 }
 
 #[cfg(windows)]
-fn native_script_command(script: &str) -> (OsString, Vec<OsString>) {
+pub(super) fn native_script_command(script: &str) -> (OsString, Vec<OsString>) {
     (
         OsString::from("powershell.exe"),
         vec![
@@ -675,7 +622,7 @@ fn native_script_command(script: &str) -> (OsString, Vec<OsString>) {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn native_script_command(script: &str) -> (OsString, Vec<OsString>) {
+pub(super) fn native_script_command(script: &str) -> (OsString, Vec<OsString>) {
     (
         OsString::from("sh"),
         vec![OsString::from("-c"), OsString::from(script)],
@@ -690,95 +637,26 @@ fn sensitive_environment_name(name: &std::ffi::OsStr) -> bool {
             .any(|marker| name.contains(marker))
 }
 
-async fn run_bounded(
-    command: &mut Command,
-    timeout_ms: u64,
-) -> Result<CapturedOutput, HarnessError> {
-    match capture_command(command, timeout_ms, MAX_INTERNAL_CAPTURE_BYTES, None).await? {
-        CaptureResult::Completed(output) => Ok(output),
-        CaptureResult::TimedOut => Err(HarnessError::execution(format!(
-            "command timed out after {timeout_ms} ms"
-        ))),
-    }
-}
-
-fn command_failure(label: &str, output: &CapturedOutput) -> HarnessError {
-    HarnessError::execution(format!(
-        "{label} exited with {:?}: {}",
-        output.status.code(),
-        output.stderr.render()
-    ))
-}
-
-fn search_warnings(label: &str, output: &CapturedOutput) -> Result<Vec<String>, HarnessError> {
-    let diagnostics = String::from_utf8_lossy(&output.stderr.bytes);
-    if diagnostics.lines().any(|line| {
-        line.starts_with("rg: regex parse error:") || line.starts_with("rg: error parsing glob ")
-    }) {
-        return Err(command_failure(label, output));
-    }
-    let permission_only = !diagnostics.trim().is_empty()
-        && diagnostics
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .all(|line| {
-                line.trim_end()
-                    .ends_with(": Permission denied (os error 13)")
-                    || line
-                        .trim_end()
-                        .ends_with(": Access is denied. (os error 5)")
-            });
-    match output.status.code() {
-        Some(0 | 1) => {}
-        Some(2) if !output.stdout.bytes.is_empty() || permission_only => {}
-        _ => return Err(command_failure(label, output)),
-    }
-    let mut warnings = diagnostics
-        .lines()
-        .take(20)
-        .map(|line| line.chars().take(1_000).collect::<String>())
-        .collect::<Vec<_>>();
-    if output.stderr.truncated || diagnostics.lines().count() > 20 {
-        warnings.push("Additional search diagnostics were omitted.".to_owned());
-    }
-    Ok(warnings)
-}
-
-fn complete_search_output(stream: &CapturedStream, delimiter: u8) -> String {
-    let bytes = if stream.truncated {
-        // A capture limit can cut a path or a match in half. Keep only complete records.
-        stream
-            .bytes
-            .iter()
-            .rposition(|byte| *byte == delimiter)
-            .map_or(&[][..], |end| &stream.bytes[..=end])
-    } else {
-        &stream.bytes
-    };
-    String::from_utf8_lossy(bytes).into_owned()
-}
-
 const MAX_SHELL_CAPTURE_BYTES: usize = 256 * 1024;
-const MAX_INTERNAL_CAPTURE_BYTES: usize = 8 * 1024 * 1024;
 
-struct CapturedOutput {
-    status: ExitStatus,
-    stdout: CapturedStream,
-    stderr: CapturedStream,
+pub(super) struct CapturedOutput {
+    pub(super) status: ExitStatus,
+    pub(super) stdout: CapturedStream,
+    pub(super) stderr: CapturedStream,
 }
 
-enum CaptureResult {
+pub(super) enum CaptureResult {
     Completed(CapturedOutput),
     TimedOut,
 }
 
-struct CapturedStream {
+pub(super) struct CapturedStream {
     bytes: Vec<u8>,
     truncated: bool,
 }
 
 impl CapturedStream {
-    fn render(&self) -> String {
+    pub(super) fn render(&self) -> String {
         let text = String::from_utf8_lossy(&self.bytes);
         if self.truncated {
             format!("{text}\n… output truncated …")
@@ -788,7 +666,7 @@ impl CapturedStream {
     }
 }
 
-async fn capture_command(
+pub(super) async fn capture_command(
     command: &mut Command,
     timeout_ms: u64,
     max_capture_bytes: usize,
@@ -958,149 +836,9 @@ where
     Ok(CapturedStream { bytes, truncated })
 }
 
-fn parse_search_match(line: &str) -> Result<Option<FileSearchMatch>, HarnessError> {
-    let record: Value = serde_json::from_str(line)
-        .map_err(|error| HarnessError::execution(format!("invalid rg JSON: {error}")))?;
-    if record["type"] != "match" {
-        return Ok(None);
-    }
-    let data = &record["data"];
-    let path = search_record_text(&data["path"])?;
-    let preview = search_record_text(&data["lines"])?;
-    Ok(Some(FileSearchMatch {
-        path: path.strip_prefix("./").unwrap_or(&path).to_owned(),
-        line: data["line_number"]
-            .as_u64()
-            .ok_or_else(|| HarnessError::execution("rg returned a malformed line number"))?,
-        column: data["submatches"][0]["start"]
-            .as_u64()
-            .and_then(|start| start.checked_add(1))
-            .ok_or_else(|| HarnessError::execution("rg returned a malformed column"))?,
-        preview: preview.trim_end_matches(['\r', '\n']).to_owned(),
-    }))
-}
-
-fn search_record_text(value: &Value) -> Result<String, HarnessError> {
-    if let Some(text) = value["text"].as_str() {
-        return Ok(text.to_owned());
-    }
-    let encoded = value["bytes"]
-        .as_str()
-        .ok_or_else(|| HarnessError::execution("rg returned a malformed text field"))?;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(encoded)
-        .map_err(|error| HarnessError::execution(format!("invalid rg encoded text: {error}")))?;
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[cfg(unix)]
-    #[test]
-    fn partial_search_keeps_permission_warnings_but_rejects_invalid_queries() {
-        use std::os::unix::process::ExitStatusExt;
-
-        let output = |stdout: &str, stderr: &str| CapturedOutput {
-            status: ExitStatus::from_raw(2 << 8),
-            stdout: CapturedStream {
-                bytes: stdout.as_bytes().to_vec(),
-                truncated: false,
-            },
-            stderr: CapturedStream {
-                bytes: stderr.as_bytes().to_vec(),
-                truncated: false,
-            },
-        };
-        let denied = "rg: ./private: Permission denied (os error 13)\n";
-        let record = serde_json::json!({"type": "match", "data": {
-            "path": {"text": "./readable:notes.txt"}, "lines": {"text": "needle\n"},
-            "line_number": 1, "submatches": [{"start": 0}]
-        }})
-        .to_string();
-        let partial = output(&format!("{record}\n"), denied);
-        assert_eq!(
-            search_warnings("rg search", &partial).unwrap(),
-            vec![denied.trim()]
-        );
-        let matched = parse_search_match(complete_search_output(&partial.stdout, b'\n').trim())
-            .unwrap()
-            .unwrap();
-        assert_eq!(matched.path, "readable:notes.txt");
-        assert_eq!(matched.preview, "needle");
-        assert!(
-            !search_warnings("rg search", &output("", denied))
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            search_warnings(
-                "rg search",
-                &output("", "regex parse error: unclosed character class")
-            )
-            .is_err()
-        );
-
-        assert!(search_warnings("rg --files", &output("", "rg: error parsing glob '{Permission denied (os error 13)': unclosed alternate group; missing '}'")).is_err());
-        let truncated = CapturedStream {
-            bytes: b"./kept.txt\n./incomplete".to_vec(),
-            truncated: true,
-        };
-        assert_eq!(complete_search_output(&truncated, b'\n'), "./kept.txt\n");
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn ripgrep_returns_readable_files_when_a_directory_is_inaccessible() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let directory = tempfile::tempdir().unwrap();
-        std::fs::write(directory.path().join("readable.txt"), "needle\n").unwrap();
-        std::fs::write(directory.path().join("colon:line\nname.txt"), "needle\n").unwrap();
-        let private = directory.path().join("private");
-        std::fs::create_dir(&private).unwrap();
-        std::fs::write(private.join("hidden.txt"), "needle\n").unwrap();
-        std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o0)).unwrap();
-        let denies_reading = std::fs::read_dir(&private).is_err();
-        for (arguments, delimiter) in [
-            (vec!["--files", "--null", "--hidden", "."], b'\0'),
-            (vec!["--json", "--hidden", "--", "needle", "."], b'\n'),
-        ] {
-            let result = run_bounded(
-                Command::new("rg")
-                    .env("LC_ALL", "C")
-                    .args(arguments)
-                    .current_dir(directory.path()),
-                10_000,
-            )
-            .await;
-            let output = result.unwrap();
-            let warnings = search_warnings("rg fixture", &output).unwrap();
-            let captured = complete_search_output(&output.stdout, delimiter);
-            assert!(captured.contains("readable.txt"));
-            if delimiter == b'\n' {
-                let matches = captured
-                    .lines()
-                    .filter_map(|line| parse_search_match(line).transpose())
-                    .collect::<Result<Vec<_>, _>>()
-                    .unwrap();
-                assert!(
-                    matches
-                        .iter()
-                        .any(|entry| entry.path == "colon:line\nname.txt")
-                );
-            } else {
-                assert!(
-                    captured
-                        .split('\0')
-                        .any(|path| path == "./colon:line\nname.txt")
-                );
-            }
-            assert_eq!(!warnings.is_empty(), denies_reading);
-        }
-        std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o700)).unwrap();
-    }
 
     #[cfg(unix)]
     #[tokio::test]

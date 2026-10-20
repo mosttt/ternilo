@@ -51,7 +51,12 @@ clap = { version = "4.5", features = ["derive", "env"] }
 command-fds = { version = "0.3.3", features = ["tokio"] }
 ed25519-dalek = { version = "3.0.0", features = ["rand_core"] }
 futures-util = "0.3.34"
+codepage-strings = "1.0.2"
+grep-matcher = "0.1.9"
+grep-regex = "0.1.14"
+grep-searcher = "0.1.17"
 hmac = "0.13"
+ignore = "0.4.33"
 nix = { version = "0.31.0", default-features = false, features = ["dir", "fs", "signal"] }
 opentelemetry = { version = "0.32.0", default-features = false, features = ["logs"] }
 opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client"] }

@@ -18,7 +18,7 @@ ternilo serve --open-browser
 
 界面按浏览器首选语言显示中文、英文或韩文；在“设置 → 通用”手动选择后使用保存的语言。本机网页自动取得连接凭据，不需要注册账号。
 
-运行现成程序不需要 Rust 或 Node.js。文件搜索需要 `ripgrep`（`rg`）；Linux 上的命令、终端和后台任务还需要 `bubblewrap`。Windows 保留 `ternilo-sandbox-windows.exe` 在主程序旁，详见[包内程序](binaries.md)。本地管理端口仅供当前电脑使用，其他设备通过 Server 访问。
+运行现成程序不需要 Rust 或 Node.js。文件匹配和文本搜索已内置，不需要另外安装 `ripgrep`（`rg`）。Linux 上的受限命令、终端和后台任务需要 `bubblewrap`。Windows 保留 `ternilo-sandbox-windows.exe` 在主程序旁，详见[包内程序](binaries.md)。本地管理端口仅供当前电脑使用，其他设备通过 Server 访问。
 
 ## 2. 选择工作文件夹，开始会话
 
@@ -62,7 +62,7 @@ API 地址填写根路径，不填完整 `/chat/completions` 或 `/responses` �
 | `404` | API 根地址及服务要求的路径 |
 | `model not found` | Model ID 是否准确 |
 | 超时或重试耗尽 | 网络、代理、服务状态，再调整超时 |
-| 工具无法执行 | `rg`、Linux `bubblewrap` 或 Windows 沙箱辅助程序是否可用 |
+| 受限命令无法执行 | 查看会话中的沙箱提示，在运行工作区的电脑上安装或修复 `bubblewrap`／Windows 沙箱辅助程序，再点击“重新检查” |
 | 请求格式不兼容 | Provider 协议是否与端点一致 |
 
 日常会话、队列、附件、审批和历史操作见[用户指南](user-guide.md)，联网问题见[联网工具排查](web-access.md)。

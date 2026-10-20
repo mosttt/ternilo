@@ -18,7 +18,7 @@ Keep the launching terminal open. Ctrl-C stops the service; closing the browser 
 
 The interface follows your browser's Chinese/English/Korean preference until you save a manual choice under Settings → General. The local page obtains its connection credentials automatically and needs no account registration.
 
-Prebuilt applications require no Rust or Node.js. File search needs `ripgrep` (`rg`); Linux commands, terminals and background tasks also need `bubblewrap`. On Windows, keep `ternilo-sandbox-windows.exe` beside the main program; see [package programs](binaries.md). The local management port is for this computer; other devices use Server.
+Prebuilt applications require no Rust or Node.js. File globbing and text search are built in; installing `ripgrep` (`rg`) is unnecessary. Sandboxed Linux commands, terminals and background tasks require `bubblewrap`. On Windows, keep `ternilo-sandbox-windows.exe` beside the main program; see [package programs](binaries.md). The local management port is for this computer; other devices use Server.
 
 ## 2. Select a workspace and session
 
@@ -62,7 +62,7 @@ Choose task permissions in the input bar: read-only for inspection or workspace-
 | `404` | Base URL and required service path |
 | `model not found` | Exact Model ID |
 | Timeout / retries exhausted | Network, proxy and upstream status before changing timeout |
-| Tools cannot execute | `rg`, Linux `bubblewrap`, or the Windows sandbox helper |
+| Sandboxed commands cannot execute | Read the session’s sandbox notice, install or repair `bubblewrap` or the Windows helper on the computer running the workspace, then select “Check again” |
 | Incompatible request format | Provider protocol and actual endpoint |
 
 See the [user guide](user-guide.md) for queues, files, approvals and history, or [web access diagnostics](web-access.md) for network tools.

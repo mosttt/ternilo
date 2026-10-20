@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { connect, createServer as tcpServer } from 'node:net'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { chromium } from 'playwright'
-import { freePort, initializeServer, repository, serverRequest, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
+import { execute, freePort, initializeServer, repository, serverRequest, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
 import { localApi, until } from './model-device-fixture.mjs'
 
 async function gatewayProxy(origin) {
@@ -56,6 +56,19 @@ async function slowModel(folder) {
     if (prompt.includes('cache-history')) {
       for (let index = 0; index < 1200; index += 1) send({ content: `Cache segment ${index}. ` })
       return finish({ content: 'History cache proof complete.' })
+    }
+    if (prompt.includes('runtime-native-search')) {
+      if (!tool('native-glob')) return call('native-glob', 'glob_files', { pattern: '*.txt' })
+      if (!tool('native-search')) return call('native-search', 'search_files', { pattern: 'readiness-needle', file_glob: '*.txt' })
+      return finish({ content: 'Native search works without rg.' })
+    }
+    if (prompt.includes('runtime-sandbox-denial')) {
+      if (!tool('sandbox-denied')) return call('sandbox-denied', 'shell', { command: 'printf forbidden > should-not-exist.txt' })
+      return finish({ content: 'Sandbox refusal recorded.' })
+    }
+    if (prompt.includes('runtime-shell-failure')) {
+      if (!tool('shell-failed')) return call('shell-failed', 'shell', { command: "printf 'MethodInvocationNotSupportedInConstrainedLanguage\\nEmptyPipeElement\\n' >&2; exit 7" })
+      return finish({ content: 'Shell failure recorded.' })
     }
     if (prompt.includes('windows-images')) return finish({ content: 'Windows image references.\n\n![Windows path](C:/Users/Move/Desktop/image%20space.png)\n\n![Windows file URL](file:///C:/Users/Move/Desktop/image%20space.png)\n\n![Outside workspace](file:///C:/Users/Move/Documents/secret.png)' })
     if (prompt.includes('delegate') && !tool('spawn')) return call('spawn', 'spawn_agent', { task: 'Inspect fixture evidence', label: 'Review fixture', role: 'investigator', background: false })
@@ -129,6 +142,73 @@ async function verifyWindowsImages(page, request, resource, workspaceId) {
   }
 }
 
+async function verifyRuntimeReadiness({ page, request, local, resource, localSession, folder, runtimePath, bwrap }) {
+  const localResource = `/sessions/${localSession.identity.session_id}`
+  const localInfo = await local(`${localResource}/workspace`)
+  const remoteInfo = await request(`${resource}/workspace`)
+  assert.equal(localInfo.sandbox.status, 'unusable')
+  assert.equal(remoteInfo.sandbox.status, 'unusable')
+  assert.match(remoteInfo.sandbox.detail, /fixture sandbox unavailable/)
+  await local(localResource, { method: 'PATCH', body: { permissions: 'workspace_write' } })
+  for (const [input, answer] of [
+    ['runtime-native-search', 'Native search works without rg.'],
+    ['runtime-sandbox-denial', 'Sandbox refusal recorded.'],
+  ]) {
+    await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input } } })
+    await until(() => request(`${resource}/events`), events => events.some(event => event.type === 'assistant_message' && event.response.content === answer), answer)
+  }
+  const events = await request(`${resource}/events`)
+  for (const id of ['native-glob', 'native-search']) {
+    const result = events.find(event => event.type === 'tool_call_finished' && event.call_id === id)
+    assert.ok(result, `actual ${id} result`)
+    assert.equal(result.output.is_error, false)
+    assert.match(result.output.content, /search-proof.txt/)
+  }
+  const denied = events.find(event => event.type === 'tool_call_finished' && event.call_id === 'sandbox-denied')
+  assert.equal(denied.output.is_error, true)
+  assert.equal(JSON.parse(denied.output.content).exit_code, 42)
+  await assert.rejects(readFile(path.join(folder, 'should-not-exist.txt')), { code: 'ENOENT' })
+  for (const [locale, title, retry] of [
+    ['zh', '命令沙箱不可用', '重新检查'],
+    ['en', 'Command sandbox unavailable', 'Check again'],
+    ['ko', '명령 샌드박스를 사용할 수 없음', '다시 확인'],
+  ]) {
+    await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale)
+    await page.setViewportSize(locale === 'ko' ? { width: 320, height: 740 } : { width: 1366, height: 900 })
+    await page.reload()
+    const warning = page.locator('[data-sandbox-status="unusable"]')
+    await warning.getByText(title, { exact: true }).waitFor()
+    await warning.locator('summary').click()
+    await warning.getByText(/fixture sandbox unavailable/).waitFor()
+    const button = warning.getByRole('button', { name: retry, exact: true })
+    await button.scrollIntoViewIfNeeded()
+    assert.equal(await button.isEnabled(), true)
+    assert.equal(await warning.evaluate(el => el.scrollWidth > el.clientWidth + 1), false)
+    if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+      await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+      await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `sandbox-${locale}.png`) })
+    }
+  }
+  await rm(path.join(runtimePath, 'bwrap')); await symlink(bwrap, path.join(runtimePath, 'bwrap'))
+  await page.locator('[data-sandbox-status]').getByRole('button', { name: '다시 확인', exact: true }).click()
+  await page.locator('[data-sandbox-status]').waitFor({ state: 'detached' })
+  assert.equal((await request(`${resource}/workspace`)).sandbox.status, 'ready')
+  await request(`${resource}/queue`, { body: { content: { kind: 'prompt', input: 'runtime-shell-failure' } } })
+  await until(() => request(`${resource}/events`), events => events.some(event => event.type === 'assistant_message' && event.response.content === 'Shell failure recorded.'), 'failed shell output')
+  for (const [locale, hint] of [['zh', '受限语言模式'], ['en', 'ConstrainedLanguage'], ['ko', '제한된 언어 모드']]) {
+    await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale); await page.reload()
+    const tool = page.locator('[data-tool-call-id="shell-failed"]')
+    await tool.locator('[data-tool-call-toggle]').click()
+    assert.equal(await tool.getAttribute('data-state'), 'error')
+    await tool.locator('[data-shell-feedback]').getByText(hint, { exact: false }).waitFor()
+    assert.match(await tool.locator('[aria-label="stderr"]').textContent(), /EmptyPipeElement/)
+    if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `shell-error-${locale}.png`) })
+  }
+  await local(localResource, { method: 'PATCH', body: { permissions: 'full_access' } })
+  await page.evaluate(() => localStorage.setItem('ternilo.locale', 'zh'))
+  await page.setViewportSize({ width: 1366, height: 900 }); await page.reload()
+}
+
 const labels = {
   zh: { permission: '会话权限', busy: '当前轮次正在运行', read: '只读', full: '完整访问', confirm: '允许完整访问', team: '打开 Agent Team', open: '打开独立会话', offline: '电脑离线，运行状态待确认', parent: '上级目录' },
   en: { permission: 'Session permission', busy: 'Wait for the current turn', read: 'Read only', full: 'Full access', confirm: 'Allow full access', team: 'Open Agent Team', open: 'Open independent session', offline: 'Computer offline. Run status is unconfirmed.', parent: 'Parent folder' },
@@ -159,7 +239,14 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     const credential = await request('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     proxy = await gatewayProxy(server.origin)
     const origin = `http://127.0.0.1:${await freePort()}`
-    const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolled.enrollment.executor_id, '--gateway-url', proxy.url, '--allow-insecure-gateway'], { HOME: home, TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'state') }); processes.push(node)
+    const runtimePath = path.join(directory, 'runtime-path'); await mkdir(runtimePath)
+    const bwrap = (await execute('/bin/sh', ['-c', 'command -v bwrap'])).stdout.trim()
+    assert.ok(path.isAbsolute(bwrap), 'sandbox recovery uses the installed enforcing backend')
+    await symlink('/bin/bash', path.join(runtimePath, 'bash'))
+    await writeFile(path.join(runtimePath, 'bwrap'), '#!/bin/sh\nprintf "fixture sandbox unavailable" >&2\nexit 42\n')
+    await chmod(path.join(runtimePath, 'bwrap'), 0o755)
+    await writeFile(path.join(folder, 'search-proof.txt'), '中文 readiness-needle\n')
+    const node = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'node'), '--node-id', enrolled.enrollment.executor_id, '--gateway-url', proxy.url, '--allow-insecure-gateway'], { PATH: runtimePath, HOME: home, TERNILO_LOCAL_TOKEN: credential.credential.token, XDG_STATE_HOME: path.join(directory, 'state') }); processes.push(node)
     await waitForHttp(origin, node)
     for (const address of [server.origin, origin]) {
       const served = await fetch(`${address}/assets/app.js`)
@@ -210,6 +297,7 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     await page.getByLabel('密码', { exact: true }).fill(server.owner.password)
     await page.getByRole('button', { name: '登录', exact: true }).click()
     await page.locator(`[data-sidebar-session-row][data-session-id="${parentId}"]`).click()
+    await verifyRuntimeReadiness({ page, request, local, resource, localSession, folder, runtimePath, bwrap })
     await page.getByRole('button', { name: '添加工作区', exact: true }).click()
     const placement = page.getByRole('dialog', { name: '打开工作区', exact: true })
     await placement.getByRole('button', { name: '选择文件夹', exact: true }).click()
