@@ -149,6 +149,7 @@ async function verifyRuntimeReadiness({ page, request, local, resource, localSes
   assert.equal(localInfo.sandbox.status, 'unusable')
   assert.equal(remoteInfo.sandbox.status, 'unusable')
   assert.match(remoteInfo.sandbox.detail, /fixture sandbox unavailable/)
+  await page.locator('[data-phase="hero"] [data-sandbox-status="unusable"]').waitFor()
   await local(localResource, { method: 'PATCH', body: { permissions: 'workspace_write' } })
   for (const [input, answer] of [
     ['runtime-native-search', 'Native search works without rg.'],
@@ -181,6 +182,7 @@ async function verifyRuntimeReadiness({ page, request, local, resource, localSes
     await warning.locator('summary').click()
     await warning.getByText(/fixture sandbox unavailable/).waitFor()
     const button = warning.getByRole('button', { name: retry, exact: true })
+    await page.locator('.conversation-scroll').evaluate(el => { el.scrollTop = el.scrollHeight })
     await button.scrollIntoViewIfNeeded()
     assert.equal(await button.isEnabled(), true)
     assert.equal(await warning.evaluate(el => el.scrollWidth > el.clientWidth + 1), false)
@@ -198,6 +200,9 @@ async function verifyRuntimeReadiness({ page, request, local, resource, localSes
   for (const [locale, hint] of [['zh', '受限语言模式'], ['en', 'ConstrainedLanguage'], ['ko', '제한된 언어 모드']]) {
     await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale); await page.reload()
     const tool = page.locator('[data-tool-call-id="shell-failed"]')
+    await tool.waitFor({ state: 'attached' })
+    const processControl = tool.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]')
+    if (await processControl.count() && await processControl.getAttribute('aria-expanded') === 'false') await processControl.click()
     await tool.locator('[data-tool-call-toggle]').click()
     assert.equal(await tool.getAttribute('data-state'), 'error')
     await tool.locator('[data-shell-feedback]').getByText(hint, { exact: false }).waitFor()
@@ -239,7 +244,7 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
     const credential = await request('/enrollments/consume', { body: { token: enrolled.enrollment.token } })
     proxy = await gatewayProxy(server.origin)
     const origin = `http://127.0.0.1:${await freePort()}`
-    const runtimePath = path.join(directory, 'runtime-path'); await mkdir(runtimePath)
+    const runtimePath = path.join(folder, '.runtime-bin'); await mkdir(runtimePath)
     const bwrap = (await execute('/bin/sh', ['-c', 'command -v bwrap'])).stdout.trim()
     assert.ok(path.isAbsolute(bwrap), 'sandbox recovery uses the installed enforcing backend')
     await symlink('/bin/bash', path.join(runtimePath, 'bash'))

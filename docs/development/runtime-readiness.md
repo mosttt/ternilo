@@ -14,4 +14,12 @@ Windows 输出在需要时用同宿主的只读 PowerShell 探针取得输出代
 
 内置搜索及 shell 生命周期相关的 12 项测试已通过，覆盖忽略规则、中文列号、UTF-16 文件、错误表达式、结果上限、权限拒绝、外部符号链接、长行和取消。Windows 输出解码覆盖 CP936、CP949、CP437、UTF-8 与 UTF-16 BOM。
 
-Windows 原生 PowerShell 与 ConstrainedLanguage 测试已接入既有平台 CI。UI 单元测试、严格 Clippy、真实 Server／Node 浏览器验收与发版门禁仍在执行；发布前更新最终证据。
+Windows 原生 PowerShell 与 ConstrainedLanguage 测试已在首轮平台 CI 通过；ARM64 Linux 和 ARM64 macOS 平台检查也已通过。最终候选的严格 Clippy 与升级后的 35 项扩展运行测试通过。UI 已覆盖失败命令原始输出、中英韩沙箱修复、检查中的反馈，以及跨会话清除旧提示。
+
+真实 Server／Node 首轮验收已确认：受限 PATH 无 `rg` 时文件搜索成功；失效沙箱未执行待写入命令；安装替换后真实沙箱自检恢复。浏览器检查还补齐空白会话首次展示与窄屏布局。完整浏览器验收和最终发布门禁仍在执行。
+
+## 发版依赖修复
+
+CI 的依赖门禁发现 Wasmtime 48.0.6 受到 RUSTSEC-2026-0378 和 RUSTSEC-2026-0379 影响。上游分别说明 component stream/future 类型混用可触发宿主 panic，以及 AArch64 大型 br_table 编译分支可能跳往错误目标。采用同系列修复版本 48.0.7，不新增 advisory 忽略项。相关扩展运行测试及发布门禁随候选版验证。
+
+补丁版本统一为 0.2.19；先合并已验证的源代码与版本号，再创建对应标签和发布。

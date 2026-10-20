@@ -1065,6 +1065,7 @@ export function ConversationColumn({
             <div className={`${css.composerStack} ${blankSession ? css.composerHero : ''}`}>
               {blankSession && <HeroGlow className={css.heroGlow} />}
               {blankSession && <HeroShell t={t} />}
+              {blankSession && !nodeOffline && permissions.submit && <SandboxStatus />}
               {nodeOffline ? (
                 <div className={css.lifecycleNotice} data-node-offline="" role="status">
                   <AlertCircle aria-hidden="true" />

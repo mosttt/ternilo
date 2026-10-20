@@ -1,5 +1,5 @@
 export const zh = {
-  "tool.constrainedLanguage": "此电脑的 PowerShell 处于受限语言模式，当前命令使用了不允许的 .NET 方法。需要改用允许的命令；这不表示所有系统信息查询都被禁止。",
+  "tool.constrainedLanguage": "此电脑的 PowerShell 处于受限语言模式，当前命令使用了不允许的 .NET 方法。需要改用此环境允许的命令。",
   "tool.powershellSyntax": "PowerShell 未能解析此命令，尚未正常执行。请检查引号、管道及嵌套 PowerShell 命令。",
 
   'document.rendered': "文档渲染截图",
@@ -394,7 +394,7 @@ export const zh = {
 export type ChatKey = keyof typeof zh
 
 export const en = {
-  "tool.constrainedLanguage": "PowerShell on this computer is in ConstrainedLanguage mode. This command used a .NET method that is not allowed; use a permitted command instead. This does not mean all system-information queries are blocked.",
+  "tool.constrainedLanguage": "PowerShell on this computer is in ConstrainedLanguage mode. This command used a .NET method that is not allowed; use a permitted command instead.",
   "tool.powershellSyntax": "PowerShell could not parse this command, so it did not execute normally. Check quoting, pipelines, and nested PowerShell commands.",
 
   'document.rendered': "Document render",
@@ -787,7 +787,7 @@ export const en = {
 } satisfies Record<ChatKey, string>
 
 export const ko = {
-  "tool.constrainedLanguage": "이 컴퓨터의 PowerShell은 제한된 언어 모드입니다. 명령에 허용되지 않는 .NET 메서드가 사용되었습니다. 허용되는 명령으로 바꿔야 하며, 모든 시스템 정보 조회가 차단된 것은 아닙니다.",
+  "tool.constrainedLanguage": "이 컴퓨터의 PowerShell은 제한된 언어 모드입니다. 명령에 허용되지 않는 .NET 메서드가 사용되었습니다. 이 환경에서 허용되는 명령으로 바꿔야 합니다.",
   "tool.powershellSyntax": "PowerShell이 명령을 해석하지 못해 정상 실행되지 않았습니다. 따옴표, 파이프라인 및 중첩 PowerShell 명령을 확인하세요.",
 
   'document.rendered': "문서 렌더링",

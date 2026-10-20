@@ -571,10 +571,7 @@ impl ShellProvider for LocalShell {
             .await?
             {
                 CaptureResult::Completed(output) => {
-                    #[cfg(windows)]
-                    let (stdout, stderr) = shell_encoding::render_output(&output).await;
-                    #[cfg(not(windows))]
-                    let (stdout, stderr) = (output.stdout.render(), output.stderr.render());
+                    let (stdout, stderr) = output.render().await;
                     Ok(ShellResult {
                         exit_code: output.status.code(),
                         stdout,
@@ -641,8 +638,20 @@ const MAX_SHELL_CAPTURE_BYTES: usize = 256 * 1024;
 
 pub(super) struct CapturedOutput {
     pub(super) status: ExitStatus,
-    pub(super) stdout: CapturedStream,
-    pub(super) stderr: CapturedStream,
+    stdout: CapturedStream,
+    stderr: CapturedStream,
+}
+
+impl CapturedOutput {
+    #[cfg(windows)]
+    pub(super) async fn render(&self) -> (String, String) {
+        shell_encoding::render_output(self).await
+    }
+
+    #[cfg(not(windows))]
+    pub(super) fn render(&self) -> std::future::Ready<(String, String)> {
+        std::future::ready((self.stdout.render(), self.stderr.render()))
+    }
 }
 
 pub(super) enum CaptureResult {

@@ -314,7 +314,11 @@ fn unavailable(mode: SandboxMode, detail: &str) -> HarnessError {
     ))
 }
 
-pub(crate) async fn readiness(root: &Path, profile: &Profile) -> Option<SandboxReadiness> {
+pub(crate) async fn readiness(
+    root: &Path,
+    profile: &Profile,
+    mode: SandboxMode,
+) -> Option<SandboxReadiness> {
     let entry = profile
         .plugins
         .iter()
@@ -367,7 +371,7 @@ pub(crate) async fn readiness(root: &Path, profile: &Profile) -> Option<SandboxR
     #[cfg(not(windows))]
     let (program, arguments) = (OsString::from("/bin/sh"), os_args(["-c", "exit 0"]));
     let policy = SandboxPolicy {
-        mode: SandboxMode::WorkspaceWrite,
+        mode,
         workspace_root: root.to_owned(),
     };
     #[cfg(windows)]
@@ -391,11 +395,12 @@ pub(crate) async fn readiness(root: &Path, profile: &Profile) -> Option<SandboxR
             result.install_command = None;
         }
         Ok(crate::capabilities::CaptureResult::Completed(output)) => {
+            let (_, stderr) = output.render().await;
             result.status = SandboxReadinessStatus::Unusable;
             result.detail = Some(format!(
                 "sandbox check exited with {:?}: {}",
                 output.status.code(),
-                output.stderr.render()
+                stderr
             ));
             result.install_command = None;
         }

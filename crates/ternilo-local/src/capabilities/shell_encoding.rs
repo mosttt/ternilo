@@ -133,6 +133,10 @@ mod tests {
         assert_eq!(output.status.code(), Some(7));
         assert!(stdout.contains(&page.to_string()), "{stdout}");
         assert!(
+            stdout.contains('é'),
+            "native output must use the detected code page: {stdout}"
+        );
+        assert!(
             stderr.contains("MethodInvocationNotSupportedInConstrainedLanguage"),
             "{stderr}"
         );

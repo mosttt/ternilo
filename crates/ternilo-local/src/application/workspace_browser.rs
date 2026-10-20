@@ -223,6 +223,11 @@ impl LocalApplication {
                             plugins: session.profile_plugins,
                         },
                     ]),
+                    if session.permissions.allows_workspace_write() {
+                        ternilo_kernel::SandboxMode::WorkspaceWrite
+                    } else {
+                        ternilo_kernel::SandboxMode::ReadOnly
+                    },
                 )
                 .await,
             })

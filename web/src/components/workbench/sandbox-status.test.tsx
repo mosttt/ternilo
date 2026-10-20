@@ -15,7 +15,7 @@ beforeEach(() => {
   const entries = new Map<string, string>()
   vi.stubGlobal('localStorage', { getItem: (key: string) => entries.get(key) ?? null, setItem: (key: string, value: string) => entries.set(key, value) })
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
-  surface.info = null; surface.error = ''; surface.reloadInfo.mockReset()
+  surface.sessionId = 'session'; surface.info = null; surface.error = ''; surface.reloadInfo.mockReset()
 })
 afterEach(() => {
   act(() => root.unmount()); host.remove(); vi.unstubAllGlobals()
@@ -40,6 +40,18 @@ describe('execution-computer sandbox warning', () => {
     expect(host.textContent).toContain(copy['sandbox.repair'])
     expect(host.querySelector('details')?.textContent).toContain('unshare: Operation not permitted')
     surface.info.sandbox.status = 'ready'
+    act(() => root.render(<LocaleProvider><SandboxStatus /></LocaleProvider>))
+    expect(host.textContent).toBe('')
+  })
+
+  it('keeps retry feedback visible without carrying the previous computer warning into another session', () => {
+    surface.info = { root: '/work', applications: [], can_browse: true, sandbox: { backend: 'bubblewrap', status: 'missing' } }
+    act(() => root.render(<LocaleProvider><SandboxStatus /></LocaleProvider>))
+    surface.info = null
+    act(() => root.render(<LocaleProvider><SandboxStatus /></LocaleProvider>))
+    expect(host.querySelector('button')?.disabled).toBe(true)
+    expect(host.textContent).toContain(zh['sandbox.checking'])
+    surface.sessionId = 'another-computer-session'
     act(() => root.render(<LocaleProvider><SandboxStatus /></LocaleProvider>))
     expect(host.textContent).toBe('')
   })
