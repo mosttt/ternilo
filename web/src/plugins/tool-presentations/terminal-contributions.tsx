@@ -10,9 +10,9 @@ export const shellTool = defineToolPresentation<BuiltinView<'terminal'>>({
   id: 'builtin.shell', priority: 100,
   matches: trace => trace.name === 'shell',
   parse: trace => {
-    if (!trace.output || trace.output.is_error) return null
+    if (!trace.output) return null
     const decoded = toolRecord(outputJson(trace))
-    if (!decoded) return null
+    if (!decoded || typeof decoded.stdout !== 'string' || typeof decoded.stderr !== 'string') return null
     return {
       kind: 'terminal',
       command: toolString(argumentsOf(trace).command),

@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-21",
+  "base": "4169e1d",
+  "branch": "fix/workspace-image-display",
+  "scope": "Windows workspace image rendering and accurate runtime display capability guidance",
+  "tests": {
+    "rich_text_tests": 8,
+    "targeted_ui_tests": 15,
+    "targeted_ui_seconds": 3.37,
+    "types": "passed",
+    "i18n": "293 source files passed",
+    "web_build": "passed",
+    "strict_builtins_all_targets_clippy_seconds": 63.12,
+    "matching_cli_server_build_seconds": 430.94,
+    "actual_server_node_browser_seconds": 113.15
+  },
+  "verified": [
+    "full Markdown sanitizer, workspace resolver, authenticated read and image component path for Windows drive and file URL references",
+    "Windows canonical drive prefix matches ordinary references without broadening workspace boundaries",
+    "Node-redacted file URLs in preserved message history render through the current authorized workspace",
+    "file names containing encoded spaces load correct bytes",
+    "actual upstream request includes image display guidance, workspace limit and distinction from visual model access",
+    "Chinese/English/Korean rendering and lightbox interactions; 320px view has no horizontal overflow",
+    "outside-workspace Windows references show localized feedback and issue no file-read request",
+    "HTML/script/browser URL restrictions, account change handling and existing runtime feedback assertions retained"
+  ],
+  "browser_environment": "Real Linux Server and Node, isolated synthetic model; Windows-form workspace location response substituted only for frontend path contract, image bytes read from real Node. Not Windows native process acceptance.",
+  "errors": {
+    "page": 0,
+    "console": 0,
+    "unexpected_http": 0
+  },
+  "inspected_screenshots": [
+    "windows-images-zh.png",
+    "windows-images-ko.png",
+    "delivery-en.png"
+  ],
+  "artifact_directory": "/home/move/.local/state/ternilo-validation/workspace-image-fix-browser-final",
+  "release": "not published",
+  "unrelated_followups": "Native core search, shell environment/encoding and sandbox dependency readiness discussed separately; resource migration goal remains paused."
+}

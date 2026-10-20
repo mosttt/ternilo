@@ -38,6 +38,34 @@ afterEach(() => {
 })
 
 describe('AssistantMarkdown code copy', () => {
+  it.each([
+    ['C:/Users/Move/Desktop/figure%20one.png', 'C:\\Users\\Move\\Desktop'],
+    ['file:///C:/Users/Move/Desktop/figure%20one.png', 'C:\\Users\\Move\\Desktop'],
+    ['C:/Users/Move/Desktop/figure%20one.png', '\\\\?\\C:\\Users\\Move\\Desktop'],
+    ['file:///C:/Users/Move/Desktop/figure%20one.png', '\\\\?\\C:\\Users\\Move\\Desktop'],
+  ])(
+    'renders Windows image %s in workspace %s', async (reference, workspaceRoot) => {
+      const request = vi.spyOn(api, 'request').mockResolvedValue({ encoding: 'base64', media_type: 'image/png', content: 'iVBORw0KGgo=', truncated: false })
+      await act(async () => root.render(<WorkspaceImageContext.Provider value={{ sessionId: 'windows-session', root: workspaceRoot, scope: 'owner' }}>
+        <AssistantMarkdown source={`![${reference}](${reference})`} streaming={false} t={t} />
+      </WorkspaceImageContext.Provider>))
+      expect(request).toHaveBeenCalledExactlyOnceWith('/sessions/windows-session/workspace', expect.objectContaining({ method: 'POST', body: { kind: 'read', path: 'figure one.png' } }))
+      expect(host.querySelector('img')?.src).toBe('data:image/png;base64,iVBORw0KGgo=')
+      expect(host.querySelector('img')?.alt).toBe(reference)
+      expect(host.querySelector('img[src^="file:"], a[href^="file:"]')).toBeNull()
+    },
+  )
+
+  it('rejects out-of-workspace Windows images without reading files', async () => {
+    const request = vi.spyOn(api, 'request')
+    await act(async () => root.render(<WorkspaceImageContext.Provider value={{ sessionId: 'windows-session', root: 'C:\\Users\\Move\\Desktop', scope: 'owner' }}>
+      <AssistantMarkdown source={'![Secret](file:///C:/Users/Move/Documents/secret.png)'} streaming={false} t={t} />
+    </WorkspaceImageContext.Provider>))
+    expect(request).not.toHaveBeenCalled()
+    expect(host.querySelector('img')).toBeNull()
+    expect(host.textContent).toContain('image.outsideWorkspace')
+  })
+
   it('loads local images through the session workspace and discards them on account changes', async () => {
     const request = vi.spyOn(api, 'request').mockResolvedValue({ encoding: 'base64', media_type: 'image/png', content: 'iVBORw0KGgo=', truncated: false })
     const render = (source: string, scope = 'owner') => act(async () => root.render(
@@ -60,10 +88,10 @@ describe('AssistantMarkdown code copy', () => {
     expect(host.textContent).toContain('image.outsideWorkspace')
   })
 
-  it('renders a redacted Node workspace destination as an image, not literal Markdown', async () => {
+  it.each(['<local-workspace>/image.png', 'file://<local-workspace>/image.png', 'file:///<local-workspace>/image.png'])('renders redacted Node image %s without changing its workspace', async reference => {
     const request = vi.spyOn(api, 'request').mockResolvedValue({ encoding: 'base64', media_type: 'image/png', content: 'iVBORw0KGgo=', truncated: false })
     await act(async () => root.render(<WorkspaceImageContext.Provider value={{ sessionId: 'node-session', root: '/home/project', scope: 'owner' }}>
-      <AssistantMarkdown source={'Delivered.\n\n![Result](<local-workspace>/image.png)'} streaming={false} t={t} />
+      <AssistantMarkdown source={`Delivered.\n\n![Result](${reference})`} streaming={false} t={t} />
     </WorkspaceImageContext.Provider>))
     expect(request).toHaveBeenCalledWith('/sessions/node-session/workspace', expect.objectContaining({ body: { kind: 'read', path: 'image.png' } }))
     expect(host.querySelector('img')?.alt).toBe('Result')

@@ -7,6 +7,10 @@ version.workspace = true
 
 [dependencies]
 base64.workspace = true
+grep-matcher.workspace = true
+grep-regex.workspace = true
+grep-searcher.workspace = true
+ignore.workspace = true
 ternilo-authorization.workspace = true
 ternilo-builtins.workspace = true
 ternilo-code-runtime.workspace = true
@@ -31,10 +35,12 @@ tokio-rusqlite.workspace = true
 workspace = true
 
 [target.'cfg(windows)'.dependencies]
+codepage-strings.workspace = true
 cap-std.workspace = true
 cap-fs-ext.workspace = true
 
 [dev-dependencies]
+codepage-strings.workspace = true
 cap-std.workspace = true
 cap-fs-ext.workspace = true
 ed25519-dalek.workspace = true

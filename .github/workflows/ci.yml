@@ -176,6 +176,8 @@ jobs:
           RUST_TARGET: ${{ matrix.target }}
       - name: Platform workspace boundaries and persistence
         run: |
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib capabilities::
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib sandbox::
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::workspace_browser
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib state::tests
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib providers::tests

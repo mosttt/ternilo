@@ -1,3 +1,4 @@
+import { shellFeedback } from '@/domain/shell-feedback'
 import { copyText } from '@/lib/clipboard'
 import * as React from 'react'
 import { Check, Copy, FileDiff, FileText, Globe2, Search, Sparkles, TerminalSquare } from 'lucide-react'
@@ -58,6 +59,7 @@ export function TerminalToolResult({ view, t }: {
   view: Extract<BuiltinToolPresentation, { kind: 'terminal' }>
   t: ChatTranslate
 }) {
+  const feedback = shellFeedback(view.stderr, t)
   const failed = view.timedOut || (view.exitCode != null && view.exitCode !== 0)
   const [copyState, setCopyState] = React.useState<'idle' | 'copied' | 'failed'>('idle')
   const copyLabel = copyState === 'copied' ? t('message.copied') : t('tool.copyCommand')
@@ -79,6 +81,7 @@ export function TerminalToolResult({ view, t }: {
       </div>
     </header>
     {copyState === 'failed' && <p className={css.copyError} role="alert">{t('message.copyFailed')}</p>}
+    {feedback && <p className={cn(css.searchNotice, 'text-sm leading-relaxed')} data-shell-feedback="" role="note">{feedback}</p>}
     {view.stdout && <AnsiOutput label="stdout" value={view.stdout} />}
     {view.stderr && <AnsiOutput label="stderr" value={view.stderr} />}
     {!view.stdout && !view.stderr && <p className={css.empty}>{t('tool.noOutput')}</p>}

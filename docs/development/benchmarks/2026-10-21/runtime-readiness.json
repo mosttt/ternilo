@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-21",
+  "version": "0.2.19",
+  "candidate": "75ff089",
+  "scope": [
+    "built-in workspace glob and regex search",
+    "Windows host-code-page decoding",
+    "accurate shell failure state and localized diagnostics",
+    "execution-Node sandbox readiness",
+    "Wasmtime 48.0.7 patch"
+  ],
+  "checks": {
+    "capabilities_tests": 12,
+    "workspace_application_tests": 7,
+    "sandbox_tests": 4,
+    "ui_tests": 23,
+    "extension_tests_after_security_update": 35,
+    "typecheck": "passed",
+    "i18n": "295 sources passed",
+    "docs": "218 files passed",
+    "strict_clippy_seconds": 120,
+    "matching_cli_server_build_seconds": 330,
+    "real_server_node_browser_seconds": 126.0,
+    "supplemental_visible_feedback_seconds": 13.64
+  },
+  "browser_evidence": [
+    "real Node PATH contains no rg: glob and search complete",
+    "failed sandbox exit 42 prevents requested file creation",
+    "Server reports Node sandbox failure instead of Server host status",
+    "replacing fixture backend with real bwrap restores readiness",
+    "warning appears in blank session before first message",
+    "Chinese/English/Korean warning and shell error feedback",
+    "320px controls and diagnostics remain scrollable/readable above composer",
+    "shell exit 7 is a failed tool with retained raw stderr",
+    "existing workspace image, permission, offline/history cache and delivery checks pass"
+  ],
+  "visual_inspection": [
+    "sandbox-ko.png",
+    "shell-error-ko.png",
+    "shell-error-en.png"
+  ],
+  "artifact_directory": "/home/move/.local/state/ternilo-validation/runtime-readiness-browser",
+  "platform_note": "Native Windows search and ConstrainedLanguage passed initial CI at 5702dda. Final candidate CI exposed a 3-second cold PowerShell probe timeout; probe and Windows preflight deadline changed to 10 seconds. Final CI pending. Linux browser synthesizes Windows stderr only for UI presentation.",
+  "dependency_gate": "Wasmtime 48.0.7 passed security/license/source CI after 48.0.6 failed RUSTSEC-2026-0378 and RUSTSEC-2026-0379."
+}

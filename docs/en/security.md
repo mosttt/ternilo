@@ -22,6 +22,10 @@ Preview/download controls are not public filesystem URLs. File bytes are obtaine
 
 Host ceilings cannot be relaxed by presets or plugins. Read-only, workspace-write and full-access permissions govern tool behavior alongside one-time approval. Linux restricted execution uses Bubblewrap. Windows packages include a dedicated sandbox helper; keep the matching helper with the application. The policy is not a substitute for a separate VM against every host-kernel vulnerability.
 
+Opening a session on a local or Server-connected computer runs a bounded no-op check through its default local sandbox. Failures show localized repair guidance and a retry action in the conversation. The check runs on the execution computer, not Server, and never falls back to full access. Built-in file globbing and text search do not require `rg`.
+
+Windows shell output uses the host PowerShell output code page, with UTF-8 and UTF-16 BOM recognition. Exit status and stderr are retained; the UI distinguishes restricted .NET method calls from command syntax errors. ConstrainedLanguage and operating-system policies remain in force.
+
 Managed Worker tasks run in restricted child processes with scoped mounts and no network by default. Parent process privileges required to create the sandbox are distinct from child privileges. Model secrets remain in Server/the parent broker, not the task child. Jobs intentionally sharing a workspace still share its files.
 
 Account bans and removal persist cleanup requests for affected Nodes. Cleanup follows the authenticated input author and account revision, preserving unrelated accounts and local inputs. Re-enabling an account does not authorize its old work. Node startup synchronizes account authority before restoring remote work, even if gateway arguments are omitted.

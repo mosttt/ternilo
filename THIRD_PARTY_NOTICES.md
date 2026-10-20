@@ -9,6 +9,9 @@ Ternilo's own code is licensed under [Apache-2.0](LICENSE). Third-party code, as
 - [Linorun](https://github.com/mosttt/linorun) 使用 `MIT OR Apache-2.0`，本项目选择 Apache-2.0；配套版本固定于 `.github/linorun-revision`。Linorun is dual-licensed; this project uses it under Apache-2.0 at the pinned revision.
 - 文档公式渲染内嵌 [KaTeX](https://katex.org/)，版本随 Web 锁文件固定，保留其 [MIT 声明](licenses/katex.MIT)。Document math rendering embeds KaTeX at the version pinned in the Web lockfile; its MIT notice is retained.
 
+- 内置文件匹配与搜索使用 ripgrep 项目的 `ignore`、`grep-matcher`、`grep-regex` 和 `grep-searcher` 库，选择并保留其 [MIT 声明](licenses/ripgrep.MIT)。Built-in workspace search uses these ripgrep libraries under their MIT license.
+- Windows 输出解码使用 `codepage-strings`、`codepage` 与 `oem_cp`；分别保留 [codepage-strings](licenses/codepage-strings.MIT)、[codepage](licenses/codepage.MIT)、[oem_cp](licenses/oem_cp.MIT) 的 MIT 声明。Windows output decoding retains these libraries’ MIT notices.
+
 Rust 与 Web 的依赖版本分别以 `Cargo.lock` 和 `web/package-lock.json` 为准。依赖许可证门禁配置在 `deny.toml`；该清单不将第三方依赖声明为 Ternilo 自有代码。重新分发时应保留相应依赖随附的版权、许可和 NOTICE 文件。
 
 Rust and Web dependency versions are recorded in their lockfiles. Rust license checks are configured in `deny.toml`. Preserve the copyright, license and NOTICE files supplied by the relevant dependencies when redistributing them.

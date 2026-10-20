@@ -174,6 +174,7 @@ pub async fn browse_workspace(
             root: root.to_string_lossy().into_owned(),
             can_browse: true,
             applications: Vec::new(),
+            sandbox: None,
         })
         .map_err(read_error),
         WorkspaceRequest::Open { .. } => Err(HarnessError::policy(
@@ -211,6 +212,24 @@ impl LocalApplication {
                 root: root.to_string_lossy().into_owned(),
                 can_browse: true,
                 applications: crate::desktop_apps::applications(),
+                sandbox: crate::sandbox::readiness(
+                    &root,
+                    &ternilo_kernel::compose_profiles([
+                        self.profile.clone(),
+                        ternilo_protocol::Profile {
+                            plugins: session.preset_plugins,
+                        },
+                        ternilo_protocol::Profile {
+                            plugins: session.profile_plugins,
+                        },
+                    ]),
+                    if session.permissions.allows_workspace_write() {
+                        ternilo_kernel::SandboxMode::WorkspaceWrite
+                    } else {
+                        ternilo_kernel::SandboxMode::ReadOnly
+                    },
+                )
+                .await,
             })
             .map_err(read_error),
             WorkspaceRequest::Open { app_id } => {

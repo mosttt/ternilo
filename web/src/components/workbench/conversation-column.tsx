@@ -3,6 +3,7 @@ import { ExecutionAvailabilityContext } from './execution-availability'
 import { SubagentActivity } from './subagent-activity'
 import { PluginsSettings } from '@/components/settings/plugins-settings'
 import { HistoryScrollPreserver } from './history-scroll-preserver'
+import { SandboxStatus } from './sandbox-status'
 import { ComposerTakeover } from './composer-takeover'
 import { canAnswerQuestion, ownsExecutionConfiguration, resourcePermissions } from '@/domain/resource-access'
 import * as React from 'react'
@@ -1044,6 +1045,7 @@ export function ConversationColumn({
                 <p>{runtime.metadataWarning}</p>
               </div>
             )}
+            {!nodeOffline && permissions.submit && <SandboxStatus />}
             {runtimeError && (
               <div role="alert" className={css.error}>
                 <strong>{runtimeError.title}</strong>
@@ -1063,6 +1065,7 @@ export function ConversationColumn({
             <div className={`${css.composerStack} ${blankSession ? css.composerHero : ''}`}>
               {blankSession && <HeroGlow className={css.heroGlow} />}
               {blankSession && <HeroShell t={t} />}
+              {blankSession && !nodeOffline && permissions.submit && <SandboxStatus />}
               {nodeOffline ? (
                 <div className={css.lifecycleNotice} data-node-offline="" role="status">
                   <AlertCircle aria-hidden="true" />

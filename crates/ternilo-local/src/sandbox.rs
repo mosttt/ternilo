@@ -16,7 +16,7 @@ use ternilo_kernel::{
     ConfinedCommand, HarnessPlugin, PluginFactory, PluginManifest, SandboxEnforcement, SandboxMode,
     SandboxPolicy, Sandboxes, SandboxesProvider,
 };
-use ternilo_protocol::HarnessError;
+use ternilo_protocol::{HarnessError, Profile, SandboxReadiness, SandboxReadinessStatus};
 use tokio::process::Command;
 
 pub const LOCAL_SANDBOX_KIND: &str = "ternilo.sandbox.local";
@@ -302,9 +302,139 @@ fn windows_command(
 }
 
 fn unavailable(mode: SandboxMode, detail: &str) -> HarnessError {
+    let action = if cfg!(target_os = "linux") {
+        "Install bubblewrap on the computer running this workspace (Debian/Ubuntu: sudo apt install bubblewrap; Fedora: sudo dnf install bubblewrap; Arch: sudo pacman -S bubblewrap), then retry."
+    } else if cfg!(target_os = "windows") {
+        "Reinstall the complete Ternilo package on the computer running this workspace, keeping ternilo-sandbox-windows.exe beside the main executable, then retry."
+    } else {
+        "Repair the sandbox on the computer running this workspace, then retry."
+    };
     HarnessError::policy(format!(
-        "sandbox mode {mode:?} was requested but no enforcing backend is usable; refusing to run unconfined: {detail}"
+        "sandbox mode {mode:?} was requested but no enforcing backend is usable; refusing to run unconfined: {detail}. {action}"
     ))
+}
+
+pub(crate) async fn readiness(
+    root: &Path,
+    profile: &Profile,
+    mode: SandboxMode,
+) -> Option<SandboxReadiness> {
+    let entry = profile
+        .plugins
+        .iter()
+        .find(|entry| entry.enabled && entry.kind == LOCAL_SANDBOX_KIND)?;
+    // Custom sandbox plugins own their own diagnostics; do not report the local
+    // backend as the execution environment for them.
+    if !profile
+        .plugins
+        .iter()
+        .any(|entry| entry.enabled && entry.kind == crate::capabilities::LOCAL_SHELL_KIND)
+    {
+        return None;
+    }
+    let backend = if cfg!(target_os = "linux") {
+        "bubblewrap"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "seatbelt"
+    } else {
+        "unsupported"
+    };
+    let mut result = SandboxReadiness {
+        backend: backend.to_owned(),
+        status: SandboxReadinessStatus::Missing,
+        detail: None,
+        install_command: if cfg!(target_os = "linux") {
+            linux_install_command(&std::fs::read_to_string("/etc/os-release").unwrap_or_default())
+        } else {
+            None
+        },
+    };
+    let config = serde_json::from_value::<LocalSandboxConfig>(if entry.config.is_null() {
+        serde_json::json!({})
+    } else {
+        entry.config.clone()
+    });
+    let config = match config {
+        Ok(config) => config,
+        Err(error) => {
+            result.status = SandboxReadinessStatus::Unusable;
+            result.detail = Some(error.to_string());
+            return Some(result);
+        }
+    };
+    #[cfg(not(windows))]
+    let _ = config;
+    #[cfg(windows)]
+    let (program, arguments) = crate::capabilities::native_script_command("exit 0");
+    #[cfg(not(windows))]
+    let (program, arguments) = (OsString::from("/bin/sh"), os_args(["-c", "exit 0"]));
+    let policy = SandboxPolicy {
+        mode,
+        workspace_root: root.to_owned(),
+    };
+    #[cfg(windows)]
+    let command = LocalSandbox {
+        windows_runner: config.windows_runner,
+    }
+    .platform_command(program, arguments, &policy);
+    #[cfg(not(windows))]
+    let command = LocalSandbox::platform_command(program, arguments, &policy);
+    let command = match command {
+        Ok(command) => command,
+        Err(error) => {
+            result.detail = Some(error.to_string());
+            return Some(result);
+        }
+    };
+    let mut command = command_from_confined(command, root);
+    let timeout_ms = if cfg!(windows) { 10_000 } else { 5_000 };
+    match crate::capabilities::capture_command(&mut command, timeout_ms, 4_096, None).await {
+        Ok(crate::capabilities::CaptureResult::Completed(output)) if output.status.success() => {
+            result.status = SandboxReadinessStatus::Ready;
+            result.install_command = None;
+        }
+        Ok(crate::capabilities::CaptureResult::Completed(output)) => {
+            let (_, stderr) = output.render().await;
+            result.status = SandboxReadinessStatus::Unusable;
+            result.detail = Some(format!(
+                "sandbox check exited with {:?}: {}",
+                output.status.code(),
+                stderr
+            ));
+            result.install_command = None;
+        }
+        outcome => {
+            result.status = SandboxReadinessStatus::Unusable;
+            result.detail = Some(match outcome {
+                Err(error) => error.to_string(),
+                _ => format!("sandbox check timed out after {timeout_ms} ms"),
+            });
+            result.install_command = None;
+        }
+    }
+    Some(result)
+}
+
+fn linux_install_command(os_release: &str) -> Option<String> {
+    let ids = os_release
+        .lines()
+        .filter_map(|line| line.split_once('='))
+        .filter(|(key, _)| matches!(*key, "ID" | "ID_LIKE"))
+        .flat_map(|(_, value)| value.trim_matches(['\'', '"']).split_whitespace());
+    for id in ids {
+        let command = match id {
+            "debian" | "ubuntu" => "sudo apt install bubblewrap",
+            "fedora" | "rhel" | "centos" => "sudo dnf install bubblewrap",
+            "arch" | "manjaro" => "sudo pacman -S bubblewrap",
+            "alpine" => "sudo apk add bubblewrap",
+            "opensuse" | "opensuse-tumbleweed" | "suse" => "sudo zypper install bubblewrap",
+            _ => continue,
+        };
+        return Some(command.to_owned());
+    }
+    None
 }
 
 #[cfg(target_os = "linux")]
