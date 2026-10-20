@@ -24,7 +24,7 @@ async fn output_code_page() -> Result<u16, String> {
                 super::native_script_command("[Console]::OutputEncoding.CodePage");
             let output = super::capture_command(
                 tokio::process::Command::new(program).args(arguments),
-                3_000,
+                10_000,
                 4_096,
                 None,
             )

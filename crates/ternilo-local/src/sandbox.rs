@@ -389,7 +389,8 @@ pub(crate) async fn readiness(
         }
     };
     let mut command = command_from_confined(command, root);
-    match crate::capabilities::capture_command(&mut command, 5_000, 4_096, None).await {
+    let timeout_ms = if cfg!(windows) { 10_000 } else { 5_000 };
+    match crate::capabilities::capture_command(&mut command, timeout_ms, 4_096, None).await {
         Ok(crate::capabilities::CaptureResult::Completed(output)) if output.status.success() => {
             result.status = SandboxReadinessStatus::Ready;
             result.install_command = None;
@@ -408,7 +409,7 @@ pub(crate) async fn readiness(
             result.status = SandboxReadinessStatus::Unusable;
             result.detail = Some(match outcome {
                 Err(error) => error.to_string(),
-                _ => "sandbox check timed out after 5000 ms".to_owned(),
+                _ => format!("sandbox check timed out after {timeout_ms} ms"),
             });
             result.install_command = None;
         }

@@ -16,7 +16,9 @@ Windows 输出在需要时用同宿主的只读 PowerShell 探针取得输出代
 
 Windows 原生 PowerShell 与 ConstrainedLanguage 测试已在首轮平台 CI 通过；ARM64 Linux 和 ARM64 macOS 平台检查也已通过。最终候选的严格 Clippy 与升级后的 35 项扩展运行测试通过。UI 已覆盖失败命令原始输出、中英韩沙箱修复、检查中的反馈，以及跨会话清除旧提示。
 
-真实 Server／Node 首轮验收已确认：受限 PATH 无 `rg` 时文件搜索成功；失效沙箱未执行待写入命令；安装替换后真实沙箱自检恢复。浏览器检查还补齐空白会话首次展示与窄屏布局。完整浏览器验收和最终发布门禁仍在执行。
+真实 Server／Node 首轮验收已确认：受限 PATH 无 `rg` 时文件搜索成功；失效沙箱未执行待写入命令；安装替换后真实沙箱自检恢复。浏览器检查还补齐空白会话首次展示与窄屏布局。完整 Server／Node 浏览器验收已通过（126.00 秒），包含既有权限、离线历史、图片和文件交付回归；补充可视检查确认 320px 下的修复按钮和错误说明可见，原始 stderr 保留。证据见 [runtime-readiness.json](benchmarks/2026-10-21/runtime-readiness.json)。
+
+最终 Windows CI 暴露冷启动问题：输出代码页探针在原 3 秒上限内未能启动 PowerShell。将探针和 Windows 沙箱首次自检上限统一为 10 秒，仍有界且不放宽执行策略；重新验证最终平台门禁。
 
 ## 发版依赖修复
 
