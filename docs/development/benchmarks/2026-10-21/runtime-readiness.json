@@ -1,7 +1,7 @@
 {
   "date": "2026-10-21",
   "version": "0.2.19",
-  "candidate": "75ff089",
+  "candidate": "d3cbf75bc7790d2f0cbceb6d842715fac15f3414",
   "scope": [
     "built-in workspace glob and regex search",
     "Windows host-code-page decoding",
@@ -21,7 +21,17 @@
     "strict_clippy_seconds": 120,
     "matching_cli_server_build_seconds": 330,
     "real_server_node_browser_seconds": 126.0,
-    "supplemental_visible_feedback_seconds": 13.64
+    "supplemental_visible_feedback_seconds": 21.44,
+    "readability_matching_build_seconds": 421,
+    "public_program_browser_seconds": 134.15,
+    "final_pr_ci": {
+      "run": 39465406076,
+      "passed_jobs": 6
+    },
+    "release_ci": {
+      "run": 39473943820,
+      "passed_jobs": 19
+    }
   },
   "browser_evidence": [
     "real Node PATH contains no rg: glob and search complete",
@@ -40,6 +50,74 @@
     "shell-error-en.png"
   ],
   "artifact_directory": "/home/move/.local/state/ternilo-validation/runtime-readiness-browser",
-  "platform_note": "Native Windows search and ConstrainedLanguage passed initial CI at 5702dda. Final candidate CI exposed a 3-second cold PowerShell probe timeout; probe and Windows preflight deadline changed to 10 seconds. Final CI pending. Linux browser synthesizes Windows stderr only for UI presentation.",
-  "dependency_gate": "Wasmtime 48.0.7 passed security/license/source CI after 48.0.6 failed RUSTSEC-2026-0378 and RUSTSEC-2026-0379."
+  "platform_note": "Native Windows PowerShell, output decoding and ConstrainedLanguage tests passed; Windows ARM64 package persistence/workspace acceptance passed. Linux browser fixtures synthesize Windows stderr for UI presentation and Windows-style locations for image path handling; file bytes come from the real Node.",
+  "dependency_gate": "Wasmtime 48.0.7 passed security/license/source CI after 48.0.6 failed RUSTSEC-2026-0378 and RUSTSEC-2026-0379.",
+  "development_browser_candidate": "75ff089",
+  "final_readability_candidate": "ccd8767",
+  "resolved_failure": "A first Windows PowerShell code-page probe exceeded its original 3-second deadline. The probe and Windows sandbox preflight now use a bounded 10 seconds; final Windows CI passed.",
+  "publication": {
+    "url": "https://github.com/mosttt/ternilo/releases/tag/v0.2.19",
+    "published_at": "2026-10-20T20:07:58Z",
+    "source": {
+      "version": "0.2.19",
+      "commit": "d3cbf75bc7790d2f0cbceb6d842715fac15f3414",
+      "linorun": "46cca18d63d1bef1c5475ac6912f18f5426a115b"
+    },
+    "asset_count": 42,
+    "checksum_inventory_complete": true,
+    "selected_downloads": [
+      {
+        "asset": "ternilo-0.2.19-x86_64-unknown-linux-gnu.tar.gz",
+        "sha256": "99ad4744bf93fd64133da4a2f51a523ddae111cb179995b1cbc244621ba17c6c",
+        "program_version": "ternilo 0.2.19"
+      },
+      {
+        "asset": "ternilo-server-0.2.19-x86_64-unknown-linux-gnu.tar.gz",
+        "sha256": "cfb6d684982dc021c3b953c7676627f26d600da1b47fb19daf54e602e50bf7b4",
+        "program_version": "ternilo-server 0.2.19"
+      },
+      {
+        "asset": "ternilo-0.2.19-x86_64-pc-windows-msvc.zip",
+        "sha256": "1e6ae43040941df65ad37bbb7e39b0ab37a7dcbbbeb5e348d3b402f9f8dda6f5",
+        "programs": [
+          "ternilo-plugin.exe",
+          "ternilo-sandbox-windows.exe",
+          "ternilo.exe"
+        ],
+        "native_header": "passed"
+      },
+      {
+        "asset": "ternilo-0.2.19-aarch64-pc-windows-msvc.zip",
+        "sha256": "f3aff089c960ffde7423e06347a1a2a394b26bab04d463f46f2f88be6efa94ec",
+        "programs": [
+          "ternilo-plugin.exe",
+          "ternilo-sandbox-windows.exe",
+          "ternilo.exe"
+        ],
+        "native_header": "passed"
+      }
+    ],
+    "public_program_browser": {
+      "version": "0.2.19",
+      "source": "d3cbf75bc7790d2f0cbceb6d842715fac15f3414",
+      "seconds": 134.15,
+      "exit_code": 0,
+      "scope": "full runtime feedback browser against downloaded public Linux client and Server archives"
+    },
+    "public_artifacts": "/home/move/.local/state/ternilo-validation/0.2.19/public-browser",
+    "public_screenshots_inspected": [
+      "sandbox-ko.png",
+      "windows-images-zh.png"
+    ],
+    "server_image": {
+      "reference": "ghcr.io/mosttt/ternilo-server:0.2.19",
+      "digest": "sha256:10e4afd6373adbf251aa63d71d6a1d40d5783e84077088b74866087e8d6a5985",
+      "latest_matches_version": true,
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "matches_published_tested_index": true
+    }
+  }
 }

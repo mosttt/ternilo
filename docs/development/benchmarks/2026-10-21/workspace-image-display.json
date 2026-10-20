@@ -36,6 +36,10 @@
     "delivery-en.png"
   ],
   "artifact_directory": "/home/move/.local/state/ternilo-validation/workspace-image-fix-browser-final",
-  "release": "not published",
-  "unrelated_followups": "Native core search, shell environment/encoding and sandbox dependency readiness discussed separately; resource migration goal remains paused."
+  "release": {
+    "version": "0.2.19",
+    "source": "d3cbf75bc7790d2f0cbceb6d842715fac15f3414",
+    "url": "https://github.com/mosttt/ternilo/releases/tag/v0.2.19"
+  },
+  "unrelated_followups": "Native workspace search, Windows output decoding and sandbox readiness shipped in the same patch; final publication evidence is in runtime-readiness.json. Resource migration remains paused."
 }
