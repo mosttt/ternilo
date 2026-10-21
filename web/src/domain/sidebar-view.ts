@@ -12,6 +12,7 @@ export interface SidebarViewState {
   collapsedSessions: string[]
   collapsedComputers: string[]
   onlineComputersOnly: boolean
+  computerByScope: Record<string, string>
 }
 
 export const defaultSidebarView: SidebarViewState = {
@@ -21,6 +22,7 @@ export const defaultSidebarView: SidebarViewState = {
   collapsedSessions: [],
   collapsedComputers: [],
   onlineComputersOnly: false,
+  computerByScope: {},
 }
 
 export function readSidebarView(serialized: string | null): SidebarViewState {
@@ -34,6 +36,8 @@ export function readSidebarView(serialized: string | null): SidebarViewState {
       collapsedSessions: Array.isArray(value.collapsedSessions) ? value.collapsedSessions.filter(item => typeof item === 'string') : [],
       collapsedComputers: Array.isArray(value.collapsedComputers) ? value.collapsedComputers.filter(item => typeof item === 'string') : [],
       onlineComputersOnly: value.onlineComputersOnly === true,
+      computerByScope: value.computerByScope && typeof value.computerByScope === 'object' && !Array.isArray(value.computerByScope)
+        ? Object.fromEntries(Object.entries(value.computerByScope).filter(([, id]) => typeof id === 'string')) : {},
     }
   } catch {
     return defaultSidebarView

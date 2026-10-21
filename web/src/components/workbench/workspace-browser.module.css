@@ -130,6 +130,9 @@
   color: var(--foreground);
 }
 
+.computerPicker { flex: none; min-width: 0; margin: -4px 0 10px; }
+.searchScope { display: block; padding: 8px 4px; color: var(--label-secondary); font-size: 13px; line-height: 20px; }
+
 .listArea {
   flex: 1;
   min-height: 0;

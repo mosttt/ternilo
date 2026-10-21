@@ -21,6 +21,12 @@ describe('sidebar view', () => {
     expect(readSidebarView(JSON.stringify({ groupBy: 'workspace' })).groupBy).toBe('workspace')
   })
 
+  it('loads legacy preferences with all computers and preserves valid scoped selections', () => {
+    expect(readSidebarView('{}').computerByScope).toEqual({})
+    expect(readSidebarView(JSON.stringify({ computerByScope: { team: 'node:a', personal: 'all', invalid: 7 } })).computerByScope)
+      .toEqual({ team: 'node:a', personal: 'all' })
+  })
+
   it('keeps same-named workspaces on different computers separate, including offline computers', () => {
     const workspace = (id: string, node: string, status: 'online' | 'offline'): Workspace => ({
       workspace_id: id, node_id: node, status, placement: 'local_node', path: '', title: 'Pictures', created_at_ms: 1, updated_at_ms: 1,
