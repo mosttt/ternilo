@@ -50,6 +50,7 @@ mod directory_execution_tests;
 mod file_inventory;
 mod runtime;
 mod subagents;
+mod update_maintenance;
 use runtime::{resolve_named_provider, session_profile, validate_local_profile};
 mod history;
 mod input_references;
@@ -215,6 +216,7 @@ pub struct LocalApplication {
     submission_drivers: Mutex<BTreeMap<String, Arc<Mutex<()>>>>,
     submission_tasks: std::sync::Mutex<tokio::task::JoinSet<()>>,
     stopping: RunCancellation,
+    maintenance: Arc<RwLock<()>>,
     _data_lock: File,
 }
 
@@ -346,6 +348,7 @@ impl LocalApplication {
         let application = Self {
             account_authorizations,
             execution_resources,
+            maintenance: Arc::new(RwLock::new(())),
             directory_coordinator: crate::DirectoryCoordinator::for_user()?,
             directory_account_owner: Arc::new(std::sync::RwLock::new(None)),
             data_dir,

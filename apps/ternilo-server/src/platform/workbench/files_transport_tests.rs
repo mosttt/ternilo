@@ -94,6 +94,7 @@ async fn node_file_download_crosses_the_default_websocket_frame_limit_without_ca
         .send(Message::Text(
             serde_json::to_string(&ExecutorFrame::Hello {
                 hello: ExecutorHello {
+                    client: None,
                     protocol_version: EXECUTOR_PROTOCOL_VERSION,
                     executor_id: session.executor_id.clone(),
                     executor_kind: ExecutorKind::EdgeNode,
@@ -492,6 +493,7 @@ pub(super) async fn connect_upload_node(
         .send(Message::Text(
             serde_json::to_string(&ExecutorFrame::Hello {
                 hello: ExecutorHello {
+                    client: None,
                     protocol_version: EXECUTOR_PROTOCOL_VERSION,
                     executor_id: executor_id.clone(),
                     executor_kind: ExecutorKind::EdgeNode,

@@ -16,7 +16,10 @@ use ternilo_protocol::{
     TenantId, UserAnswer, UserId, WorkspaceId, WorkspaceRequest, validate_agent_preset_id,
 };
 
-pub const EXECUTOR_PROTOCOL_VERSION: u32 = 48;
+pub const EXECUTOR_PROTOCOL_VERSION: u32 = 49;
+
+mod client_updates;
+pub use client_updates::{ClientUpdateCommand, ClientUpdateRequest};
 
 mod cleanup;
 pub use cleanup::{
@@ -115,6 +118,8 @@ pub struct ExecutorHello {
     pub instance_nonce: String,
     pub catalog_revision: String,
     pub capabilities: ExecutorCapabilities,
+    #[serde(default)]
+    pub client: Option<ternilo_protocol::ClientUpdateInfo>,
 }
 
 impl ExecutorHello {
@@ -126,6 +131,9 @@ impl ExecutorHello {
             )));
         }
         self.executor_id.validate()?;
+        if let Some(client) = &self.client {
+            client.validate()?;
+        }
         if self.instance_nonce.trim().is_empty() || self.catalog_revision.trim().is_empty() {
             return Err(HarnessError::invalid(
                 "instance_nonce and catalog_revision must not be empty",
@@ -1081,6 +1089,9 @@ fn validate_extension_operation(
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExecutorCommandBody {
+    ClientUpdate {
+        command: Box<ClientUpdateCommand>,
+    },
     Application {
         request: ApplicationOperation,
     },
@@ -1133,6 +1144,7 @@ impl ExecutorCommand {
             return Err(HarnessError::policy("executor command has expired"));
         }
         match &self.body {
+            ExecutorCommandBody::ClientUpdate { command } => command.validate(),
             ExecutorCommandBody::Application { request } => request.validate(),
             ExecutorCommandBody::CloudRun { spec } => spec.validate_shape(),
             ExecutorCommandBody::CancelRun { session_id, run_id } => {
@@ -1259,6 +1271,9 @@ impl AcceptedUploadBatch {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExecutorFrame {
+    ClientUpdateState {
+        info: ternilo_protocol::ClientUpdateInfo,
+    },
     ModelAttempt {
         request_id: ModelRequestId,
         event: ternilo_protocol::ComputerModelAttempt,
@@ -1456,8 +1471,9 @@ mod tests {
 
     #[test]
     fn executor_live_capabilities_have_an_explicit_versioned_wire() {
-        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 48);
+        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 49);
         let mut peer = ExecutorHello {
+            client: None,
             protocol_version: 40,
             executor_id: ExecutorId::new("native-model-peer"),
             executor_kind: ExecutorKind::EdgeNode,

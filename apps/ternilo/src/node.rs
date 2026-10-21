@@ -57,6 +57,7 @@ pub async fn connect(
     application: Arc<LocalApplication>,
     options: &crate::service::LocalServiceConfig,
     commands: TaskTracker,
+    installation_registered: bool,
 ) -> Result<(), HarnessError> {
     let gateway_url = options
         .gateway_url
@@ -85,6 +86,12 @@ pub async fn connect(
         .await?,
     );
     println!("Ternilo node {executor_id} connecting outbound to gateway");
+    let updates = crate::updates::RemoteUpdater::new(
+        Arc::clone(&application),
+        gateway_url,
+        executor_id.as_str(),
+        installation_registered,
+    )?;
     let connection = maintain_connection(
         gateway_url,
         token,
@@ -94,6 +101,7 @@ pub async fn connect(
         Arc::clone(&application),
         replies,
         commands,
+        updates,
     );
     if application.account_server_binding().await.is_some() {
         let cleanup = cleanup::CleanupClient::new(gateway_url, token, &executor_id)?;
@@ -116,11 +124,13 @@ async fn maintain_connection(
     application: Arc<LocalApplication>,
     replies: Arc<ReplyCache>,
     commands: TaskTracker,
+    updates: Arc<crate::updates::RemoteUpdater>,
 ) -> Result<(), HarnessError> {
     let mut retry = Duration::from_secs(1);
     loop {
         let connected_at = tokio::time::Instant::now();
         let result = connect_once(ConnectionConfig {
+            updates: Some(Arc::clone(&updates)),
             gateway_url,
             token,
             executor_id,
@@ -144,6 +154,7 @@ async fn maintain_connection(
 }
 
 struct ConnectionConfig<'a> {
+    updates: Option<Arc<crate::updates::RemoteUpdater>>,
     gateway_url: &'a str,
     token: &'a str,
     executor_id: &'a ExecutorId,
@@ -228,6 +239,9 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
         heartbeat_interval_ms,
     ));
 
+    if let Some(updates) = &config.updates {
+        updates.connected(outgoing.clone(), &scope).await;
+    }
     config.application.resume_server_schedules().await?;
 
     let read_result = async {
@@ -264,9 +278,10 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
                             let replies = Arc::clone(&config.replies);
                             let outgoing = outgoing.clone();
                             let scope = scope.clone();
+                            let updates = config.updates.clone();
                             config.commands.spawn(async move {
                                 let reply =
-                                    execute_command(application, &scope, *command, &replies).await;
+                                    execute_command(application, &scope, *command, &replies, updates.as_ref()).await;
                                 let _ = outgoing.send(ExecutorFrame::Reply { reply }).await;
                             });
                         }
@@ -326,6 +341,10 @@ where
         socket,
         &ExecutorFrame::Hello {
             hello: ExecutorHello {
+                client: match &config.updates {
+                    Some(updates) => Some(updates.info().await?),
+                    None => None,
+                },
                 protocol_version: EXECUTOR_PROTOCOL_VERSION,
                 executor_id: config.executor_id.clone(),
                 executor_kind: ExecutorKind::EdgeNode,

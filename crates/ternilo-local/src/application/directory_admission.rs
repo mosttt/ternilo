@@ -10,6 +10,7 @@ use ternilo_protocol::{HarnessError, InputAuthor, SessionEventKind, UserId};
 
 pub(super) struct SessionDirectoryExecution {
     coordinator: crate::DirectoryCoordinator,
+    maintenance: Arc<tokio::sync::RwLock<()>>,
     origins: InputOrigins,
     account_owner: Arc<RwLock<Option<UserId>>>,
     session_id: String,
@@ -18,8 +19,13 @@ pub(super) struct SessionDirectoryExecution {
 }
 
 impl SessionDirectoryExecution {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Bind the shared admission gates and concrete session identity once."
+    )]
     pub(super) fn bind(
         coordinator: crate::DirectoryCoordinator,
+        maintenance: Arc<tokio::sync::RwLock<()>>,
         state: Arc<LocalState>,
         live: Weak<LiveSessions>,
         account_owner: Arc<RwLock<Option<UserId>>>,
@@ -29,6 +35,7 @@ impl SessionDirectoryExecution {
     ) -> Arc<dyn WorkspaceExecution> {
         Arc::new(Self {
             coordinator,
+            maintenance,
             origins: InputOrigins::new(state, live),
             account_owner,
             session_id,
@@ -81,7 +88,19 @@ impl WorkspaceExecution for SessionDirectoryExecution {
     ) -> Pin<
         Box<dyn Future<Output = Result<Option<WorkspaceExecutionLease>, HarnessError>> + Send + 'a>,
     > {
-        Box::pin(async move { self.binding().await?.try_acquire().await })
+        Box::pin(async move {
+            let permit = Arc::clone(&self.maintenance)
+                .try_read_owned()
+                .map_err(|_| {
+                    HarnessError::unavailable("this computer is installing a client update")
+                })?;
+            Ok(self
+                .binding()
+                .await?
+                .try_acquire()
+                .await?
+                .map(|lease| WorkspaceExecutionLease::hold((lease, permit))))
+        })
     }
 
     fn acquire<'a>(
@@ -89,6 +108,30 @@ impl WorkspaceExecution for SessionDirectoryExecution {
         cancellation: RunCancellation,
     ) -> Pin<Box<dyn Future<Output = Result<WorkspaceExecutionLease, HarnessError>> + Send + 'a>>
     {
-        Box::pin(async move { self.binding().await?.acquire(cancellation).await })
+        Box::pin(async move {
+            let permit = Arc::clone(&self.maintenance)
+                .try_read_owned()
+                .map_err(|_| {
+                    HarnessError::unavailable("this computer is installing a client update")
+                })?;
+            let lease = self.binding().await?.acquire(cancellation).await?;
+            Ok(WorkspaceExecutionLease::hold((lease, permit)))
+        })
+    }
+
+    fn acquire_service<'a>(
+        &'a self,
+        cancellation: RunCancellation,
+    ) -> Pin<Box<dyn Future<Output = Result<WorkspaceExecutionLease, HarnessError>> + Send + 'a>>
+    {
+        Box::pin(async move {
+            // Startup and calls hold work admission; idle services close with the host.
+            let _permit = Arc::clone(&self.maintenance)
+                .try_read_owned()
+                .map_err(|_| {
+                    HarnessError::unavailable("this computer is installing a client update")
+                })?;
+            self.binding().await?.acquire(cancellation).await
+        })
     }
 }

@@ -32,3 +32,9 @@ After a stable Release becomes public, **Update Server image latest** points `la
 Only image publishing and alias promotion jobs receive `packages: write`; only the Release publishing job receives `contents: write`. Candidate builds have read-only repository permissions. Pull requests use read-only permissions and temporary test services. Registry package visibility must be checked separately from repository visibility.
 
 Checks cancel obsolete work per workflow/ref/event/job. Platform packaging finishes its active build and retains the newest queued candidate. Release runs serialize per tag. Caches accelerate dependencies but never replace verification. See [contributing](contributing.md) and [local packaging](release-packaging.md).
+
+## Remote client update signing
+
+Stable tags enter the protected `client-update-signing` environment after checks, all platform packages and Server image publishing succeed. The environment allows only `v*` tags. Its `TERNILO_UPDATE_SIGNING_KEY` secret contains the dedicated Ed25519 private key; the matching public key is pinned in `crates/ternilo-update/release-public-key.txt`. The signing script verifies that match and signs a manifest covering the exact tested client archives. Private keys are excluded from assets, Server images and clients.
+
+`.github/client-update-policy.json` defines the minimum client, supported Server versions and data epoch. Protocol or persisted-data changes require updating those constraints and coordinating an initial manual upgrade. A stable Release cannot publish without the signing job's `client-updates.json` and `client-updates.json.sig`; prereleases do not provide remote update manifests. Both files are included in `SHA256SUMS`. This signature is separate from desktop platform code signing/notarization. See [client updates](client-updates.md) for activation and recovery.

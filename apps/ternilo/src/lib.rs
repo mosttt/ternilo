@@ -8,6 +8,7 @@ use ternilo_protocol::{HarnessError, Profile, RunLimits};
 
 mod node;
 pub mod service;
+pub mod updates;
 pub mod web;
 
 /// Compose the built-in local profile with zero or more JSON profile layers.

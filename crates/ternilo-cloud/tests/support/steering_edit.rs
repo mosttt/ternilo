@@ -122,6 +122,7 @@ pub async fn assert_edit_freeze(
     let worker = cloud
         .register_cloud_worker(
             &ExecutorHello {
+                client: None,
                 protocol_version: EXECUTOR_PROTOCOL_VERSION,
                 executor_id: ExecutorId::new(worker_id),
                 executor_kind: ExecutorKind::CloudWorker,

@@ -89,6 +89,9 @@ pub(crate) struct GatewayJournal {
 
 // Directory locations and local metadata stay on the Node; task mutations remain durable.
 pub(crate) fn requires_ephemeral_delivery(body: &ExecutorCommandBody) -> bool {
+    if matches!(body, ExecutorCommandBody::ClientUpdate { .. }) {
+        return true;
+    }
     let ExecutorCommandBody::Application { request } = body else {
         return false;
     };

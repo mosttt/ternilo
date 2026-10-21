@@ -120,6 +120,7 @@ impl LocalApplication {
             execution_activity: Arc::clone(&self.execution_activity),
             invalidations: self.invalidations.clone(),
             stopping: self.stopping.clone(),
+            maintenance: Arc::clone(&self.maintenance),
         })
     }
 
@@ -224,6 +225,7 @@ struct LocalSubagentSessionHost {
     execution_activity: Arc<ExecutionActivityCache>,
     invalidations: broadcast::Sender<crate::LocalInvalidationNotification>,
     stopping: RunCancellation,
+    maintenance: Arc<tokio::sync::RwLock<()>>,
 }
 impl LocalSubagentSessionHost {
     fn live(&self) -> Result<Arc<LiveSessions>, HarnessError> {
@@ -317,6 +319,7 @@ impl LocalSubagentSessionHost {
         let telemetry = Arc::new(ternilo_kernel::HostSessionTelemetry::default());
         let execution = super::directory_admission::SessionDirectoryExecution::bind(
             self.directory_coordinator.clone(),
+            Arc::clone(&self.maintenance),
             Arc::clone(&self.state),
             self.live.clone(),
             Arc::clone(&self.directory_account_owner),
@@ -559,6 +562,13 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
         start: SubagentRunStart,
     ) -> Pin<Box<dyn Future<Output = Result<RunOutcome, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
+            let _maintenance = Arc::clone(&self.maintenance)
+                .try_read_owned()
+                .map_err(|_| {
+                    HarnessError::unavailable(
+                        "this computer is installing a client update; retry after it reconnects",
+                    )
+                })?;
             session_id.validate()?;
             run_id.validate()?;
             let session = self

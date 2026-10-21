@@ -83,6 +83,7 @@ impl Fixture {
                     root_id: "family-root".to_owned(),
                     capacity: WorkerCapacity::default(),
                     hello: ExecutorHello {
+                        client: None,
                         protocol_version: ternilo_transport::EXECUTOR_PROTOCOL_VERSION,
                         executor_id: ExecutorId::new(WORKER),
                         executor_kind: ExecutorKind::CloudWorker,

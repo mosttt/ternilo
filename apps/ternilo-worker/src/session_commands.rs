@@ -24,6 +24,7 @@ use crate::{
 
 pub(crate) fn worker_hello(worker_id: &str, catalog_revision: &str, now_ms: u64) -> ExecutorHello {
     ExecutorHello {
+        client: None,
         protocol_version: EXECUTOR_PROTOCOL_VERSION,
         executor_id: ExecutorId::new(worker_id),
         executor_kind: ExecutorKind::CloudWorker,

@@ -441,6 +441,7 @@ async fn node_registers_and_dispatches_application_rpc_over_a_real_websocket() {
     let executor_id = ExecutorId::new("fixture-node");
     let commands = TaskTracker::new();
     connect_once(ConnectionConfig {
+        updates: None,
         gateway_url: &gateway_url,
         token: "fixture-token",
         executor_id: &executor_id,

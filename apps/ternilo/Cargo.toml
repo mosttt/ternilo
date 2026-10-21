@@ -28,6 +28,7 @@ ternilo-extension.workspace = true
 ternilo-kernel.workspace = true
 ternilo-local.workspace = true
 ternilo-protocol.workspace = true
+ternilo-update.workspace = true
 
 [lints]
 workspace = true

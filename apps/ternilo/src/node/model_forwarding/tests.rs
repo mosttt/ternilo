@@ -449,6 +449,7 @@ async fn websocket_completion_keeps_the_computer_connected_and_cancel_reaches_up
                 .unwrap(),
         );
         let result = connect_once(ConnectionConfig {
+            updates: None,
             gateway_url: &address,
             token: "fixture-node-token",
             executor_id: &ExecutorId::new("source-computer"),

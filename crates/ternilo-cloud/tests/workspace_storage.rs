@@ -1168,6 +1168,7 @@ async fn create_session(
 
 fn hello(worker_id: &str) -> ExecutorHello {
     ExecutorHello {
+        client: None,
         protocol_version: EXECUTOR_PROTOCOL_VERSION,
         executor_id: ExecutorId::new(worker_id),
         executor_kind: ExecutorKind::CloudWorker,

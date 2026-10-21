@@ -209,10 +209,11 @@ fn remember_completed(state: &mut ReplyCacheState, command_id: CommandId) {
 }
 
 fn command_requires_ephemeral_delivery(command: &ExecutorCommand) -> bool {
-    matches!(
-        &command.body,
-        ExecutorCommandBody::Application { request } if request.requires_ephemeral_delivery()
-    )
+    matches!(&command.body, ExecutorCommandBody::ClientUpdate { .. })
+        || matches!(
+            &command.body,
+            ExecutorCommandBody::Application { request } if request.requires_ephemeral_delivery()
+        )
 }
 
 pub(super) async fn execute_command(
@@ -220,6 +221,7 @@ pub(super) async fn execute_command(
     assigned_scope: &ExecutorScope,
     command: ExecutorCommand,
     replies: &ReplyCache,
+    updates: Option<&Arc<crate::updates::RemoteUpdater>>,
 ) -> CommandReply {
     match replies.claim(&command).await {
         Err(error) => {
@@ -258,6 +260,22 @@ pub(super) async fn execute_command(
                 .await?;
         }
         match command.body {
+            ExecutorCommandBody::ClientUpdate { command } => {
+                let updates = updates.ok_or_else(|| {
+                    HarnessError::unavailable("client lifecycle management is not available")
+                })?;
+                let info = match *command {
+                    ternilo_transport::ClientUpdateCommand::Status => updates.info().await?,
+                    ternilo_transport::ClientUpdateCommand::Start { request } => {
+                        updates.start(request).await?
+                    }
+                    ternilo_transport::ClientUpdateCommand::Cancel { id } => {
+                        updates.cancel(&id).await?
+                    }
+                };
+                serde_json::to_value(info)
+                    .map_err(|_| HarnessError::execution("encode client update status"))
+            }
             ExecutorCommandBody::Application { request } => {
                 handle_application_with_provenance(
                     Arc::clone(&application),

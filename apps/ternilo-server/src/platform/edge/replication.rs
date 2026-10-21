@@ -65,6 +65,29 @@ impl EdgeGateway {
                 }
                 last_seen.store(now, Ordering::Relaxed);
                 match frame {
+                    ExecutorFrame::ClientUpdateState { info } => {
+                        if !matches!(
+                            self.store
+                                .record_client_update_state(
+                                    &route.tenant_id,
+                                    &route.executor_id,
+                                    &connected.hello.instance_nonce,
+                                    &info
+                                )
+                                .await,
+                            Ok(true)
+                        ) {
+                            break;
+                        }
+                        let mut executors = self.executors.write().await;
+                        if let Some(current) = executors.get_mut(route)
+                            && current.connection_id == *connection_id
+                        {
+                            current.hello.client = Some(info);
+                        }
+                        drop(executors);
+                        self.notify_computer_changed(&route.tenant_id, &route.executor_id);
+                    }
                     ExecutorFrame::ModelOutput { request_id, frame } => {
                         self.receive_model_event(
                             route,

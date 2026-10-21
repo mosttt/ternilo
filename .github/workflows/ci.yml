@@ -55,7 +55,7 @@ jobs:
         run: |
           cargo fmt --all --check
           cargo clippy --locked --workspace --all-targets -- -D warnings
-          cargo test --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-local -p ternilo-builtins -p ternilo-authorization -p ternilo-automation -p ternilo-acp -p ternilo-control -p ternilo-cloud -p ternilo-worker -p ternilo-protocol -p ternilo-kernel -p ternilo-transport -p ternilo-transport-store -p ternilo-storage
+          cargo test --locked -p ternilo -p ternilo-server -p ternilo-plugin-cli -p ternilo-local -p ternilo-builtins -p ternilo-authorization -p ternilo-automation -p ternilo-acp -p ternilo-control -p ternilo-cloud -p ternilo-worker -p ternilo-protocol -p ternilo-kernel -p ternilo-transport -p ternilo-transport-store -p ternilo-storage -p ternilo-update
       - name: Matched client, Server and native desktop
         run: cargo build --locked -p ternilo -p ternilo-server -p ternilo-worker -p ternilo-plugin-cli -p ternilo-desktop --features tauri/custom-protocol
       - name: SDKs against the built client and Server
@@ -176,6 +176,7 @@ jobs:
           RUST_TARGET: ${{ matrix.target }}
       - name: Platform workspace boundaries and persistence
         run: |
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-update
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib capabilities::
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib sandbox::
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::workspace_browser

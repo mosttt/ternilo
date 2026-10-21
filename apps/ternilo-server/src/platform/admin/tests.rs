@@ -56,6 +56,7 @@ impl Fixture {
         let policy = crate::platform::load_worker_policy(None, &catalog).unwrap();
         let (shutdown, receiver) = tokio::sync::watch::channel(false);
         let state = AppState {
+            client_updates: crate::platform::client_updates::UpdateCache::temporary(),
             cloud_events: CloudSessionEventFeed::from_database(store.database().clone())
                 .await
                 .unwrap(),

@@ -39,4 +39,14 @@ pub trait WorkspaceExecution: Send + Sync {
         &'a self,
         cancellation: RunCancellation,
     ) -> Pin<Box<dyn Future<Output = Result<WorkspaceExecutionLease, HarnessError>> + Send + 'a>>;
+
+    /// Retain directory ownership for a session service, not active task admission.
+    /// The caller must hold normal work admission while starting or using the service.
+    fn acquire_service<'a>(
+        &'a self,
+        cancellation: RunCancellation,
+    ) -> Pin<Box<dyn Future<Output = Result<WorkspaceExecutionLease, HarnessError>> + Send + 'a>>
+    {
+        self.acquire(cancellation)
+    }
 }

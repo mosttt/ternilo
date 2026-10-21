@@ -29,6 +29,7 @@
 
 - [Server 部署与运维](deployment.md)和[Docker Compose](docker-compose.md)：网页首次设置、SQLite／PostgreSQL、HTTPS、运行与备份。
 - [电脑管理](computers.md)：系统 ID、可修改名称、详情、暂停／恢复、吊销和移除登记。
+- [客户端更新](client-updates.md)：从 Server 更新接入电脑、本机启用、安装回退与恢复。
 - [账号与平台管理](platform-management.md)、[登录配置](server-authentication.md)和[账号安全](account-recovery.md)：访问模式、账号、OIDC、验证、密码与 MFA。
 - [账号与协作](collaboration.md)、[项目共享](project-sharing.md)和[资源管理权交接](resource-management.md)：成员、资源权限、提交者及归属。
 - [服务账号](service-accounts.md)：自动化身份、凭据与明确授权。

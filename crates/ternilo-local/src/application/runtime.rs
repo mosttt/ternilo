@@ -206,6 +206,7 @@ impl LocalApplication {
         let telemetry = Arc::new(ternilo_kernel::HostSessionTelemetry::default());
         let execution = super::directory_admission::SessionDirectoryExecution::bind(
             self.directory_coordinator.clone(),
+            Arc::clone(&self.maintenance),
             Arc::clone(&self.state),
             Arc::downgrade(&self.live),
             Arc::clone(&self.directory_account_owner),

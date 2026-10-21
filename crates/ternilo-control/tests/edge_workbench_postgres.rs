@@ -1525,6 +1525,7 @@ fn metadata(title: &str, parent_session_id: Option<SessionId>, now_ms: u64) -> E
 
 fn hello(executor_id: ExecutorId) -> ExecutorHello {
     ExecutorHello {
+        client: None,
         protocol_version: EXECUTOR_PROTOCOL_VERSION,
         executor_id,
         executor_kind: ExecutorKind::EdgeNode,

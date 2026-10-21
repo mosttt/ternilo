@@ -483,6 +483,7 @@ async fn command_journal_contract(
 
 fn worker_hello(worker_id: &str, instance_nonce: &str) -> ExecutorHello {
     ExecutorHello {
+        client: None,
         protocol_version: EXECUTOR_PROTOCOL_VERSION,
         executor_id: ExecutorId::new(worker_id),
         executor_kind: ExecutorKind::CloudWorker,

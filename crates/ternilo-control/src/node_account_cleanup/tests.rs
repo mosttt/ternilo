@@ -91,6 +91,7 @@ pub(crate) async fn contract(store: &ControlStore) {
         .register_executor(
             &shared.scope.tenant_id,
             &ternilo_transport::ExecutorHello {
+                client: None,
                 protocol_version: ternilo_transport::EXECUTOR_PROTOCOL_VERSION,
                 executor_id: shared.executor_id.clone(),
                 executor_kind: ternilo_transport::ExecutorKind::EdgeNode,
