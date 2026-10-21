@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { selectChoice, setupChoiceSelect } from '@/test/choice-select'
 import { LocaleProvider } from '@/i18n/provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { LocalSession, Workspace, ResourceAccess, TenantSummary } from '@/types'
@@ -11,8 +12,8 @@ const mocks = vi.hoisted(() => ({
   apiRequest: vi.fn(),
   workbench: {
     snapshot: { workspaces: [] as Workspace[], sessions: [] as LocalSession[] },
-    currentSessionId: null,
-    currentSession: null,
+    currentSessionId: null as string | null,
+    currentSession: null as LocalSession | null,
     currentWorkspaceId: null as string | null,
     currentTenantId: null as string | null,
     accountScope: 'local',
@@ -70,6 +71,7 @@ beforeEach(() => {
     observe() {}
     disconnect() {}
   })
+  setupChoiceSelect()
   localStorage.clear()
   mocks.chooseWorkspace.mockReset()
   mocks.workbench.setOnlineComputersOnly.mockReset().mockResolvedValue(undefined)
@@ -77,6 +79,9 @@ beforeEach(() => {
   mocks.workbench.notify.mockReset()
   mocks.workbench.deleteSession.mockReset().mockResolvedValue(undefined)
   mocks.workbench.selectWorkspace.mockReset()
+  mocks.workbench.selectSession.mockReset()
+  mocks.workbench.currentSessionId = null
+  mocks.workbench.currentSession = null
   mocks.workbench.createSession.mockReset().mockResolvedValue(undefined)
   mocks.workbench.authRequired = false
   mocks.workbench.loading = false
@@ -95,6 +100,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
 })
@@ -158,6 +164,95 @@ it('defaults to computer groups and retains offline workspaces and independent c
   await renderBrowser(true)
   expect(host.querySelector('[data-sidebar-computer-group="node:a"]')!.querySelector('[data-sidebar-workspace-group]')).toBeNull()
   expect(mocks.apiRequest.mock.calls.every(([path]) => path === '/sidebar-ordering')).toBe(true)
+})
+
+const computerPicker = () => host.querySelector<HTMLElement>('[data-sidebar-computer-picker]')!
+const visibleWorkspaces = () => [...host.querySelectorAll('[data-sidebar-workspace-title]')].map(item => item.textContent)
+
+it('filters to one computer without navigating and remembers the choice after remount', async () => {
+  computerWorkspaces()
+  mocks.workbench.currentWorkspaceId = 'b-pictures'
+  mocks.workbench.currentSessionId = 'active-b'
+  await renderBrowser(true)
+  await selectChoice(computerPicker(), 'node:a')
+  expect(computerPicker().textContent).toBe('电脑 a · 离线')
+  expect(visibleWorkspaces()).toEqual(['Pictures', 'Docker'])
+  expect(host.querySelector('[data-sidebar-computer-group]')).toBeNull()
+  expect([...host.querySelectorAll('[data-sidebar-workspace-group]')].every(item => item.getAttribute('aria-level') === '1')).toBe(true)
+  expect(mocks.workbench.selectWorkspace).not.toHaveBeenCalled()
+  expect(mocks.workbench.selectSession).not.toHaveBeenCalled()
+  expect(mocks.workbench.setOnlineComputersOnly).not.toHaveBeenCalled()
+  expect(mocks.apiRequest.mock.calls.every(([path]) => path === '/sidebar-ordering')).toBe(true)
+  await act(async () => root.unmount())
+  root = createRoot(host)
+  await renderBrowser(true)
+  expect(computerPicker().getAttribute('data-choice-value')).toBe('node:a')
+  expect(visibleWorkspaces()).toEqual(['Pictures', 'Docker'])
+  await selectChoice(computerPicker(), 'all')
+  expect(host.querySelectorAll('[data-sidebar-computer-group]')).toHaveLength(2)
+  expect(visibleWorkspaces()).toHaveLength(3)
+})
+
+it('isolates computer choices by account and space and ignores live status updates for navigation', async () => {
+  computerWorkspaces()
+  mocks.workbench.currentWorkspaceId = 'a-pictures'
+  mocks.workbench.currentSessionId = 'active-a'
+  await renderBrowser(true)
+  await selectChoice(computerPicker(), 'node:b')
+  mocks.workbench.snapshot.workspaces = mocks.workbench.snapshot.workspaces.map(item => ({ ...item, status: 'offline' }))
+  await renderBrowser(true)
+  expect(computerPicker().textContent).toBe('电脑 b · 离线')
+  mocks.workbench.currentTenantId = 'another-space'
+  await renderBrowser(true)
+  expect(computerPicker().textContent).toBe('全部电脑')
+  await selectChoice(computerPicker(), 'node:a')
+  mocks.workbench.currentTenantId = 'team'
+  await renderBrowser(true)
+  expect(computerPicker().getAttribute('data-choice-value')).toBe('node:b')
+  mocks.workbench.accountScope = 'another-account'
+  await renderBrowser(true)
+  expect(computerPicker().textContent).toBe('全部电脑')
+  mocks.workbench.accountScope = 'owner'
+  await renderBrowser(true)
+  expect(computerPicker().getAttribute('data-choice-value')).toBe('node:b')
+  mocks.workbench.currentSessionId = 'another-a-session'
+  await renderBrowser(true)
+  expect(computerPicker().getAttribute('data-choice-value')).toBe('node:a')
+})
+
+it('shows remaining computers when the selected computer is removed and retains the choice across online filtering', async () => {
+  computerWorkspaces()
+  await renderBrowser(true)
+  const original = mocks.workbench.snapshot.workspaces
+  await selectChoice(computerPicker(), 'node:a')
+  mocks.workbench.snapshot.workspaces = original.filter(item => item.node_id === 'b')
+  await renderBrowser(true)
+  expect(computerPicker().textContent).toBe('全部电脑')
+  expect(visibleWorkspaces()).toEqual(['Pictures'])
+  mocks.workbench.snapshot.workspaces = original
+  await renderBrowser(true)
+  expect(computerPicker().getAttribute('data-choice-value')).toBe('node:a')
+  await selectViewOption('按工作区')
+  expect(computerPicker()).toBeNull()
+  expect(visibleWorkspaces()).toHaveLength(3)
+  await selectViewOption('按电脑')
+  expect(computerPicker().getAttribute('data-choice-value')).toBe('node:a')
+})
+
+it('keeps ungrouped history in all-computer view rather than assigning it to an unrelated computer', async () => {
+  computerWorkspaces()
+  mocks.workbench.snapshot.sessions = [{
+    identity: { tenant_id: 'team', user_id: 'owner', agent_id: 'agent', session_id: 'orphan' },
+    workspace_id: 'removed', workspace_path: '', title: 'Orphan', permissions: 'read_only',
+    model: { provider: 'profile_default' }, agent_preset: 'standard', preset_plugins: [], profile_plugins: [],
+    mode: 'execute', created_at_ms: 1, updated_at_ms: 1,
+  }]
+  await renderBrowser(true)
+  expect(host.textContent).toContain('未分组')
+  await selectChoice(computerPicker(), 'node:a')
+  expect(host.textContent).not.toContain('未分组')
+  await selectChoice(computerPicker(), 'all')
+  expect(host.textContent).toContain('未分组')
 })
 
 it('switches computer, workspace and single-list grouping through the persisted view menu', async () => {

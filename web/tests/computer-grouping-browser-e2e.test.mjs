@@ -17,7 +17,7 @@ async function until(read, accepts, description) {
   throw new Error(description)
 }
 
-test('computer groups and online-only cold loads preserve separate workspaces on the same folder', { timeout: 120_000 }, async () => {
+test('computer groups and online-only cold loads preserve separate workspaces on the same folder', { timeout: 180_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-computer-groups-'))
   const processes = []
   let server, browser, page
@@ -49,6 +49,10 @@ test('computer groups and online-only cold loads preserve separate workspaces on
         project_id: identity.personal_project_id, name: `Pictures ${name}`, placement: 'local_node', executor_id: id, path: folder,
       } })
       const session = await serverRequest(origin, '/sessions', { ...scope, body: { workspace_id: workspace.workspace_id } })
+      await serverRequest(origin, `/sessions/${session.identity.session_id}/queue`, { ...scope, body: { content: { kind: 'prompt', input: `/code "history-${name}"` } } })
+      await until(() => serverRequest(origin, `/sessions/${session.identity.session_id}/events`, scope),
+        events => events.some(event => event.type === 'turn_finished'), `${name} history must be established before search`)
+      await serverRequest(origin, `/sessions/${session.identity.session_id}`, { ...scope, method: 'PATCH', body: { title: `History ${name}` } })
       workspaces.push({ workspace, session, id, name })
     }
     assert.notEqual(workspaces[0].workspace.workspace_id, workspaces[1].workspace.workspace_id)
@@ -95,6 +99,38 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     const statusColors = await page.locator('[data-sidebar-computer-status]').evaluateAll(dots => dots.map(dot => getComputedStyle(dot).backgroundColor))
     assert.notEqual(statusColors[0], statusColors[1], 'online and offline computer indicators must look different')
     assert.ok(statusColors.every(color => color !== 'rgba(0, 0, 0, 0)'), 'status indicators must have a visible color')
+
+    const picker = page.locator('[data-sidebar-computer-picker]')
+    const chooseComputer = async value => {
+      await picker.click()
+      await page.locator(`[data-choice-option="${value}"]`).click()
+      await page.locator('[data-choice-menu]').waitFor({ state: 'detached' })
+    }
+    const betaWorkspace = beta.locator('[data-sidebar-workspace-button]')
+    if (await betaWorkspace.getAttribute('aria-expanded') !== 'true') await betaWorkspace.click()
+    await beta.locator(`[data-session-id="${workspaces[1].session.identity.session_id}"] [data-sidebar-session-button]`).click()
+    const activeUrl = page.url()
+    const beforeFilter = requests.length
+    await chooseComputer(`node:${workspaces[0].id}`)
+    assert.match(await picker.textContent(), /alpha.*离线/)
+    assert.equal(page.url(), activeUrl, 'computer filtering must not navigate the active conversation')
+    assert.equal(await page.locator('[data-sidebar-computer-group]').count(), 0)
+    assert.deepEqual(await page.locator('[data-sidebar-workspace-title]').allTextContents(), ['Pictures alpha'])
+    assert.equal(await page.locator('[data-sidebar-workspace-group]').getAttribute('aria-level'), '1')
+    assert.equal(requests.slice(beforeFilter).some(url => url.pathname === '/api/v1/state'), false, 'computer selection only filters the existing sidebar snapshot')
+    await page.reload()
+    await picker.waitFor()
+    await until(() => picker.getAttribute('data-choice-value'), value => value === `node:${workspaces[0].id}`, 'reload must restore the chosen computer')
+    await page.getByRole('button', { name: '搜索会话', exact: true }).click()
+    await page.getByRole('textbox', { name: '搜索会话', exact: true }).fill('History beta')
+    await page.getByText('搜索全部电脑', { exact: true }).waitFor()
+    await page.locator(`[data-session-id="${workspaces[1].session.identity.session_id}"] [data-sidebar-session-button]`).click()
+    await page.getByRole('button', { name: '关闭搜索', exact: true }).click()
+    assert.equal(await picker.getAttribute('data-choice-value'), `node:${workspaces[1].id}`, 'opening a search result reveals its computer, including the already-active session')
+    assert.deepEqual(await page.locator('[data-sidebar-workspace-title]').allTextContents(), ['Pictures beta'])
+    await chooseComputer('all')
+    await alpha.waitFor()
+    await beta.waitFor()
 
     const options = page.getByRole('button', { name: '视图选项', exact: true })
     await options.click()
@@ -177,16 +213,62 @@ test('computer groups and online-only cold loads preserve separate workspaces on
     await page.goBack()
     await beta.waitFor()
 
+    for (let index = 0; index < 16; index += 1) {
+      const directoryPath = path.join(directory, `project-${index + 1}`)
+      await mkdir(directoryPath)
+      await serverRequest(origin, '/workspaces', { ...scope, body: {
+        project_id: identity.personal_project_id, name: `Project ${index + 1}`, placement: 'local_node',
+        executor_id: workspaces[1].id, path: directoryPath,
+      } })
+    }
+    await until(() => page.locator('[data-sidebar-workspace-row]').count(), count => count === 18, 'new workspaces must arrive through Live')
+    await chooseComputer(`node:${workspaces[1].id}`)
+    const list = page.locator('[data-workspace-browser-state] [role="tree"]')
+    await list.evaluate(element => { element.scrollTop = 180 })
+    await until(() => list.evaluate(element => element.scrollTop), top => top >= 180, 'long workspace list must scroll')
+    await chooseComputer(`node:${workspaces[0].id}`)
+    assert.equal(await list.evaluate(element => element.scrollTop), 0)
+    await chooseComputer(`node:${workspaces[1].id}`)
+    assert.equal(await list.evaluate(element => element.scrollTop), 180, 'switching back must restore that computer’s list position')
+    await chooseComputer('all')
+
     const artifact = process.env.TERNILO_E2E_ARTIFACT_DIR
     if (artifact) {
       await mkdir(artifact, { recursive: true })
       await page.screenshot({ path: path.join(artifact, 'computer-groups-desktop.png'), fullPage: true })
     }
+    for (const [locale, choose, allLabel, offline] of [
+      ['zh', '选择电脑', '全部电脑', '离线'],
+      ['en', 'Choose computer', 'All computers', 'Offline'],
+      ['ko', '컴퓨터 선택', '모든 컴퓨터', '오프라인'],
+    ]) {
+      await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale)
+      await page.reload()
+      await page.getByRole('combobox', { name: choose, exact: true }).waitFor()
+      assert.equal(await picker.textContent(), allLabel)
+      await page.waitForFunction(() => document.querySelector('[data-sidebar-computer-picker]')?.disabled === false)
+      await picker.press('ArrowDown')
+      await page.locator('[data-choice-menu]').waitFor()
+      assert.match(await page.locator(`[data-choice-option="node:${workspaces[0].id}"]`).textContent(), new RegExp(offline))
+      if (artifact) await page.screenshot({ path: path.join(artifact, `computer-picker-${locale}.png`), fullPage: true })
+      await page.keyboard.press('Escape')
+      assert.equal(await picker.evaluate(element => element === document.activeElement), true)
+    }
+    await page.evaluate(() => { localStorage.setItem('ternilo.locale', 'zh'); localStorage.setItem('ternilo.theme', 'dark') })
+    await page.reload()
+    await picker.waitFor()
     await page.setViewportSize({ width: 390, height: 844 })
     await page.getByRole('button', { name: '打开侧边栏', exact: true }).click()
     await page.waitForFunction(() => Math.abs(document.querySelector('.app-sidebar').getBoundingClientRect().left) < 1)
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     if (artifact) await page.screenshot({ path: path.join(artifact, 'computer-groups-mobile.png'), fullPage: true })
+    await chooseComputer(`node:${workspaces[0].id}`)
+    assert.deepEqual(await page.locator('[data-sidebar-workspace-title]').allTextContents(), ['Pictures alpha'])
+    assert.ok(await picker.evaluate(element => element.getBoundingClientRect().height >= 40))
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    if (artifact) await page.screenshot({ path: path.join(artifact, 'computer-picker-mobile-single.png'), fullPage: true })
+    await chooseComputer('all')
+    assert.equal(await page.locator('[data-sidebar-computer-group]').count(), 2)
     assert.deepEqual(errors, [])
   } catch (error) {
     if (page && process.env.TERNILO_E2E_ARTIFACT_DIR) {

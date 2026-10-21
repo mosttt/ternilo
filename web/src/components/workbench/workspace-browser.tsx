@@ -19,6 +19,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ChoiceSelect } from '@/components/ui/choice-select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ActionDialog } from '@/components/settings/settings-ui'
 import { useTranslate } from '@/i18n/provider'
@@ -96,7 +97,22 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   }
   const computerCollapseKey = (id: string) => JSON.stringify([accountScope, currentTenantId, id])
   const activeWorkspace = snapshot.workspaces.find(workspace => workspace.workspace_id === currentWorkspaceId)
-  const activeComputerKey = activeWorkspace ? computerCollapseKey(workspaceComputerId(activeWorkspace)) : null
+  const activeComputerId = activeWorkspace ? workspaceComputerId(activeWorkspace) : null
+  const activeComputerKey = activeComputerId ? computerCollapseKey(activeComputerId) : null
+  const lastNavigation = React.useRef({ scope: archiveScope, workspace: currentWorkspaceId, session: currentSessionId })
+  React.useEffect(() => {
+    const previous = lastNavigation.current
+    lastNavigation.current = { scope: archiveScope, workspace: currentWorkspaceId, session: currentSessionId }
+    if (previous.scope !== archiveScope || (!previous.workspace && !previous.session)
+      || (previous.workspace === currentWorkspaceId && previous.session === currentSessionId) || view.groupBy !== 'computer') return
+    // Follow explicit navigation, not live metadata updates or sidebar-only filtering.
+    setView(current => {
+      const selected = current.computerByScope[archiveScope] ?? 'all'
+      const next = activeComputerId ?? 'all'
+      return selected === 'all' || selected === next ? current
+        : { ...current, computerByScope: { ...current.computerByScope, [archiveScope]: next } }
+    })
+  }, [archiveScope, currentWorkspaceId, currentSessionId, activeComputerId, view.groupBy])
   React.useEffect(() => {
     if (!activeComputerKey || view.groupBy !== 'computer') return
     setView(current => current.collapsedComputers.includes(activeComputerKey)
@@ -144,6 +160,8 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   const dragRef = React.useRef<DragState | null>(null)
   const [now, setNow] = React.useState(() => Date.now())
   const searchInput = React.useRef<HTMLInputElement>(null)
+  const listRef = React.useRef<HTMLDivElement>(null)
+  const listPositions = React.useRef(new Map<string, number>())
 
   const updateDrag = (next: DragState | null) => {
     dragRef.current = next
@@ -286,7 +304,23 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
     ? `node:${workspace.node_id ?? ''}` : workspace.placement ?? 'local')).size > 1
   const sessions = snapshot.sessions.filter(session => session.archived_at_ms == null)
   const activity = useSessionActivityRoster(sessions, currentSessionId, currentSessionEvents, sessionActivity)
+  const computers = groupWorkspacesByComputer(workspaces).map(computer => {
+    const name = computer.workspaces.find(workspace => workspace.node_name)?.node_name ?? computer.nodeId
+    const label = computer.kind === 'node' ? name ? t('computer.name', { name }) : t('computer.unknown')
+      : t(computer.kind === 'cloud' ? 'computer.cloud' : 'computer.local')
+    const online = computer.workspaces.some(workspace => workspace.status !== 'offline' && workspace.status !== 'error')
+    return { ...computer, label, online }
+  })
+  const rememberedComputer = view.computerByScope[archiveScope] ?? 'all'
+  const selectedComputer = view.groupBy === 'computer' && computers.some(computer => computer.id === rememberedComputer)
+    ? rememberedComputer : 'all'
+  const computerGroupsVisible = view.groupBy === 'computer' && selectedComputer === 'all'
   const normalizedQuery = normalizeSessionSearchQuery(query)
+  const listKey = JSON.stringify([archiveScope, view.groupBy, selectedComputer, Boolean(normalizedQuery)])
+  React.useLayoutEffect(() => {
+    const list = listRef.current
+    if (list) list.scrollTop = listPositions.current.get(listKey) ?? 0
+  }, [listKey, wide])
   const activeHits = hitQuery === normalizedQuery ? hits : []
   const searchResults = deriveSessionSearchResults(sessions, workspaces, activeHits, normalizedQuery)
   const dataState = searching
@@ -342,6 +376,12 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   )
 
   const activateSession = (id: string) => {
+    if (view.groupBy === 'computer' && selectedComputer !== 'all') {
+      const session = sessions.find(item => item.identity.session_id === id) ?? searchResults.items.find(item => item.identity.session_id === id)
+      const workspace = workspaces.find(item => item.workspace_id === session?.workspace_id)
+      const computer = workspace ? workspaceComputerId(workspace) : 'all'
+      setView(current => ({ ...current, computerByScope: { ...current.computerByScope, [archiveScope]: computer } }))
+    }
     selectSession(id)
     onSessionActivated()
   }
@@ -540,7 +580,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
       order={readOnly ? undefined : orderActions}
       readOnly={readOnly}
       depth={depth}
-      levelOffset={view.groupBy === 'computer' && !normalizedQuery && account !== UNGROUPED_WORKSPACE_ACCOUNT ? 1 : 0}
+      levelOffset={computerGroupsVisible && !normalizedQuery && account !== UNGROUPED_WORKSPACE_ACCOUNT ? 1 : 0}
       childCount={childCount}
       childrenExpanded={childrenExpanded}
       onToggleChildren={childCount > 0
@@ -611,7 +651,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
           className={css.group}
           data-sidebar-workspace-group=""
           role="treeitem"
-          aria-level={view.groupBy === 'computer' ? 2 : 1}
+          aria-level={computerGroupsVisible ? 2 : 1}
           aria-expanded={isExpanded}
           key={workspace.workspace_id}
         >
@@ -668,14 +708,12 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
       )
     }
     const orderedWorkspaces = ordered(workspaces, workspaceIds, item => item.workspace_id)
-    const groups: React.ReactNode[] = view.groupBy !== 'computer' ? orderedWorkspaces.map(renderWorkspace)
+    const groups: React.ReactNode[] = !computerGroupsVisible
+      ? orderedWorkspaces.filter(workspace => view.groupBy !== 'computer' || workspaceComputerId(workspace) === selectedComputer).map(renderWorkspace)
       : groupWorkspacesByComputer(orderedWorkspaces).map(computer => {
         const collapseKey = computerCollapseKey(computer.id)
         const isExpanded = !view.collapsedComputers.includes(collapseKey)
-        const computerName = computer.workspaces.find(workspace => workspace.node_name)?.node_name ?? computer.nodeId
-        const label = computer.kind === 'node' ? computerName ? t('computer.name', { name: computerName }) : t('computer.unknown')
-          : t(computer.kind === 'cloud' ? 'computer.cloud' : 'computer.local')
-        const online = computer.workspaces.some(workspace => workspace.status !== 'offline' && workspace.status !== 'error')
+        const { label, online } = computers.find(item => item.id === computer.id)!
         const Icon = computer.kind === 'cloud' ? Cloud : Laptop
         return <section key={computer.id} className={css.computerGroup} data-sidebar-computer-group={computer.id} role="treeitem" aria-level={1} aria-expanded={isExpanded}>
           <button className={css.computerHeader} type="button" data-sidebar-computer-button="" aria-expanded={isExpanded} title={label}
@@ -692,7 +730,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
         </section>
       })
     const ungrouped = ungroupedSessions(workspaces, sessions)
-    if (ungrouped.length) {
+    if (ungrouped.length && (view.groupBy !== 'computer' || selectedComputer === 'all')) {
       const ids = sessionOrder(ungrouped, UNGROUPED_WORKSPACE_ACCOUNT)
       const all = ordered(ungrouped, ids, item => item.identity.session_id)
       const tree = canonicalSessionTree(all)
@@ -857,9 +895,27 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
         </div>
       )}
 
+      {wide && view.groupBy === 'computer' && !authRequired && <div className={css.computerPicker}>
+        {normalizedQuery ? <span className={css.searchScope}>{t(view.onlineComputersOnly ? 'search.onlineComputers' : 'search.allComputers')}</span>
+          : <ChoiceSelect
+            key={archiveScope}
+            label={t('computer.choose')}
+            data-sidebar-computer-picker=""
+            value={selectedComputer}
+            disabled={loading || (platform && !currentTenantId)}
+            onValueChange={id => setView(current => ({ ...current, computerByScope: { ...current.computerByScope, [archiveScope]: id } }))}
+            options={[
+              { value: 'all', label: t('computer.all') },
+              ...computers.map(computer => ({ value: computer.id,
+                label: `${computer.label} · ${workspaceT(computer.online ? 'status.online' : 'status.offline')}`,
+              })),
+            ]}
+          />}
+      </div>}
+
       <div className={css.listArea}>
         {wide && (
-          <div className={css.list} role="tree" aria-label={normalizedQuery ? workspaceT('search.results.aria') : workspaceT('tree.aria')}>
+          <div ref={listRef} className={css.list} onScroll={event => listPositions.current.set(listKey, event.currentTarget.scrollTop)} role="tree" aria-label={normalizedQuery ? workspaceT('search.results.aria') : workspaceT('tree.aria')}>
             {renderList()}
             {searching && <p className={css.searchStatus}>{t('search.pending')}</p>}
             {searchError && <div role="alert" className={css.searchError}><span>{t('search.failed', { error: searchError })}</span><button type="button" onClick={() => setSearchRetry(value => value + 1)}>{common('retry')}</button></div>}
