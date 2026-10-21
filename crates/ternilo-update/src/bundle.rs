@@ -156,7 +156,10 @@ pub fn install_bundle(
     for name in &names {
         let path = prepared.path().join(name);
         fs::copy(staging.join(name), &path).map_err(io_error)?;
-        File::open(path)
+        // Windows FlushFileBuffers requires a handle with write access.
+        OpenOptions::new()
+            .write(true)
+            .open(path)
             .and_then(|file| file.sync_all())
             .map_err(io_error)?;
     }

@@ -58,3 +58,12 @@ it('requires explicit local enablement and never silently enables or updates a c
   expect(document.querySelector('[data-computer-update]')?.textContent).toContain('ternilo updates enable --help')
   expect(request.mock.calls.every(([, options]) => !options?.method)).toBe(true)
 })
+
+it('keeps current offline state visible after an earlier successful update', async () => {
+  request.mockResolvedValue(status('offline', { id: 'completed-12345678', version: '0.2.21', phase: 'completed', revision: 5, error: null }))
+  await render(['offline'])
+  const row = document.querySelector('[data-computer-update]')!
+  expect(row.querySelector('[role="status"]')?.textContent).toBe('电脑离线，上线后才能更新')
+  expect(row.textContent).toContain('最近一次更新：更新完成，电脑已重新连接')
+  expect(button('更新所选电脑（0）').disabled).toBe(true)
+})

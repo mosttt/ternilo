@@ -1116,6 +1116,21 @@ impl RunEnvironmentProvider for HostEnvironment {
         })
     }
 
+    fn acquire_service_workspace<'a>(
+        &'a self,
+        _: CallContext<()>,
+        cancellation: RunCancellation,
+    ) -> Pin<Box<dyn Future<Output = Result<WorkspaceExecutionLease, HarnessError>> + Send + 'a>>
+    {
+        Box::pin(async move {
+            cancellation.check()?;
+            match &self.workspace_execution {
+                Some(execution) => execution.acquire_service(cancellation).await,
+                None => Ok(WorkspaceExecutionLease::hold(())),
+            }
+        })
+    }
+
     fn identity<'a>(
         &'a self,
         _: CallContext<()>,

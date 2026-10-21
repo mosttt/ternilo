@@ -137,7 +137,8 @@ export function ComputerUpdatesDialog({ tenantId, computers, onClose }: {
             </label>
             {status && <>
               <p className="break-words text-muted-foreground">{t('updates.versions', { current: status.info?.version ?? '—', target: status.target_version })}</p>
-              <p className="mt-2" role="status">{progress ? t(phaseKeys[progress.phase]) : t(availabilityKeys[status.availability])}</p>
+              <p className="mt-2" role="status">{active(progress) ? t(phaseKeys[progress!.phase]) : t(availabilityKeys[status.availability])}</p>
+              {progress && !active(progress) && <p className="mt-2 text-muted-foreground">{t('updates.lastResult', { result: t(phaseKeys[progress.phase]) })}</p>}
               {progress?.error && <details className="mt-2"><summary className="cursor-pointer text-muted-foreground">{t('updates.diagnostics')}</summary><p className="mt-2 break-words text-destructive">{progress.error}</p></details>}
               {status.availability === 'not_enabled' && <details className="mt-2"><summary className="cursor-pointer">{t('updates.enable')}</summary><p className="mt-2 leading-relaxed text-muted-foreground">{t('updates.enableHelp')}</p><pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-sm" tabIndex={0}>ternilo updates enable --help</pre></details>}
               {progress && ['downloading', 'waiting_idle'].includes(progress.phase) && <Button className="mt-2" variant="outline" size="sm" onClick={() => void cancel(id, progress)}>{t('updates.cancel')}</Button>}

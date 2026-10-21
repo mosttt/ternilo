@@ -469,7 +469,7 @@ impl LspTool {
         let startup = async {
             let lease = self
                 .environment
-                .acquire_workspace(service_cancellation.clone())
+                .acquire_service_workspace(service_cancellation.clone())
                 .await?;
             let workspace = self
                 .environment

@@ -11,7 +11,9 @@ ternilo/
 ├── config.json
 ├── config/
 │   ├── providers.json
-│   └── agent-presets.json
+│   ├── agent-presets.json
+│   ├── client-updates.json
+│   └── client-updates-enabled.json
 ├── secrets/
 │   ├── credentials.json
 │   ├── credential-records.json
@@ -22,6 +24,9 @@ ternilo/
 │   ├── sessions/
 │   ├── attachments/objects/
 │   ├── extensions/
+│   ├── updates/
+│   │   ├── progress.json
+│   │   └── operations/<id>/apply.json
 │   └── db/
 │       ├── agent-team.sqlite3
 │       ├── inbox.sqlite3
@@ -29,16 +34,20 @@ ternilo/
 │       └── node-transport.sqlite3
 ├── cache/
 │   ├── session-search.sqlite3
-│   └── session-projections.sqlite3
+│   ├── session-projections.sqlite3
+│   └── client-updates/
 └── runtime/
     ├── service.json
     ├── service.log
     ├── writer.lock
     ├── service-start.lock
+    ├── client-update-operation.lock
     └── execution-resources.json
 ```
 
 文件按实际使用生成。SQLite 的 `-wal`、`-shm` 与主库一起保存在所属目录。`data/sessions/` 中的 JSONL 是会话事件原本，搜索与投影缓存可重建；队列、运行作者、附件和传输回执不能当作缓存删除。
+
+`data/updates/` 保存客户端更新状态与恢复计划，需随数据备份；计划含私有启动参数，按凭据同等保护。下载包和独立更新器副本放在 `cache/client-updates/`，不是恢复计划的唯一副本。程序备份留在实际安装根，不覆盖会话数据。详见[客户端更新](client-updates.md)。
 
 首次 `ternilo serve` 保存有效启动参数到私有 `config.json`。之后按“命令行 → 环境变量 → 配置文件 → 内置默认值”读取。监听、Profile、执行上限和网页开关的覆盖仅影响本次启动；Server 连接地址、系统分配的电脑 ID、凭据及明文联调开关在连接验证成功后保存，支持恢复接入后的普通重启。未登记时电脑 ID 为空。保存的 Profile 相对路径从实例目录解析；命令行 Profile 路径从启动目录解析。RPC、ACP 与一次性 `run` 保留各自的显式启动参数。
 

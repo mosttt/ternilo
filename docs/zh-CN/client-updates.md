@@ -20,9 +20,9 @@ ternilo updates enable --restart direct --data-dir "<实例目录>"
 ternilo updates enable --restart systemd --service ternilo.service --data-dir "<实例目录>"
 ```
 
-systemd 主服务必须有持久的 unit 文件；`systemd-run` 临时服务停止后会消失，不能用作客户端的重启目标。更新器自身使用独立的临时 unit，避免随旧主服务停止。
+systemd 主服务必须有持久的 unit 文件；`systemd-run` 临时服务停止后会消失，不能用作客户端的重启目标。更新器自身使用独立的临时 scope，保留原运行账号、环境与文件系统上下文，且不会随旧主服务停止。
 
-系统级 systemd 服务另外添加 `--system`。该账号必须有权限控制指定服务并创建独立的 systemd 更新单元。Supervisor 使用准确的 program 名称：
+系统级 systemd 服务另外添加 `--system`。该账号必须有权限控制指定服务并创建独立的 systemd 更新 scope。Supervisor 使用准确的 program 名称：
 
 ```sh
 ternilo updates enable --restart supervisor --service ternilo --supervisor-config "<supervisord.conf>" --data-dir "<实例目录>"
@@ -39,6 +39,8 @@ Server 从官方 GitHub Release 获取指定版本的 `client-updates.json`、`c
 Server 验签并缓存安装包，再签发仅限这台电脑、这次操作的短期下载授权。电脑通过与 Server 的 HTTPS 连接取得安装包，独立验签和验证包内容。更新命令与进度通过已认证的 WebSocket 连接传输，不另建状态上报通道。生产部署应为 Server 配置 HTTPS。
 
 下载完成后等待对话、子任务、排队任务与后台执行资源全部空闲，随后进入维护状态，暂不接受新任务。独立更新进程先检查新程序能否启动，再停止旧服务、安装完整程序包、按原方式重启并检查本机服务健康。安装成功并重新连接到 Server 后显示完成；单纯断网不会导致程序回退。下载和等待空闲阶段可以取消；安装开始后等待结果。
+
+空闲的 MCP／LSP 常驻服务不会阻止更新，会随客户端正常关闭；更新后在会话需要时重新启动。正在执行的工具调用和后台作业仍会阻止安装，不会因更新被强制终止。
 
 官网安装脚本创建的版本目录会保留：新版安装到新的 `releases/<版本>-<平台>/bin`，再切换启动脚本与插件链接，保留无参数打开浏览器的行为。手动解压的普通安装目录使用完整文件备份与替换。两种方式都不迁移或覆盖实例数据目录；新程序启动失败时恢复旧程序。
 
@@ -57,7 +59,9 @@ ternilo updates disable --data-dir "<实例目录>"
 ternilo updates recover --data-dir "<实例目录>"
 ```
 
-恢复从独立进程还原旧程序并重新启动服务。如果启动入口已损坏，使用本次更新缓存目录中的 `ternilo-update-helper`（Windows 为 `.exe`）执行上述 `updates recover` 命令。不要删除原版本目录、备份目录或 `<实例目录>/cache/client-updates/`，直到确认更新或恢复完成。
+恢复从独立进程还原旧程序并重新启动服务。若安装尚未开始，则解除中断状态并按保存的配置重新启动原程序。更新器仍在运行时会拒绝并行恢复，避免两个进程同时替换文件。
+
+恢复计划保存在 `<实例目录>/data/updates/operations/<id>/apply.json`，不依赖下载缓存，必须随数据备份。启动入口损坏时，可以用缓存中的 `ternilo-update-helper`（Windows 为 `.exe`），或重新解压官方客户端包后使用其中的 `ternilo` 执行上述恢复命令；不要覆盖原数据目录。确认更新或恢复完成前，保留原版本目录、程序备份和 `data/updates/`。
 
 发行准备失败、权限不足或服务名称不匹配时，先查看弹窗诊断并修正对应问题，再重试。不会自动降级、覆盖同名的已有版本目录，或跨数据代次安装；这类情况由本机所有者安排维护。
 

@@ -76,6 +76,24 @@ pub fn enabled(root: &Path) -> Result<bool, HarnessError> {
         .map_err(io_error)
 }
 
+/// Serialize installation/recovery across process restarts; OS locks vanish on a crash.
+pub fn operation_guard(root: &Path) -> Result<fs::File, HarnessError> {
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(root.join("runtime/client-update-operation.lock"))
+        .map_err(io_error)?;
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(fs::TryLockError::WouldBlock) => Err(HarnessError::conflict(
+            "another client update or recovery is still running; wait before retrying",
+        )),
+        Err(fs::TryLockError::Error(error)) => Err(io_error(error)),
+    }
+}
+
 pub fn write_private<T: Serialize>(path: &Path, value: &T) -> Result<(), HarnessError> {
     let parent = path
         .parent()

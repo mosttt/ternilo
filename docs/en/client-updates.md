@@ -20,9 +20,9 @@ For a user systemd service:
 ternilo updates enable --restart systemd --service ternilo.service --data-dir "<instance-directory>"
 ```
 
-The main systemd service needs a persistent unit file: a `systemd-run` transient service disappears after stopping and cannot be used as the restart target. The updater itself uses a separate transient unit so stopping the main service does not kill it.
+The main systemd service needs a persistent unit file: a `systemd-run` transient service disappears after stopping and cannot be used as the restart target. The updater uses a separate transient scope, retaining the caller’s credentials, environment and filesystem context while surviving shutdown of the main service.
 
-Add `--system` for a system-level service. The account must be able to control that service and create an independent transient update unit. For Supervisor, specify the exact program name:
+Add `--system` for a system-level service. The account must be able to control that service and create an independent transient update scope. For Supervisor, specify the exact program name:
 
 ```sh
 ternilo updates enable --restart supervisor --service ternilo --supervisor-config "<supervisord.conf>" --data-dir "<instance-directory>"
@@ -39,6 +39,8 @@ Server downloads the exact version's `client-updates.json`, `client-updates.json
 Server verifies and caches the bundle, then grants short-lived download access restricted to the computer and operation. The computer downloads it from Server over HTTPS and independently verifies the signature and bundle. Commands and progress use the existing authenticated WebSocket connection. Production Server deployments should use HTTPS.
 
 After download, the client waits for conversations, subtasks, queued work and background execution resources to become idle. Maintenance then rejects new work. An independent updater probes the new program before stopping the old service, installs the complete bundle, restarts it using the configured method and checks local service health. Completion requires reconnecting to Server with the new version. A network outage alone does not trigger rollback. Downloading and waiting operations can be cancelled; installation cannot.
+
+Idle persistent MCP/LSP services do not block updates. They shut down with the client and start again when a session needs them. Active tool calls and background jobs still block installation and are not forcibly stopped by an update.
 
 Official script installations retain version directories. The updater installs a new `releases/<version>-<target>/bin`, switches the launcher and plugin link, and retains the launcher's no-argument browser behavior. Manually extracted flat installations use a complete executable backup and replacement. Neither layout replaces or migrates instance data. Startup failure restores the previous program.
 
@@ -57,7 +59,9 @@ Disabling prevents new updates without interrupting installation already in prog
 ternilo updates recover --data-dir "<instance-directory>"
 ```
 
-An independent process restores the previous program and restarts the service. If the launcher is damaged, use `ternilo-update-helper` (`.exe` on Windows) in this operation's cache directory to run the same `updates recover` command. Retain the original release, backup directory and `<instance-directory>/cache/client-updates/` until update or recovery is confirmed.
+An independent process restores the previous program and restarts the service. If installation had not begun, recovery clears the interrupted state and restarts the original program using saved settings. Recovery refuses to run alongside an active updater.
+
+Recovery plans live at `<instance-directory>/data/updates/operations/<id>/apply.json`, independently of download caches, and belong in data backups. If the launcher is damaged, run the recovery command using cached `ternilo-update-helper` (`.exe` on Windows), or the `ternilo` binary from a freshly extracted official bundle. Do not overwrite the original instance data. Retain the original release, program backups and `data/updates/` until update or recovery is confirmed.
 
 For preparation, permission or service-name errors, inspect the dialog diagnostics and correct the cause before retrying. Downgrades, existing target release directories and data-epoch changes require local maintenance.
 

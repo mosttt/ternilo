@@ -251,7 +251,7 @@ impl McpSource {
         let mut command = super::prepare_command(&self.environment, &self.config).await?;
         let lease = self
             .environment
-            .acquire_workspace(cancellation.clone())
+            .acquire_service_workspace(cancellation.clone())
             .await?;
         cancellation.check()?;
         let transport = McpTransport::spawn(&mut command, Some(lease)).map_err(|error| {

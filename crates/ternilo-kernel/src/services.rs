@@ -370,6 +370,7 @@ service_contract! {
             async fn register_execution_resource(run_id: RunId, resource_id: String, control: Arc<dyn crate::ExecutionResourceControl>) -> Result<(), HarnessError>;
             async fn try_acquire_workspace() -> Result<Option<WorkspaceExecutionLease>, HarnessError>;
             async fn acquire_workspace(cancellation: RunCancellation) -> Result<WorkspaceExecutionLease, HarnessError>;
+            async fn acquire_service_workspace(cancellation: RunCancellation) -> Result<WorkspaceExecutionLease, HarnessError>;
             async fn resolve_input_references(references: Vec<SubmissionReference>, prepared_contexts: Vec<ReferenceContext>) -> Result<Vec<ReferenceContext>, HarnessError>;
             async fn session_mode() -> SessionMode;
             async fn permissions() -> PermissionPreset;

@@ -9,15 +9,18 @@ The root is `$XDG_DATA_HOME/ternilo`, otherwise `~/.local/share/ternilo`; `--dat
 | Location | Contents |
 |---|---|
 | `config.json` | Listener, profile layers, execution limits, Node identity and Server connection |
-| `config/` | `providers.json`, `agent-presets.json` |
+| `config/` | `providers.json`, `agent-presets.json`, client update settings and owner opt-in |
 | `secrets/` | `credentials.json`, `credential-records.json`, `model-connections.json`, `node-authorizations.json` |
 | `data/state.json`, `data/sessions/` | Workspace/session registrations and canonical JSONL event logs |
 | `data/attachments/objects/`, `data/extensions/` | Attachment objects and installed extensions |
 | `data/db/` | Agent Team, inbox, preferences and Node transport SQLite databases |
-| `cache/` | Session search and projection SQLite indexes |
-| `runtime/` | Service discovery, Desktop's `service.log`, writer/startup locks and execution resource cleanup records |
+| `data/updates/` | Update progress and durable `operations/<id>/apply.json` recovery plans |
+| `cache/` | Session indexes and rebuildable client update downloads/helpers |
+| `runtime/` | Service discovery, Desktop's `service.log`, writer/startup/update-operation locks and execution resource cleanup records |
 
 SQLite `-wal` and `-shm` files stay beside their database. Queues, input authors, attachments and transport receipts are durable data, not disposable caches.
+
+Include `data/updates/` in backups. Recovery plans contain private startup arguments and need credential-level protection. Downloads and independent helper copies are cached under `cache/client-updates/`; recovery metadata is durable, not cache-only. Program backups remain at the actual installation root. See [client updates](client-updates.md).
 
 The first `ternilo serve` saves its effective settings privately. Subsequent launches resolve CLI, environment, saved configuration and built-in defaults in that order. Listener, profile, execution-limit and web overrides apply only to that launch. After a verified Server connection, its address, system-assigned computer ID, credential and plaintext-development setting are saved for subsequent restarts, including access recovery. Unregistered instances have an empty computer ID. Saved relative profile paths resolve from the instance root, while CLI paths resolve from the launch directory. RPC, ACP and one-shot `run` retain their explicit startup options.
 

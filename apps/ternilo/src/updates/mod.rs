@@ -109,9 +109,23 @@ impl RemoteUpdater {
                     .await?
                     .is_some_and(|service| service.info.version == progress.version)
             {
-                progress.phase = ClientUpdatePhase::Completed;
-                progress.revision += 1;
-                write_private(&root.join("data/updates/progress.json"), progress)?;
+                match config::operation_guard(root) {
+                    Ok(_operation) => {
+                        // The helper may have reported a failure while the health request was in flight.
+                        if let Some(latest) = read_progress(root)? {
+                            *progress = latest;
+                        }
+                        if progress.phase == ClientUpdatePhase::AwaitingReconnect
+                            && progress.version == env!("CARGO_PKG_VERSION")
+                        {
+                            progress.phase = ClientUpdatePhase::Completed;
+                            progress.revision += 1;
+                            write_private(&root.join("data/updates/progress.json"), progress)?;
+                        }
+                    }
+                    Err(error) if error.code == ternilo_protocol::ErrorCode::Conflict => {}
+                    Err(error) => return Err(error),
+                }
             }
         }
         Ok(ClientUpdateInfo {
@@ -234,6 +248,7 @@ impl RemoteUpdater {
         request.validate()?;
         validate_request_id(&request.id)?;
         let root = self.application.data_dir();
+        let operation = config::operation_guard(root)?;
         if !self.enabled_at_start {
             return Err(HarnessError::policy(
                 "restart this client once after enabling remote updates",
@@ -279,9 +294,10 @@ impl RemoteUpdater {
             if let Some(previous) = &state.progress {
                 if previous.id == request.id {
                     drop(state);
+                    drop(operation);
                     return self.info().await;
                 }
-                if !previous.phase.terminal() {
+                if !previous.phase.terminal() || state.cancellation.is_some() {
                     return Err(HarnessError::conflict(
                         "another client update is still active",
                     ));
@@ -298,6 +314,7 @@ impl RemoteUpdater {
             state.progress = Some(progress);
             state.cancellation = Some(cancellation.clone());
         }
+        drop(operation);
         let _ = self.report().await;
         let updater = Arc::clone(self);
         tokio::spawn(async move {
@@ -382,8 +399,6 @@ impl RemoteUpdater {
             }
             tokio::select! { () = cancellation.cancelled() => return Err(HarnessError::cancelled("client update cancelled")), () = tokio::time::sleep(Duration::from_secs(1)) => {} }
         };
-        self.set_progress(ClientUpdatePhase::Installing, None)
-            .await?;
         let service_id = crate::service::discover(root)
             .await?
             .ok_or_else(|| {
@@ -406,8 +421,13 @@ impl RemoteUpdater {
             previous_version: env!("CARGO_PKG_VERSION").to_owned(),
             arguments: std::env::args().skip(1).collect(),
         };
-        let path = cache.join("apply.json");
+        let path = root
+            .join("data/updates/operations")
+            .join(&plan.request.id)
+            .join("apply.json");
         write_private(&path, &plan)?;
+        self.set_progress(ClientUpdatePhase::Installing, None)
+            .await?;
         let result = apply::run_helper(&plan, &path, &cache).await;
         drop(maintenance);
         result

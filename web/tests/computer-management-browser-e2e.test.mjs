@@ -70,7 +70,7 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     assert.equal(await updates.getByRole('button', { name: '更新所选电脑（0）', exact: true }).isEnabled(), false)
     if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
       await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
-      await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'client-updates-desktop.png'), fullPage: true })
+      await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'client-updates-desktop.png'), fullPage: true, animations: 'disabled' })
     }
     await page.setViewportSize({ width: 390, height: 600 })
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'update dialog fits the mobile width')
@@ -79,6 +79,17 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     await updates.locator('[data-slot="dialog-footer"]').getByRole('button', { name: '关闭', exact: true }).click()
     await updates.waitFor({ state: 'detached' })
     await page.setViewportSize({ width: 1365, height: 900 })
+    const updatePattern = `**/api/v1${endpoint}/updates**`
+    const updateSnapshot = await serverRequest(origin, `${endpoint}/updates`, scope)
+    const completed = { id: 'completed-browser-fixture', version: updateSnapshot.target_version, phase: 'completed', revision: 5, error: null }
+    await page.route(updatePattern, route => route.fulfill({ json: { ...updateSnapshot, connected: false, availability: 'offline', info: { ...updateSnapshot.info, progress: completed }, job: completed } }))
+    await card.getByRole('button', { name: '更新客户端', exact: true }).click()
+    await updates.getByText('电脑离线，上线后才能更新', { exact: true }).waitFor()
+    await updates.getByText('最近一次更新：更新完成，电脑已重新连接', { exact: true }).waitFor()
+    assert.equal(await updates.getByRole('button', { name: '更新所选电脑（0）', exact: true }).isEnabled(), false)
+    if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'client-updates-offline-after-completion.png'), fullPage: true, animations: 'disabled' })
+    await updates.locator('[data-slot="dialog-footer"]').getByRole('button', { name: '关闭', exact: true }).click()
+    await page.unroute(updatePattern)
     await card.getByRole('button', { name: '详情与编辑', exact: true }).click()
     const dialog = page.locator('[data-computer-details]')
     await dialog.getByText(executorId, { exact: true }).waitFor({ state: 'visible' })
@@ -127,7 +138,7 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     assert.ok(actionBoxes.every((box, index) => box.height >= 40 && (!index || box.top > actionBoxes[index - 1].top)))
     assert.ok(actionBoxes.every(box => box.left >= 0 && box.right <= 390), 'Each mobile computer action occupies its own visible row')
     const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
-    if (artifacts) { await mkdir(artifacts, { recursive: true }); await page.screenshot({ path: path.join(artifacts, 'computer-management-mobile.png'), fullPage: true }) }
+    if (artifacts) { await mkdir(artifacts, { recursive: true }); await page.screenshot({ path: path.join(artifacts, 'computer-management-mobile.png'), fullPage: true, animations: 'disabled' }) }
     const before = await serverRequest(origin, `/sessions/${sessionId}/history?limit=1000`, scope)
     await card.getByRole('button', { name: '移除登记', exact: true }).click()
     const remove = page.getByRole('dialog', { name: '移除这台电脑登记？', exact: true })
@@ -184,7 +195,8 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     ]) {
       await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale)
       await page.goto(`${origin}/settings/computers`)
-      await page.getByRole('button', { name: title, exact: true }).click()
+      // The toolbar precedes row actions, whose Korean label is the same.
+      await page.getByRole('button', { name: title, exact: true }).first().click()
       const batch = page.locator('[data-computer-updates]')
       await batch.getByText(offline, { exact: true }).first().waitFor()
       assert.equal(await batch.locator('[data-computer-update]').count(), 9)
@@ -195,12 +207,12 @@ test('computer management edits metadata, suspends and resumes the same Node, an
       })
       assert.ok(bounds.total > bounds.visible && bounds.top > 0, 'batch computer list must really scroll on mobile')
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
-      if (artifacts) await page.screenshot({ path: path.join(artifacts, `client-updates-mobile-${locale}.png`), fullPage: true })
+      if (artifacts) await page.screenshot({ path: path.join(artifacts, `client-updates-mobile-${locale}.png`), fullPage: true, animations: 'disabled' })
       await batch.locator('[data-slot="dialog-footer"]').getByRole('button', { name: close, exact: true }).click()
     }
     assert.deepEqual(errors, [])
   } catch (error) {
-    if (page && process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'computer-management-failure.png'), fullPage: true }).catch(() => {})
+    if (page && process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'computer-management-failure.png'), fullPage: true, animations: 'disabled' }).catch(() => {})
     throw new Error(`${error.stack}\n${server?.diagnostics() ?? ''}\n${node?.diagnostics() ?? ''}`)
   } finally {
     await browser?.close()

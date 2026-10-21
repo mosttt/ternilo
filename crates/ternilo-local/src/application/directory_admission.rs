@@ -118,4 +118,20 @@ impl WorkspaceExecution for SessionDirectoryExecution {
             Ok(WorkspaceExecutionLease::hold((lease, permit)))
         })
     }
+
+    fn acquire_service<'a>(
+        &'a self,
+        cancellation: RunCancellation,
+    ) -> Pin<Box<dyn Future<Output = Result<WorkspaceExecutionLease, HarnessError>> + Send + 'a>>
+    {
+        Box::pin(async move {
+            // Startup and calls hold work admission; idle services close with the host.
+            let _permit = Arc::clone(&self.maintenance)
+                .try_read_owned()
+                .map_err(|_| {
+                    HarnessError::unavailable("this computer is installing a client update")
+                })?;
+            self.binding().await?.acquire(cancellation).await
+        })
+    }
 }

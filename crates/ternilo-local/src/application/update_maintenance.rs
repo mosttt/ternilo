@@ -65,4 +65,90 @@ mod tests {
         assert!(app.accept_update_safe_work().is_ok());
         app.close().await.unwrap();
     }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn idle_session_services_retain_directory_ownership_without_blocking_updates() {
+        use ternilo_protocol::{PluginEntry, SessionServiceStatus};
+
+        for protocol in ["mcp", "lsp"] {
+            let root = tempfile::tempdir().unwrap();
+            let workspace = root.path().join("workspace");
+            std::fs::create_dir(&workspace).unwrap();
+            let mut profile = crate::local_profile();
+            profile.plugins.push(PluginEntry {
+                id: "idle-service".to_owned(),
+                kind: format!("ternilo.{protocol}.stdio"),
+                enabled: true,
+                config: serde_json::json!({
+                    "server_name": "fixture", "command": "/bin/sh",
+                    "args": ["-c", STDIO_SERVICE], "env": {"PROTOCOL": protocol},
+                }),
+            });
+            let mut app = LocalApplication::open(
+                crate::catalog().unwrap(),
+                profile,
+                HostPolicy::local(RunLimits::default()),
+                root.path().join("data"),
+            )
+            .await
+            .unwrap();
+            app.directory_coordinator = crate::DirectoryCoordinator::new(root.path().join("locks"));
+            let binding = app
+                .add_workspace(workspace.to_str().unwrap())
+                .await
+                .unwrap();
+            app.create_session(binding.workspace_id, Some("service".to_owned()), None)
+                .await
+                .unwrap();
+            let id = format!("{protocol}:fixture");
+            let service = app
+                .start_session_service("service", id.clone())
+                .await
+                .unwrap();
+            assert_eq!(service.status, SessionServiceStatus::Running);
+            let outsider = app
+                .directory_coordinator
+                .bind("unrelated".to_owned(), workspace);
+            assert!(outsider.try_acquire().await.unwrap().is_none());
+
+            let guard = app
+                .try_client_update_maintenance()
+                .await
+                .unwrap()
+                .expect("an idle session service must not keep an update waiting forever");
+            assert!(app.start_session_service("service", id).await.is_err());
+            app.close().await.unwrap();
+            assert!(outsider.try_acquire().await.unwrap().is_some());
+            drop(guard);
+        }
+    }
+
+    #[cfg(unix)]
+    const STDIO_SERVICE: &str = r#"
+while :; do
+  if [ "$PROTOCOL" = mcp ]; then IFS= read -r body || exit 0
+  else
+    IFS= read -r header || exit 0
+    length=$(printf '%s' "$header" | tr -d '\r' | sed 's/Content-Length: //')
+    IFS= read -r blank || exit 0
+    body=$(dd bs=1 count="$length" 2>/dev/null)
+  fi
+  case "$body" in *'"method":"exit"'*) exit 0 ;; esac
+  id=$(printf '%s' "$body" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
+  [ -n "$id" ] || continue
+  case "$body" in
+    *'"method":"initialize"'*)
+      if [ "$PROTOCOL" = mcp ]; then
+        version=$(printf '%s' "$body" | sed -n 's/.*"protocolVersion":"\([^"]*\)".*/\1/p')
+        result="{\"protocolVersion\":\"$version\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{\"name\":\"fixture\",\"version\":\"1\"}}"
+      else result='{"capabilities":{}}'; fi ;;
+    *'"method":"tools/list"'*) result='{"tools":[]}' ;;
+    *) result=null ;;
+  esac
+  reply="{\"jsonrpc\":\"2.0\",\"id\":$id,\"result\":$result}"
+  if [ "$PROTOCOL" = mcp ]; then printf '%s\n' "$reply"
+  else printf 'Content-Length: %s\r\n\r\n%s' "${#reply}" "$reply"; fi
+done
+"#;
 }

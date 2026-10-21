@@ -1,6 +1,8 @@
 use super::{
     ApplyPlan, DATA_EPOCH,
-    config::{RestartMethod, io_error, load_settings, write_private},
+    config::{
+        RestartMethod, UpdateSettings, io_error, load_settings, operation_guard, write_private,
+    },
     read_progress, validate_request_id,
 };
 use std::{
@@ -17,6 +19,7 @@ pub async fn apply(path: &Path) -> Result<(), HarnessError> {
     let plan: ApplyPlan = serde_json::from_slice(&fs::read(path).map_err(io_error)?)
         .map_err(|_| HarnessError::invalid("invalid private update installation plan"))?;
     validate_request_id(&plan.request.id)?;
+    let _operation = operation_guard(&plan.data_dir)?;
     let result = apply_inner(&plan).await;
     if let Err(error) = &result {
         let _ = progress(&plan, ClientUpdatePhase::Failed, Some(error.to_string()));
@@ -29,6 +32,7 @@ pub async fn recover(path: &Path) -> Result<(), HarnessError> {
     let plan: ApplyPlan = serde_json::from_slice(&fs::read(path).map_err(io_error)?)
         .map_err(|_| HarnessError::invalid("invalid private recovery plan"))?;
     validate_request_id(&plan.request.id)?;
+    let _operation = operation_guard(&plan.data_dir)?;
     let release = SignedRelease {
         manifest: plan.request.manifest.clone(),
         signature: plan.request.signature.clone(),
@@ -58,10 +62,33 @@ pub async fn recover(path: &Path) -> Result<(), HarnessError> {
         .map_err(io_error)?;
     lock.try_lock()
         .map_err(|_| HarnessError::conflict("another process is using this client installation"))?;
-    if !plan.backup.is_dir() {
-        return Err(HarnessError::invalid(
-            "no previous program backup exists for this update",
+    if read_progress(&plan.data_dir)?.is_none_or(|progress| progress.id != plan.request.id) {
+        return Err(HarnessError::conflict(
+            "client update operation was replaced",
         ));
+    }
+    if !plan.backup.is_dir() {
+        probe_version(
+            &plan.settings.installation.bin().join(executable()),
+            &plan.previous_version,
+        )
+        .await?;
+        let marker = plan
+            .settings
+            .installation
+            .control_dir()
+            .join(".ternilo-installing.json");
+        if marker.try_exists().map_err(io_error)? {
+            clear_marker(&marker)?;
+        }
+        progress(
+            &plan,
+            ClientUpdatePhase::Failed,
+            Some("update stopped before program replacement; original program retained".into()),
+        )?;
+        drop(lock);
+        start_service(&plan).await?;
+        return wait_for_version(&plan.data_dir, &plan.previous_version).await;
     }
     // The CLI that launched this helper may still be releasing its executable on Windows.
     let marker = plan
@@ -377,6 +404,28 @@ async fn start_service(plan: &ApplyPlan) -> Result<(), HarnessError> {
         manager => manager_command(manager, "start").await,
     }
 }
+pub(super) async fn start_saved_service(
+    root: &Path,
+    settings: &UpdateSettings,
+) -> Result<(), HarnessError> {
+    match &settings.restart {
+        RestartMethod::Direct => {
+            let mut command =
+                std::process::Command::new(settings.installation.bin().join(executable()));
+            command
+                .args(["serve", "--data-dir"])
+                .arg(root)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            detach(&mut command);
+            command.spawn().map_err(io_error)?;
+            Ok(())
+        }
+        manager => manager_command(manager, "start").await,
+    }
+}
+
 async fn manager_command(manager: &RestartMethod, action: &str) -> Result<(), HarnessError> {
     let mut command = match manager {
         RestartMethod::Systemd { unit, user } => {
@@ -450,16 +499,16 @@ pub(super) async fn run_helper(
         command
             .arg("--quiet")
             .arg("--collect")
-            .arg("--wait")
+            .arg("--scope")
             .arg(format!("--unit=ternilo-update-{}", plan.request.id))
             .arg("--")
             .arg(&helper);
         command
     } else {
-        let mut command = std::process::Command::new(&helper);
-        detach(&mut command);
-        command
+        std::process::Command::new(&helper)
     };
+    // A scope retains the caller's credentials, environment and filesystem namespace.
+    detach(&mut command);
     command
         .arg("update-apply")
         .arg("--plan")

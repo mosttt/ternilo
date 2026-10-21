@@ -83,6 +83,13 @@ fn enable(
     supervisor_config: Option<PathBuf>,
 ) -> Result<(), HarnessError> {
     let root = root(data_dir)?;
+    let _operation = super::config::operation_guard(&root)?;
+    if read_progress(&root)?.is_some_and(|progress| !progress.phase.terminal()) {
+        return Err(HarnessError::conflict(
+            "finish or cancel the current update before changing its settings",
+        ));
+    }
+
     let service = || {
         service.ok_or_else(|| {
             HarnessError::invalid("--service is required for the selected restart method")
@@ -149,13 +156,15 @@ fn enable(
     } else {
         write_private(&owner, &root)?;
     }
-    let _lock = OpenOptions::new()
+    let lock = OpenOptions::new()
         .create(true)
         .truncate(false)
         .read(true)
         .write(true)
         .open(installation.control_dir().join(".ternilo-update.lock"))
         .map_err(io_error)?;
+    lock.sync_all().map_err(io_error)?;
+    super::installation::sync_directory(installation.control_dir())?;
     write_private(
         &root.join("config/client-updates.json"),
         &UpdateSettings {
@@ -177,12 +186,14 @@ async fn recover_command(data_dir: Option<PathBuf>) -> Result<(), HarnessError> 
             "stop this Ternilo service before recovering an interrupted update",
         ));
     }
-    let progress = read_progress(&root)?
+    let mut progress = read_progress(&root)?
         .ok_or_else(|| HarnessError::invalid("there is no client update to recover"))?;
     super::validate_request_id(&progress.id)?;
     if !matches!(
         progress.phase,
-        ternilo_protocol::ClientUpdatePhase::Installing
+        ternilo_protocol::ClientUpdatePhase::Downloading
+            | ternilo_protocol::ClientUpdatePhase::WaitingIdle
+            | ternilo_protocol::ClientUpdatePhase::Installing
             | ternilo_protocol::ClientUpdatePhase::AwaitingReconnect
             | ternilo_protocol::ClientUpdatePhase::Failed
     ) {
@@ -190,13 +201,53 @@ async fn recover_command(data_dir: Option<PathBuf>) -> Result<(), HarnessError> 
             "this client update does not need binary recovery",
         ));
     }
+    let operation = super::config::operation_guard(&root)?;
     let directory = root.join("cache/client-updates").join(&progress.id);
-    let plan = directory.join("apply.json");
+    let plan = root
+        .join("data/updates/operations")
+        .join(&progress.id)
+        .join("apply.json");
     if !plan.is_file() {
-        return Err(HarnessError::invalid(
-            "installation did not start; the original program is unchanged",
-        ));
+        let settings = load_settings(&root)?
+            .ok_or_else(|| HarnessError::invalid("client update settings are missing"))?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(
+                settings
+                    .installation
+                    .control_dir()
+                    .join(".ternilo-update.lock"),
+            )
+            .map_err(io_error)?;
+        lock.try_lock().map_err(|_| {
+            HarnessError::conflict("stop every service using this installation before recovery")
+        })?;
+        if settings
+            .installation
+            .control_dir()
+            .join(".ternilo-installing.json")
+            .try_exists()
+            .map_err(io_error)?
+        {
+            return Err(HarnessError::unavailable(
+                "installation recovery plan is missing; restore data/updates from your backup before recovering",
+            ));
+        }
+        progress.phase = ternilo_protocol::ClientUpdatePhase::Failed;
+        progress.revision += 1;
+        progress.error =
+            Some("update stopped before installation; original program retained".into());
+        write_private(&root.join("data/updates/progress.json"), &progress)?;
+        drop(lock);
+        super::apply::start_saved_service(&root, &settings).await?;
+        println!(
+            "The original program is unchanged. Service restart requested; retry the update after it reconnects."
+        );
+        return Ok(());
     }
+    drop(operation);
+    fs::create_dir_all(&directory).map_err(io_error)?;
     let helper = directory.join(if cfg!(windows) {
         "ternilo-recovery-helper.exe"
     } else {
