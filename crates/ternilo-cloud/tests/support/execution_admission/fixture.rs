@@ -426,6 +426,7 @@ pub(super) fn registration(
         storage_id: "capacity-storage".to_owned(),
         root_id: "capacity-root".to_owned(),
         hello: ExecutorHello {
+            client: None,
             protocol_version: ternilo_transport::EXECUTOR_PROTOCOL_VERSION,
             executor_id: ExecutorId::new(worker),
             executor_kind: ExecutorKind::CloudWorker,

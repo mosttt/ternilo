@@ -1,0 +1,60 @@
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { LocaleProvider } from '@/i18n/provider'
+import type { ManagedExecutionTarget } from '@/types'
+import { ComputerUpdatesDialog } from './computer-updates-dialog'
+const request = vi.hoisted(() => vi.fn())
+vi.mock('@/api/client', () => ({ api: { request } }))
+let host: HTMLDivElement, root: Root
+const computer = (id: string): ManagedExecutionTarget => ({ executor_id: id, name: id, project_id: null, connected: true, state: 'active', enrolled_at_ms: 1, last_seen_at_ms: 1, management: { name: id, notes: '', suspended_at_ms: null, removed_at_ms: null, revision: 0 } })
+const status = (availability: string, job: unknown = null) => ({ connected: availability !== 'offline', target_version: '0.2.21', availability, info: { version: '0.2.20', target: 'x86_64-unknown-linux-gnu', enabled: availability !== 'not_enabled', restart_method: 'direct', progress: null }, job })
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
+  request.mockReset()
+  host = document.createElement('div'); document.body.append(host); root = createRoot(host)
+})
+afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+const buttons = () => [...document.querySelectorAll<HTMLButtonElement>('[data-computer-updates] button')]
+const button = (label: string) => buttons().find(button => button.textContent === label)!
+async function render(ids: string[]) { await act(async () => root.render(<LocaleProvider><ComputerUpdatesDialog tenantId="personal-space" computers={ids.map(computer)} onClose={vi.fn()} /></LocaleProvider>)) }
+
+it('batch submission only targets selected eligible owned computers', async () => {
+  request.mockImplementation(async (path: string, options: { method?: string; body?: { id: string } }) => {
+    if (options?.method === 'POST') return { job: { id: options.body!.id, version: '0.2.21', phase: 'preparing', revision: 0, error: null } }
+    return status(path.includes('/ready/') ? 'available' : path.includes('/current/') ? 'current' : 'offline')
+  })
+  await render(['ready', 'current', 'offline'])
+  const checkboxes = [...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
+  expect(checkboxes.map(input => input.disabled)).toEqual([false, true, true])
+  await act(async () => button('选择所有可更新的电脑').click())
+  await act(async () => button('更新所选电脑（1）').click())
+  const calls = request.mock.calls.filter(([, options]) => options?.method === 'POST')
+  expect(calls).toHaveLength(1)
+  expect(calls[0][0]).toBe('/tenants/personal-space/my-computers/ready/updates')
+  expect(calls[0][1].body.id).toMatch(/^[a-z0-9-]{16,64}$/)
+  expect(document.querySelector('[data-computer-update="ready"]')?.textContent).toContain('Server 正在准备并验证发行包')
+})
+
+it('offers cancellation while waiting for work, but not while binaries are being installed', async () => {
+  let waiting = { id: 'operation-12345678', version: '0.2.21', phase: 'waiting_idle', revision: 2, error: null }
+  request.mockImplementation(async (path: string, options: { method?: string }) => {
+    if (options?.method === 'DELETE') { waiting = { ...waiting, phase: 'cancelled', revision: 3 }; return {} }
+    return status('available', path.includes('/waiting/') ? waiting : { ...waiting, id: 'installing-12345678', phase: 'installing' })
+  })
+  await render(['waiting', 'installing'])
+  expect(buttons().filter(button => button.textContent === '取消更新')).toHaveLength(1)
+  expect(button('更新所选电脑（0）').disabled).toBe(true)
+  await act(async () => button('取消更新').click())
+  expect(request).toHaveBeenCalledWith('/tenants/personal-space/my-computers/waiting/updates/operation-12345678', expect.objectContaining({ method: 'DELETE' }))
+  expect(document.querySelector('[data-computer-update="waiting"]')?.textContent).toContain('更新已取消')
+})
+
+it('requires explicit local enablement and never silently enables or updates a computer', async () => {
+  request.mockResolvedValue(status('not_enabled'))
+  await render(['disabled'])
+  expect(button('更新所选电脑（0）').disabled).toBe(true)
+  expect(document.querySelector('[data-computer-update]')?.textContent).toContain('ternilo updates enable --help')
+  expect(request.mock.calls.every(([, options]) => !options?.method)).toBe(true)
+})

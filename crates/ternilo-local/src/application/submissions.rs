@@ -138,6 +138,7 @@ impl LocalApplication {
         provenance: InputProvenance,
     ) -> Result<SessionSubmission, HarnessError> {
         self.stopping.check()?;
+        let _maintenance = self.accept_update_safe_work()?;
         request.validate()?;
         provenance.validate()?;
         self.account_authorizations.check(Some(&provenance)).await?;

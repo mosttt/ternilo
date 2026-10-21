@@ -8,6 +8,7 @@ use crate::platform::{edge::EdgeGateway, security::SecurityState};
 
 #[derive(Clone)]
 pub(crate) struct AppState {
+    pub(crate) client_updates: Arc<super::client_updates::UpdateCache>,
     pub(crate) store: ControlStore,
     pub(crate) cloud: CloudStore,
     pub(crate) cloud_events: CloudSessionEventFeed,

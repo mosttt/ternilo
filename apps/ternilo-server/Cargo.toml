@@ -18,6 +18,9 @@ reqwest.workspace = true
 rpassword = "7.4"
 sha2.workspace = true
 tempfile.workspace = true
+semver.workspace = true
+tokio-util = { workspace = true, features = ["io"] }
+ternilo-update.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

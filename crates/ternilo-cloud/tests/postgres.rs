@@ -588,6 +588,7 @@ async fn queue_contract(
         CloudRunState::CancelRequested
     );
     let cancel_hello = ExecutorHello {
+        client: None,
         protocol_version: EXECUTOR_PROTOCOL_VERSION,
         executor_id: ExecutorId::new("worker-a"),
         executor_kind: ExecutorKind::CloudWorker,

@@ -1,0 +1,28 @@
+[package]
+name = "ternilo-update"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+flate2 = "1.1.9"
+tar = "0.4.46"
+zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2"] }
+base64.workspace = true
+ed25519-dalek.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+semver.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+futures-util.workspace = true
+ternilo-protocol.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+
+[lints]
+workspace = true

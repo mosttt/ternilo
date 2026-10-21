@@ -106,6 +106,7 @@ impl Fixture {
             .unwrap()
             .unwrap();
         let hello = ExecutorHello {
+            client: None,
             protocol_version: EXECUTOR_PROTOCOL_VERSION,
             executor_id: route.executor_id.clone(),
             executor_kind: ExecutorKind::EdgeNode,
@@ -230,6 +231,7 @@ impl Fixture {
         let worker_policy = crate::platform::load_worker_policy(None, &catalog).unwrap();
         let (shutdown, receiver) = tokio::sync::watch::channel(false);
         let state = AppState {
+            client_updates: crate::platform::client_updates::UpdateCache::temporary(),
             store: self.store.clone(),
             cloud,
             cloud_events: CloudSessionEventFeed::from_database(self.store.database().clone())

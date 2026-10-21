@@ -336,6 +336,7 @@ pub(super) fn validate_body(
     capabilities: &std::collections::BTreeSet<ternilo_transport::ExecutorCapability>,
 ) -> Result<(), HarnessError> {
     match body {
+        ExecutorCommandBody::ClientUpdate { command } => command.validate(),
         ExecutorCommandBody::Application { request } => {
             request.validate()?;
             request.validate_executor_capabilities(capabilities)

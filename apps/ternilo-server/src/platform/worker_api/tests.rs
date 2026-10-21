@@ -117,6 +117,7 @@ async fn http_worker_protocol_uses_canonical_leases_and_rechecks_revocation() {
         .unwrap();
     let (shutdown, receiver) = tokio::sync::watch::channel(false);
     let state = AppState {
+        client_updates: crate::platform::client_updates::UpdateCache::temporary(),
         cloud_events: ternilo_cloud::CloudSessionEventFeed::from_database(
             control.database().clone(),
         )
@@ -165,6 +166,7 @@ async fn http_worker_protocol_uses_canonical_leases_and_rechecks_revocation() {
             max_resident_runs: 3,
         },
         hello: ExecutorHello {
+            client: None,
             protocol_version: EXECUTOR_PROTOCOL_VERSION,
             executor_id: grant.worker_id.clone(),
             executor_kind: ExecutorKind::CloudWorker,

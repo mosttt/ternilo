@@ -133,6 +133,7 @@ async fn accepted_commands_survive_disconnect_and_finish_durable_replies_before_
     let replies = Arc::new(ReplyCache::open(reply_path.clone()).await.unwrap());
     let commands = TaskTracker::new();
     connect_once(ConnectionConfig {
+        updates: None,
         gateway_url: &address,
         token: "test-token",
         executor_id: &ExecutorId::new("node"),
@@ -168,7 +169,8 @@ async fn accepted_commands_survive_disconnect_and_finish_durable_replies_before_
         panic!("accepted command must have a completed reply before the service exits")
     };
     let restored = ReplyCache::open(reply_path).await.unwrap();
-    let recovered = execute_command(Arc::clone(&application), &scope, command, &restored).await;
+    let recovered =
+        execute_command(Arc::clone(&application), &scope, command, &restored, None).await;
     assert_eq!(
         serde_json::to_value(recovered).unwrap(),
         serde_json::to_value(reply).unwrap()

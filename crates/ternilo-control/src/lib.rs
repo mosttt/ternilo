@@ -6,6 +6,8 @@ mod account_status_store;
 mod account_store;
 pub use account_status_store::AccountStatusAction;
 mod auth;
+mod client_updates;
+pub use client_updates::ClientUpdateJob;
 mod computer_management;
 mod computer_models;
 pub use computer_management::{ComputerDetails, ComputerManagement, ComputerUpdate};

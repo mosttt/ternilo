@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 
-use std::{collections::BTreeSet, path::Path, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use salvo_core::{
     http::StatusCode,
@@ -56,6 +61,7 @@ use spaces::{
     list_memberships, list_projects, list_tenants, list_workspaces, remove_membership,
     rename_project, set_membership,
 };
+mod client_updates;
 mod computers;
 use computers::{
     consume_enrollment, create_enrollment, create_owned_enrollment, get_managed_computer,
@@ -161,7 +167,18 @@ pub(crate) async fn prepare(
     let runtime_edge = Arc::clone(&edge);
     let (shutdown, shutdown_receiver) = tokio::sync::watch::channel(false);
     let model_maintenance = models::start_maintenance(store.clone(), shutdown_receiver.clone());
+    let update_cache = std::env::var_os("TERNILO_SERVER_UPDATE_CACHE").map_or_else(
+        || {
+            config
+                .workspace_root
+                .parent()
+                .unwrap_or(Path::new("."))
+                .join("client-update-cache")
+        },
+        PathBuf::from,
+    );
     let app = web_router(AppState {
+        client_updates: Arc::new(client_updates::UpdateCache::new(update_cache)),
         store,
         cloud,
         cloud_events,
@@ -236,6 +253,7 @@ fn web_router(state: AppState) -> Router {
         .push(model_gateway::router())
         .push(model_gateway::node_router())
         .push(node_cleanup::router())
+        .push(client_updates::download_router())
         .push(Router::with_path("health").get(health))
         .push(api_router())
 }
@@ -299,6 +317,12 @@ fn api_router() -> Router {
                     Router::with_path("{executor_id}")
                         .get(get_owned_computer)
                         .patch(update_owned_computer)
+                        .push(
+                            Router::with_path("updates")
+                                .get(client_updates::status)
+                                .post(client_updates::start)
+                                .push(Router::with_path("{id}").delete(client_updates::cancel)),
+                        )
                         .delete(revoke_owned_executor)
                         .push(Router::with_path("suspension").put(suspend_owned_computer))
                         .push(Router::with_path("recovery").post(recover_owned_computer))

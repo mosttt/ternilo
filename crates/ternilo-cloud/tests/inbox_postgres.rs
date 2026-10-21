@@ -1178,6 +1178,7 @@ async fn inbox_contract(
         ExecutorCapability::SessionSteering,
     ]);
     let worker_b_hello = ExecutorHello {
+        client: None,
         protocol_version: EXECUTOR_PROTOCOL_VERSION,
         executor_id: ExecutorId::new("worker-b"),
         executor_kind: ExecutorKind::CloudWorker,
@@ -1190,6 +1191,7 @@ async fn inbox_contract(
         .await
         .unwrap();
     let primary_worker_hello = ExecutorHello {
+        client: None,
         protocol_version: EXECUTOR_PROTOCOL_VERSION,
         executor_id: ExecutorId::new("worker-a"),
         executor_kind: ExecutorKind::CloudWorker,

@@ -43,6 +43,14 @@ PR 检查只读仓库，不使用 `pull_request_target`、部署密钥或发布 
 
 GHCR 上传仅在镜像作业取得 `packages: write`，使用 GitHub 自带的 `GITHUB_TOKEN`；Release 发布作业才取得 `contents: write`。源码 checkout 不保留 Git 凭据。仓库应允许 Actions，并为 `main` 配置必需检查；环境保护和标签发布权限由维护者在 GitHub 设置。
 
+## 客户端远程更新签名
+
+稳定版在检查、全部平台打包与镜像发布成功后，进入 `client-update-signing` 受保护环境生成 `client-updates.json` 及 `client-updates.json.sig`。该环境只允许 `v*` 标签，Secret `TERNILO_UPDATE_SIGNING_KEY` 保存专用 Ed25519 私钥；公钥固定在 `crates/ternilo-update/release-public-key.txt`。签名脚本核对密钥匹配，并只对本次已验收的完整客户端包生成清单。私钥不进入发布附件、Server 镜像或客户端。
+
+`.github/client-update-policy.json` 指定最低客户端版本、Server 版本范围及数据代次。更改 Executor 协议或持久数据格式时必须同时收紧对应范围，安排首次统一升级，不能仅通过放宽清单来跨越协议或数据边界。正式版缺少有效签名产物就不能公开 Release；预发行版不生成远程更新清单。签名清单同其他附件一起纳入 `SHA256SUMS`。此签名独立于桌面安装器的系统代码签名／公证。
+
+客户端安装与恢复见[客户端更新](client-updates.md)。
+
 ## Server 镜像
 
 发行镜像包含 `linux/amd64` 与 `linux/arm64`。两种架构在各自的原生 GitHub Runner 上从同一源码和固定 Linorun 构建 `server` target，并分别验证初始化、原生登录、实例设置、嵌入网页、只读根文件系统、UID 10001 和重启持久化。每份已验收镜像及 image ID 暂存一天；发布作业等待全部检查及六个目标打包通过，加载镜像并核对 image ID 与架构，再按不可变来源提交标签推送各架构镜像。最终版本标签和 `sha-<commit>` 指向由这两份摘要组成的多平台索引；发布前核对索引的架构和摘要集合。过期候选必须重建，失败不会进入公开 Release。

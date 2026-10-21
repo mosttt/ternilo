@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod client_updates;
+pub use client_updates::{ClientUpdateInfo, ClientUpdatePhase, ClientUpdateProgress};
 mod context_handoff;
 mod context_usage;
 pub use context_usage::ModelContextUsage;

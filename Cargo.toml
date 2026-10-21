@@ -21,6 +21,7 @@ members = [
     "crates/ternilo-storage",
     "crates/ternilo-transport",
     "crates/ternilo-transport-store",
+    "crates/ternilo-update",
 ]
 exclude = ["examples/wasm-echo-plugin"]
 resolver = "3"
@@ -110,6 +111,7 @@ ternilo-rhai = { path = "crates/ternilo-rhai" }
 ternilo-storage = { path = "crates/ternilo-storage" }
 ternilo-transport = { path = "crates/ternilo-transport" }
 ternilo-transport-store = { path = "crates/ternilo-transport-store" }
+ternilo-update = { path = "crates/ternilo-update" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -1,6 +1,6 @@
 import { copyText } from '@/lib/clipboard'
 import * as React from 'react'
-import { Check, Copy, Info, Laptop, LoaderCircle, Pause, Play, RefreshCw, ShieldX, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Info, Laptop, LoaderCircle, Pause, Play, RefreshCw, ShieldX, Trash2 } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -10,6 +10,7 @@ import { localeTag } from '@/i18n/runtime'
 import type { ManagedExecutionTarget, ProjectRecord } from '@/types'
 import { ActionDialog, GroupHeader, SectionHeader } from './settings-ui'
 import { ComputerDetailsDialog } from './computer-details-dialog'
+import { ComputerUpdatesDialog } from './computer-updates-dialog'
 import {
   createNodeLaunch,
   createOwnedNodeLaunch,
@@ -71,6 +72,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
   const [copyError, setCopyError] = React.useState('')
   const [revokeTarget, setRevokeTarget] = React.useState<ManagedExecutionTarget | null>(null)
   const [revoking, setRevoking] = React.useState(false)
+  const [updateTargets, setUpdateTargets] = React.useState<ManagedExecutionTarget[] | null>(null)
   const [detailsTarget, setDetailsTarget] = React.useState<string | null>(null)
   const [lifecycleTarget, setLifecycleTarget] = React.useState<{ computer: ManagedExecutionTarget; action: 'suspend' | 'resume' | 'remove' } | null>(null)
   const [changing, setChanging] = React.useState(false)
@@ -239,7 +241,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">{t(owned ? 'computers.myList' : 'computers.list')}</h3>
-        <div className="flex flex-wrap justify-end gap-1"><Button type="button" variant="ghost" size="sm" aria-pressed={includeRemoved} onClick={() => setIncludeRemoved(value => !value)}>{t(includeRemoved ? 'computers.hideRemoved' : 'computers.showRemoved')}</Button><Button type="button" variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
+        <div className="flex flex-wrap justify-end gap-1">{owned && <Button type="button" variant="outline" size="sm" disabled={loading || !computers.some(computer => computer.management.removed_at_ms == null)} onClick={() => setUpdateTargets(computers.filter(computer => computer.management.removed_at_ms == null))}><Download />{t('updates.title')}</Button>}<Button type="button" variant="ghost" size="sm" aria-pressed={includeRemoved} onClick={() => setIncludeRemoved(value => !value)}>{t(includeRemoved ? 'computers.hideRemoved' : 'computers.showRemoved')}</Button><Button type="button" variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
           <RefreshCw className={loading ? styles.spinner : ''} />{t('platform.refresh')}
         </Button></div>
       </div>
@@ -280,6 +282,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
                   </div>
                 </div>
                 <div className={styles.actions}>
+                  {owned && !removed && <Button type="button" variant="outline" size="sm" onClick={() => setUpdateTargets([computer])}><Download />{t('updates.action')}</Button>}
                   <Button type="button" variant="outline" size="sm" onClick={() => setDetailsTarget(computer.executor_id)}><Info />{t('computers.details')}</Button>
                   {computer.state === 'revoked' ? <Button type="button" variant="outline" size="sm" onClick={() => { setRecoveryTarget(computer); setRecoveryName(computer.management.name); setRecoveryError('') }}><RefreshCw />{t('computers.recover')}</Button> : <Button type="button" variant="outline" size="sm" onClick={() => setLifecycleTarget({ computer, action: suspended ? 'resume' : 'suspend' })}>{suspended ? <Play /> : <Pause />}{t(suspended ? 'computers.resume' : 'computers.suspend')}</Button>}
                   <Button
@@ -342,6 +345,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
         onOpenChange={next => { if (!next) setRevokeTarget(null) }}
         onConfirm={() => void revoke()}
       />
+      {updateTargets && <ComputerUpdatesDialog tenantId={tenantId} computers={updateTargets} onClose={() => setUpdateTargets(null)} />}
       {detailsTarget && <ComputerDetailsDialog key={`${tenantId}:${scope}:${detailsTarget}`} tenantId={tenantId} executorId={detailsTarget} scope={scope} formatTime={formatTime} onClose={() => setDetailsTarget(null)} onSaved={load} />}
       <Dialog open={Boolean(recoveryTarget)} onOpenChange={open => { if (!open && !recovering) setRecoveryTarget(null) }}>
         <DialogContent className="max-w-lg" data-computer-recovery="">

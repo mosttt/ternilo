@@ -53,6 +53,7 @@ async fn register_node(fixture: &Fixture, session: &EdgeSessionRecord) {
         .register_executor(
             &fixture.tenant,
             &ExecutorHello {
+                client: None,
                 protocol_version: EXECUTOR_PROTOCOL_VERSION,
                 executor_id: session.executor_id.clone(),
                 executor_kind: ExecutorKind::EdgeNode,

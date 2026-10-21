@@ -23,6 +23,7 @@ pub async fn bind_workers(store: &CloudStore, worker_ids: &[&str], storage_id: &
         .unwrap();
         // These database contracts use explicit logical times, without a live heartbeat task.
         let hello = ternilo_transport::ExecutorHello {
+            client: None,
             protocol_version: ternilo_transport::EXECUTOR_PROTOCOL_VERSION,
             executor_id: ternilo_transport::ExecutorId::new(*worker_id),
             executor_kind: ternilo_transport::ExecutorKind::CloudWorker,

@@ -6,6 +6,24 @@ use super::{
 };
 
 impl EdgeGateway {
+    pub(crate) async fn client_update(
+        &self,
+        tenant: &TenantId,
+        executor: &ExecutorId,
+        command: ternilo_transport::ClientUpdateCommand,
+    ) -> Result<Value, HarnessError> {
+        command.validate()?;
+        self.call_routed(
+            RouteKey::new(tenant.clone(), executor.clone()),
+            ExecutorCommandBody::ClientUpdate {
+                command: Box::new(command),
+            },
+            Duration::from_secs(30),
+            None,
+        )
+        .await
+    }
+
     pub(crate) async fn call(
         &self,
         tenant_id: &TenantId,
@@ -139,6 +157,17 @@ impl EdgeGateway {
         accepted_authorization: Option<ternilo_transport::NodeInputAuthorization>,
     ) -> Result<Value, HarnessError> {
         let connected = self.connected(&route).await?;
+        if matches!(&body, ExecutorCommandBody::ClientUpdate { .. })
+            && connected
+                .hello
+                .client
+                .as_ref()
+                .is_none_or(|client| client.protocol_version != 1)
+        {
+            return Err(HarnessError::unavailable(
+                "computer has not declared client lifecycle support",
+            ));
+        }
         super::forwarding::validate_body(&body, &connected.hello.capabilities)?;
         let deleted_session = match &body {
             ExecutorCommandBody::Application {

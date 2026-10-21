@@ -476,6 +476,7 @@ impl Fixture {
                 &WorkerRegisterRequest {
                     capacity: ternilo_cloud::WorkerCapacity::default(),
                     hello: ExecutorHello {
+                        client: None,
                         protocol_version: EXECUTOR_PROTOCOL_VERSION,
                         executor_id: credential.worker_id.clone(),
                         executor_kind: ExecutorKind::CloudWorker,
@@ -511,6 +512,7 @@ impl Fixture {
             .unwrap();
         let (shutdown, receiver) = tokio::sync::watch::channel(false);
         let state = AppState {
+            client_updates: crate::platform::client_updates::UpdateCache::temporary(),
             cloud_events: ternilo_cloud::CloudSessionEventFeed::from_database(
                 store.database().clone(),
             )

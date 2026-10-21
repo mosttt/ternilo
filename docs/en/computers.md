@@ -2,6 +2,8 @@
 
 Server's **User Settings → My machines** manages your computers in the selected space. Space administrators can use the corresponding **Space Management → Computers** entry. See [remote access](remote-access.md) for enrollment.
 
+Owners can update one or several computers using **Update client** or **Client updates** above the list. First enable updates locally on each computer. See [client updates](client-updates.md) for setup and recovery.
+
 Registered computers provide **Details and edit**, **Suspend/Resume access**, **Revoke computer**, and **Remove registration**. Revoked entries provide **Recover original computer access**. Details load when opened; removed entries load only after selecting **Show removed registrations**.
 
 ## Names, notes and details

@@ -152,6 +152,7 @@ async fn cloud_http_requires_resource_grants_even_for_an_administrator() {
         .unwrap();
     let (shutdown, receiver) = tokio::sync::watch::channel(false);
     let state = AppState {
+        client_updates: crate::platform::client_updates::UpdateCache::temporary(),
         cloud_events: CloudSessionEventFeed::from_database(store.database().clone())
             .await
             .unwrap(),

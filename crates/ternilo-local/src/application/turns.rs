@@ -139,6 +139,7 @@ impl LocalApplication {
         session_id: &str,
         request: TurnRequest,
     ) -> Result<RunOutcome, HarnessError> {
+        let _maintenance = self.accept_update_safe_work()?;
         let TurnRequest {
             run_id,
             input,

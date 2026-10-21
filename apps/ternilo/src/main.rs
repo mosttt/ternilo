@@ -40,6 +40,21 @@ impl ExecutionLimits {
 enum Command {
     /// Start the local browser UI (default).
     Serve(ternilo::service::ServeOptions),
+    /// Manage owner-enabled remote client upgrades.
+    Updates {
+        #[command(subcommand)]
+        command: ternilo::updates::UpdateCommand,
+    },
+    #[command(hide = true)]
+    UpdateApply {
+        #[arg(long)]
+        plan: PathBuf,
+    },
+    #[command(hide = true)]
+    UpdateRecover {
+        #[arg(long)]
+        plan: PathBuf,
+    },
     /// Show the running local service for a data directory.
     Status {
         #[arg(long, env = "TERNILO_LOCAL_DATA_DIR")]
@@ -172,6 +187,9 @@ async fn execute(args: Args) -> Result<(), HarnessError> {
     })?;
     match command {
         Command::Serve(options) => ternilo::service::run(options).await,
+        Command::Updates { command } => ternilo::updates::execute(command).await,
+        Command::UpdateApply { plan } => ternilo::updates::apply(&plan).await,
+        Command::UpdateRecover { plan } => ternilo::updates::recover(&plan).await,
         Command::Status { data_dir } => {
             let data_dir = data_dir.map_or_else(default_data_dir, Ok)?;
             let connection = ternilo::service::discover(&data_dir)
@@ -668,6 +686,9 @@ mod tests {
             | Command::Rpc { limits, .. }
             | Command::Acp { limits, .. } => limits.run_limits(),
             Command::Plugins
+            | Command::Updates { .. }
+            | Command::UpdateApply { .. }
+            | Command::UpdateRecover { .. }
             | Command::Provider { .. }
             | Command::Status { .. }
             | Command::Stop { .. }

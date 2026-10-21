@@ -29,6 +29,7 @@ Choose an entry point below, complete a first task, then read the features you n
 
 - [Server deployment](deployment.md) and [Docker Compose](docker-compose.md): protected web setup, SQLite/PostgreSQL, HTTPS, operations and backups.
 - [Computers](computers.md): immutable IDs, editable names, details, pause/resume, revocation and removal.
+- [Client updates](client-updates.md): update connected computers from Server, local opt-in, rollback and recovery.
 - [Platform management](platform-management.md), [login configuration](server-authentication.md) and [account security](account-recovery.md): access modes, accounts, OIDC, verification, passwords and MFA.
 - [Collaboration](collaboration.md), [project sharing](project-sharing.md) and [management handoff](resource-management.md): membership, resource rights, attribution and ownership.
 - [Service accounts](service-accounts.md): automation identities, credentials and explicit grants.

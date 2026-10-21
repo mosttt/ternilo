@@ -222,6 +222,7 @@ pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
         ));
     }
     let data_dir = options.data_dir.clone();
+    let installation = crate::updates::installation_guard()?;
     if let Some(connection) = discover(&data_dir).await? {
         println!("Ternilo local web: {}", connection.info.origin());
         return Err(HarnessError::invalid(
@@ -281,6 +282,7 @@ pub async fn run(options: ServeOptions) -> Result<(), HarnessError> {
                     Arc::clone(&application),
                     &options,
                     commands.clone(),
+                    installation.is_some(),
                 ))
                 .await
             } else {

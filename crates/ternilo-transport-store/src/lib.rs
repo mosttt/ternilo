@@ -1125,6 +1125,7 @@ mod tests {
 
     fn hello(executor_id: &str) -> ExecutorHello {
         ExecutorHello {
+            client: None,
             protocol_version: EXECUTOR_PROTOCOL_VERSION,
             executor_id: ExecutorId::new(executor_id),
             executor_kind: ExecutorKind::EdgeNode,

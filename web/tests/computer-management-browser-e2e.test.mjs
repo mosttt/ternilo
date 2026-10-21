@@ -62,6 +62,23 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     const card = page.locator(`[data-platform-computer="${executorId}"]`)
     await card.waitFor()
     assert.deepEqual(detailRequests, [], 'details must not load with the list')
+    await card.getByRole('button', { name: '更新客户端', exact: true }).click()
+    const updates = page.locator('[data-computer-updates]')
+    await updates.getByText('请先在这台电脑上启用远程升级', { exact: true }).waitFor()
+    await updates.locator('summary').filter({ hasText: '如何启用' }).click()
+    await updates.getByText('ternilo updates enable --help', { exact: true }).waitFor({ state: 'visible' })
+    assert.equal(await updates.getByRole('button', { name: '更新所选电脑（0）', exact: true }).isEnabled(), false)
+    if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+      await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+      await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'client-updates-desktop.png'), fullPage: true })
+    }
+    await page.setViewportSize({ width: 390, height: 600 })
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'update dialog fits the mobile width')
+    const scroll = updates.locator('[data-computer-updates-scroll]')
+    await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
+    await updates.locator('[data-slot="dialog-footer"]').getByRole('button', { name: '关闭', exact: true }).click()
+    await updates.waitFor({ state: 'detached' })
+    await page.setViewportSize({ width: 1365, height: 900 })
     await card.getByRole('button', { name: '详情与编辑', exact: true }).click()
     const dialog = page.locator('[data-computer-details]')
     await dialog.getByText(executorId, { exact: true }).waitFor({ state: 'visible' })
@@ -106,7 +123,7 @@ test('computer management edits metadata, suspends and resumes the same Node, an
       const box = button.getBoundingClientRect()
       return { top: box.top, left: box.left, right: box.right, height: box.height }
     }))
-    assert.equal(actionBoxes.length, 4)
+    assert.equal(actionBoxes.length, 5)
     assert.ok(actionBoxes.every((box, index) => box.height >= 40 && (!index || box.top > actionBoxes[index - 1].top)))
     assert.ok(actionBoxes.every(box => box.left >= 0 && box.right <= 390), 'Each mobile computer action occupies its own visible row')
     const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
@@ -156,6 +173,31 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     assert.equal((await serverRequest(origin,'/state',scope)).workspaces[0].workspace_id,workspace.workspace_id)
     assert.deepEqual((await serverRequest(origin,`/sessions/${sessionId}/history?limit=1000`,scope)).events,before.events)
     assert.equal(await readFile(path.join(folder,'retained.txt'),'utf8'),'management-history-retained')
+    for (let index = 0; index < 8; index += 1) {
+      const { enrollment } = await serverRequest(origin, `/tenants/${scope.tenantId}/my-computer-enrollments`, { token: scope.token, body: { name: `Offline computer ${index + 1}`, ttl_seconds: 600 } })
+      await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })
+    }
+    for (const [locale, title, offline, close] of [
+      ['en', 'Client updates', 'Computer is offline; reconnect before updating', 'Close'],
+      ['ko', '클라이언트 업데이트', '컴퓨터가 오프라인입니다. 연결 후 업데이트하세요', '닫기'],
+      ['zh', '客户端更新', '电脑离线，上线后才能更新', '关闭'],
+    ]) {
+      await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale)
+      await page.goto(`${origin}/settings/computers`)
+      await page.getByRole('button', { name: title, exact: true }).click()
+      const batch = page.locator('[data-computer-updates]')
+      await batch.getByText(offline, { exact: true }).first().waitFor()
+      assert.equal(await batch.locator('[data-computer-update]').count(), 9)
+      const list = batch.locator('[data-computer-updates-scroll]')
+      const bounds = await list.evaluate(element => {
+        element.scrollTop = element.scrollHeight
+        return { visible: element.clientHeight, total: element.scrollHeight, top: element.scrollTop }
+      })
+      assert.ok(bounds.total > bounds.visible && bounds.top > 0, 'batch computer list must really scroll on mobile')
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      if (artifacts) await page.screenshot({ path: path.join(artifacts, `client-updates-mobile-${locale}.png`), fullPage: true })
+      await batch.locator('[data-slot="dialog-footer"]').getByRole('button', { name: close, exact: true }).click()
+    }
     assert.deepEqual(errors, [])
   } catch (error) {
     if (page && process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'computer-management-failure.png'), fullPage: true }).catch(() => {})

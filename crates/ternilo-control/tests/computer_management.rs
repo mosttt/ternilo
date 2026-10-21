@@ -481,6 +481,50 @@ async fn postgres_computer_management_enforces_runtime_scope_and_retains_binding
         .update_computer(&f.owner, &f.tenant, &f.executor, true, &update, 1011)
         .await
         .unwrap();
+    let update_job = ternilo_control::ClientUpdateJob {
+        progress: ternilo_protocol::ClientUpdateProgress {
+            id: "postgres-update-12345678".into(),
+            version: "0.2.21".into(),
+            phase: ternilo_protocol::ClientUpdatePhase::Preparing,
+            revision: 0,
+            error: None,
+        },
+        target: "x86_64-unknown-linux-gnu".into(),
+        manifest: "signed fixture".into(),
+        signature: "fixture signature".into(),
+        created_at_ms: 1011,
+        expires_at_ms: 100_000,
+    };
+    f.store
+        .create_client_update_job(
+            &f.owner,
+            &f.tenant,
+            &f.executor,
+            &update_job,
+            "postgres-download-grant",
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        f.store
+            .client_update_job(&f.owner, &f.tenant, &f.executor)
+            .await
+            .unwrap()
+            .unwrap()
+            .progress
+            .id,
+        update_job.progress.id
+    );
+    f.store
+        .client_update_download(
+            &f.tenant,
+            &f.executor,
+            &update_job.progress.id,
+            "postgres-download-grant",
+            1012,
+        )
+        .await
+        .unwrap();
     let mut other_scope = f
         .store
         .database()
@@ -492,6 +536,14 @@ async fn postgres_computer_management_enforces_runtime_scope_and_retains_binding
         .await
         .unwrap();
     assert_eq!(count, 0);
+    let hidden_updates: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM control_client_updates")
+        .fetch_one(&mut *other_scope)
+        .await
+        .unwrap();
+    assert_eq!(
+        hidden_updates, 0,
+        "update grants must be isolated by PostgreSQL RLS"
+    );
     other_scope.rollback().await.unwrap();
     let mut forbidden_ddl = f.store.database().begin().await.unwrap();
     assert!(
@@ -615,6 +667,7 @@ async fn computer_details_and_lists_use_the_latest_server_observed_heartbeat() {
         .await
         .unwrap();
     let hello = ExecutorHello {
+        client: None,
         protocol_version: EXECUTOR_PROTOCOL_VERSION,
         executor_id: f.executor.clone(),
         executor_kind: ExecutorKind::EdgeNode,
@@ -925,5 +978,251 @@ async fn removed_name_can_be_used_by_a_new_identity_and_old_identity_recovery_re
             .unwrap()
             .len(),
         2
+    );
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Exercise the complete grant lifecycle against one registered computer."
+)]
+async fn client_update_grants_are_owner_scoped_idempotent_expiring_and_revocable() {
+    use ternilo_control::ClientUpdateJob;
+    use ternilo_protocol::{ClientUpdatePhase, ClientUpdateProgress, UserId};
+    let f = Fixture::new().await;
+    let job = ClientUpdateJob {
+        progress: ClientUpdateProgress {
+            id: "update-1234567890".into(),
+            version: "0.2.21".into(),
+            phase: ClientUpdatePhase::Preparing,
+            revision: 0,
+            error: None,
+        },
+        target: "x86_64-unknown-linux-gnu".into(),
+        manifest: "signed release fixture".into(),
+        signature: "fixture".into(),
+        created_at_ms: 1100,
+        expires_at_ms: 100_000,
+    };
+    let outsider = ControlUser {
+        user_id: UserId::new("another-user"),
+        username: "another".into(),
+    };
+    assert!(
+        f.store
+            .create_client_update_job(
+                &outsider,
+                &f.tenant,
+                &f.executor,
+                &job,
+                "secret-download-grant"
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        f.store
+            .create_client_update_job(
+                &f.owner,
+                &f.tenant,
+                &f.executor,
+                &job,
+                "secret-download-grant"
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !f.store
+            .create_client_update_job(&f.owner, &f.tenant, &f.executor, &job, "different-grant")
+            .await
+            .unwrap()
+    );
+    assert!(
+        f.store
+            .client_update_job(&outsider, &f.tenant, &f.executor)
+            .await
+            .is_err()
+    );
+    let downloaded = f
+        .store
+        .client_update_download(
+            &f.tenant,
+            &f.executor,
+            &job.progress.id,
+            "secret-download-grant",
+            1200,
+        )
+        .await
+        .unwrap();
+    assert_eq!(downloaded.progress.id, job.progress.id);
+    for (executor, token, now) in [
+        (f.executor.clone(), "wrong-token", 1200),
+        (
+            ExecutorId::new("another-computer"),
+            "secret-download-grant",
+            1200,
+        ),
+        (f.executor.clone(), "secret-download-grant", 1_900_000),
+    ] {
+        assert!(
+            f.store
+                .client_update_download(&f.tenant, &executor, &job.progress.id, token, now)
+                .await
+                .is_err()
+        );
+    }
+    f.store
+        .set_computer_suspended(&f.owner, &f.tenant, &f.executor, true, true, 0, 1300)
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .client_update_download(
+                &f.tenant,
+                &f.executor,
+                &job.progress.id,
+                "secret-download-grant",
+                1400
+            )
+            .await
+            .is_err()
+    );
+    let stored: String = sqlx::query_scalar("SELECT job_json FROM control_client_updates")
+        .fetch_one(f.store.database().pool())
+        .await
+        .unwrap();
+    assert!(!stored.contains("secret-download-grant"));
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Follow one update across connection replacement, completion and stale reports."
+)]
+async fn update_progress_rejects_old_connections_and_requires_the_reconnected_release() {
+    use ternilo_control::ClientUpdateJob;
+    use ternilo_protocol::{ClientUpdateInfo, ClientUpdatePhase, ClientUpdateProgress};
+    use ternilo_transport::{
+        EXECUTOR_PROTOCOL_VERSION, ExecutorCapabilities, ExecutorHello, ExecutorKind,
+    };
+    let f = Fixture::new().await;
+    let info = ClientUpdateInfo {
+        protocol_version: 1,
+        version: "0.2.20".into(),
+        target: Some("x86_64-unknown-linux-gnu".into()),
+        enabled: true,
+        data_epoch: 1,
+        restart_method: Some("direct".into()),
+        progress: None,
+    };
+    let mut hello = ExecutorHello {
+        protocol_version: EXECUTOR_PROTOCOL_VERSION,
+        executor_id: f.executor.clone(),
+        executor_kind: ExecutorKind::EdgeNode,
+        instance_nonce: "first-instance".into(),
+        catalog_revision: "test".into(),
+        capabilities: ExecutorCapabilities::new(),
+        client: Some(info.clone()),
+    };
+    f.store
+        .edge_store()
+        .register_executor(&f.tenant, &hello, 1100)
+        .await
+        .unwrap();
+    let job = ClientUpdateJob {
+        progress: ClientUpdateProgress {
+            id: "update-1234567890".into(),
+            version: "0.2.21".into(),
+            phase: ClientUpdatePhase::Preparing,
+            revision: 0,
+            error: None,
+        },
+        target: info.target.clone().unwrap(),
+        manifest: "signed fixture".into(),
+        signature: "signature".into(),
+        created_at_ms: 1200,
+        expires_at_ms: 100_000,
+    };
+    f.store
+        .create_client_update_job(&f.owner, &f.tenant, &f.executor, &job, "grant")
+        .await
+        .unwrap();
+    let mut next = info.clone();
+    next.progress = Some(ClientUpdateProgress {
+        phase: ClientUpdatePhase::Completed,
+        revision: 2,
+        ..job.progress.clone()
+    });
+    assert!(
+        f.store
+            .edge_store()
+            .record_client_update_state(&f.tenant, &f.executor, "first-instance", &next)
+            .await
+            .is_err()
+    );
+    hello.instance_nonce = "new-instance".into();
+    hello.client.as_mut().unwrap().version = "0.2.21".into();
+    f.store
+        .edge_store()
+        .register_executor(&f.tenant, &hello, 1300)
+        .await
+        .unwrap();
+    next.version = "0.2.21".into();
+    assert!(
+        !f.store
+            .edge_store()
+            .record_client_update_state(&f.tenant, &f.executor, "first-instance", &next)
+            .await
+            .unwrap()
+    );
+    assert!(
+        f.store
+            .edge_store()
+            .record_client_update_state(&f.tenant, &f.executor, "new-instance", &next)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        f.store
+            .client_update_job(&f.owner, &f.tenant, &f.executor)
+            .await
+            .unwrap()
+            .unwrap()
+            .progress
+            .phase,
+        ClientUpdatePhase::Completed
+    );
+    let mut stale = next.clone();
+    stale.progress.as_mut().unwrap().revision = 1;
+    stale.progress.as_mut().unwrap().phase = ClientUpdatePhase::Downloading;
+    f.store
+        .edge_store()
+        .record_client_update_state(&f.tenant, &f.executor, "new-instance", &stale)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.store
+            .client_update_job(&f.owner, &f.tenant, &f.executor)
+            .await
+            .unwrap()
+            .unwrap()
+            .progress
+            .phase,
+        ClientUpdatePhase::Completed
+    );
+    assert_eq!(
+        f.store
+            .computer_details(&f.owner, &f.tenant, &f.executor, true)
+            .await
+            .unwrap()
+            .hello
+            .unwrap()
+            .client
+            .unwrap()
+            .progress
+            .unwrap()
+            .phase,
+        ClientUpdatePhase::Completed
     );
 }

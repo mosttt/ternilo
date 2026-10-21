@@ -97,7 +97,7 @@ pub(crate) async fn persist_in(
     Ok(())
 }
 
-async fn require_computer_in(
+pub(crate) async fn require_computer_in(
     tx: &mut Transaction,
     actor: &ControlUser,
     tenant: &TenantId,
