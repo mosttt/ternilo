@@ -948,6 +948,10 @@ test('shared workbench supports provider streaming, trajectory, stable scrolling
     const feedbackPattern = '**/api/v1/sessions/*/feedback'
     const acceptFeedbackWithoutLiveMutation = route => route.fulfill({ status: 204 })
     await page.route(feedbackPattern, acceptFeedbackWithoutLiveMutation)
+    // Rendered response text can precede completion and the final Live usage frame.
+    await page.getByRole('button', { name: '发送', exact: true }).waitFor()
+    await page.waitForFunction(() => document.querySelector('.session-stats-line')
+      ?.getAttribute('aria-label')?.includes('输入 240 tok · 输出 80 tok'))
     const statsBeforeFailedReload = await stats.getAttribute('aria-label')
     assert.match(statsBeforeFailedReload, /2 轮/)
     await page.getByRole('button', { name: '好回答' }).last().click()
