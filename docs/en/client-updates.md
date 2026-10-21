@@ -20,6 +20,8 @@ For a user systemd service:
 ternilo updates enable --restart systemd --service ternilo.service --data-dir "<instance-directory>"
 ```
 
+The main systemd service needs a persistent unit file: a `systemd-run` transient service disappears after stopping and cannot be used as the restart target. The updater itself uses a separate transient unit so stopping the main service does not kill it.
+
 Add `--system` for a system-level service. The account must be able to control that service and create an independent transient update unit. For Supervisor, specify the exact program name:
 
 ```sh

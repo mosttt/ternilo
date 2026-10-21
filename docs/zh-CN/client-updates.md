@@ -20,6 +20,8 @@ ternilo updates enable --restart direct --data-dir "<实例目录>"
 ternilo updates enable --restart systemd --service ternilo.service --data-dir "<实例目录>"
 ```
 
+systemd 主服务必须有持久的 unit 文件；`systemd-run` 临时服务停止后会消失，不能用作客户端的重启目标。更新器自身使用独立的临时 unit，避免随旧主服务停止。
+
 系统级 systemd 服务另外添加 `--system`。该账号必须有权限控制指定服务并创建独立的 systemd 更新单元。Supervisor 使用准确的 program 名称：
 
 ```sh

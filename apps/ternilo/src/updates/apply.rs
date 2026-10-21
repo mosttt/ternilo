@@ -296,7 +296,7 @@ async fn verify_manager_process(plan: &ApplyPlan, expected: u32) -> Result<(), H
                 command.arg("--user");
             }
             command
-                .args(["show", "--property=MainPID", "--value"])
+                .args(["show", "--property=MainPID", "--property=Transient"])
                 .arg(unit);
             command
         }
@@ -316,15 +316,25 @@ async fn verify_manager_process(plan: &ApplyPlan, expected: u32) -> Result<(), H
             HarnessError::unavailable("could not verify the service manager process in time")
         })?
         .map_err(io_error)?;
-    if !output.status.success()
-        || String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .parse::<u32>()
-            .ok()
-            != Some(expected)
-    {
+    let output_text = String::from_utf8_lossy(&output.stdout);
+    let systemd = matches!(plan.settings.restart, RestartMethod::Systemd { .. });
+    let pid = if systemd {
+        output_text
+            .lines()
+            .find_map(|line| line.strip_prefix("MainPID="))
+    } else {
+        Some(output_text.trim())
+    }
+    .and_then(|value| value.parse::<u32>().ok());
+    if !output.status.success() || pid != Some(expected) {
         return Err(HarnessError::policy(
             "configured service does not own this Ternilo process; check its exact service name before updating",
+        ));
+    }
+    // A transient service disappears when stopped and cannot be started again by name.
+    if systemd && output_text.lines().any(|line| line == "Transient=yes") {
+        return Err(HarnessError::policy(
+            "remote updates require a persistent systemd service; create a service unit file instead of launching the client with systemd-run",
         ));
     }
     Ok(())
