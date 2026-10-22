@@ -125,6 +125,7 @@ fn setup_router(state: Arc<Bootstrap>) -> Router {
 
 #[derive(Serialize)]
 struct Boot {
+    version: &'static str,
     setup: bool,
     setup_database_preset: bool,
     setup_public_url: Option<String>,
@@ -136,6 +137,7 @@ fn boot(depot: &mut Depot, response: &mut Response) {
         .get_typed::<Arc<Bootstrap>>()
         .expect("bootstrap state");
     let payload = Boot {
+        version: env!("CARGO_PKG_VERSION"),
         setup: true,
         setup_database_preset: state.options.database_url.is_some(),
         setup_public_url: state.base.public_url.clone(),

@@ -34,6 +34,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
+  delete window.__TERNILO_BOOT__
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
 })
 
@@ -42,6 +43,15 @@ function renderSettings() {
 }
 
 describe('AboutSettings connection presentation', () => {
+  it.each([false, true])('shows the serving program version independently of the workspace catalog (Server: %s)', platform => {
+    workbench.platform = platform
+    window.__TERNILO_BOOT__ = { version: '0.2.21', platform }
+    renderSettings()
+    expect(host.querySelector('[data-about-version]')?.textContent).toBe('0.2.21')
+    expect(host.querySelector('[data-about-version]')?.closest('section')?.textContent).toContain(platform ? 'Ternilo Server' : 'Ternilo')
+    expect(host.textContent).toContain('test')
+  })
+
   it('uses a cloud icon for Server and relay connections, and a laptop only for local direct', () => {
     workbench.platform = true
     renderSettings()

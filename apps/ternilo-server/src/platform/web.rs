@@ -355,9 +355,14 @@ fn boot_script(response: &mut Response) {
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response.render(Text::Js(
-        "window.__TERNILO_BOOT__ = { apiToken: '', remote: true, platform: true, providerAuthoring: true };",
-    ));
+    let boot = serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "apiToken": "",
+        "remote": true,
+        "platform": true,
+        "providerAuthoring": true,
+    });
+    response.render(Text::Js(format!("window.__TERNILO_BOOT__ = {boot};")));
 }
 
 #[cfg(test)]
