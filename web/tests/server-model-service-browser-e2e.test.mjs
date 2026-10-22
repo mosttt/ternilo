@@ -249,7 +249,7 @@ test('platform model access works without workers or machine enrollment and stay
     const privileged = await fetch(`${origin}/api/v1/admin/models/providers`, { headers })
     assert.equal(privileged.status, 401, 'model-only credentials cannot use administration')
     const localOrigin = `http://127.0.0.1:${await freePort()}`
-    local = startProcess(path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'local')])
+    local = startProcess(process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo'), ['serve', '--listen', new URL(localOrigin).host, '--data-dir', path.join(directory, 'local')])
     await waitForHttp(localOrigin, local)
     const html = await (await fetch(localOrigin)).text()
     const boot = html.match(/window\.__TERNILO_BOOT__\s*=\s*(\{[^<]+\});/)
@@ -266,8 +266,9 @@ test('platform model access works without workers or machine enrollment and stay
     }
     const session = await serverRequest(localOrigin, '/sessions', { token: localToken, body: { workspace_id: workspace.workspace_id } })
     await serverRequest(localOrigin, `/sessions/${session.identity.session_id}`, { token: localToken, method: 'PATCH', body: { model: { provider: 'named_provider', provider_id: 'platform', model: 'platform-alpha' } } })
-    await serverRequest(localOrigin, `/sessions/${session.identity.session_id}/queue`, { token: localToken, body: { content: { kind: 'prompt', input: 'Run a local task with the shared model' } } })
-    await until(() => serverRequest(localOrigin, `/sessions/${session.identity.session_id}/queue`, { token: localToken }), queue => !queue.active_run_id && !queue.items.some(item => item.placement === 'queued'), 'local model request finished')
+    const submission = await serverRequest(localOrigin, `/sessions/${session.identity.session_id}/queue`, { token: localToken, body: { content: { kind: 'prompt', input: 'Run a local task with the shared model' } } })
+    // Claiming an input precedes Harness activation; queue placement alone is not completion.
+    await until(() => serverRequest(localOrigin, `/sessions/${session.identity.session_id}/events`, { token: localToken }), events => events.some(event => event.run_id === submission.run_id && event.type === 'turn_finished'), 'local model request finished')
     assert.ok(upstream.requests.length >= 2)
     assert.ok(upstream.requests.every(request => ['upstream-alpha', 'upstream-beta'].includes(request.model)))
     assert.equal(await readFile(path.join(workspacePath, 'model-service-proof.txt'), 'utf8'), 'Created by the local harness through the platform model service.\n')
