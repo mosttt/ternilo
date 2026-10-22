@@ -30,7 +30,7 @@ resolver = "3"
 edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.98"
-version = "0.2.21"
+version = "0.2.22"
 
 [workspace.dependencies]
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }

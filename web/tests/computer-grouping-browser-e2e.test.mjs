@@ -252,6 +252,9 @@ test('computer groups and online-only cold loads preserve separate workspaces on
       assert.match(await page.locator(`[data-choice-option="node:${workspaces[0].id}"]`).textContent(), new RegExp(offline))
       if (artifact) await page.screenshot({ path: path.join(artifact, `computer-picker-${locale}.png`), fullPage: true })
       await page.keyboard.press('Escape')
+      await page.locator('[data-choice-menu]').waitFor({ state: 'detached' })
+      // Radix restores focus after unmount, in a scheduled callback.
+      await page.waitForFunction(() => document.querySelector('[data-sidebar-computer-picker]') === document.activeElement)
       assert.equal(await picker.evaluate(element => element === document.activeElement), true)
     }
     await page.evaluate(() => { localStorage.setItem('ternilo.locale', 'zh'); localStorage.setItem('ternilo.theme', 'dark') })

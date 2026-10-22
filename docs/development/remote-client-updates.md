@@ -13,7 +13,7 @@
 
 2026-10-21：建立 `feat/remote-client-updates`，基于公开 main 的 `a2f5783`。已完成的电脑下拉框独立保留在 `feat/sidebar-computer-picker`（`833817a`），不重新开发。原本机 main 与资源迁移 WIP 保持原状态。
 
-用户已授权生成专用 Ed25519 密钥。GitHub `client-update-signing` 环境仅允许 `v*` 标签，私钥存入环境 Secret `TERNILO_UPDATE_SIGNING_KEY`，公钥位于 `crates/ternilo-update/release-public-key.txt`。本机恢复副本保存在仓库之外的私有目录。共享验签／下载、Node 更新控制与独立更新器、Server 缓存与持久任务、单台／批量更新界面已完成，本阶段验收及完整 CI 已通过，PR #10 已合入 main，正在准备 v0.2.21 正式发行。
+用户已授权生成专用 Ed25519 密钥。GitHub `client-update-signing` 环境仅允许 `v*` 标签，私钥存入环境 Secret `TERNILO_UPDATE_SIGNING_KEY`，公钥位于 `crates/ternilo-update/release-public-key.txt`。本机恢复副本保存在仓库之外的私有目录。共享验签／下载、Node 更新控制与独立更新器、Server 缓存与持久任务、单台／批量更新界面已完成，本阶段验收及完整 CI 已通过，PR #10 已合入 main，正在准备 v0.2.22 正式发行。
 
 连接设计（用户最新确认）：不保留此前版本兼容适配。统一升级到 Executor 协议 49，握手直接携带客户端版本、平台和升级能力／状态；机器升级使用独立 `ExecutorCommandBody::ClientUpdate` 分支，不混入会话应用 RPC。升级状态帧与控制命令共用 WebSocket，HTTPS 仅用于包下载。删除此前为旧握手考虑的独立 HTTP 报告与响应头协商方案。持久化旧 metadata 的缺省字段只保留已有记录可读，不作为旧连接协议兼容路径。首次启用必须成套升级 Server／Node。SQLite／PostgreSQL 继续复用组件迁移与租户隔离机制。
 
@@ -50,7 +50,7 @@ systemd 验证曾遇到临时目录配额耗尽，错误在停止旧服务前上
 
 PR：[#10](https://github.com/mosttt/ternilo/pull/10)。CI 的依赖门禁发现新公布的证书信任链漏洞和 Vite 开发服务器漏洞。定向更新 `rustls-webpki` 至 0.103.16、`webpki-roots`／`webpki-root-certs` 至 1.0.10、Vite 至 8.2.4；本地 cargo-deny 的安全公告、许可证与来源检查通过，npm audit 为 0 漏洞。TypeScript、前端相关测试及构建复测通过，生成的 Web 产物未变化，可继续使用上述浏览器证据。
 
-跨平台 CI 已通过。v0.2.20 因短屏侧栏验收失败而未公开。修复后的发行分支统一到 0.2.21，签名策略首个支持版本及 Server 范围下限同步收紧到 0.2.21。
+跨平台 CI 已通过。v0.2.20 因短屏侧栏验收失败而未公开。v0.2.21 随后被 PostgreSQL 事务取消缺陷拦截，亦未公开。修复后的发行版本为 0.2.22，签名策略首个支持版本及 Server 范围下限同步收紧到 0.2.22。
 
 正式指南已新增 `docs/zh-CN/client-updates.md` 与英文版，并同步电脑管理、发行签名和协议 49 的维护说明。
 
@@ -64,4 +64,4 @@ PR：[#10](https://github.com/mosttt/ternilo/pull/10)。CI 的依赖门禁发现
 
 候选 `a3a0c1e` 的 CI 已通过四个平台（含更新库原生测试）、安全依赖、全工作区 Rust、SDK 与 PostgreSQL 集成。浏览器阶段发现原有工作台测试在第二轮流式用量结束前记录统计，再将正常 Live 更新误判为失败刷新改写缓存。测试现等待轮次完成并收到两轮完整用量后保留原等值断言，不修改产品统计行为；修正后本地工作台真实浏览器 2 项通过。
 
-最终代码候选 `2223abf` 的 [完整 CI](https://github.com/mosttt/ternilo/actions/runs/39657412525) 全部通过：client-server（包含浏览器、原生桌面与安装恢复）、安全依赖、Windows、Linux ARM、macOS Intel 和 macOS ARM 六个作业。本次交付完成，PR #10 已合并。Linux 升级与恢复的真实链路证据、各平台编译与更新库测试证据分别按上述范围使用。首次部署按协议 49 成套手动升级。电脑筛选已整合，后续状态见[发行验收](release-0.2.21-acceptance.md)。
+最终代码候选 `2223abf` 的 [完整 CI](https://github.com/mosttt/ternilo/actions/runs/39657412525) 全部通过：client-server（包含浏览器、原生桌面与安装恢复）、安全依赖、Windows、Linux ARM、macOS Intel 和 macOS ARM 六个作业。本次交付完成，PR #10 已合并。Linux 升级与恢复的真实链路证据、各平台编译与更新库测试证据分别按上述范围使用。首次部署按协议 49 成套手动升级。电脑筛选已整合，后续状态见[发行验收](release-0.2.22-acceptance.md)。
