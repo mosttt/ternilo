@@ -20,6 +20,7 @@ pub(super) fn index(depot: &mut Depot, response: &mut Response) {
         .ok()
         .map(|path| path.to_string_lossy().into_owned());
     let boot = json!({
+        "version": env!("CARGO_PKG_VERSION"),
         "apiToken": state.shared.api_token,
         "remote": false,
         "home": home,

@@ -20,6 +20,9 @@ export function AboutSettings() {
     <div className={styles.section}>
       <SectionHeader title={t('nav.about')} description={t('about.description')} />
       <section className="overflow-hidden rounded-xl border bg-card px-4">
+        <SettingRow title={t('about.version')} description={platform ? 'Ternilo Server' : 'Ternilo'}>
+          <code className="text-sm" data-about-version="">{window.__TERNILO_BOOT__?.version ?? '—'}</code>
+        </SettingRow>
         <SettingRow
           title={t('about.connection')}
           description={connectionDescription}
