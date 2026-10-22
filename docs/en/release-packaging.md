@@ -7,7 +7,7 @@ Use published assets for installation. Building from source requires the pinned 
 From the source checkout:
 
 ```bash
-scripts/package-release.sh --component local --version 0.2.19 --output-dir /path/to/releases
+scripts/package-release.sh --component local --version 0.2.20 --output-dir /path/to/releases
 ```
 
 `local` builds the standalone client and plugin utility, `server` builds Server, and `worker` builds the optional Worker. Omitting the component selects `all`. Archive prefixes are respectively `ternilo-`, `ternilo-server-`, `ternilo-worker-` and `ternilo-all-`. Windows uses ZIP when `--binary-suffix .exe` is supplied; Linux/macOS use tar.gz to retain executable permissions.
@@ -15,18 +15,18 @@ scripts/package-release.sh --component local --version 0.2.19 --output-dir /path
 For already verified binaries:
 
 ```bash
-scripts/package-release.sh --component local --version 0.2.19 --no-build --bin-dir /path/to/verified-binaries --target-name linux-x86_64 --output-dir /path/to/releases
+scripts/package-release.sh --component local --version 0.2.20 --no-build --bin-dir /path/to/verified-binaries --target-name linux-x86_64 --output-dir /path/to/releases
 ```
 
 `--target-name` names an artifact; it does not cross-compile or guarantee compatibility. Existing outputs are not overwritten. A `.sha256` sidecar accompanies each archive, and `RELEASE` records its component and program list. Windows local packages require the matching `ternilo-sandbox-windows.exe` helper. See [program roles](binaries.md).
 
 Packages include bilingual entry pages, `docs/zh-CN/`, `docs/en/`, deployment templates, referenced examples, SDK sources, profiles and licenses. They exclude development records, live environment files, secrets, databases and backups. Shared documentation does not mean every component executable is present. Preserve `LICENSE`, `THIRD_PARTY_NOTICES.md` and `licenses/` when redistributing.
 
-An extracted binary package is not a complete Cargo/Web source tree. Repository build and test commands require the source checkout. Linux local execution needs `bubblewrap`, and file search needs `ripgrep`; these are not bundled into portable client archives or AppImage. The Debian installer declares dependencies. Desktop installers are built separately through Tauri.
+An extracted binary package is not a complete Cargo/Web source tree. Repository build and test commands require the source checkout. File matching and text search are built in; `ripgrep` is not required. Linux local execution needs `bubblewrap`, which is not bundled into portable client archives or AppImage. The Debian installer declares this dependency. Desktop installers are built separately through Tauri.
 
 ## Images
 
-Production [Compose](docker-compose.md) pulls `ghcr.io/mosttt/ternilo-server:0.2.19` without building locally. For custom images, explicitly select your own image name and add `compose.server.build.yml` to the Compose files. Worker uses its own build override and image. Both require matching source inputs; an extracted portable package is not the build context.
+Production [Compose](docker-compose.md) pulls `ghcr.io/mosttt/ternilo-server:0.2.20` without building locally. For custom images, explicitly select your own image name and add `compose.server.build.yml` to the Compose files. Worker uses its own build override and image. Both require matching source inputs; an extracted portable package is not the build context.
 
 An offline deployment can transfer images using `docker image save` and `docker image load`, then configure the exact tag or digest. Container license files are under `/usr/share/ternilo/`; desktop license files are in application resources. Custom build concurrency and dependency download concurrency are operator choices, not machine-specific repository defaults.
 

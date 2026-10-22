@@ -167,12 +167,18 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     await stopProcess(node)
     const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository,'target/debug/ternilo')
     const data = path.join(directory,'node')
+    const recoveredConfiguration = Promise.all(['catalog', 'agent-presets'].map(resource => page.waitForResponse(response => {
+      const url = new URL(response.url())
+      return url.pathname === `/api/v1/${resource}` && url.searchParams.get('session_id') === sessionId && response.status() === 200
+    }).then(response => response.finished())))
     node = startProcess(binary,['serve','--data-dir',data,'--token',recoveredToken])
     await waitForHttp(localOrigin,node)
     await until(()=>serverRequest(origin,endpoint,scope),value=>value.connected,'original computer reconnects with the recovered credential')
     const config = JSON.parse(await readFile(path.join(data,'config.json'),'utf8'))
     assert.equal(config.node_id,executorId)
     assert.equal(config.token,recoveredToken,'validated recovery persists the new credential')
+    // Reconnection starts browser metadata reads; finish them before the next deliberate stop.
+    await recoveredConfiguration
     await stopProcess(node)
     node = startProcess(binary,['serve','--data-dir',data])
     await waitForHttp(localOrigin,node)
