@@ -26,8 +26,8 @@ async function settleSidebarMotion(page) {
   })
 }
 
-async function scrollSidebarByTouch(page) {
-  const tree = page.getByRole('tree')
+async function scrollSidebarByTouch(page, selector = '[role="tree"]') {
+  const tree = page.locator(selector)
   if (!await tree.evaluate(element => element.scrollHeight > element.clientHeight)) return
   await tree.evaluate(element => { element.scrollTop = 0 })
   const bounds = await tree.boundingBox()
@@ -39,7 +39,7 @@ async function scrollSidebarByTouch(page) {
     await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
     for (let step = 1; step <= 8; step += 1) await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - distance * step / 8 }] })
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-    await page.waitForFunction(() => document.querySelector('[role="tree"]')?.scrollTop > 0)
+    await page.waitForFunction(selector => document.querySelector(selector)?.scrollTop > 0, selector)
   } finally { await touch.detach() }
 }
 
@@ -177,7 +177,9 @@ for (const placement of ['local', 'server-node']) {
       await buttonIsReachable(sidebarToggle, page)
       await sidebarToggle.tap()
       await settleSidebarMotion(page)
+      assert.ok((await page.getByRole('tree').boundingBox()).height >= 100, 'short screens must retain a usable session list')
       await scrollSidebarByTouch(page)
+      await page.screenshot({ path: path.join(evidence, `blank-session-${placement}-mobile-sidebar.png`), animations: 'disabled' })
       dialog = await openDelete(mobile.identity.session_id, true)
       await dialog.screenshot({ path: path.join(evidence, `blank-session-${placement}-mobile.png`) })
       await page.screenshot({ path: path.join(evidence, `blank-session-${placement}-mobile-page.png`) })
@@ -186,6 +188,13 @@ for (const placement of ['local', 'server-node']) {
       await dialog.waitFor({ state: 'detached' })
       assert.equal((await request('/state')).sessions.length, 1)
       assert.match(await readFile(path.join(folder, 'keep.txt'), 'utf8'), /Workspace files must remain/)
+      if (placement === 'server-node') {
+        await scrollSidebarByTouch(page, '[data-sidebar-navigation]')
+        const settings = page.getByRole('button', { name: '用户设置', exact: true })
+        await buttonIsReachable(settings, page)
+        await settings.tap()
+        await page.getByRole('button', { name: '我的机器', exact: true }).waitFor()
+      }
       assert.deepEqual(observations, { pageErrors: [], consoleErrors: [], httpErrors: [] })
       console.log(JSON.stringify({ placement, reusedLegacy: true, rapidClicksCoalesced: true, explicitNew: true, draftAndAttachmentPreserved: true, deletedLegacy: 3, mobileDelete: true, filesPreserved: true, observations }))
     } catch (error) {

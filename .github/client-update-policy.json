@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "minimum_client": "0.2.20",
-  "server_versions": ">=0.2.20, <0.3.0",
+  "minimum_client": "0.2.21",
+  "server_versions": ">=0.2.21, <0.3.0",
   "data_epoch": 1
 }

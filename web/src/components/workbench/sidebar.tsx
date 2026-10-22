@@ -155,7 +155,7 @@ export function Sidebar({
         />
       </div>
 
-      <div className={css.footer}>
+      <div className={css.footer} data-sidebar-navigation="">
         {platform && wide && tenants.length > 0 && (
           <SpaceSwitcher showManagement onNavigate={() => onMobileOpenChange(false)} />
         )}
