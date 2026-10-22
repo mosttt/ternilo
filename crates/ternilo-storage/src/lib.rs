@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 mod json;
+#[cfg(test)]
+mod tests;
 
 use std::{str::FromStr, time::Duration};
 
@@ -99,19 +101,32 @@ impl Database {
                     .begin_with("BEGIN IMMEDIATE")
                     .await
             }
-            Backend::Postgres => self.pool.begin().await,
+            Backend::Postgres => return self.begin_postgres("BEGIN").await,
         }
         .map_err(database_error)
     }
 
     /// Read snapshots avoid reserving SQLite's sole writer. Do not use for mutations.
     pub async fn begin_read(&self) -> Result<Transaction, HarnessError> {
+        if self.backend == Backend::Postgres {
+            return self.begin_postgres("BEGIN READ ONLY").await;
+        }
         self.pool
-            .begin_with(match self.backend {
-                Backend::Sqlite => "BEGIN DEFERRED",
-                Backend::Postgres => "BEGIN READ ONLY",
-            })
+            .begin_with("BEGIN DEFERRED")
             .await
+            .map_err(database_error)
+    }
+
+    async fn begin_postgres(&self, statement: &'static str) -> Result<Transaction, HarnessError> {
+        let pool = self.pool.clone();
+        // SQLx records PostgreSQL's transaction depth after BEGIN's response.
+        // Finish that exchange even if the caller is cancelled; a detached task
+        // drops its completed transaction and lets SQLx roll it back normally.
+        tokio::spawn(async move { pool.begin_with(statement).await })
+            .await
+            .map_err(|error| {
+                HarnessError::execution(format!("database transaction task failed: {error}"))
+            })?
             .map_err(database_error)
     }
 
