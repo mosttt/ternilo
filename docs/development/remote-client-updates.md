@@ -13,7 +13,7 @@
 
 2026-10-21：建立 `feat/remote-client-updates`，基于公开 main 的 `a2f5783`。已完成的电脑下拉框独立保留在 `feat/sidebar-computer-picker`（`833817a`），不重新开发。原本机 main 与资源迁移 WIP 保持原状态。
 
-用户已授权生成专用 Ed25519 密钥。GitHub `client-update-signing` 环境仅允许 `v*` 标签，私钥存入环境 Secret `TERNILO_UPDATE_SIGNING_KEY`，公钥位于 `crates/ternilo-update/release-public-key.txt`。本机恢复副本保存在仓库之外的私有目录。共享验签／下载、Node 更新控制与独立更新器、Server 缓存与持久任务、单台／批量更新界面已完成，本阶段验收及完整 CI 已通过，PR #10 已合入 main，正在准备 v0.2.23 正式发行。
+用户已授权生成专用 Ed25519 密钥。GitHub `client-update-signing` 环境仅允许 `v*` 标签，私钥存入环境 Secret `TERNILO_UPDATE_SIGNING_KEY`，公钥位于 `crates/ternilo-update/release-public-key.txt`。本机恢复副本保存在仓库之外的私有目录。共享验签／下载、Node 更新控制与独立更新器、Server 缓存与持久任务、单台／批量更新界面已完成，本阶段验收及完整 CI 已通过，PR #10 已合入 main，v0.2.23 已正式公开。六平台客户端清单公钥验签通过；公开产物证据与本机下载受阻的后续复验见[发行验收](release-0.2.23-acceptance.md)。
 
 连接设计（用户最新确认）：不保留此前版本兼容适配。统一升级到 Executor 协议 49，握手直接携带客户端版本、平台和升级能力／状态；机器升级使用独立 `ExecutorCommandBody::ClientUpdate` 分支，不混入会话应用 RPC。升级状态帧与控制命令共用 WebSocket，HTTPS 仅用于包下载。删除此前为旧握手考虑的独立 HTTP 报告与响应头协商方案。持久化旧 metadata 的缺省字段只保留已有记录可读，不作为旧连接协议兼容路径。首次启用必须成套升级 Server／Node。SQLite／PostgreSQL 继续复用组件迁移与租户隔离机制。
 
