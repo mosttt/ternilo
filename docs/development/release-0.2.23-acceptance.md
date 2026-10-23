@@ -8,6 +8,8 @@ v0.2.22 正式发行尚未公开时，PR #13 的依赖审计发现 DOMPurify 3.4
 
 相关公告为 DOMPurify 的 [GHSA-cg2g-xh64-v4q7](https://github.com/advisories/GHSA-cg2g-xh64-v4q7)、[GHSA-mrv2-3pqr-j5jr](https://github.com/advisories/GHSA-mrv2-3pqr-j5jr)、[GHSA-c6gr-qvv4-5v3f](https://github.com/advisories/GHSA-c6gr-qvv4-5v3f)，以及 Vitest 的 [GHSA-qxg6-89mg-rqv8](https://github.com/advisories/GHSA-qxg6-89mg-rqv8)、[GHSA-xp26-3454-mjgp](https://github.com/advisories/GHSA-xp26-3454-mjgp)。
 
+2026-10-23 候选 CI `39946332174` 的安全门禁发现当天收录的 [RUSTSEC-2026-0385](https://rustsec.org/advisories/RUSTSEC-2026-0385)。`ctutils 0.4.2` 的掩码生成及部分 `u128` 比较可能产生依赖秘密值的分支；该库经 digest、Ed25519 等依赖进入签名与摘要处理。按官方修复范围仅将锁文件中的 ctutils 升至 0.4.4，不豁免漏洞或批量升级其他 Rust 依赖。
+
 平台模型浏览器测试等待对应提交的 `turn_finished`，再检查实际文件内容；电脑选择测试等待菜单关闭与异步焦点恢复。两项均保留原功能断言。
 
 定向验证通过：npm audit 为 0 漏洞，富文本测试 8 项、相关组件／面板状态测试 6 项、类型检查、Web 构建、发行／签名脚本 4 项与 234 份 Markdown 检查。新 Web 资源配合隔离的 0.2.22 后端完成真实浏览器文件面板流程（12.47 秒）：Markdown／HTML 预览、脚本与外部追踪隔离、图片、下载、双栏与手机布局、工作区授权及撤销均通过，实际截图已检查；正式发行仍使用同版本程序内嵌的新资源。
