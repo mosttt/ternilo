@@ -393,11 +393,36 @@ test('real Node permissions, child navigation, offline feedback and delivered fi
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
       if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, `approval-${locale}.png`) })
       if (locale === 'zh') {
-        await card.getByRole('button', { name: copy.deny, exact: true }).click()
-        await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'denied shell finishes')
-        await assert.rejects(readFile(path.join(folder, `approval-${locale}.txt`)), { code: 'ENOENT' })
-        await enqueue()
-        await card.getByText(copy.summary, { exact: true }).waitFor()
+        // Deliver the previous answer's empty HTTP snapshot after the next Live approval.
+        let releaseQuestions, questionsHeld = false
+        const questionsGate = new Promise(resolve => { releaseQuestions = resolve })
+        const questionsUrl = `**/questions?session_id=${parentId}`
+        await page.route(questionsUrl, async route => {
+          const response = await route.fetch()
+          assert.deepEqual(await response.json(), [])
+          questionsHeld = true
+          await questionsGate
+          await route.fulfill({ response })
+        }, { times: 1 })
+        try {
+          await card.getByRole('button', { name: copy.deny, exact: true }).click()
+          await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'denied shell finishes')
+          await until(async () => questionsHeld, Boolean, 'held empty question snapshot')
+          await card.waitFor({ state: 'detached' })
+          await assert.rejects(readFile(path.join(folder, `approval-${locale}.txt`)), { code: 'ENOENT' })
+          await enqueue()
+          await card.getByText(copy.summary, { exact: true }).waitFor()
+          const approvalId = await card.getAttribute('aria-labelledby')
+          const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/questions')
+          releaseQuestions()
+          await (await refreshed).finished()
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+          assert.equal(await card.getAttribute('aria-labelledby'), approvalId, 'a stale HTTP response keeps the newer approval visible')
+          if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'approval-after-stale-refresh.png') })
+        } finally {
+          releaseQuestions()
+          await page.unroute(questionsUrl)
+        }
       }
       await card.getByRole('button', { name: copy.allow, exact: true }).click()
       await until(() => request(`${resource}/queue`), queue => !queue.active_run_id, 'approved shell finishes')

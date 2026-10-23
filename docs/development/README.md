@@ -39,6 +39,8 @@
 
 已支持的功能见[产品说明](../zh-CN/product.md)，模块职责见[架构](../zh-CN/architecture.md)，开发和验证命令见[开发指南](../zh-CN/contributing.md)。构建及验收结果保存在对应的 CI 和发行记录中。
 
+2026-10-23：桌面与移动端暂定采用 Tauri 2，桌面沿用现有实现；移动端原生包尚未实施。标题栏检查确认共享 Web 已支持浅色、深色与跟随系统，原生窗口尚未同步应用主题，此项仍待补齐。
+
 2026-10-01：正在落实[工作台性能与配置目录](workbench-performance-and-layout.md)。功能优先；本阶段完成后再推进 GitHub 验收和发行。
 
 - [电脑模型转发](computer-model-forwarding.md)：来源电脑调用、跨实例流式转发和独立设备报告。

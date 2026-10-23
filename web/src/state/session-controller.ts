@@ -268,6 +268,7 @@ export class SessionController implements SessionRuntimeActions {
   private pendingBySession = new Map<string, PendingSubmissionEcho[]>()
   private abortController: AbortController | null = null
   private metadataFlight: MetadataFlight | null = null
+  private metadataRevisions = { stats: 0, projection: 0, questions: 0, profile: 0 }
   private inboxFlight: InboxFlight | null = null
   private inboxRevision = 0
   private historyRevision = 0
@@ -585,10 +586,22 @@ export class SessionController implements SessionRuntimeActions {
       if (inbox?.error) this.setRuntimeError(inbox.error)
       if (inbox) this.reconcilePending(sessionId, this.eventBuffer.events, inbox)
     }
-    if (metadata.read.stats) patch.stats = metadata.stats ?? null
-    if (metadata.read.projection) patch.projection = metadata.projection ?? null
-    if (metadata.read.questions) patch.questions = metadata.questions ?? []
-    if (metadata.read.profile) patch.effectiveProfile = metadata.profile ?? null
+    if (metadata.read.stats) {
+      this.metadataRevisions.stats += 1
+      patch.stats = metadata.stats ?? null
+    }
+    if (metadata.read.projection) {
+      this.metadataRevisions.projection += 1
+      patch.projection = metadata.projection ?? null
+    }
+    if (metadata.read.questions) {
+      this.metadataRevisions.questions += 1
+      patch.questions = metadata.questions ?? []
+    }
+    if (metadata.read.profile) {
+      this.metadataRevisions.profile += 1
+      patch.effectiveProfile = metadata.profile ?? null
+    }
     if (metadata.read.agent_team) patch.agentTeam = metadata.agent_team ?? null
     this.updateSnapshot(patch)
   }
@@ -675,6 +688,7 @@ export class SessionController implements SessionRuntimeActions {
       do {
         const requested = flight.pending
         flight.pending = noMetadata()
+        const revisions = { ...this.metadataRevisions }
         const encoded = encodeURIComponent(flight.sessionId)
         const options = flight.signal ? { signal: flight.signal } : undefined
         const results = await Promise.allSettled([
@@ -694,16 +708,23 @@ export class SessionController implements SessionRuntimeActions {
         if (!this.matchesTarget(flight.sessionId, flight.generation, flight.signal)) return
         const labels = this.dependencies.labels().metadata
         const failures: string[] = []
-        const included = [requested.stats, requested.projection, requested.questions, requested.profile]
+        // A late HTTP read must not overwrite a newer Live value for the same field.
+        const included = [
+          requested.stats && revisions.stats === this.metadataRevisions.stats,
+          requested.projection && revisions.projection === this.metadataRevisions.projection,
+          requested.questions && revisions.questions === this.metadataRevisions.questions,
+          requested.profile && revisions.profile === this.metadataRevisions.profile,
+        ]
         results.forEach((result, index) => {
           if (included[index] && result.status === 'rejected') failures.push(`${labels[index]}：${errorMessage(result.reason)}`)
         })
         const [stats, projection, questions, profile] = results
+        const [includeStats, includeProjection, includeQuestions, includeProfile] = included
         this.updateSnapshot({
-          ...(requested.stats && stats.status === 'fulfilled' ? { stats: stats.value } : {}),
-          ...(requested.projection && projection.status === 'fulfilled' ? { projection: projection.value } : {}),
-          ...(requested.questions && questions.status === 'fulfilled' ? { questions: questions.value } : {}),
-          ...(requested.profile && profile.status === 'fulfilled' ? { effectiveProfile: profile.value } : {}),
+          ...(includeStats && stats.status === 'fulfilled' ? { stats: stats.value } : {}),
+          ...(includeProjection && projection.status === 'fulfilled' ? { projection: projection.value } : {}),
+          ...(includeQuestions && questions.status === 'fulfilled' ? { questions: questions.value } : {}),
+          ...(includeProfile && profile.status === 'fulfilled' ? { effectiveProfile: profile.value } : {}),
           metadataWarning: failures.join('；'),
         })
       } while (hasMetadata(flight.pending) && this.matchesTarget(flight.sessionId, flight.generation, flight.signal))
