@@ -241,6 +241,67 @@ describe('session controller live transport', async () => {
     controller.dispose()
   })
 
+  it('does not let an answer refresh erase a newer live question while another metadata read is delayed', async () => {
+    let resolveStats!: (value: SessionStats) => void
+    const delayedStats = new Promise<SessionStats>(resolve => { resolveStats = resolve })
+    const api = new FakeApi(async path => {
+      if (path.includes('/answer?')) return undefined
+      if (path.endsWith('/stats')) return delayedStats
+      return metadata(path)
+    })
+    const { deps, live } = dependencies(api)
+    const controller = new SessionController(deps)
+    controller.start()
+    controller.setTarget('session', true)
+    await flush()
+    const publishQuestion = (id: string) => {
+      const questions: PendingQuestion[] = [{ session_id: 'session', question: {
+        id, question: 'Allow this operation?', options: [{ label: 'Allow once' }, { label: 'Deny' }], multi_select: false,
+      } }]
+      live.emit({ type: 'session_metadata', subscription_id: 1, session_id: 'session', metadata: {
+        read: { inbox: false, stats: false, projection: false, questions: true, profile: false, agent_team: false },
+        questions,
+      } })
+      return questions
+    }
+    publishQuestion('first')
+    const answered = controller.answerQuestion('first', { selected: ['Deny'] })
+    await flush()
+    expect(api.calls.some(call => call.path.startsWith('/questions?'))).toBe(true)
+    const second = publishQuestion('second')
+    resolveStats(stats)
+    await answered
+    expect(controller.getSnapshot()).toMatchObject({ questions: second, stats, projection, effectiveProfile: profile })
+    expect(api.calls.filter(call => call.path.startsWith('/questions?'))).toHaveLength(1)
+    controller.dispose()
+  })
+
+  it('keeps newer live metadata and ignores a superseded HTTP failure', async () => {
+    let rejectQuestions!: (cause: Error) => void
+    const delayedQuestions = new Promise<never>((_, reject) => { rejectQuestions = reject })
+    const api = new FakeApi(async path => path.startsWith('/questions?') ? delayedQuestions : metadata(path))
+    const { deps, live } = dependencies(api)
+    const controller = new SessionController(deps)
+    controller.start()
+    controller.setTarget('session', true)
+    await flush()
+    const refresh = controller.reloadMetadata()
+    await flush()
+    const latestStats = { ...stats, events: 99 }
+    const latestProjection = { ...projection, as_of_seq: 99 }
+    const latestProfile: Profile = { plugins: [{ id: 'shell', kind: 'ternilo.tool.shell', enabled: false, config: {} }] }
+    live.emit({ type: 'session_metadata', subscription_id: 1, session_id: 'session', metadata: {
+      read: { inbox: false, stats: true, projection: true, questions: true, profile: true, agent_team: false },
+      stats: latestStats, projection: latestProjection, questions: [], profile: latestProfile,
+    } })
+    rejectQuestions(new Error('old question read failed'))
+    await refresh
+    expect(controller.getSnapshot()).toMatchObject({
+      stats: latestStats, projection: latestProjection, effectiveProfile: latestProfile, questions: [], metadataWarning: '',
+    })
+    controller.dispose()
+  })
+
   it('routes Workbench baselines and ignores stale Session frames', async () => {
     const api = new FakeApi(async path => metadata(path))
     const { deps, live } = dependencies(api)
