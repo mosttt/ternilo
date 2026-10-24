@@ -127,7 +127,9 @@ test('Claude hosted tools persist citations, resume pause_turn and mix with loca
           await page.getByLabel('密码', { exact: true }).fill(server.owner.password)
           await page.getByRole('button', { name: '登录', exact: true }).click()
         }
-        await page.locator('[data-sidebar-workspace-button]').filter({ hasText: title }).click()
+        const workspaceButton = page.locator('[data-sidebar-workspace-button]').filter({ hasText: title })
+        await workspaceButton.waitFor()
+        if (await workspaceButton.getAttribute('aria-expanded') !== 'true') await workspaceButton.click()
         await page.locator(`[data-sidebar-session-row][data-session-id="${session.identity.session_id}"] [data-sidebar-session-button]`).click()
         await page.evaluate(() => localStorage.setItem('ternilo.transcript-view', 'normal')); await page.reload()
       }

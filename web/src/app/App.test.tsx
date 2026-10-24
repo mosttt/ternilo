@@ -25,16 +25,18 @@ vi.mock('@/state/use-session-runtime', () => ({ useSessionRuntime: vi.fn(() => {
 vi.mock('@/hooks/use-workbench-layout', () => ({ useWorkbenchLayout: () => ({}) }))
 vi.mock('@/pwa', () => ({ registerPwa: async () => () => undefined }))
 vi.mock('@/components/layout/app-frame', () => ({ AppFrame: ({ sidebar, conversation }: { sidebar: ReactNode; conversation: ReactNode }) => <><aside>{sidebar}</aside><main>{conversation}</main></> }))
-vi.mock('@/components/workbench/sidebar', () => ({ Sidebar: ({ onChooseWorkspace, onOpenSettings }: { onChooseWorkspace(): void; onOpenSettings(): void }) => <><button onClick={() => onChooseWorkspace()}>Open picker</button><button onClick={onOpenSettings}>Open settings</button></> }))
-vi.mock('@/components/workbench/conversation-column', () => ({ ConversationColumn: () => null }))
+vi.mock('@/components/workbench/sidebar', () => ({ Sidebar: ({ onChooseWorkspace, onOpenSettings, onComputerChange }: {
+  onChooseWorkspace(): void; onOpenSettings(): void; onComputerChange(id: string | null): void
+}) => <><button onClick={() => onChooseWorkspace()}>Open picker</button><button onClick={onOpenSettings}>Open settings</button><button onClick={() => onComputerChange('node:alpha')}>Select alpha</button><button onClick={() => onComputerChange(null)}>All computers</button></> }))
+vi.mock('@/components/workbench/conversation-column', () => ({ ConversationColumn: ({ onChooseWorkspace }: { onChooseWorkspace(): void }) => <button onClick={onChooseWorkspace}>Choose folder</button> }))
 vi.mock('@/components/files/files-page', () => ({ FilesPage: () => <div data-files-page /> }))
 vi.mock('@/components/workbench/details-panel', () => ({ DetailsPanel: () => null }))
 vi.mock('@/components/workbench/server-login', () => ({ ServerLogin: () => null }))
 vi.mock('@/components/models/model-service-pages', () => ({ ModelAccessShell: () => <div data-model-center /> }))
 vi.mock('@/components/workbench/directory-picker', () => ({
-  DirectoryPicker: ({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) => {
+  DirectoryPicker: ({ open, onOpenChange, initialComputerId }: { open: boolean; onOpenChange(open: boolean): void; initialComputerId?: string }) => {
     const [draft, setDraft] = useState('')
-    return open ? <div data-picker-instance><input aria-label="Folder draft" value={draft} onChange={event => setDraft(event.target.value)} /><button onClick={() => onOpenChange(false)}>Close picker</button></div> : null
+    return open ? <div data-picker-instance data-initial-computer={initialComputerId}><input aria-label="Folder draft" value={draft} onChange={event => setDraft(event.target.value)} /><button onClick={() => onOpenChange(false)}>Close picker</button></div> : null
   },
 }))
 vi.mock('@/components/settings/settings-dialog', () => {
@@ -163,4 +165,33 @@ it('keeps the existing conversation connection alive across files and settings n
   for (const path of ['/files', '/', '/settings', '/files', '/']) await act(async () => navigate(path))
   expect(runtimeLifecycle.start).toHaveBeenCalledTimes(1)
   expect(runtimeLifecycle.stop).not.toHaveBeenCalled()
+})
+
+
+it('passes the visible sidebar computer to both workspace entry points only when opening', async () => {
+  await render()
+  await click('Select alpha')
+  for (const entry of ['Open picker', 'Choose folder']) {
+    await click(entry)
+    expect(host.querySelector('[data-picker-instance]')?.getAttribute('data-initial-computer')).toBe('node:alpha')
+    await click('Close picker')
+  }
+  await click('Choose folder')
+  await click('All computers')
+  expect(host.querySelector('[data-picker-instance]')?.getAttribute('data-initial-computer')).toBe('node:alpha')
+  await click('Close picker')
+  await click('Open picker')
+  expect(host.querySelector('[data-picker-instance]')?.getAttribute('data-initial-computer')).toBeNull()
+})
+
+it.each(['owner:other-tenant', 'member:tenant'])('drops an old computer default when the account scope changes to %s', async scope => {
+  await render()
+  await click('Select alpha')
+  await click('Open picker')
+  workbench.accountScope = scope
+  await render()
+  expect(host.querySelector('[data-picker-instance]')?.getAttribute('data-initial-computer')).toBeNull()
+  await click('Close picker')
+  await click('Open picker')
+  expect(host.querySelector('[data-picker-instance]')?.getAttribute('data-initial-computer')).toBeNull()
 })

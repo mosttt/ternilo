@@ -68,12 +68,13 @@ function blankDragHandlers(): RowDragHandlers {
   }
 }
 
-export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents = [], expandSidebar, onChooseWorkspace, onSessionActivated }: {
+export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents = [], expandSidebar, onChooseWorkspace, onComputerChange, onSessionActivated }: {
   wide: boolean
   readOnly?: boolean
   currentSessionEvents?: readonly SessionEvent[]
   expandSidebar(): void
   onChooseWorkspace(createSession?: boolean): void
+  onComputerChange?(id: string | null): void
   onSessionActivated(): void
 }) {
   const {
@@ -314,6 +315,9 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
   const rememberedComputer = view.computerByScope[archiveScope] ?? 'all'
   const selectedComputer = view.groupBy === 'computer' && computers.some(computer => computer.id === rememberedComputer)
     ? rememberedComputer : 'all'
+  React.useEffect(() => {
+    onComputerChange?.(selectedComputer === 'all' ? null : selectedComputer)
+  }, [selectedComputer, onComputerChange])
   const computerGroupsVisible = view.groupBy === 'computer' && selectedComputer === 'all'
   const normalizedQuery = normalizeSessionSearchQuery(query)
   const listKey = JSON.stringify([archiveScope, view.groupBy, selectedComputer, Boolean(normalizedQuery)])

@@ -23,6 +23,7 @@ export function Sidebar({
   onCollapsedChange,
   onMobileOpenChange,
   onChooseWorkspace,
+  onComputerChange,
   onOpenSettings,
   currentSessionEvents = [],
   liveStatus = 'idle',
@@ -32,6 +33,7 @@ export function Sidebar({
   onCollapsedChange(value: boolean): void
   onMobileOpenChange(value: boolean): void
   onChooseWorkspace(createSession?: boolean): void
+  onComputerChange?(id: string | null): void
   onOpenSettings(): void
   currentSessionEvents?: readonly SessionEvent[]
   liveStatus?: LiveConnectionStatus
@@ -151,6 +153,7 @@ export function Sidebar({
           currentSessionEvents={currentSessionEvents}
           expandSidebar={() => onCollapsedChange(false)}
           onChooseWorkspace={onChooseWorkspace}
+          onComputerChange={onComputerChange}
           onSessionActivated={() => onMobileOpenChange(false)}
         />
       </div>

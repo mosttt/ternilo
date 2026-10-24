@@ -173,6 +173,9 @@ export function ConversationColumn({
     currentTenantRole,
     accountScope,
     presets,
+    configurationLoading,
+    configurationError,
+    retryConfiguration,
     refresh,
     selectSession,
     updateSession,
@@ -919,6 +922,15 @@ export function ConversationColumn({
             : undefined}
         />
       )}
+      {platform && (currentWorkspace || currentSession) && !nodeOffline && (configurationError || (configurationLoading && !runtime.loading)) && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2 text-sm text-muted-foreground"
+          data-target-configuration={configurationLoading ? 'loading' : 'error'}
+          role={configurationError ? 'alert' : 'status'} aria-live="polite" aria-busy={configurationLoading}>
+          {configurationLoading ? <LoaderCircle className="size-4 shrink-0 animate-spin" /> : <AlertCircle className="size-4 shrink-0 text-destructive" />}
+          <span className="min-w-0 flex-1">{chatT(configurationLoading ? 'chat.loadingConfiguration' : 'chat.configurationFailed')}</span>
+          {configurationError && <Button type="button" variant="outline" size="sm" onClick={retryConfiguration}>{chatT('chat.retryConfiguration')}</Button>}
+        </div>
+      )}
       {currentSession && runtime.loadedSessionId === currentSessionId
         && !runtime.historyError && (runtime.loadingHistory || runtime.loadingOlder) && (
         <div className={css.historyProgress} data-history-state="backfilling" role="status" aria-live="polite" aria-busy="true">
@@ -1011,7 +1023,9 @@ export function ConversationColumn({
             <strong>{chatT(forkHydratingCurrent ? 'chat.loadingForkHistory' : 'chat.loadingHistory')}</strong>
             <p>{chatT(forkHydratingCurrent
               ? 'chat.loadingForkHistoryDescription'
-              : 'chat.loadingHistoryDescription')}</p>
+              : platform && currentWorkspace?.placement === 'local_node'
+                ? 'chat.loadingComputerDescription'
+                : 'chat.loadingHistoryDescription')}</p>
           </div>
         ) : runtime.historyError && !readableHistory ? (
           historyFailure

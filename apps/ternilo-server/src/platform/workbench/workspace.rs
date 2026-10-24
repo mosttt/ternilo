@@ -39,6 +39,15 @@ pub(crate) struct WorkbenchQuery {
     pub(crate) online_computers_only: bool,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StateQuery {
+    #[serde(default)]
+    online_computers_only: bool,
+    // Ordinary API reads refresh; the browser loads the stored index before Live synchronization.
+    refresh_computers: Option<bool>,
+}
+
 #[handler]
 pub(crate) async fn execution_targets(
     request: &mut Request,
@@ -226,7 +235,7 @@ pub(crate) async fn load_state(
     user: &ControlUser,
     tenant_id: &TenantId,
 ) -> Result<WorkbenchState, HarnessError> {
-    load_state_by_archive(state, user, tenant_id, false, false).await
+    load_state_by_archive(state, user, tenant_id, false, false, true).await
 }
 
 pub(crate) async fn load_state_filtered(
@@ -235,7 +244,7 @@ pub(crate) async fn load_state_filtered(
     tenant_id: &TenantId,
     online_only: bool,
 ) -> Result<WorkbenchState, HarnessError> {
-    load_state_by_archive(state, user, tenant_id, false, online_only).await
+    load_state_by_archive(state, user, tenant_id, false, online_only, true).await
 }
 
 pub(super) async fn load_archived_sessions(
@@ -245,7 +254,7 @@ pub(super) async fn load_archived_sessions(
     online_only: bool,
 ) -> Result<Vec<WorkbenchSession>, HarnessError> {
     Ok(
-        load_state_by_archive(state, user, tenant_id, true, online_only)
+        load_state_by_archive(state, user, tenant_id, true, online_only, true)
             .await?
             .sessions,
     )
@@ -261,13 +270,16 @@ async fn load_state_by_archive(
     tenant_id: &TenantId,
     archived: bool,
     online_only: bool,
+    refresh_computers: bool,
 ) -> Result<WorkbenchState, HarnessError> {
     let online = if online_only {
         Some(state.edge.online_executor_ids(tenant_id).await?)
     } else {
         None
     };
-    super::discovery::discover(state, user, tenant_id, online.as_deref()).await?;
+    if refresh_computers {
+        super::discovery::discover(state, user, tenant_id, online.as_deref()).await?;
+    }
     let records = if let Some(ids) = &online {
         state
             .store
@@ -406,14 +418,16 @@ pub(crate) async fn workbench_state(
 ) -> Result<Json<WorkbenchState>, ApiError> {
     let tenant_id = tenant_parameter(request)?;
     let query = request
-        .parse_queries::<WorkbenchQuery>()
+        .parse_queries::<StateQuery>()
         .map_err(invalid_request)?;
     Ok(Json(
-        load_state_filtered(
+        load_state_by_archive(
             app_state(depot),
             actor(depot),
             &tenant_id,
+            false,
             query.online_computers_only,
+            query.refresh_computers.unwrap_or(true),
         )
         .await?,
     ))

@@ -219,6 +219,8 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 `GET /api/v1/sessions/{id}/history?limit=200&before_seq=400` 读取 `seq < 400` 的最近一页，省略 `before_seq` 返回尾页；`limit` 默认 200，允许 1–1000。响应为 `{ "events": [...], "next_before_seq": 200 }`，事件按 seq 升序，`next_before_seq: null` 表示无更早记录。`/archive-history` 使用相同结构并额外核验归档状态。网页先读取尾页，再以最后原始事件的 seq 订阅 Live；加载旧页不改变实时游标。现有 `/events`、导出和 Live 协议保持兼容。
 
+浏览器进入工作台时使用 `GET /api/v1/state?refresh_computers=false` 先读取 Server 已保存的资源索引，不等待 Node 同步；可与 `online_computers_only=true` 组合，权限和在线范围过滤保持一致。省略 `refresh_computers` 或设为 `true` 时，继续先同步电脑再返回。浏览器随后通过 Live 同步资源，当前电脑的历史和配置单独加载，慢连接不阻塞侧栏与设置。
+
 ### 浏览器登录会话
 
 `GET /api/v1/auth/sessions` 统一列出当前账号尚有效的密码登录与本站 OIDC 会话；`DELETE /api/v1/auth/sessions/{session_id}` 撤销一项；`POST /api/v1/auth/sessions/revoke-others` 保留当前本站会话并撤销同账号其他两类会话。仅持有外部 IdP 访问凭据时，当前凭据不属于本站会话，批量操作撤销本账号全部本站会话；不撤销该外部凭据或 IdP 会话。

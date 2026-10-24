@@ -426,6 +426,39 @@ async fn online_computer_state_does_not_load_offline_workspace_or_session_metada
     fixture.edge.shutdown().await;
 }
 
+#[tokio::test]
+async fn stored_workbench_is_available_without_contacting_a_connected_computer() {
+    let fixture = Fixture::new("sqlite::memory:", None).await;
+    let (service, _shutdown) = fixture.service().await;
+    // The Node is connected but never replies: the Server index must still be usable.
+    for suffix in ["", "&online_computers_only=true"] {
+        let request = TestClient::get(format!(
+            "http://server.test/api/v1/state?refresh_computers=false{suffix}"
+        ))
+        .add_header(
+            "Authorization",
+            format!("Bearer {}", fixture.browser_token),
+            true,
+        )
+        .add_header("x-ternilo-tenant", fixture.route.tenant_id.as_str(), true);
+        let mut response = tokio::time::timeout(Duration::from_secs(1), request.send(&service))
+            .await
+            .expect("stored state must not wait for Node discovery");
+        assert_eq!(response.status_code, Some(StatusCode::OK));
+        let state: Value = response.take_json().await.unwrap();
+        assert_eq!(state["workspaces"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            state["sessions"][0]["identity"]["session_id"],
+            "peer-session"
+        );
+    }
+    assert!(
+        fixture.incoming.is_empty(),
+        "snapshot-only reads must not send Node commands"
+    );
+    fixture.edge.shutdown().await;
+}
+
 #[test]
 fn cluster_origin_requires_verified_tls_outside_literal_loopback() {
     for value in [

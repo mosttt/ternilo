@@ -5,6 +5,8 @@ import { api, ApiError } from '@/api/client'
 import { REMOTE_TOKEN_STORAGE_KEY } from '@/auth/remote-token'
 import { NATIVE_SESSION_KEY } from '@/auth/server'
 import { clearComposerDraft, hasComposerDraft, writeComposerDraft, writeComposerExtras } from '@/domain/composer-draft'
+import { subscribeCloudModelInventory } from '@/domain/cloud-model-inventory'
+import { subscribeProviderInventory } from '@/domain/provider-inventory'
 import { defaultPermissionStorageKey } from '@/domain/default-permission'
 import type {
   AgentPresetRoster, ApplicationCatalog, ApplicationState, LocalSession, TenantSummary, Workspace,
@@ -123,8 +125,8 @@ describe('WorkbenchProvider Server accounts', () => {
     const request = nativeServerRoutes()
     const full = deferred<ApplicationState>()
     request.mockImplementation(async (path: string) => {
-      if (path === '/state?online_computers_only=true') return { workspaces: [workspace('online')], sessions: [] } as never
-      if (path === '/state') return full.promise as never
+      if (path === '/state?online_computers_only=true&refresh_computers=false') return { workspaces: [workspace('online')], sessions: [] } as never
+      if (path === '/state?refresh_computers=false') return full.promise as never
       if (path === '/auth/session') return serverIdentity as never
       if (path === '/tenants') return { tenants: [tenant('space')] } as never
       if (route(path) === '/catalog') return catalog('online') as never
@@ -144,6 +146,115 @@ describe('WorkbenchProvider Server accounts', () => {
     expect(current.snapshot.workspaces.map(item => item.workspace_id)).toEqual(['online'])
     expect(current.error).toBe('')
   })
+  it('opens the Server index before slow computer configuration and ignores a late previous selection', async () => {
+    window.__TERNILO_BOOT__ = { remote: true, platform: true }
+    sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
+    localStorage.setItem('ternilo.current-session', 'slow')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, native_enabled: true, oidc_enabled: false }))))
+    const slow = deferred<ApplicationCatalog>()
+    const state = { workspaces: [workspace('a'), workspace('b')], sessions: [session('slow', 'a', 1), session('fast', 'b', 2)] }
+    let slowSignal: AbortSignal | undefined
+    const request = nativeServerRoutes()
+    const original = request.getMockImplementation()!
+    request.mockImplementation(async (path, options) => {
+      if (route(path) === '/state') return state as never
+      if (path === '/catalog?session_id=slow') { slowSignal = options?.signal ?? undefined; return slow.promise as never }
+      if (path === '/catalog?session_id=fast') return catalog('fast') as never
+      return original(path, options)
+    })
+    await mount()
+    expect(current.loading).toBe(false)
+    expect(current.currentSessionId).toBe('slow')
+    expect(current.configurationLoading).toBe(true)
+    expect(current.snapshot).toEqual(state)
+    expect(request).toHaveBeenCalledWith('/state?refresh_computers=false')
+    await act(async () => { await current.refresh() })
+    expect(current.loading).toBe(false)
+    expect(current.configurationLoading).toBe(true)
+    await act(async () => { current.selectSession('fast') })
+    expect(slowSignal?.aborted).toBe(true)
+    expect(current.catalog?.revision).toBe('fast')
+    await act(async () => { slow.resolve(catalog('obsolete')) })
+    expect(current.catalog?.revision).toBe('fast')
+    expect(current.currentSessionId).toBe('fast')
+    expect(current.configurationLoading).toBe(false)
+  })
+
+  it('keeps configuration failures local and retries without blocking the Server shell', async () => {
+    window.__TERNILO_BOOT__ = { remote: true, platform: true }
+    sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, native_enabled: true, oidc_enabled: false }))))
+    const request = nativeServerRoutes(), original = request.getMockImplementation()!
+    let failed = true
+    request.mockImplementation(async (path, options) => {
+      if (route(path) === '/catalog' && failed) throw new Error('computer timed out')
+      return original(path, options)
+    })
+    await mount()
+    expect(current.loading).toBe(false)
+    expect(current.error).toBe('')
+    expect(current.configurationError).toBe('computer timed out')
+    failed = false
+    await act(async () => { current.retryConfiguration() })
+    expect(current.catalog?.revision).toBe('native')
+    expect(current.configurationError).toBe('')
+    expect(current.loading).toBe(false)
+  })
+
+  it('retains the selected computer metadata during a background refresh', async () => {
+    window.__TERNILO_BOOT__ = { remote: true, platform: true }
+    sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, native_enabled: true, oidc_enabled: false }))))
+    const request = nativeServerRoutes(), original = request.getMockImplementation()!
+    const delayed = deferred<ApplicationCatalog>()
+    await mount()
+    request.mockImplementation(async (path, options) => route(path) === '/catalog' ? delayed.promise as never : original(path, options))
+    await act(async () => { await current.refresh() })
+    expect(current.loading).toBe(false)
+    expect(current.configurationLoading).toBe(true)
+    expect(current.catalog?.revision).toBe('native')
+    expect(current.presets.default_id).toBe('native')
+    await act(async () => { delayed.resolve(catalog('updated')) })
+    expect(current.configurationLoading).toBe(false)
+    expect(current.catalog?.revision).toBe('updated')
+  })
+
+  it('discards slow computer configuration after changing space or signing out', async () => {
+    window.__TERNILO_BOOT__ = { remote: true, platform: true }
+    sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, native_enabled: true, oidc_enabled: false }))))
+    const slow = deferred<ApplicationCatalog>()
+    const request = nativeServerRoutes(), original = request.getMockImplementation()!
+    request.mockImplementation(async (path, options) => {
+      if (path === '/tenants') return { tenants: [tenant('space'), tenant('other')] } as never
+      if (route(path) === '/catalog') return current.currentTenantId === 'other' ? catalog('other') as never : slow.promise as never
+      return original(path, options)
+    })
+    await mount()
+    expect(current.loading).toBe(false)
+    await act(async () => { await current.selectTenant('other') })
+    expect(current.catalog?.revision).toBe('other')
+    await act(async () => { current.logout(); slow.resolve(catalog('old-space')) })
+    expect(current.catalog).toBeNull()
+    expect(current.authRequired).toBe(true)
+  })
+
+  it('does not wake old inventory consumers while signing out', async () => {
+    window.__TERNILO_BOOT__ = { remote: true, platform: true }
+    sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, native_enabled: true, oidc_enabled: false }))))
+    nativeServerRoutes()
+    await mount()
+    const providerReload = vi.fn(), modelReload = vi.fn()
+    const unsubscribeProvider = subscribeProviderInventory(providerReload)
+    const unsubscribeModel = subscribeCloudModelInventory(modelReload, {})
+    await act(async () => { current.logout() })
+    expect(providerReload).not.toHaveBeenCalled()
+    expect(modelReload).not.toHaveBeenCalled()
+    unsubscribeProvider()
+    unsubscribeModel()
+  })
+
   it.each(['active', 'pending'] as const)('completes OIDC username registration with %s status without creating a native session', async status => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     let registered = false

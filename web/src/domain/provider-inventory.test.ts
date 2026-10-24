@@ -6,6 +6,7 @@ vi.mock('@/api/client', () => ({ api: { request } }))
 
 import {
   invalidateProviderInventory,
+  clearProviderInventories,
   loadProviderInventory,
   peekProviderInventory,
   resetProviderInventoryForTest,
@@ -160,6 +161,18 @@ describe('provider inventory cache', () => {
     expect(computer.credentials.references[0].configured).toBe(false)
     invalidateProviderInventory({ tenantId: 'personal-space' })
     expect(peekProviderInventory({ sessionId: 'shared-session' })).toBe(computer)
+  })
+
+  it('rejects an old account read after teardown without retrying it under the new account', async () => {
+    let resolve!: (value: unknown) => void
+    request.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    const pending = loadProviderInventory()
+    clearProviderInventories()
+    const failure = expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    resolve(providers)
+    await failure
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(peekProviderInventory()).toBeNull()
   })
 
 })

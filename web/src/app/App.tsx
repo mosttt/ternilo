@@ -224,6 +224,11 @@ function WorkbenchShell({ runtime }: { runtime: SessionRuntime }) {
   const [settingsSection, setSettingsSection] = React.useState<SettingsSection>("general");
   const [picker, setPicker] = React.useState(false);
   const [pickerCreatesSession, setPickerCreatesSession] = React.useState(false);
+  const [sidebarComputer, setSidebarComputer] = React.useState<{ scope: string | undefined; id: string | null } | null>(null);
+  const [pickerComputer, setPickerComputer] = React.useState<typeof sidebarComputer>(null);
+  const rememberSidebarComputer = React.useCallback((id: string | null) => {
+    setSidebarComputer({ scope: accountScope, id });
+  }, [accountScope]);
   const [retrying, setRetrying] = React.useState(false);
   const [online, setOnline] = React.useState(() => navigator.onLine);
   const [updateReady, setUpdateReady] = React.useState(false);
@@ -363,6 +368,7 @@ function WorkbenchShell({ runtime }: { runtime: SessionRuntime }) {
     if (!canOperate) return;
     setMobileSidebar(false);
     setPickerCreatesSession(createAfter);
+    setPickerComputer(sidebarComputer?.scope === accountScope ? sidebarComputer : null);
     setPicker(true);
   };
   const openSettings = (section: SettingsSection = "general") => {
@@ -400,6 +406,7 @@ function WorkbenchShell({ runtime }: { runtime: SessionRuntime }) {
           onCollapsedChange={layout.setSidebarCollapsed}
           onMobileOpenChange={setMobileSidebar}
           onChooseWorkspace={openPicker}
+          onComputerChange={rememberSidebarComputer}
           onOpenSettings={() => openSettings()}
         />}
         conversation={<ConversationColumn
@@ -442,7 +449,7 @@ function WorkbenchShell({ runtime }: { runtime: SessionRuntime }) {
         <div className="fixed inset-0 z-[80] grid place-items-center bg-background/70 p-4 backdrop-blur-sm" role="status" aria-live="polite" aria-busy="true">
           <div className="flex max-w-full items-center gap-2 rounded-xl border bg-card px-4 py-3 text-sm shadow-xl">
             <LoaderCircle className="size-4 animate-spin text-primary" />
-            {t("connecting")}
+            {t(platform ? "connectingServer" : "connecting")}
           </div>
         </div>
       )}
@@ -482,6 +489,7 @@ function WorkbenchShell({ runtime }: { runtime: SessionRuntime }) {
         open={picker && canOperate}
         onOpenChange={setPicker}
         createSessionAfter={pickerCreatesSession}
+        initialComputerId={pickerComputer?.scope === accountScope ? pickerComputer?.id ?? undefined : undefined}
       />
       <SettingsDialog
         effectiveProfile={runtime.effectiveProfile}

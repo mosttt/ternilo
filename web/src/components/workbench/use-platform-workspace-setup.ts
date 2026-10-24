@@ -10,10 +10,11 @@ function folderName(path: string) {
   return path.replace(/[\\/]+$/, '').split(/[\\/]/).at(-1) || path
 }
 
-export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAfter }: {
+export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAfter, initialComputerId }: {
   open: boolean
   onOpenChange(open: boolean): void
   createSessionAfter: boolean
+  initialComputerId?: string
 }) {
   const { createWorkspace, createSession, notify, currentWorkspace, currentTenantRole,
     currentTenantId, tenants, serverIdentity, snapshot } = useWorkbench()
@@ -61,13 +62,17 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
       if (initial || !initialized.current) {
         initialized.current = true
         const current = initialWorkspace.current
-        const target = executorResponse.executors.find(item => item.executor_id === current?.node_id)
-          ?? executorResponse.executors.find(item => item.connected) ?? executorResponse.executors[0]
-        const nextPlacement = managedExecution && (current?.placement === 'cloud' || !target) ? 'cloud' : 'local_node'
+        const preferredNodeId = initialComputerId?.startsWith('node:') ? initialComputerId.slice(5) : undefined
+        const target = preferredNodeId !== undefined
+          ? executorResponse.executors.find(item => item.executor_id === preferredNodeId)
+          : executorResponse.executors.find(item => item.executor_id === current?.node_id)
+            ?? executorResponse.executors.find(item => item.connected) ?? executorResponse.executors[0]
+        const nextPlacement = preferredNodeId !== undefined ? 'local_node'
+          : managedExecution && (initialComputerId === 'cloud' || current?.placement === 'cloud' || !target) ? 'cloud' : 'local_node'
         const permitted = nextPlacement === 'local_node' && target?.project_id
           ? projectResponse.projects.filter(item => item.project_id === target.project_id) : projectResponse.projects
         setPlacement(nextPlacement)
-        setExecutorId(target?.executor_id ?? '')
+        setExecutorId(preferredNodeId ?? target?.executor_id ?? '')
         setProjectId(permitted.find(item => item.project_id === (current?.management_project_id ?? current?.project_id))?.project_id
           ?? permitted[0]?.project_id ?? (canCreateProject && !target?.project_id ? NEW_PROJECT : ''))
       }
@@ -76,7 +81,7 @@ export function usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAft
     } finally {
       if (sequence === requestId.current) setLoading(false)
     }
-  }, [canCreateProject, managedExecution])
+  }, [canCreateProject, managedExecution, initialComputerId])
 
   React.useEffect(() => { initialWorkspace.current = currentWorkspace }, [currentWorkspace])
   React.useEffect(() => {

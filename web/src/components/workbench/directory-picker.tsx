@@ -6,6 +6,7 @@ export function DirectoryPicker(props: {
   open: boolean
   onOpenChange(open: boolean): void
   createSessionAfter?: boolean
+  initialComputerId?: string
 }) {
   const { platform, currentTenantRole } = useWorkbench()
   if (platform && (currentTenantRole === null || currentTenantRole === 'viewer')) return null

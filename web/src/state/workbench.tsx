@@ -17,7 +17,7 @@ import { permissionForPlacement, readDefaultPermission } from '@/domain/default-
 import { modelSelectionKey } from '@/domain/cloud-model-inventory'
 import { reusableBlankSession } from '@/domain/blank-session'
 import { clearComposerDraft, hasComposerDraft } from '@/domain/composer-draft'
-import { invalidateAllProviderInventories } from '@/domain/provider-inventory'
+import { clearProviderInventories, invalidateAllProviderInventories } from '@/domain/provider-inventory'
 import { invalidateFileInventory, updateFileInventoryWorkbench } from '@/domain/file-inventory'
 import { readSidebarView } from '@/domain/sidebar-view'
 import {
@@ -53,6 +53,9 @@ interface WorkbenchContextValue {
   catalog: ApplicationCatalog | null
   presets: AgentPresetRoster
   loading: boolean
+  configurationLoading: boolean
+  configurationError: string
+  retryConfiguration(): void
   error: string
   remote: boolean
   platform: boolean
@@ -118,10 +121,10 @@ function selectionTarget(workspaceId: string | null, sessionId: string | null): 
   return { sessionId, workspaceId }
 }
 
-async function readTargetConfiguration(target: ExecutionTarget) {
+async function readTargetConfiguration(target: ExecutionTarget, signal?: AbortSignal) {
   const [catalog, presets] = await Promise.all([
-    api.request<ApplicationCatalog>(executionTargetPath('/catalog', target)),
-    api.request<AgentPresetRoster>(executionTargetPath('/agent-presets', target)),
+    api.request<ApplicationCatalog>(executionTargetPath('/catalog', target), { signal }),
+    api.request<AgentPresetRoster>(executionTargetPath('/agent-presets', target), { signal }),
   ])
   return { catalog, presets }
 }
@@ -186,10 +189,13 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const computerFilterLoading = React.useRef(false)
   const readWorkbenchState = React.useCallback(async () => {
     const epoch = computerFilterEpoch.current
-    const next = await api.request<ApplicationState>(onlineComputersOnlyRef.current ? '/state?online_computers_only=true' : '/state')
+    const query = new URLSearchParams()
+    if (onlineComputersOnlyRef.current) query.set('online_computers_only', 'true')
+    if (platform) query.set('refresh_computers', 'false')
+    const next = await api.request<ApplicationState>(`/state${query.size ? `?${query}` : ''}`)
     if (epoch !== computerFilterEpoch.current) throw new DOMException('Workbench filter changed', 'AbortError')
     return next
-  }, [])
+  }, [platform])
   const [snapshot, setSnapshot] = React.useState<ApplicationState>(emptyState)
   React.useLayoutEffect(() => updateFileInventoryWorkbench(snapshot), [snapshot])
   const snapshotRef = React.useRef(snapshot)
@@ -199,6 +205,9 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const [catalog, setCatalog] = React.useState<ApplicationCatalog | null>(null)
   const [presets, setPresets] = React.useState<AgentPresetRoster>(emptyPresets)
   const [loading, setLoading] = React.useState(true)
+  const [configurationLoading, setConfigurationLoading] = React.useState(false)
+  const [configurationError, setConfigurationError] = React.useState('')
+  const [configurationRevision, retryConfiguration] = React.useReducer(value => value + 1, 0)
   const [error, setError] = React.useState('')
   const [authRequired, setAuthRequired] = React.useState(() => {
     if (remote && !platform && !api.hasToken()) {
@@ -256,14 +265,15 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     setCurrentTenantId(tenantId)
   }, [])
 
-  const invalidateTarget = React.useCallback(() => {
+  const invalidateTarget = React.useCallback((scopeChanged = true) => {
     computerFilterLoading.current = false
     targetEpochRef.current += 1
     loadRequestRef.current += 1
     refreshRequestRef.current += 1
     configurationRequestRef.current += 1
     configurationTargetRef.current = null
-    invalidateAllProviderInventories()
+    if (scopeChanged) clearProviderInventories()
+    else invalidateAllProviderInventories()
     invalidateFileInventory()
     return targetEpochRef.current
   }, [])
@@ -288,7 +298,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => api.onUnauthorized(() => {
     setAccessPaused(false)
-    invalidateTarget()
+    invalidateTarget(remote || platform)
     if (!remote && !platform) {
       setAuthRequired(false)
       setLoading(false)
@@ -495,6 +505,17 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       }
       const nextSnapshot = await readWorkbenchState()
       if (!isCurrent(platform ? tenantId : undefined)) return
+      if (platform) {
+        // The Server index is ready; computer configuration belongs to the selection effect.
+        if (liveEpoch === liveWorkbenchEpochRef.current) {
+          const requested = selectionRef.current
+          const selection = chooseSelection(nextSnapshot, requested.workspaceId, requested.sessionId)
+          setSnapshot(nextSnapshot)
+          replaceSelection(selection.workspaceId, selection.sessionId)
+        }
+        setAuthRequired(false)
+        return
+      }
       const requestedSelection = selectionRef.current
       const initialSelection = liveEpoch !== liveWorkbenchEpochRef.current ? requestedSelection : chooseSelection(nextSnapshot, requestedSelection.workspaceId, requestedSelection.sessionId)
       const target = selectionTarget(initialSelection.workspaceId, initialSelection.sessionId)
@@ -545,37 +566,41 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     if (loading || authRequired || (platform && !tenantRef.current)) return
     const target = selectionTarget(currentWorkspaceId, currentSessionId)
     const targetKey = executionTargetKey(target)
+    setConfigurationError('')
     if (configurationOffline) {
       configurationRequestRef.current += 1
       configurationTargetRef.current = null
       setCatalog(null)
       setPresets(emptyPresets)
+      setConfigurationLoading(false)
       return
     }
-    if (configurationTargetRef.current === targetKey) return
+    if (configurationTargetRef.current === targetKey && !platform) return
     const requestId = ++configurationRequestRef.current
-    configurationTargetRef.current = null
-    setCatalog(null)
-    setPresets(emptyPresets)
-    void readTargetConfiguration(target)
+    const controller = new AbortController()
+    const isCurrent = () => !controller.signal.aborted && requestId === configurationRequestRef.current
+      && executionTargetKey(selectionTarget(selectionRef.current.workspaceId, selectionRef.current.sessionId)) === targetKey
+    if (configurationTargetRef.current !== targetKey) {
+      configurationTargetRef.current = null
+      setCatalog(null)
+      setPresets(emptyPresets)
+    }
+    setConfigurationLoading(true)
+    void readTargetConfiguration(target, controller.signal)
       .then(configuration => {
-        if (requestId !== configurationRequestRef.current) return
-        const current = selectionRef.current
-        if (executionTargetKey(selectionTarget(current.workspaceId, current.sessionId)) !== targetKey) return
+        if (!isCurrent()) return
         configurationTargetRef.current = targetKey
         setCatalog(configuration.catalog)
         setPresets(configuration.presets)
-        setError('')
       })
-      .catch(() => {
-        if (requestId !== configurationRequestRef.current) return
-        const current = selectionRef.current
-        if (executionTargetKey(selectionTarget(current.workspaceId, current.sessionId)) !== targetKey) return
+      .catch(cause => {
+        if (!isCurrent()) return
         configurationTargetRef.current = targetKey
-        setCatalog(null)
-        setPresets(emptyPresets)
+        setConfigurationError(cause instanceof Error ? cause.message : String(cause))
       })
-  }, [authRequired, currentSessionId, currentWorkspaceId, loading, platform, configurationOffline])
+      .finally(() => { if (isCurrent()) setConfigurationLoading(false) })
+    return () => controller.abort()
+  }, [authRequired, currentSessionId, currentWorkspaceId, loading, platform, configurationOffline, configurationRevision, currentTenantId, serverIdentity?.user.user_id])
 
   const refresh = React.useCallback(async () => {
     const requestId = ++refreshRequestRef.current
@@ -590,6 +615,17 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     try {
       const nextSnapshot = await readWorkbenchState()
       if (!isCurrent()) return
+      if (platform) {
+        if (liveEpoch === liveWorkbenchEpochRef.current) {
+          const requested = selectionRef.current
+          const selection = chooseSelection(nextSnapshot, requested.workspaceId, requested.sessionId)
+          setSnapshot(nextSnapshot)
+          replaceSelection(selection.workspaceId, selection.sessionId)
+        }
+        retryConfiguration()
+        setError('')
+        return
+      }
       const requestedSelection = selectionRef.current
       const initialSelection = liveEpoch !== liveWorkbenchEpochRef.current ? requestedSelection : chooseSelection(nextSnapshot, requestedSelection.workspaceId, requestedSelection.sessionId)
       const target = selectionTarget(initialSelection.workspaceId, initialSelection.sessionId)
@@ -620,14 +656,14 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       setError(cause instanceof Error ? cause.message : String(cause))
       throw cause
     }
-  }, [replaceSelection])
+  }, [platform, readWorkbenchState, replaceSelection])
 
   const setOnlineComputersOnly = React.useCallback(async (onlyOnline: boolean) => {
     const effective = platform && onlyOnline
     if (onlineComputersOnlyRef.current === effective) return
     onlineComputersOnlyRef.current = effective
     computerFilterEpoch.current += 1
-    const epoch = invalidateTarget()
+    const epoch = invalidateTarget(false)
     setOnlineComputersOnlyState(effective)
     if (authRequired) return
     computerFilterLoading.current = true
@@ -952,6 +988,9 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       catalog,
       presets,
       loading,
+      configurationLoading,
+      configurationError,
+      retryConfiguration,
       error,
       remote,
       platform,
