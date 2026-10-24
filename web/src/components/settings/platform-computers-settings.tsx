@@ -1,7 +1,7 @@
 import { copyText } from '@/lib/clipboard'
 import * as React from 'react'
 import { Check, Copy, Download, Info, Laptop, LoaderCircle, Pause, Play, RefreshCw, ShieldX, Trash2 } from 'lucide-react'
-import { ApiError } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, Input, Label, Select } from '@/components/ui/field'
@@ -11,6 +11,7 @@ import type { ManagedExecutionTarget, ProjectRecord } from '@/types'
 import { ActionDialog, GroupHeader, SectionHeader } from './settings-ui'
 import { ComputerDetailsDialog } from './computer-details-dialog'
 import { ComputerUpdatesDialog } from './computer-updates-dialog'
+import { ComputerUpdateStatus, type UpdateStatus } from './computer-update-status'
 import {
   createNodeLaunch,
   createOwnedNodeLaunch,
@@ -73,6 +74,12 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
   const [revokeTarget, setRevokeTarget] = React.useState<ManagedExecutionTarget | null>(null)
   const [revoking, setRevoking] = React.useState(false)
   const [updateTargets, setUpdateTargets] = React.useState<ManagedExecutionTarget[] | null>(null)
+  const [updateStatuses, setUpdateStatuses] = React.useState<Record<string, UpdateStatus>>({})
+  const [updateErrors, setUpdateErrors] = React.useState<Record<string, string>>({})
+  const acceptUpdateStatuses = React.useCallback((next: Record<string, UpdateStatus>, errors: Record<string, string> = {}) => {
+    setUpdateStatuses(previous => ({ ...previous, ...next }))
+    setUpdateErrors(previous => ({ ...Object.fromEntries(Object.entries(previous).filter(([id]) => !next[id])), ...errors }))
+  }, [])
   const [detailsTarget, setDetailsTarget] = React.useState<string | null>(null)
   const [lifecycleTarget, setLifecycleTarget] = React.useState<{ computer: ManagedExecutionTarget; action: 'suspend' | 'resume' | 'remove' } | null>(null)
   const [changing, setChanging] = React.useState(false)
@@ -110,6 +117,25 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
   }, [owned, t, tenantId, includeRemoved])
 
   React.useEffect(() => { void load() }, [load])
+
+  React.useEffect(() => {
+    if (!owned || updateTargets) return
+    const controller = new AbortController()
+    const pending = computers.filter(computer => computer.management.removed_at_ms == null)
+    // Read Server-reported versions; listing computers must never wait for a Node RPC.
+    void Promise.all(Array.from({ length: Math.min(4, pending.length) }, async () => {
+      while (pending.length && !controller.signal.aborted) {
+        const computer = pending.shift()!
+        try {
+          const status = await api.request<UpdateStatus>(`/tenants/${encodeURIComponent(tenantId)}/my-computers/${encodeURIComponent(computer.executor_id)}/updates`, { signal: controller.signal })
+          if (!controller.signal.aborted) acceptUpdateStatuses({ [computer.executor_id]: status })
+        } catch (cause) {
+          if (!controller.signal.aborted) setUpdateErrors(previous => ({ ...previous, [computer.executor_id]: cause instanceof Error ? cause.message : String(cause) }))
+        }
+      }
+    }))
+    return () => controller.abort()
+  }, [owned, tenantId, computers, updateTargets, acceptUpdateStatuses])
 
   const generate = async () => {
     const normalized = computerName.trim()
@@ -281,21 +307,24 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
                       : t('computers.never')}
                   </div>
                 </div>
-                <div className={styles.actions}>
-                  {owned && !removed && <Button type="button" variant="outline" size="sm" onClick={() => setUpdateTargets([computer])}><Download />{t('updates.action')}</Button>}
-                  <Button type="button" variant="outline" size="sm" onClick={() => setDetailsTarget(computer.executor_id)}><Info />{t('computers.details')}</Button>
-                  {computer.state === 'revoked' ? <Button type="button" variant="outline" size="sm" onClick={() => { setRecoveryTarget(computer); setRecoveryName(computer.management.name); setRecoveryError('') }}><RefreshCw />{t('computers.recover')}</Button> : <Button type="button" variant="outline" size="sm" onClick={() => setLifecycleTarget({ computer, action: suspended ? 'resume' : 'suspend' })}>{suspended ? <Play /> : <Pause />}{t(suspended ? 'computers.resume' : 'computers.suspend')}</Button>}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    disabled={computer.state === 'revoked'}
-                    onClick={() => setRevokeTarget(computer)}
-                  >
-                    <ShieldX />{t('computers.revoke')}
-                  </Button>
-                  {!removed && <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setLifecycleTarget({ computer, action: 'remove' })}><Trash2 />{t('computers.remove')}</Button>}
+                <div className={styles.computerFooter}>
+                  {owned && !removed && <ComputerUpdateStatus status={updateStatuses[computer.executor_id]} error={updateErrors[computer.executor_id]} />}
+                  <div className={styles.actions}>
+                    {owned && !removed && <Button type="button" variant="outline" size="sm" onClick={() => setUpdateTargets([computer])}><Download />{t('updates.action')}</Button>}
+                    <Button type="button" variant="outline" size="sm" onClick={() => setDetailsTarget(computer.executor_id)}><Info />{t('computers.details')}</Button>
+                    {computer.state === 'revoked' ? <Button type="button" variant="outline" size="sm" onClick={() => { setRecoveryTarget(computer); setRecoveryName(computer.management.name); setRecoveryError('') }}><RefreshCw />{t('computers.recover')}</Button> : <Button type="button" variant="outline" size="sm" onClick={() => setLifecycleTarget({ computer, action: suspended ? 'resume' : 'suspend' })}>{suspended ? <Play /> : <Pause />}{t(suspended ? 'computers.resume' : 'computers.suspend')}</Button>}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      disabled={computer.state === 'revoked'}
+                      onClick={() => setRevokeTarget(computer)}
+                    >
+                      <ShieldX />{t('computers.revoke')}
+                    </Button>
+                    {!removed && <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setLifecycleTarget({ computer, action: 'remove' })}><Trash2 />{t('computers.remove')}</Button>}
+                  </div>
                 </div>
               </article>
             )
@@ -345,7 +374,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
         onOpenChange={next => { if (!next) setRevokeTarget(null) }}
         onConfirm={() => void revoke()}
       />
-      {updateTargets && <ComputerUpdatesDialog tenantId={tenantId} computers={updateTargets} onClose={() => setUpdateTargets(null)} />}
+      {updateTargets && <ComputerUpdatesDialog tenantId={tenantId} computers={updateTargets} onStatusesChange={acceptUpdateStatuses} onClose={() => setUpdateTargets(null)} />}
       {detailsTarget && <ComputerDetailsDialog key={`${tenantId}:${scope}:${detailsTarget}`} tenantId={tenantId} executorId={detailsTarget} scope={scope} formatTime={formatTime} onClose={() => setDetailsTarget(null)} onSaved={load} />}
       <Dialog open={Boolean(recoveryTarget)} onOpenChange={open => { if (!open && !recovering) setRecoveryTarget(null) }}>
         <DialogContent className="max-w-lg" data-computer-recovery="">

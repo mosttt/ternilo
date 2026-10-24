@@ -62,8 +62,8 @@ afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks()
 async function settle(action?: () => void) {
   await act(async () => { action?.(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve() })
 }
-async function mount() {
-  await settle(() => root.render(<LocaleProvider><DirectoryPicker open createSessionAfter onOpenChange={() => undefined} /></LocaleProvider>))
+async function mount(initialComputerId?: string) {
+  await settle(() => root.render(<LocaleProvider><DirectoryPicker open createSessionAfter initialComputerId={initialComputerId} onOpenChange={() => undefined} /></LocaleProvider>))
 }
 function button(label: string) {
   const result = [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === label)
@@ -82,10 +82,10 @@ async function fill(id: string, value: string) {
     input.dispatchEvent(new Event(input.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }))
   })
 }
-async function chooseDirectory() {
+async function chooseDirectory(computer = 'my-vps') {
   await settle(() => button('选择文件夹').click())
   const directory = document.querySelector<HTMLButtonElement>('[data-directory-endpoint]')!
-  expect(directory.dataset.directoryEndpoint).toBe('/executors/my-vps/directories')
+  expect(directory.dataset.directoryEndpoint).toBe(`/executors/${computer}/directories`)
   await settle(() => directory.click())
 }
 
@@ -104,6 +104,56 @@ describe('Server workspace setup', () => {
     await settle(() => button('打开并开始会话').click())
     expect(workbench.createWorkspace).toHaveBeenCalledWith({ project_id: 'project', name: 'demo', placement: 'local_node', executor_id: 'my-vps', path: '/projects/demo' })
     expect(workbench.createSession).toHaveBeenCalledWith('public-workspace')
+  })
+
+  it('prefers the sidebar computer over the active workspace and registers on that computer', async () => {
+    await mount('node:other-computer')
+    expect(document.getElementById('workspace-executor')!.getAttribute('data-choice-value')).toBe('other-computer')
+    await chooseDirectory('other-computer')
+    await settle(() => button('打开并开始会话').click())
+    expect(workbench.createWorkspace).toHaveBeenCalledWith(expect.objectContaining({ executor_id: 'other-computer', path: '/projects/demo' }))
+  })
+
+  it('keeps a manual computer choice on refresh instead of reapplying the sidebar default', async () => {
+    await mount('node:other-computer')
+    await fill('workspace-executor', 'my-vps')
+    await settle(() => button('刷新').click())
+    expect(document.getElementById('workspace-executor')!.getAttribute('data-choice-value')).toBe('my-vps')
+    await chooseDirectory()
+    await settle(() => button('打开并开始会话').click())
+    expect(workbench.createWorkspace).toHaveBeenCalledWith(expect.objectContaining({ executor_id: 'my-vps' }))
+  })
+
+  it.each([false, true])('does not replace an unavailable sidebar computer with an online computer (missing=%s)', async missing => {
+    vi.mocked(api.request).mockImplementation(async path => (path === '/projects'
+      ? { projects: [{ project_id: 'project', name: 'My project' }] }
+      : { executors: [
+        { executor_id: 'my-vps', name: 'my-vps', connected: true },
+        ...missing ? [] : [{ executor_id: 'other-computer', name: 'other-computer', connected: false }],
+      ] }) as never)
+    await mount('node:other-computer')
+    expect(document.getElementById('workspace-executor')!.getAttribute('data-choice-value')).toBe('other-computer')
+    expect(button('选择文件夹').disabled).toBe(true)
+    expect(button('打开并开始会话').disabled).toBe(true)
+    expect(document.body.textContent).toContain(missing ? '不可用' : '离线')
+    expect(workbench.createWorkspace).not.toHaveBeenCalled()
+    await fill('workspace-executor', 'my-vps')
+    await chooseDirectory()
+    expect(button('打开并开始会话').disabled).toBe(false)
+  })
+
+  it('uses the selected computer’s project binding rather than the current workspace project', async () => {
+    vi.mocked(api.request).mockImplementation(async path => (path === '/projects'
+      ? { projects: [{ project_id: 'project', name: 'My project' }, { project_id: 'bound-project', name: 'Bound project' }] }
+      : { executors: [
+        { executor_id: 'my-vps', name: 'my-vps', connected: true },
+        { executor_id: 'other-computer', name: 'other-computer', connected: true, project_id: 'bound-project' },
+      ] }) as never)
+    await mount('node:other-computer')
+    expect(document.getElementById('workspace-project')!.getAttribute('data-choice-value')).toBe('bound-project')
+    await chooseDirectory('other-computer')
+    await settle(() => button('打开并开始会话').click())
+    expect(workbench.createWorkspace).toHaveBeenCalledWith(expect.objectContaining({ executor_id: 'other-computer', project_id: 'bound-project' }))
   })
 
   it('clears a chosen directory when changing computers', async () => {

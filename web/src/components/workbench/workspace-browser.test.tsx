@@ -10,6 +10,7 @@ import type { ServerIdentity } from '@/auth/server'
 const mocks = vi.hoisted(() => ({
   chooseWorkspace: vi.fn<(createSession?: boolean) => void>(),
   apiRequest: vi.fn(),
+  computerChange: vi.fn(),
   workbench: {
     snapshot: { workspaces: [] as Workspace[], sessions: [] as LocalSession[] },
     currentSessionId: null as string | null,
@@ -74,6 +75,7 @@ beforeEach(() => {
   setupChoiceSelect()
   localStorage.clear()
   mocks.chooseWorkspace.mockReset()
+  mocks.computerChange.mockReset()
   mocks.workbench.setOnlineComputersOnly.mockReset().mockResolvedValue(undefined)
   mocks.apiRequest.mockReset().mockResolvedValue({ workspace_order: [], session_order_by_account: {} })
   mocks.workbench.notify.mockReset()
@@ -114,6 +116,7 @@ async function renderBrowser(wide: boolean, readOnly = false) {
           readOnly={readOnly}
           expandSidebar={vi.fn()}
           onChooseWorkspace={mocks.chooseWorkspace}
+          onComputerChange={mocks.computerChange}
           onSessionActivated={vi.fn()}
         />
       </TooltipProvider>
@@ -176,6 +179,7 @@ it('filters to one computer without navigating and remembers the choice after re
   await renderBrowser(true)
   await selectChoice(computerPicker(), 'node:a')
   expect(computerPicker().textContent).toBe('电脑 a · 离线')
+  expect(mocks.computerChange).toHaveBeenLastCalledWith('node:a')
   expect(visibleWorkspaces()).toEqual(['Pictures', 'Docker'])
   expect(host.querySelector('[data-sidebar-computer-group]')).toBeNull()
   expect([...host.querySelectorAll('[data-sidebar-workspace-group]')].every(item => item.getAttribute('aria-level') === '1')).toBe(true)
@@ -205,6 +209,7 @@ it('isolates computer choices by account and space and ignores live status updat
   mocks.workbench.currentTenantId = 'another-space'
   await renderBrowser(true)
   expect(computerPicker().textContent).toBe('全部电脑')
+  expect(mocks.computerChange).toHaveBeenLastCalledWith(null)
   await selectChoice(computerPicker(), 'node:a')
   mocks.workbench.currentTenantId = 'team'
   await renderBrowser(true)
@@ -212,6 +217,7 @@ it('isolates computer choices by account and space and ignores live status updat
   mocks.workbench.accountScope = 'another-account'
   await renderBrowser(true)
   expect(computerPicker().textContent).toBe('全部电脑')
+  expect(mocks.computerChange).toHaveBeenLastCalledWith(null)
   mocks.workbench.accountScope = 'owner'
   await renderBrowser(true)
   expect(computerPicker().getAttribute('data-choice-value')).toBe('node:b')
@@ -228,12 +234,14 @@ it('shows remaining computers when the selected computer is removed and retains 
   mocks.workbench.snapshot.workspaces = original.filter(item => item.node_id === 'b')
   await renderBrowser(true)
   expect(computerPicker().textContent).toBe('全部电脑')
+  expect(mocks.computerChange).toHaveBeenLastCalledWith(null)
   expect(visibleWorkspaces()).toEqual(['Pictures'])
   mocks.workbench.snapshot.workspaces = original
   await renderBrowser(true)
   expect(computerPicker().getAttribute('data-choice-value')).toBe('node:a')
   await selectViewOption('按工作区')
   expect(computerPicker()).toBeNull()
+  expect(mocks.computerChange).toHaveBeenLastCalledWith(null)
   expect(visibleWorkspaces()).toHaveLength(3)
   await selectViewOption('按电脑')
   expect(computerPicker().getAttribute('data-choice-value')).toBe('node:a')

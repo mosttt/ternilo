@@ -7,15 +7,8 @@ import type { ManagedExecutionTarget } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
-type Phase = 'preparing' | 'downloading' | 'waiting_idle' | 'installing' | 'awaiting_reconnect' | 'completed' | 'failed' | 'rolled_back' | 'cancelled'
-type Progress = { id: string; version: string; phase: Phase; revision: number; error: string | null }
-type UpdateStatus = {
-  connected: boolean
-  target_version: string
-  availability: 'available' | 'current' | 'newer' | 'offline' | 'not_enabled' | 'unsupported'
-  info: { version: string; target: string | null; enabled: boolean; restart_method: string | null; progress: Progress | null } | null
-  job: Progress | null
-}
+import { ComputerUpdateStatus, type UpdateStatus } from './computer-update-status'
+type Progress = NonNullable<UpdateStatus['job']>
 const phaseKeys = {
   preparing: 'updates.phase.preparing',
   downloading: 'updates.phase.downloading',
@@ -27,18 +20,10 @@ const phaseKeys = {
   rolled_back: 'updates.phase.rolled_back',
   cancelled: 'updates.phase.cancelled',
 } as const
-const availabilityKeys = {
-  available: 'updates.availability.available',
-  current: 'updates.availability.current',
-  newer: 'updates.availability.newer',
-  offline: 'updates.availability.offline',
-  not_enabled: 'updates.availability.not_enabled',
-  unsupported: 'updates.availability.unsupported',
-} as const
 const active = (progress?: Progress | null) => progress && !['completed', 'failed', 'rolled_back', 'cancelled'].includes(progress.phase)
 
-export function ComputerUpdatesDialog({ tenantId, computers, onClose }: {
-  tenantId: string; computers: ManagedExecutionTarget[]; onClose(): void
+export function ComputerUpdatesDialog({ tenantId, computers, onClose, onStatusesChange }: {
+  tenantId: string; computers: ManagedExecutionTarget[]; onClose(): void; onStatusesChange?(statuses: Record<string, UpdateStatus>, errors: Record<string, string>): void
 }) {
   const t = useTranslate('settings')
   const common = useTranslate('common')
@@ -83,6 +68,7 @@ export function ComputerUpdatesDialog({ tenantId, computers, onClose }: {
     void refresh(true, controller.signal)
     return () => { controller.abort(); abort.current = null }
   }, [refresh])
+  React.useEffect(() => { onStatusesChange?.(statuses, errors) }, [onStatusesChange, statuses, errors])
   const inProgress = Object.values(statuses).some(status => active(status.job) || active(status.info?.progress))
   React.useEffect(() => {
     if (!inProgress) return
@@ -135,15 +121,14 @@ export function ComputerUpdatesDialog({ tenantId, computers, onClose }: {
               {computers.length > 1 && <input type="checkbox" className="size-4 shrink-0 accent-[var(--primary)]" checked={selected.has(id) && eligible(status)} disabled={!eligible(status) || submitting} onChange={event => setSelected(previous => { const next = new Set(previous); if (event.target.checked) next.add(id); else next.delete(id); return next })} />}
               <span className="min-w-0 flex-1 break-words font-medium">{computer.management.name}</span>
             </label>
+            {(status || errors[id]) && <ComputerUpdateStatus status={status} error={errors[id]} />}
             {status && <>
-              <p className="break-words text-muted-foreground">{t('updates.versions', { current: status.info?.version ?? '—', target: status.target_version })}</p>
-              <p className="mt-2" role="status">{active(progress) ? t(phaseKeys[progress!.phase]) : t(availabilityKeys[status.availability])}</p>
+              {active(progress) && <p className="mt-2" role="status">{t(phaseKeys[progress!.phase])}</p>}
               {progress && !active(progress) && <p className="mt-2 text-muted-foreground">{t('updates.lastResult', { result: t(phaseKeys[progress.phase]) })}</p>}
               {progress?.error && <details className="mt-2"><summary className="cursor-pointer text-muted-foreground">{t('updates.diagnostics')}</summary><p className="mt-2 break-words text-destructive">{progress.error}</p></details>}
-              {status.availability === 'not_enabled' && <details className="mt-2"><summary className="cursor-pointer">{t('updates.enable')}</summary><p className="mt-2 leading-relaxed text-muted-foreground">{t('updates.enableHelp')}</p><pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-sm" tabIndex={0}>ternilo updates enable --help</pre></details>}
+              {status.availability === 'not_enabled' && status.info?.version !== status.target_version && <details className="mt-2"><summary className="cursor-pointer">{t('updates.enable')}</summary><p className="mt-2 leading-relaxed text-muted-foreground">{t('updates.enableHelp')}</p><pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-sm" tabIndex={0}>ternilo updates enable --help</pre></details>}
               {progress && ['downloading', 'waiting_idle'].includes(progress.phase) && <Button className="mt-2" variant="outline" size="sm" onClick={() => void cancel(id, progress)}>{t('updates.cancel')}</Button>}
             </>}
-            {errors[id] && <p className="mt-2 break-words text-destructive" role="alert">{t('updates.error', { error: errors[id] })}</p>}
           </section>
         })}
       </div>

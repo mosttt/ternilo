@@ -9,13 +9,14 @@ import { NEW_PROJECT, usePlatformWorkspaceSetup } from './use-platform-workspace
 import { WorkspaceProjectFields } from './workspace-project-fields'
 import styles from './directory-picker.module.css'
 
-export function PlatformWorkspacePicker({ open, onOpenChange, createSessionAfter = false }: {
+export function PlatformWorkspacePicker({ open, onOpenChange, createSessionAfter = false, initialComputerId }: {
   open: boolean
   onOpenChange(open: boolean): void
   createSessionAfter?: boolean
+  initialComputerId?: string
 }) {
   const t = useTranslate('workspace')
-  const setup = usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAfter })
+  const setup = usePlatformWorkspaceSetup({ open, onOpenChange, createSessionAfter, initialComputerId })
   const { placement, saving, loading, browserOpen, executorId, selectedExecutor, path } = setup
   const newProject = setup.projectId === NEW_PROJECT
   const result = newProject

@@ -64,9 +64,8 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     assert.deepEqual(detailRequests, [], 'details must not load with the list')
     await card.getByRole('button', { name: '更新客户端', exact: true }).click()
     const updates = page.locator('[data-computer-updates]')
-    await updates.getByText('请先在这台电脑上启用远程升级', { exact: true }).waitFor()
-    await updates.locator('summary').filter({ hasText: '如何启用' }).click()
-    await updates.getByText('ternilo updates enable --help', { exact: true }).waitFor({ state: 'visible' })
+    await updates.getByRole('img', { name: '已与 Server 配套，无需更新', exact: true }).waitFor()
+    assert.equal(await updates.getByText('请先在这台电脑上启用远程升级', { exact: true }).count(), 0)
     assert.equal(await updates.getByRole('button', { name: '更新所选电脑（0）', exact: true }).isEnabled(), false)
     if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
       await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })

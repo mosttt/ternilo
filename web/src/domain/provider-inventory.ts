@@ -1,5 +1,5 @@
 import { api } from '@/api/client'
-import { invalidateAllCloudModelInventories, invalidateCloudModelInventory, resetCloudModelInventoryForTest } from './cloud-model-inventory'
+import { clearCloudModelInventories, invalidateAllCloudModelInventories, invalidateCloudModelInventory, resetCloudModelInventoryForTest } from './cloud-model-inventory'
 import {
   executionTargetKey,
   executionTargetHeaders,
@@ -63,6 +63,12 @@ export function invalidateAllProviderInventories() {
   for (const store of stores.values()) invalidate(store)
 }
 
+// Scope teardown must not ask consumers from the old account to reload.
+export function clearProviderInventories() {
+  clearCloudModelInventories()
+  stores.clear()
+}
+
 export function subscribeProviderInventory(
   listener: (snapshot: ProviderInventorySnapshot | null) => void,
   target: ExecutionTarget = {},
@@ -93,6 +99,7 @@ export function loadProviderInventory(
   let tracked: Promise<ProviderInventorySnapshot>
   tracked = pending
     .then(snapshot => {
+      if (stores.get(executionTargetKey(target)) !== store) throw new DOMException('Provider scope changed', 'AbortError')
       if (requestGeneration !== store.generation) {
         return store.inFlight && store.inFlight !== tracked
           ? store.inFlight

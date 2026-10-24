@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { api } from '@/api/client'
 import { LocaleProvider } from '@/i18n/provider'
 import type { ManagedExecutionTarget, ProjectRecord } from '@/types'
 import { PlatformComputersSettings } from './platform-computers-settings'
@@ -42,6 +43,7 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  vi.spyOn(api, 'request').mockResolvedValue({ connected: true, target_version: '0.2.23', availability: 'current', info: { version: '0.2.23' }, job: null })
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   host = document.createElement('div')
@@ -67,6 +69,7 @@ afterEach(() => {
   host.remove()
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
 })
@@ -233,4 +236,20 @@ it('loads removed registrations only on request and recovers the observed origin
   expect(recoverNodeLaunch).toHaveBeenCalledWith('tenant-a',removed,'owned','恢复电脑')
   expect(document.querySelector('[data-node-launch-command]')?.textContent).toContain('home-node')
   expect(document.body.textContent).toContain('正常停止原实例')
+})
+
+it('shares refreshed version status from the update dialog back to its computer row', async () => {
+  await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-a" scope="owned" /></LocaleProvider>))
+  const row = host.querySelector('[data-platform-computer="home-node"]')!
+  expect(row.textContent).toContain('当前 0.2.23 → Server 配套版本 0.2.23')
+  expect(row.querySelector('[data-computer-version-state="current"]')).not.toBeNull()
+  expect(vi.mocked(api.request).mock.calls.every(([path]) => !path.includes('refresh=true'))).toBe(true)
+  vi.mocked(api.request).mockResolvedValue({ connected: false, target_version: '0.2.23', availability: 'offline', info: { version: '0.2.22' }, job: null })
+  await settle(() => button('更新客户端', row).click())
+  expect(row.textContent).toContain('当前 0.2.22 → Server 配套版本 0.2.23')
+  expect(row.textContent).toContain('电脑离线，上线后才能更新')
+  expect(row.querySelector('[data-computer-version-state="current"]')).toBeNull()
+  const dialog = document.querySelector('[data-computer-updates]')!
+  expect(dialog.textContent).toContain('当前 0.2.22 → Server 配套版本 0.2.23')
+  expect(dialog.querySelector('[data-computer-version-state="offline"]')).not.toBeNull()
 })

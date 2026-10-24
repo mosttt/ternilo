@@ -58,6 +58,7 @@ export const zh = {
 
   'document.title': 'Ternilo', 'document.description': '本地、远程与云端共享的 Agent 工作台',
   'navigation.skipConversation': '跳到会话内容', 'notification.dismiss': '关闭通知', 'notification.region': '通知', 'sidebar.close': '关闭侧边栏', connecting: '正在连接 Ternilo 内核…',
+  connectingServer: '正在加载 Server 工作台…',
   'layout.resizeSidebar': '调整侧边栏宽度', 'layout.resizeDetails': '调整详情栏宽度',
   'auth.connect': '连接',
   'auth.loginTitle': '登录 Ternilo', 'auth.connectTitle': '连接 Ternilo 节点',
@@ -147,6 +148,7 @@ export const en = {
 
   'document.title': 'Ternilo', 'document.description': 'A shared agent workbench for local, remote, and cloud runtimes',
   'navigation.skipConversation': 'Skip to conversation', 'notification.dismiss': 'Dismiss notification', 'notification.region': 'Notifications', 'sidebar.close': 'Close sidebar', connecting: 'Connecting to the Ternilo kernel…',
+  connectingServer: 'Loading the Server workbench…',
   'layout.resizeSidebar': 'Resize sidebar', 'layout.resizeDetails': 'Resize details panel',
   'auth.connect': 'Connect',
   'auth.loginTitle': 'Sign in to Ternilo', 'auth.connectTitle': 'Connect to a Ternilo node',
@@ -236,6 +238,7 @@ export const ko = {
 
   'document.title': 'Ternilo', 'document.description': '로컬, 원격, 클라우드 런타임을 위한 공유 에이전트 워크벤치',
   'navigation.skipConversation': '대화로 건너뛰기', 'notification.dismiss': '알림 닫기', 'notification.region': '알림', 'sidebar.close': '사이드바 닫기', connecting: 'Ternilo 커널에 연결하는 중…',
+  connectingServer: 'Server 작업대를 불러오는 중…',
   'layout.resizeSidebar': '사이드바 크기 조정', 'layout.resizeDetails': '세부 정보 패널 크기 조정',
   'auth.connect': '연결',
   'auth.loginTitle': 'Ternilo에 로그인', 'auth.connectTitle': 'Ternilo 노드에 연결',

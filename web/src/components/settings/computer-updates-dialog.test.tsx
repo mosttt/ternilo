@@ -8,7 +8,7 @@ const request = vi.hoisted(() => vi.fn())
 vi.mock('@/api/client', () => ({ api: { request } }))
 let host: HTMLDivElement, root: Root
 const computer = (id: string): ManagedExecutionTarget => ({ executor_id: id, name: id, project_id: null, connected: true, state: 'active', enrolled_at_ms: 1, last_seen_at_ms: 1, management: { name: id, notes: '', suspended_at_ms: null, removed_at_ms: null, revision: 0 } })
-const status = (availability: string, job: unknown = null) => ({ connected: availability !== 'offline', target_version: '0.2.21', availability, info: { version: '0.2.20', target: 'x86_64-unknown-linux-gnu', enabled: availability !== 'not_enabled', restart_method: 'direct', progress: null }, job })
+const status = (availability: string, job: unknown = null) => ({ connected: availability !== 'offline', target_version: '0.2.21', availability, info: { version: availability === 'current' ? '0.2.21' : '0.2.20', target: 'x86_64-unknown-linux-gnu', enabled: availability !== 'not_enabled', restart_method: 'direct', progress: null }, job })
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
@@ -63,7 +63,34 @@ it('keeps current offline state visible after an earlier successful update', asy
   request.mockResolvedValue(status('offline', { id: 'completed-12345678', version: '0.2.21', phase: 'completed', revision: 5, error: null }))
   await render(['offline'])
   const row = document.querySelector('[data-computer-update]')!
-  expect(row.querySelector('[role="status"]')?.textContent).toBe('电脑离线，上线后才能更新')
+  expect(row.querySelector('[role="status"]')?.textContent).toContain('电脑离线，上线后才能更新')
   expect(row.textContent).toContain('最近一次更新：更新完成，电脑已重新连接')
+  expect(button('更新所选电脑（0）').disabled).toBe(true)
+})
+
+it('shows versions with a check or update arrow, and gives unavailable computers an X with a reason', async () => {
+  request.mockImplementation(async (path: string) => status(path.includes('/current/') ? 'current' : path.includes('/ready/') ? 'available' : 'offline'))
+  await render(['current', 'ready', 'offline'])
+  const current = document.querySelector('[data-computer-update="current"]')!
+  const ready = document.querySelector('[data-computer-update="ready"]')!
+  const offline = document.querySelector('[data-computer-update="offline"]')!
+  expect(current.textContent).toContain('当前 0.2.21 → Server 配套版本 0.2.21')
+  expect(current.querySelector('svg[aria-label="已与 Server 配套，无需更新"]')).not.toBeNull()
+  expect(current.textContent).not.toContain('已与 Server 配套，无需更新')
+  expect(ready.querySelector('svg[aria-label="可更新，任务结束后安装"]')).not.toBeNull()
+  expect(ready.textContent).not.toContain('可更新，任务结束后安装')
+  expect(offline.querySelector('svg[aria-label="电脑离线，上线后才能更新"]')).not.toBeNull()
+  expect(offline.textContent).toContain('电脑离线，上线后才能更新')
+})
+
+it('marks a matching online version as current even when remote upgrades are not enabled', async () => {
+  const matching = status('not_enabled')
+  matching.info.version = matching.target_version
+  request.mockResolvedValue(matching)
+  await render(['matching'])
+  const row = document.querySelector('[data-computer-update]')!
+  expect(row.querySelector('[data-computer-version-state="current"]')).not.toBeNull()
+  expect(row.textContent).not.toContain('请先在这台电脑上启用远程升级')
+  expect(row.textContent).not.toContain('ternilo updates enable --help')
   expect(button('更新所选电脑（0）').disabled).toBe(true)
 })

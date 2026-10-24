@@ -88,6 +88,10 @@ export function invalidateAllCloudModelInventories() {
   for (const store of stores.values()) invalidate(store)
 }
 
+export function clearCloudModelInventories() {
+  stores.clear()
+}
+
 export function loadCloudModelInventory(force: boolean, target: ExecutionTarget): Promise<CloudModelOptions> {
   const store = storeFor(target)
   if (!force && store.cached) return Promise.resolve(store.cached)
@@ -95,6 +99,7 @@ export function loadCloudModelInventory(force: boolean, target: ExecutionTarget)
   const generation = store.generation
   let tracked: Promise<CloudModelOptions>
   tracked = api.request<CloudModelOptions>(cloudModelOptionsPath(target), { headers: executionTargetHeaders(target) }).then(snapshot => {
+    if (stores.get(executionTargetKey(target)) !== store) throw new DOMException('Model scope changed', 'AbortError')
     if (generation !== store.generation) return store.inFlight && store.inFlight !== tracked ? store.inFlight : loadCloudModelInventory(true, target)
     store.cached = snapshot
     for (const listener of store.listeners) listener()
