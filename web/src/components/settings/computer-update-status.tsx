@@ -19,13 +19,20 @@ const availabilityKeys = {
   unsupported: 'updates.availability.unsupported',
 } as const
 
+export function clientUpdateFailureKey(error?: string | null) {
+  if (error?.includes('client update blocked by an unobserved execution resource')) return 'updates.failure.unobservedExecution' as const
+  if (error?.includes('configured service does not own this Ternilo process')) return 'updates.failure.serviceMismatch' as const
+  return null
+}
+
 export function ComputerUpdateStatus({ status, error }: { status?: UpdateStatus; error?: string }) {
   const t = useTranslate('settings')
   if (!status && !error) return <span className="inline-flex items-center gap-2 text-sm text-muted-foreground" role="status"><LoaderCircle className="size-4 shrink-0 animate-spin" />{t('updates.checking')}</span>
   const state = error ? 'error'
     : status!.connected && status!.info?.version === status!.target_version ? 'current'
       : status!.availability
-  const label = state === 'error' ? t('updates.error', { error: error! }) : t(availabilityKeys[state])
+  const failureKey = clientUpdateFailureKey(error)
+  const label = state === 'error' ? failureKey ? t(failureKey) : t('updates.error', { error: error! }) : t(availabilityKeys[state])
   const Icon = state === 'available' ? ArrowUp : state === 'current' ? Check : X
   return <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground" data-computer-version-state={state} role="status">
     {status && <span className="break-words">{t('updates.versions', { current: status.info?.version ?? '—', target: status.target_version })}</span>}

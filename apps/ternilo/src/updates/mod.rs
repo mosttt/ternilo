@@ -288,9 +288,8 @@ impl RemoteUpdater {
                 "remote updates were enabled for a different client installation",
             ));
         }
-        let cancellation = CancellationToken::new();
         {
-            let mut state = self.state.lock().await;
+            let state = self.state.lock().await;
             if let Some(previous) = &state.progress {
                 if previous.id == request.id {
                     drop(state);
@@ -303,6 +302,11 @@ impl RemoteUpdater {
                     ));
                 }
             }
+        }
+        apply::verify_manager_process(&settings.restart, std::process::id()).await?;
+        let cancellation = CancellationToken::new();
+        {
+            let mut state = self.state.lock().await;
             let progress = ClientUpdateProgress {
                 id: request.id.clone(),
                 version: release.manifest().version.clone(),

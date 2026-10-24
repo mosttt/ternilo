@@ -65,6 +65,14 @@ impl ExecutionResources {
             .map(|(id, owner)| (id.clone(), owner.clone()))
             .collect()
     }
+    pub(crate) async fn unobserved_owner(&self) -> Option<(String, ResourceOwner)> {
+        let state = self.state.lock().await;
+        state
+            .owners
+            .iter()
+            .find(|(id, _)| !state.controls.contains_key(*id))
+            .map(|(id, owner)| (id.clone(), owner.clone()))
+    }
     pub(crate) async fn prune(&self) -> Result<(), HarnessError> {
         let mut state = self.state.lock().await;
         let completed = state

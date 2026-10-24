@@ -21,6 +21,12 @@ impl LocalApplication {
             return Ok(None);
         };
         self.execution_resources.prune().await?;
+        if let Some((id, owner)) = self.execution_resources.unobserved_owner().await {
+            return Err(HarnessError::unavailable(format!(
+                "client update blocked by an unobserved execution resource: {id}; session={}; run={}. The client restarted without a completion receipt. Check remaining processes before resolving the matching record in runtime/execution-resources.json",
+                owner.session_id, owner.run_id,
+            )));
+        }
         if !self.execution_resources.owners().await.is_empty() {
             return Ok(None);
         }
@@ -62,6 +68,33 @@ mod tests {
         let guard = app.try_client_update_maintenance().await.unwrap().unwrap();
         assert!(app.accept_update_safe_work().is_err());
         drop(guard);
+        assert!(app.accept_update_safe_work().is_ok());
+        app.close().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn unobserved_resources_report_the_blocker_instead_of_waiting_forever() {
+        let root = tempfile::tempdir().unwrap();
+        let runtime = root.path().join("runtime");
+        std::fs::create_dir_all(&runtime).unwrap();
+        let record = runtime.join("execution-resources.json");
+        let bytes =
+            br#"{"process-previous":{"session_id":"previous-session","run_id":"previous-run"}}"#;
+        std::fs::write(&record, bytes).unwrap();
+        let app = LocalApplication::open(
+            crate::catalog().unwrap(),
+            crate::local_profile(),
+            HostPolicy::local(RunLimits::default()),
+            root.path().to_owned(),
+        )
+        .await
+        .unwrap();
+        let Err(error) = app.try_client_update_maintenance().await else {
+            panic!("unknown process state must not be treated as ordinary busy work");
+        };
+        assert!(error.message.contains("process-previous"));
+        assert!(error.message.contains("previous-session"));
+        assert_eq!(std::fs::read(&record).unwrap(), bytes);
         assert!(app.accept_update_safe_work().is_ok());
         app.close().await.unwrap();
     }

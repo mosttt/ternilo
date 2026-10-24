@@ -68,6 +68,19 @@ it('keeps current offline state visible after an earlier successful update', asy
   expect(button('更新所选电脑（0）').disabled).toBe(true)
 })
 
+it.each([
+  ['unavailable: client update blocked by an unobserved execution resource: process-previous; session=previous-session', '电脑保留了上次运行的进程记录'],
+  ['policy_denied: configured service does not own this Ternilo process; check its exact service name before updating', 'Supervisor 请使用 status 列出的完整名称'],
+])('explains a failed update without hiding the next action in diagnostics: %s', async (error, explanation) => {
+  request.mockResolvedValue(status('available', { id: 'failed-operation-123', version: '0.2.21', phase: 'failed', revision: 3, error }))
+  await render(['blocked'])
+  const row = document.querySelector('[data-computer-update="blocked"]')!
+  expect([...row.querySelectorAll('p')].some(paragraph => !paragraph.closest('details') && paragraph.textContent?.includes(explanation))).toBe(true)
+  expect(row.querySelector('details')?.textContent).toContain(error)
+  expect(button('更新所选电脑（1）').disabled).toBe(false)
+  expect(request.mock.calls.every(([, options]) => !options?.method)).toBe(true)
+})
+
 it('shows versions with a check or update arrow, and gives unavailable computers an X with a reason', async () => {
   request.mockImplementation(async (path: string) => status(path.includes('/current/') ? 'current' : path.includes('/ready/') ? 'available' : 'offline'))
   await render(['current', 'ready', 'offline'])
@@ -92,5 +105,16 @@ it('marks a matching online version as current even when remote upgrades are not
   expect(row.querySelector('[data-computer-version-state="current"]')).not.toBeNull()
   expect(row.textContent).not.toContain('请先在这台电脑上启用远程升级')
   expect(row.textContent).not.toContain('ternilo updates enable --help')
+  expect(button('更新所选电脑（0）').disabled).toBe(true)
+})
+
+it('keeps a healthy matching release distinct from an unconfirmed earlier update result', async () => {
+  const error = 'conflict: another process is using this client installation; stop it before retrying the update'
+  request.mockResolvedValue(status('current', { id: 'installed-operation-123', version: '0.2.21', phase: 'failed', revision: 5, error }))
+  await render(['installed'])
+  const row = document.querySelector('[data-computer-update="installed"]')!
+  expect(row.querySelector('[data-computer-version-state="current"]')).not.toBeNull()
+  expect([...row.querySelectorAll('p')].filter(paragraph => !paragraph.closest('details')).map(paragraph => paragraph.textContent).join(' ')).toBe('新版已正常运行，无需再次更新；上次自动更新未能正常确认结果，详情保留在诊断中。')
+  expect(row.querySelector('details')?.textContent).toContain(error)
   expect(button('更新所选电脑（0）').disabled).toBe(true)
 })
