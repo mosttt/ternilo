@@ -31,6 +31,7 @@
 - [OIDC 来源与公网地址](oidc-browser-origin.md)：浏览器加密能力、回调来源与错误配置恢复。
 - [跨 Server 共享权限通知](resource-notifications.md)：持久失效提示、双 Server 验收与资源交接约束。
 - [当前剩余任务清单](remaining-task-audit.md)：截至 v0.2.11 的 42 项已知剩余事项、状态与已完成项；排除 Work。
+- [v0.2.24 发行验收](release-0.2.24-acceptance.md)：工作台分层加载、电脑默认位置及版本提示补丁的发布状态。
 - [Server 与电脑分层加载](server-workbench-loading.md)：Server 索引先显示、电脑历史／配置局部加载、切换与重试。
 - [电脑管理闭环](computer-management.md)：本轮名称／备注、详情、暂停／恢复及保留历史的移除登记；凭据轮换后移。
 - [本地服务自动打开浏览器](local-browser-launch.md)：本次启动的浏览器开关、就绪检测和失败时继续服务。
