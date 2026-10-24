@@ -15,6 +15,8 @@ use ternilo_protocol::{ClientUpdatePhase, HarnessError};
 use ternilo_update::{SignedRelease, current_target};
 use tokio::process::Command;
 
+const STARTUP_HEALTH_TIMEOUT: Duration = Duration::from_secs(120);
+
 pub async fn apply(path: &Path) -> Result<(), HarnessError> {
     let plan: ApplyPlan = serde_json::from_slice(&fs::read(path).map_err(io_error)?)
         .map_err(|_| HarnessError::invalid("invalid private update installation plan"))?;
@@ -170,7 +172,7 @@ async fn apply_inner(plan: &ApplyPlan) -> Result<(), HarnessError> {
             "local service changed while preparing the update; retry from the new instance",
         ));
     }
-    verify_manager_process(plan, service.info.pid).await?;
+    verify_manager_process(&plan.settings.restart, service.info.pid).await?;
     activate(plan, staged.path(), &release.manifest().version, target).await
 }
 
@@ -299,23 +301,32 @@ pub(super) async fn probe_version(binary: &Path, expected: &str) -> Result<(), H
     Ok(())
 }
 async fn wait_for_version(root: &Path, version: &str) -> Result<(), HarnessError> {
-    for _ in 0..120 {
-        if let Some(service) = crate::service::discover(root).await? {
-            if service.info.version == version {
-                return Ok(());
+    tokio::time::timeout(STARTUP_HEALTH_TIMEOUT, async {
+        loop {
+            if let Some(service) = crate::service::discover(root).await? {
+                if service.info.version == version {
+                    return Ok(());
+                }
+                return Err(HarnessError::conflict(
+                    "service restarted with an unexpected client version",
+                ));
             }
-            return Err(HarnessError::conflict(
-                "service restarted with an unexpected client version",
-            ));
+            tokio::time::sleep(Duration::from_millis(250)).await;
         }
-        tokio::time::sleep(Duration::from_millis(250)).await;
-    }
-    Err(HarnessError::unavailable(
-        "updated client did not pass its local startup health check",
-    ))
+    })
+    .await
+    .map_err(|_| {
+        HarnessError::unavailable(format!(
+            "updated client did not pass its local startup health check within {} seconds",
+            STARTUP_HEALTH_TIMEOUT.as_secs(),
+        ))
+    })?
 }
-async fn verify_manager_process(plan: &ApplyPlan, expected: u32) -> Result<(), HarnessError> {
-    let mut command = match &plan.settings.restart {
+pub(super) async fn verify_manager_process(
+    restart: &RestartMethod,
+    expected: u32,
+) -> Result<(), HarnessError> {
+    let mut command = match restart {
         RestartMethod::Direct => return Ok(()),
         RestartMethod::Systemd { unit, user } => {
             let mut command = Command::new("systemctl");
@@ -344,7 +355,7 @@ async fn verify_manager_process(plan: &ApplyPlan, expected: u32) -> Result<(), H
         })?
         .map_err(io_error)?;
     let output_text = String::from_utf8_lossy(&output.stdout);
-    let systemd = matches!(plan.settings.restart, RestartMethod::Systemd { .. });
+    let systemd = matches!(restart, RestartMethod::Systemd { .. });
     let pid = if systemd {
         output_text
             .lines()
@@ -547,5 +558,62 @@ fn executable() -> &'static str {
         "ternilo.exe"
     } else {
         "ternilo"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn accepts_a_healthy_service_that_becomes_ready_after_thirty_seconds() {
+        let root = tempfile::tempdir().unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let info = crate::service::ServiceInfo {
+            service_id: "slow-start-fixture".to_owned(),
+            version: "0.2.24".to_owned(),
+            pid: std::process::id(),
+            address: listener.local_addr().unwrap(),
+            browser_enabled: true,
+            remote_enabled: false,
+        };
+        let path = root.path().join("runtime/service.json");
+        let boot = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(35)).await;
+            write_private(
+                &path,
+                &crate::service::ServiceConnection {
+                    info: info.clone(),
+                    api_token: "slow-start-test-token".to_owned(),
+                },
+            )
+            .unwrap();
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                let count = socket.read(&mut buffer).await.unwrap();
+                assert!(count > 0);
+                request.extend_from_slice(&buffer[..count]);
+            }
+            assert!(
+                String::from_utf8(request)
+                    .unwrap()
+                    .contains("Bearer slow-start-test-token")
+            );
+            let body = serde_json::to_string(&info).unwrap();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len(),
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let result = wait_for_version(root.path(), "0.2.24").await;
+        if result.is_err() {
+            boot.abort();
+        }
+        result.expect("a service still starting at 30 seconds must not be rolled back");
+        boot.await.unwrap();
     }
 }

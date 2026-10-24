@@ -28,6 +28,8 @@ Add `--system` for a system-level service. The account must be able to control t
 ternilo updates enable --restart supervisor --service ternilo --supervisor-config "<supervisord.conf>" --data-dir "<instance-directory>"
 ```
 
+Supervisor names must exactly match `supervisorctl status`. If it lists `ternilo:ternilo_00`, use `--service 'ternilo:ternilo_00'`, not just the group name `ternilo`. The client checks process ownership before downloading and again before installation.
+
 Windows currently supports direct restart only. Do not select direct for a systemd/Supervisor-managed service: its manager may restart the old process during replacement. Managers should launch the stable entry point (`bin/ternilo` created by the official installer), not a fixed `releases/<version>-<target>/bin/ternilo` path.
 
 Restart Ternilo once using its normal startup method, then refresh the Server dialog. One instance owns each installation. Separate instances need separate installations. Updates also check for other service processes using the same installation.
@@ -38,7 +40,7 @@ Server downloads the exact version's `client-updates.json`, `client-updates.json
 
 Server verifies and caches the bundle, then grants short-lived download access restricted to the computer and operation. The computer downloads it from Server over HTTPS and independently verifies the signature and bundle. Commands and progress use the existing authenticated WebSocket connection. Production Server deployments should use HTTPS.
 
-After download, the client waits for conversations, subtasks, queued work and background execution resources to become idle. Maintenance then rejects new work. An independent updater probes the new program before stopping the old service, installs the complete bundle, restarts it using the configured method and checks local service health. Completion requires reconnecting to Server with the new version. A network outage alone does not trigger rollback. Downloading and waiting operations can be cancelled; installation cannot.
+After download, the client waits for conversations, subtasks, queued work and background execution resources to become idle. Maintenance then rejects new work. An independent updater probes the new program before stopping the old service, installs the complete bundle, restarts it using the configured method and checks local service health. Local startup has a 120-second readiness window: a Supervisor RUNNING state alone does not establish that the new version is ready. Timeout still restores the previous program. Completion requires reconnecting to Server with the new version. A network outage alone does not trigger rollback. Downloading and waiting operations can be cancelled; installation cannot.
 
 Idle persistent MCP/LSP services do not block updates. They shut down with the client and start again when a session needs them. Active tool calls and background jobs still block installation and are not forcibly stopped by an update.
 
@@ -64,5 +66,11 @@ An independent process restores the previous program and restarts the service. I
 Recovery plans live at `<instance-directory>/data/updates/operations/<id>/apply.json`, independently of download caches, and belong in data backups. If the launcher is damaged, run the recovery command using cached `ternilo-update-helper` (`.exe` on Windows), or the `ternilo` binary from a freshly extracted official bundle. Do not overwrite the original instance data. Retain the original release, program backups and `data/updates/` until update or recovery is confirmed.
 
 For preparation, permission or service-name errors, inspect the dialog diagnostics and correct the cause before retrying. Downgrades, existing target release directories and data-epoch changes require local maintenance.
+
+## When an update waits or rolls back
+
+Waiting applies to work whose completion can still be observed. If a client restart leaves a process record without a completion observer, the update reports the blocker instead of waiting indefinitely. Diagnostics identify the resource, session and run. The computer administrator must check the actual processes. Once the matching process is confirmed to have ended, cancel the update and stop the client, back up `<instance-directory>/runtime/execution-resources.json`, resolve only the confirmed record, then restart and retry. Do not delete the entire file merely because no conversation appears active; other records may still be valid.
+
+After a startup rollback, keep the restored service running and inspect `ternilo status` and the service-manager logs. Initialization is not a crash. Avoid repeated retries or deleting the previous release. If the new program starts locally but exceeds the readiness window, investigate its startup time and logs. The update dialog distinguishes startup and reconnection from rollback results.
 
 [Computer management](computers.md) · [Release signing](ci-release.md)

@@ -7,7 +7,7 @@ import type { ManagedExecutionTarget } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
-import { ComputerUpdateStatus, type UpdateStatus } from './computer-update-status'
+import { clientUpdateFailureKey, ComputerUpdateStatus, type UpdateStatus } from './computer-update-status'
 type Progress = NonNullable<UpdateStatus['job']>
 const phaseKeys = {
   preparing: 'updates.phase.preparing',
@@ -116,6 +116,7 @@ export function ComputerUpdatesDialog({ tenantId, computers, onClose, onStatuses
         {computers.length > 1 && <Button variant="ghost" size="sm" disabled={loading || submitting} onClick={() => setSelected(new Set(computers.filter(computer => eligible(statuses[computer.executor_id])).map(computer => computer.executor_id)))}>{t('updates.selectAvailable')}</Button>}
         {computers.map(computer => {
           const id = computer.executor_id, status = statuses[id], progress = active(status?.info?.progress) ? status!.info!.progress : status?.job
+          const runningAfterFailure = progress?.phase === 'failed' && status?.connected && status.info?.version === progress.version && status.info.version === status.target_version
           return <section key={id} className="rounded-lg border p-3 text-sm" data-computer-update={id}>
             <label className="flex min-h-10 items-center gap-3">
               {computers.length > 1 && <input type="checkbox" className="size-4 shrink-0 accent-[var(--primary)]" checked={selected.has(id) && eligible(status)} disabled={!eligible(status) || submitting} onChange={event => setSelected(previous => { const next = new Set(previous); if (event.target.checked) next.add(id); else next.delete(id); return next })} />}
@@ -124,7 +125,7 @@ export function ComputerUpdatesDialog({ tenantId, computers, onClose, onStatuses
             {(status || errors[id]) && <ComputerUpdateStatus status={status} error={errors[id]} />}
             {status && <>
               {active(progress) && <p className="mt-2" role="status">{t(phaseKeys[progress!.phase])}</p>}
-              {progress && !active(progress) && <p className="mt-2 text-muted-foreground">{t('updates.lastResult', { result: t(phaseKeys[progress.phase]) })}</p>}
+              {progress && !active(progress) && <p className="mt-2 text-muted-foreground">{runningAfterFailure ? t('updates.runningAfterFailure') : t('updates.lastResult', { result: t(clientUpdateFailureKey(progress.error) ?? phaseKeys[progress.phase]) })}</p>}
               {progress?.error && <details className="mt-2"><summary className="cursor-pointer text-muted-foreground">{t('updates.diagnostics')}</summary><p className="mt-2 break-words text-destructive">{progress.error}</p></details>}
               {status.availability === 'not_enabled' && status.info?.version !== status.target_version && <details className="mt-2"><summary className="cursor-pointer">{t('updates.enable')}</summary><p className="mt-2 leading-relaxed text-muted-foreground">{t('updates.enableHelp')}</p><pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-sm" tabIndex={0}>ternilo updates enable --help</pre></details>}
               {progress && ['downloading', 'waiting_idle'].includes(progress.phase) && <Button className="mt-2" variant="outline" size="sm" onClick={() => void cancel(id, progress)}>{t('updates.cancel')}</Button>}
