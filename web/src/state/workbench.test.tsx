@@ -201,6 +201,24 @@ describe('WorkbenchProvider Server accounts', () => {
     expect(current.loading).toBe(false)
   })
 
+  it('retains the selected computer metadata during a background refresh', async () => {
+    window.__TERNILO_BOOT__ = { remote: true, platform: true }
+    sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ initialized: true, native_enabled: true, oidc_enabled: false }))))
+    const request = nativeServerRoutes(), original = request.getMockImplementation()!
+    const delayed = deferred<ApplicationCatalog>()
+    await mount()
+    request.mockImplementation(async (path, options) => route(path) === '/catalog' ? delayed.promise as never : original(path, options))
+    await act(async () => { await current.refresh() })
+    expect(current.loading).toBe(false)
+    expect(current.configurationLoading).toBe(true)
+    expect(current.catalog?.revision).toBe('native')
+    expect(current.presets.default_id).toBe('native')
+    await act(async () => { delayed.resolve(catalog('updated')) })
+    expect(current.configurationLoading).toBe(false)
+    expect(current.catalog?.revision).toBe('updated')
+  })
+
   it('discards slow computer configuration after changing space or signing out', async () => {
     window.__TERNILO_BOOT__ = { remote: true, platform: true }
     sessionStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({ access_token: 'native-token', expires_at_ms: Date.now() + 60_000 }))

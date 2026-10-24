@@ -83,7 +83,12 @@ export function PluginConfigCard({
   const [open, setOpen] = React.useState(false)
   const initial: PluginDraft = { draft: baselineDraft, texts: baselineTexts, rawText: baselineText, rawInvalid: false, touched: new Set() }
   const [editor, setEditor] = usePluginDraft(draftKey, baseline, initial)
-  const { draft, texts, rawText, rawInvalid, touched } = editor
+  const { draft, rawText, rawInvalid, touched } = editor
+  const texts = React.useMemo(() => {
+    const values = initialTexts(draft, fields)
+    for (const key of touched) values[key] = editor.texts[key] ?? ''
+    return values
+  }, [draft, fields, touched, editor.texts])
   const updateField = <K extends keyof PluginDraft>(key: K, action: React.SetStateAction<PluginDraft[K]>) => {
     setEditor(current => ({ ...current, [key]: typeof action === 'function' ? (action as (value: PluginDraft[K]) => PluginDraft[K])(current[key]) : action }))
   }

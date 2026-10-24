@@ -580,9 +580,11 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     const controller = new AbortController()
     const isCurrent = () => !controller.signal.aborted && requestId === configurationRequestRef.current
       && executionTargetKey(selectionTarget(selectionRef.current.workspaceId, selectionRef.current.sessionId)) === targetKey
-    configurationTargetRef.current = null
-    setCatalog(null)
-    setPresets(emptyPresets)
+    if (configurationTargetRef.current !== targetKey) {
+      configurationTargetRef.current = null
+      setCatalog(null)
+      setPresets(emptyPresets)
+    }
     setConfigurationLoading(true)
     void readTargetConfiguration(target, controller.signal)
       .then(configuration => {

@@ -107,6 +107,33 @@ it.each([
 })
 
 describe('PluginConfigCard draft lifecycle', () => {
+  it('restores inherited defaults when configuration changes before its schema arrives, without overwriting edited text', async () => {
+    const draw = (config: Record<string, unknown>, schema = metadata()) => root.render(<LocaleProvider><PluginDraftProvider>
+      <PluginConfigCard entry={{ ...entry, config }} metadata={schema} draftKey="session-a:files"
+        expanded overridden={Object.keys(config).length > 0} onSave={vi.fn()} />
+    </PluginDraftProvider></LocaleProvider>)
+    const input = () => host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!
+    const empty = { ...metadata(), config_schema: { type: 'object' } }
+    await settle(() => draw({ max_read_bytes: 3145728 }))
+    expect(input().value).toBe('3145728')
+    await settle(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input(), '4194304')
+      input().dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await settle(() => draw({}, empty))
+    await settle(() => draw({}))
+    expect(input().value).toBe('2097152')
+    await settle(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input(), '')
+      input().dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await settle(() => draw({}, empty))
+    await settle(() => draw({}))
+    expect(input().value).toBe('')
+    expect(input().getAttribute('aria-invalid')).toBe('true')
+    expect([...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '保存')?.disabled).toBe(true)
+  })
+
   it('keeps editable changes while a running task blocks save, then saves the same draft', async () => {
     const onSave = vi.fn(async () => undefined)
     const draw = (blocked: boolean) => root.render(<LocaleProvider><PluginConfigCard

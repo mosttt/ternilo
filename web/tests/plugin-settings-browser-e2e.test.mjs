@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -53,12 +52,10 @@ for (const placement of ['local', 'server-node']) {
       const resource = `/sessions/${session.identity.session_id}`
       const stored = async () => (await request('/state')).sessions.find(item => item.identity.session_id === session.identity.session_id)
       browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
-      const assetHashes = {}
       for (const asset of ['app.js', 'app.css']) {
         const served = Buffer.from(await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer())
         const built = await readFile(path.join(repository, 'web/dist/assets', asset))
-        assert.deepEqual(createHash('sha256').update(served).digest('hex'), createHash('sha256').update(built).digest('hex'), `embedded ${asset} must match the current build`)
-        assetHashes[asset] = createHash('sha256').update(served).digest('hex')
+        assert.ok(served.equals(built), `embedded ${asset} must match the current build`)
       }
       const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 }, hasTouch: true, serviceWorkers: 'block' })
       page = await context.newPage()
@@ -206,6 +203,8 @@ for (const placement of ['local', 'server-node']) {
         await team.getByRole('button', { name: text.reset, exact: true }).click()
         await until(stored, value => !value.profile_plugins.some(entry => entry.id === 'subagents'), 'restored inheritance')
         await until(() => team.getByLabel(text.children, { exact: true }).inputValue(), value => value === '8', 'inherited value')
+        await team.getByLabel(text.children, { exact: true }).scrollIntoViewIfNeeded()
+        await page.screenshot({ path: path.join(artifacts, `plugin-inheritance-${placement}-${locale}.png`), animations: 'disabled' })
         await team.locator('[data-slot="dialog-close"]').click()
         await openSettings()
         assert.equal(await card.getByLabel(text.children, { exact: true }).inputValue(), '8')
@@ -223,7 +222,7 @@ for (const placement of ['local', 'server-node']) {
         await team.locator('[data-slot="dialog-close"]').click()
       }
       assert.deepEqual(errors, { page: [], console: [], http: [] })
-      await writeFile(path.join(artifacts, `plugin-settings-${placement}.json`), JSON.stringify({ placement, assetHashes, locales: Object.keys(labels), errors }, null, 2))
+      await writeFile(path.join(artifacts, `plugin-settings-${placement}.json`), JSON.stringify({ placement, embeddedAssetsMatch: true, locales: Object.keys(labels), errors }, null, 2))
     } catch (error) {
       console.error(JSON.stringify(errors))
       await page?.screenshot({ path: path.join(artifacts, `plugin-settings-${placement}-failure.png`) }).catch(() => {})
