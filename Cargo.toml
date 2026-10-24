@@ -80,7 +80,7 @@ sha2 = "0.11.0"
 sqlx = { version = "0.9.0", default-features = false, features = ["any", "json", "macros", "migrate", "postgres", "sqlite", "runtime-tokio", "tls-rustls-ring-webpki"] }
 salvo_core = { version = "0.95.2", default-features = false, features = ["http1", "server", "server-handle"] }
 salvo_extra = { version = "0.95.2", default-features = false, features = ["affix-state", "size-limiter", "websocket"] }
-tokio = { version = "1.47", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.53.3", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 tokio-rusqlite = { version = "0.7.0", features = ["backup", "bundled"] }
