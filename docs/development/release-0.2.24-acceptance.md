@@ -14,6 +14,12 @@
 
 仅将直接依赖的最低版本及锁文件更新为 Tokio 1.53.3，其他外部依赖保持。项目与固定 Linorun 源码未直接调用被弃用的 AsyncFd 构造器，不需要新增 unsafe 调用或豁免公告。本地 `cargo deny check advisories licenses sources` 及锁定依赖解析已通过，继续以完整候选 CI 验证受影响运行路径。
 
+## 测试环境 HTTP 依赖
+
+第二轮候选 `40063559849` 的 Rust 安全门禁通过，npm 门禁发现 jsdom 间接引入的 undici 8.11.2 受三项公告影响：[GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685)、[GHSA-f72v-6w45-q472](https://github.com/advisories/GHSA-f72v-6w45-q472) 和 [GHSA-xjj6-f33q-929c](https://github.com/advisories/GHSA-xjj6-f33q-929c)，分别涉及 EventSource 内存耗尽、SRI 校验绕过及过多内容编码导致未处理错误。官方修复范围为 8.12.2 及以上。
+
+按原依赖范围仅更新 undici 锁记录到当前补丁 8.12.3，未增加直接依赖或批量升级。npm audit 为 0 漏洞，工作台及更新弹窗 53 项测试通过，Web 构建产物不变。这是测试环境依赖，未纳入浏览器交付 bundle。新候选继续完整 CI。
+
 ## 发布状态
 
 发布 PR [#14](https://github.com/mosttt/ternilo/pull/14) 已提交，候选检查中，尚未创建 v0.2.24 标签或公开 Release。后续按现有 Checks 和 Release 门禁完成候选检查、合并、六平台包、双架构镜像及签名发布，再核对公开产物。生产签名私钥仅由现有受保护发行环境使用。
