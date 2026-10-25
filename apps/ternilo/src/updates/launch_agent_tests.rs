@@ -107,6 +107,7 @@ fn xml(value: &str) -> String {
 }
 
 #[tokio::test]
+#[ignore = "requires a built client and an active macOS GUI login domain; exercised by native CI"]
 #[expect(
     clippy::too_many_lines,
     reason = "Keep native agent setup, installation, rollback and cleanup assertions in one lifecycle scenario."
