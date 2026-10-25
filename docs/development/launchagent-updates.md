@@ -10,4 +10,4 @@
 
 新增原生 macOS 验收，覆盖 KeepAlive、含空格与 & 的路径、正确与错误 PID／Label、已注册启动、实际程序替换、错误版本回退、服务重新加载及保存配置恢复。挂入现有 Apple Silicon／Intel 平台检查，使用各自构建的真实客户端和隔离 LaunchAgent。普通平台测试覆盖配置边界和嵌套 PID 不误判。中英韩更新说明与中英文客户端更新指南同步。
 
-当前实现及验证进行中，原生结果在完成后补录；本功能尚未发布。
+原生夹具首轮发现默认 GUI 会话 plist 不能加载到 user 域。最小 launchd 探针确认这与安装路径无关：GUI 默认配置、user／Background 均能正常加载。夹具分别使用默认 GUI 安装和 user／Background 二进制 plist 回退，临时诊断探针已移除。最终原生结果及发行状态见 [v0.2.26 验收](release-0.2.26-acceptance.md)。

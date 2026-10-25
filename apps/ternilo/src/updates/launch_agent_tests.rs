@@ -160,18 +160,38 @@ async fn launch_agent_installs_and_rolls_back_with_keepalive() {
         );
         let plist = directory.join("agent.plist");
         let test_executable = std::env::current_exe().unwrap();
+        let session = if rollback {
+            "<key>LimitLoadToSessionType</key><string>Background</string>"
+        } else {
+            ""
+        };
         fs::write(&plist, format!(r#"<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
 <key>Label</key><string>{label}</string>
 <key>ProgramArguments</key><array><string>{test}</string><string>--exact</string><string>{FIXTURE_TEST}</string><string>--nocapture</string></array>
 <key>EnvironmentVariables</key><dict><key>TERNILO_LA_FIXTURE</key><string>{directory}</string><key>TERNILO_LA_ROLE</key><string>service</string></dict>
-<key>KeepAlive</key><true/><key>RunAtLoad</key><true/>
+<key>KeepAlive</key><true/><key>RunAtLoad</key><true/>{session}
 <key>StandardOutPath</key><string>{directory}/agent.log</string><key>StandardErrorPath</key><string>{directory}/agent.log</string>
 </dict></plist>"#, test=xml(test_executable.to_str().unwrap()), directory=xml(directory.to_str().unwrap()))).unwrap();
+        if rollback {
+            assert!(
+                std::process::Command::new("/usr/bin/plutil")
+                    .arg("-convert")
+                    .arg("binary1")
+                    .arg(&plist)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
         let restart = launch_agent::configure(
             label.clone(),
             Some(plist.clone()),
-            Some(crate::updates::cli::LaunchdDomain::User),
+            if rollback {
+                Some(crate::updates::cli::LaunchdDomain::User)
+            } else {
+                None
+            },
         )
         .await
         .unwrap();

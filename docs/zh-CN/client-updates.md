@@ -38,7 +38,7 @@ macOS 用户 LaunchAgent：
 ternilo updates enable --restart launch-agent --service com.ternilo.client --data-dir "<实例目录>"
 ```
 
-`--service` 填 plist 中的 `Label`，不是文件名。默认读取 `~/Library/LaunchAgents/<Label>.plist`，其他位置用 `--launch-agent-plist "<plist 完整路径>"` 指定；支持 XML 和二进制 plist。默认管理当前账号的 `gui/<uid>` 登录域；若实际使用非 GUI 的 `user/<uid>` 域，添加 `--launchd-domain user`。用运行该 Agent 的账号启用，不要通过 `sudo` 切换账号；本适配不管理系统 LaunchDaemon。
+`--service` 填 plist 中的 `Label`，不是文件名。默认读取 `~/Library/LaunchAgents/<Label>.plist`，其他位置用 `--launch-agent-plist "<plist 完整路径>"` 指定；支持 XML 和二进制 plist。默认管理当前账号的 `gui/<uid>` 登录域；若实际使用非 GUI 的 `user/<uid>` 域，添加 `--launchd-domain user`，对应 plist 的 `LimitLoadToSessionType` 应为 `Background`；默认 GUI 会话配置不能直接加载进 user 域。用运行该 Agent 的账号启用，不要通过 `sudo` 切换账号；本适配不管理系统 LaunchDaemon。
 
 更新前核对 plist 的 Label 和已加载 Agent 的实际 PID。安装时先 `bootout`，避免 KeepAlive 拉起旧程序；安装或回退后按原 plist `bootstrap` 并 `kickstart`，不重写启动参数、环境变量或 KeepAlive。更新辅助进程使用独立进程组，不随主 Agent 卸载退出。GUI 域需要保持登录；不要在更新安装期间退出登录。
 
