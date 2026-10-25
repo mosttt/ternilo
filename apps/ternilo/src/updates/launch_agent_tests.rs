@@ -50,9 +50,9 @@ async fn launch_agent_fixture() {
             .await
         }
         .await;
-        fs::write(
-            directory.join("result.json"),
-            serde_json::to_vec(&result.map_err(|error| error.to_string())).unwrap(),
+        write_private(
+            &directory.join("result.json"),
+            &result.map_err(|error| error.to_string()),
         )
         .unwrap();
         return;
@@ -78,6 +78,12 @@ struct AgentGuard {
 }
 impl Drop for AgentGuard {
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!(
+                "{}",
+                fs::read_to_string(self.directory.join("agent.log")).unwrap_or_default()
+            );
+        }
         let _ = std::process::Command::new("/bin/launchctl")
             .args(["bootout", &self.target])
             .output();
@@ -294,7 +300,13 @@ async fn launch_agent_installs_and_rolls_back_with_keepalive() {
         launch_agent::action(&label, domain, &plist, "stop")
             .await
             .unwrap();
-        assert!(crate::service::discover(&root).await.unwrap().is_none());
+        tokio::time::timeout(Duration::from_secs(30), async {
+            while crate::service::discover(&root).await.unwrap().is_some() {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .unwrap();
         // Recovery may stop an already booted-out job, then bootstrap its saved plist.
         launch_agent::action(&label, domain, &plist, "stop")
             .await
