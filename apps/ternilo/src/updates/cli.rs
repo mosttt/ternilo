@@ -14,6 +14,12 @@ pub enum RestartKind {
     Direct,
     Systemd,
     Supervisor,
+    LaunchAgent,
+}
+#[derive(Clone, Copy, ValueEnum)]
+pub enum LaunchdDomain {
+    Gui,
+    User,
 }
 #[derive(Subcommand)]
 pub enum UpdateCommand {
@@ -23,7 +29,7 @@ pub enum UpdateCommand {
         data_dir: Option<PathBuf>,
         #[arg(long, value_enum)]
         restart: RestartKind,
-        /// Exact systemd unit or Supervisor program name; never a shell command.
+        /// Exact systemd unit, Supervisor process name or LaunchAgent Label; never a shell command.
         #[arg(long)]
         service: Option<String>,
         /// Use the system manager rather than the user's systemd manager.
@@ -31,6 +37,12 @@ pub enum UpdateCommand {
         system: bool,
         #[arg(long)]
         supervisor_config: Option<PathBuf>,
+        /// LaunchAgent plist; defaults to ~/Library/LaunchAgents/<Label>.plist.
+        #[arg(long)]
+        launch_agent_plist: Option<PathBuf>,
+        /// LaunchAgent domain for the current user (default: gui; use user for a non-GUI agent).
+        #[arg(long, value_enum)]
+        launchd_domain: Option<LaunchdDomain>,
     },
     /// Disable new remote updates; this does not interrupt an installation already in progress.
     Disable {
@@ -57,7 +69,20 @@ pub async fn execute(command: UpdateCommand) -> Result<(), HarnessError> {
             service,
             system,
             supervisor_config,
-        } => enable(data_dir, restart, service, system, supervisor_config)?,
+            launch_agent_plist,
+            launchd_domain,
+        } => {
+            enable(
+                data_dir,
+                restart,
+                service,
+                system,
+                supervisor_config,
+                launch_agent_plist,
+                launchd_domain,
+            )
+            .await?
+        }
         UpdateCommand::Disable { data_dir } => {
             let path = root(data_dir)?.join("config/client-updates-enabled.json");
             match fs::remove_file(path) {
@@ -75,13 +100,22 @@ pub async fn execute(command: UpdateCommand) -> Result<(), HarnessError> {
     }
     Ok(())
 }
-fn enable(
+async fn enable(
     data_dir: Option<PathBuf>,
     restart: RestartKind,
     service: Option<String>,
     system: bool,
     supervisor_config: Option<PathBuf>,
+    launch_agent_plist: Option<PathBuf>,
+    launchd_domain: Option<LaunchdDomain>,
 ) -> Result<(), HarnessError> {
+    if !matches!(restart, RestartKind::LaunchAgent)
+        && (launch_agent_plist.is_some() || launchd_domain.is_some())
+    {
+        return Err(HarnessError::invalid(
+            "--launch-agent-plist and --launchd-domain require --restart launch-agent",
+        ));
+    }
     let root = root(data_dir)?;
     let _operation = super::config::operation_guard(&root)?;
     if read_progress(&root)?.is_some_and(|progress| !progress.phase.terminal()) {
@@ -115,6 +149,14 @@ fn enable(
                 .transpose()
                 .map_err(io_error)?,
         },
+        RestartKind::LaunchAgent => {
+            if system || supervisor_config.is_some() {
+                return Err(HarnessError::invalid(
+                    "launch-agent restart does not accept --system or --supervisor-config",
+                ));
+            }
+            super::launch_agent::configure(service()?, launch_agent_plist, launchd_domain).await?
+        }
     };
     restart.validate()?;
     if cfg!(windows) && !matches!(restart, RestartMethod::Direct) {

@@ -32,7 +32,17 @@ ternilo updates enable --restart supervisor --service ternilo --supervisor-confi
 
 Supervisor 的名称应与 `supervisorctl status` 完全一致。如果列表显示 `ternilo:ternilo_00`，就使用 `--service 'ternilo:ternilo_00'`，不能只填组名 `ternilo`。客户端在下载前核对服务是否属于当前进程，安装前再次确认。
 
-Windows 当前仅提供 direct 重启。不要把 systemd／Supervisor 管理的服务配置成 direct，否则进程管理器可能在文件交换期间自动重启旧服务。服务管理器的启动命令应使用稳定入口（官网安装脚本创建的 `bin/ternilo`），不要固定到 `releases/<版本>-<平台>/bin/ternilo`。
+macOS 用户 LaunchAgent：
+
+```sh
+ternilo updates enable --restart launch-agent --service com.ternilo.client --data-dir "<实例目录>"
+```
+
+`--service` 填 plist 中的 `Label`，不是文件名。默认读取 `~/Library/LaunchAgents/<Label>.plist`，其他位置用 `--launch-agent-plist "<plist 完整路径>"` 指定；支持 XML 和二进制 plist。默认管理当前账号的 `gui/<uid>` 登录域；若实际使用非 GUI 的 `user/<uid>` 域，添加 `--launchd-domain user`。用运行该 Agent 的账号启用，不要通过 `sudo` 切换账号；本适配不管理系统 LaunchDaemon。
+
+更新前核对 plist 的 Label 和已加载 Agent 的实际 PID。安装时先 `bootout`，避免 KeepAlive 拉起旧程序；安装或回退后按原 plist `bootstrap` 并 `kickstart`，不重写启动参数、环境变量或 KeepAlive。更新辅助进程使用独立进程组，不随主 Agent 卸载退出。GUI 域需要保持登录；不要在更新安装期间退出登录。
+
+Windows 当前仅提供 direct 重启。不要把 systemd／Supervisor／LaunchAgent 管理的服务配置成 direct，否则进程管理器可能在文件交换期间自动重启旧服务。服务管理器的启动命令应使用稳定入口（官网安装脚本创建的 `bin/ternilo`），不要固定到 `releases/<版本>-<平台>/bin/ternilo`。
 
 启用后按原启动方式重启一次 Ternilo，再在 Server 更新弹窗中点击“刷新”。每份安装仅由一个实例管理；同机多实例分别使用独立安装目录。更新还会检查是否有其他服务进程占用同一安装。
 
@@ -57,7 +67,7 @@ ternilo updates status --data-dir "<实例目录>"
 ternilo updates disable --data-dir "<实例目录>"
 ```
 
-停用阻止新的远程更新，不中断正在进行的安装。Server 断线时，可在本机查看状态。安装中断留下未完成标记时，服务会拒绝使用不完整的程序包启动。先停止对应的 systemd／Supervisor 服务或直接运行的实例，再执行：
+停用阻止新的远程更新，不中断正在进行的安装。Server 断线时，可在本机查看状态。安装中断留下未完成标记时，服务会拒绝使用不完整的程序包启动。先停止对应的托管服务或直接运行的实例。LaunchAgent 应使用 `launchctl bootout 'gui/<uid>/<Label>'`（非 GUI 域换成 `user/<uid>/<Label>`），不能仅结束进程，否则 KeepAlive 可能立即重启。随后执行：
 
 ```sh
 ternilo updates recover --data-dir "<实例目录>"
