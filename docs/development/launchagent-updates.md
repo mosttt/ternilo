@@ -1,6 +1,6 @@
 # macOS LaunchAgent 远程更新
 
-2026-10-25：用户要求 updates 适配 macOS LaunchAgent。基于 v0.2.25 发行验收后的 main `44b7d87`，在独立 `feat/launchagent-updates` 开发，不改动资源迁移 WIP 或用户正在运行的服务。
+为官方 macOS browser／CLI 客户端增加用户级 LaunchAgent 更新适配，覆盖安装、重启、启动回退和本机恢复。
 
 新增 `--restart launch-agent`，使用 plist 的 Label，默认读取当前用户 `~/Library/LaunchAgents/<Label>.plist`、目标为 `gui/<uid>`；支持显式 plist 路径和 `--launchd-domain user`。沿用签名包、安装布局、空闲维护门、操作锁、120 秒健康确认和恢复计划，不引入新更新协议或生产签名配置。
 

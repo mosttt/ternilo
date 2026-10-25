@@ -107,6 +107,10 @@ fn xml(value: &str) -> String {
 }
 
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep native agent setup, installation, rollback and cleanup assertions in one lifecycle scenario."
+)]
 async fn launch_agent_installs_and_rolls_back_with_keepalive() {
     let binary = std::env::var_os("TERNILO_LA_TEST_CLIENT").map_or_else(
         || {

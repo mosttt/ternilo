@@ -29,7 +29,7 @@ pub enum UpdateCommand {
         data_dir: Option<PathBuf>,
         #[arg(long, value_enum)]
         restart: RestartKind,
-        /// Exact systemd unit, Supervisor process name or LaunchAgent Label; never a shell command.
+        /// Exact systemd unit, Supervisor process name or `LaunchAgent` Label; never a shell command.
         #[arg(long)]
         service: Option<String>,
         /// Use the system manager rather than the user's systemd manager.
@@ -37,10 +37,10 @@ pub enum UpdateCommand {
         system: bool,
         #[arg(long)]
         supervisor_config: Option<PathBuf>,
-        /// LaunchAgent plist; defaults to ~/Library/LaunchAgents/<Label>.plist.
+        /// `LaunchAgent` plist; defaults to ~/Library/LaunchAgents/<Label>.plist.
         #[arg(long)]
         launch_agent_plist: Option<PathBuf>,
-        /// LaunchAgent domain for the current user (default: gui; use user for a non-GUI agent).
+        /// `LaunchAgent` domain for the current user (default: gui; use user for a non-GUI agent).
         #[arg(long, value_enum)]
         launchd_domain: Option<LaunchdDomain>,
     },
@@ -81,7 +81,7 @@ pub async fn execute(command: UpdateCommand) -> Result<(), HarnessError> {
                 launch_agent_plist,
                 launchd_domain,
             )
-            .await?
+            .await?;
         }
         UpdateCommand::Disable { data_dir } => {
             let path = root(data_dir)?.join("config/client-updates-enabled.json");
@@ -124,46 +124,15 @@ async fn enable(
         ));
     }
 
-    let service = || {
-        service.ok_or_else(|| {
-            HarnessError::invalid("--service is required for the selected restart method")
-        })
-    };
-    let restart = match restart {
-        RestartKind::Direct => {
-            if system || supervisor_config.is_some() || service().is_ok() {
-                return Err(HarnessError::invalid(
-                    "direct restart does not accept service-manager options",
-                ));
-            }
-            RestartMethod::Direct
-        }
-        RestartKind::Systemd => RestartMethod::Systemd {
-            unit: service()?,
-            user: !system,
-        },
-        RestartKind::Supervisor => RestartMethod::Supervisor {
-            program: service()?,
-            config: supervisor_config
-                .map(std::fs::canonicalize)
-                .transpose()
-                .map_err(io_error)?,
-        },
-        RestartKind::LaunchAgent => {
-            if system || supervisor_config.is_some() {
-                return Err(HarnessError::invalid(
-                    "launch-agent restart does not accept --system or --supervisor-config",
-                ));
-            }
-            super::launch_agent::configure(service()?, launch_agent_plist, launchd_domain).await?
-        }
-    };
-    restart.validate()?;
-    if cfg!(windows) && !matches!(restart, RestartMethod::Direct) {
-        return Err(HarnessError::invalid(
-            "this Windows client supports direct process restart; service-managed installations require their own adapter",
-        ));
-    }
+    let restart = restart_method(
+        restart,
+        service,
+        system,
+        supervisor_config,
+        launch_agent_plist,
+        launchd_domain,
+    )
+    .await?;
     let executable = std::env::current_exe()
         .and_then(fs::canonicalize)
         .map_err(io_error)?;
@@ -219,6 +188,57 @@ async fn enable(
         "Remote updates enabled. Restart this Ternilo service once to activate its installation lock, then refresh the computer in Server."
     );
     Ok(())
+}
+
+async fn restart_method(
+    restart: RestartKind,
+    service: Option<String>,
+    system: bool,
+    supervisor_config: Option<PathBuf>,
+    launch_agent_plist: Option<PathBuf>,
+    launchd_domain: Option<LaunchdDomain>,
+) -> Result<RestartMethod, HarnessError> {
+    let service = || {
+        service.ok_or_else(|| {
+            HarnessError::invalid("--service is required for the selected restart method")
+        })
+    };
+    let restart = match restart {
+        RestartKind::Direct => {
+            if system || supervisor_config.is_some() || service().is_ok() {
+                return Err(HarnessError::invalid(
+                    "direct restart does not accept service-manager options",
+                ));
+            }
+            RestartMethod::Direct
+        }
+        RestartKind::Systemd => RestartMethod::Systemd {
+            unit: service()?,
+            user: !system,
+        },
+        RestartKind::Supervisor => RestartMethod::Supervisor {
+            program: service()?,
+            config: supervisor_config
+                .map(std::fs::canonicalize)
+                .transpose()
+                .map_err(io_error)?,
+        },
+        RestartKind::LaunchAgent => {
+            if system || supervisor_config.is_some() {
+                return Err(HarnessError::invalid(
+                    "launch-agent restart does not accept --system or --supervisor-config",
+                ));
+            }
+            super::launch_agent::configure(service()?, launch_agent_plist, launchd_domain).await?
+        }
+    };
+    restart.validate()?;
+    if cfg!(windows) && !matches!(restart, RestartMethod::Direct) {
+        return Err(HarnessError::invalid(
+            "this Windows client supports direct process restart; service-managed installations require their own adapter",
+        ));
+    }
+    Ok(restart)
 }
 
 async fn recover_command(data_dir: Option<PathBuf>) -> Result<(), HarnessError> {

@@ -158,6 +158,37 @@ jobs:
       - uses: ./ternilo/.github/actions/prepare
         with:
           target: ${{ matrix.target }}
+      - name: Diagnose LaunchAgent domains
+        if: runner.os == 'macOS'
+        run: |
+          python3 - <<'PYPROBE'
+          import os, pathlib, plistlib, subprocess, tempfile
+          uid = str(os.getuid())
+          for domain in ('user/' + uid, 'gui/' + uid):
+              r = subprocess.run(['/bin/launchctl', 'print', domain], capture_output=True, text=True)
+              print('DOMAIN', domain, r.returncode, r.stderr, flush=True)
+          with tempfile.TemporaryDirectory(prefix='ternilo launchd probe ') as temporary:
+              home = pathlib.Path.home() / 'Library/LaunchAgents'
+              home.mkdir(parents=True, exist_ok=True)
+              for i, (where, kind, session) in enumerate([(pathlib.Path(temporary), 'user', None), (pathlib.Path(temporary), 'user', 'Background'), (pathlib.Path(temporary), 'gui', None), (home, 'gui', None), (home, 'user', 'Background')]):
+                  label = 'com.ternilo.probe.' + str(os.getpid()) + '.' + str(i)
+                  target = kind + '/' + uid + '/' + label
+                  plist = where / (label + '.plist')
+                  definition = dict(Label=label, ProgramArguments=['/bin/sleep', '60'], RunAtLoad=True, KeepAlive=True)
+                  if session: definition['LimitLoadToSessionType'] = session
+                  plist.write_bytes(plistlib.dumps(definition))
+                  try:
+                      r = subprocess.run(['/bin/launchctl', 'bootstrap', kind + '/' + uid, str(plist)], capture_output=True, text=True)
+                      print('PROBE', where, kind, session, r.returncode, r.stdout, r.stderr, flush=True)
+                      if r.returncode:
+                          p = 'process == "launchd" AND eventMessage CONTAINS "' + label + '"'
+                          logs = subprocess.run(['sudo', '-n', '/usr/bin/log', 'show', '--last', '1m', '--style', 'compact', '--predicate', p], capture_output=True, text=True)
+                          print(logs.stdout[-12000:], logs.stderr, flush=True)
+                  finally:
+                      subprocess.run(['/bin/launchctl', 'bootout', target], capture_output=True)
+                      plist.unlink(missing_ok=True)
+          raise SystemExit('Diagnostic run: native acceptance remains required')
+          PYPROBE
       - name: Enable Linux sandbox namespaces on the disposable runner
         if: runner.os == 'Linux'
         run: |
