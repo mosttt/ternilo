@@ -16,7 +16,7 @@ Consecutive queued messages from the same authenticated account can enter one ru
 
 ## History and forks
 
-Long histories load in bounded pages. Loading older events does not move the live-update cursor backwards. Completed turns can be displayed compactly while keeping reasoning and tool details expandable. Only reasoning text actually returned by the provider is shown.
+Long histories load in bounded pages. Loading older events does not move the live-update cursor backwards. Completed turns can be displayed compactly while keeping reasoning and tool details expandable. Question cards, your answers and the preceding replies remain visible rather than folding into execution details, as do replies before follow-up input within the same run. Only reasoning text actually returned by the provider is shown.
 
 A fork starts another conversation from a completed history prefix. It retains the captured preset; it does not make an already used conversation eligible to switch presets. Archive preserves history and is separate from deleting files. Renaming a workspace or conversation does not rename its project directory.
 

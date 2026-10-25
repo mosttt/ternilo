@@ -264,6 +264,41 @@ describe('ChatView turn process and navigation', () => {
     expect(host.querySelector('[data-turn-inline-reasoning]')?.hasAttribute('hidden')).toBe(false)
   })
 
+  it('keeps question context and the user answer visible when history finishes loading', () => {
+    const events = [
+      ...processTurn(false),
+      event(3, 'tool_call_finished', 'run-1', { call_id: 'call-1', name: 'read_file', output: { content: 'ok', is_error: false } }),
+      event(4, 'assistant_message', 'run-1', { step: 2, response: {
+        provider: 'fixture', model: 'fixture-model', finish_reason: 'tool_calls',
+        content: 'The first approach is ready. Which direction should we take?',
+        tool_calls: [{ id: 'ask-1', name: 'ask_user', arguments: {} }],
+      } }),
+      event(5, 'user_question_asked', 'run-1', { question: {
+        id: 'direction', question: 'Choose a direction', options: [{ label: 'Compare' }, { label: 'Implement' }],
+        multi_select: false, presentation: null, tool_approval: null,
+      } }),
+      event(6, 'user_question_answered', 'run-1', { answer: { question_id: 'direction', selected: [], custom: 'Compare both approaches first' } }),
+      event(7, 'assistant_message', 'run-1', { step: 3, response: {
+        provider: 'fixture', model: 'fixture-model', finish_reason: 'stop', content: 'Here is the comparison.', tool_calls: [],
+      } }),
+      event(8, 'turn_finished', 'run-1'),
+    ]
+    const assertConversationVisible = () => {
+      for (const selector of ['[data-chat-message-seq="4"]', '[data-question-id="direction"]', '[data-chat-message-seq="7"]']) {
+        const row = host.querySelector(selector)
+        expect(row).not.toBeNull()
+        expect(row?.closest('[hidden]')).toBeNull()
+      }
+      expect(host.querySelector('[data-question-answer]')?.textContent).toContain('Compare both approaches first')
+    }
+    render(events.slice(2))
+    assertConversationVisible()
+    render(events)
+    assertConversationVisible()
+    expect(host.querySelector('[data-turn-process]')?.getAttribute('aria-expanded')).toBe('false')
+    expect(host.querySelector('[data-chat-message-seq="1"]')?.closest('[hidden]')).not.toBeNull()
+  })
+
   it('honors the persisted Normal transcript mode', () => {
     window.localStorage.setItem(transcriptViewStorageKey, 'normal')
     render(processTurn(true))

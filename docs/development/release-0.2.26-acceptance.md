@@ -1,6 +1,6 @@
 # v0.2.26 发行验收
 
-范围为 macOS 用户级 LaunchAgent 远程更新，包括服务归属检查、KeepAlive 停机边界、原 plist 重启、安装回退及本机恢复。实现与原生验收入口见 [LaunchAgent 更新](launchagent-updates.md)，对应 PR [#16](https://github.com/mosttt/ternilo/pull/16)。
+范围为 macOS 用户级 LaunchAgent 远程更新，以及紧凑对话中提问、用户回答与提问前回复的可见性修复。更新覆盖服务归属检查、KeepAlive 停机边界、原 plist 重启、安装回退及本机恢复。实现与原生验收入口见 [LaunchAgent 更新](launchagent-updates.md)，对应 PR [#16](https://github.com/mosttt/ternilo/pull/16)。
 
 ## 已完成验证
 
@@ -10,8 +10,12 @@
 
 Cargo 工作区、22 个锁文件工作区包、Tauri、默认镜像及构建示例统一为 0.2.26，外部依赖记录不变。发行元数据两项测试通过。Executor 协议 49、数据代次 1 与升级签名策略不变。
 
+问答显示回归已在未修复版本复现：单元测试显示历史补齐后提问前的回复进入隐藏容器；真实浏览器完成 ask_user 回答后，已回答问题卡片仍挂载但不可见。紧凑投影现保留问题卡片及其回答，并保留同一运行内后续提问或追加输入前的回复。五个相关测试文件共 102 项、TypeScript 和 Web 构建通过。
+
+修复后的 v0.2.26 客户端／Server 真实浏览器验证通过：结构化单选、多选与自定义回答 20.32 秒；Local 与 Server 的延迟历史补齐、刷新和缓存切回 10.50 秒。保持紧凑过程收起时，提问前回复、问题、回答和后续回复仍可见；底层事件序号与类型完整保留。已检查桌面与 390px 手机截图，页面、控制台和 HTTP 无非预期错误。
+
+[Checks 40190046546](https://github.com/mosttt/ternilo/actions/runs/40190046546) 的 Apple Silicon 与 Intel 原生更新验收均通过，覆盖默认 GUI 安装及 user／Background 二进制 plist 回退。launchd 卸载会等待精确服务目标不再注册，再启动替换程序；其余停止错误仍上报。
+
 ## 待完成门禁
 
-macOS 首轮原生夹具将默认 GUI 会话配置加载进 user 域，bootstrap 返回 I/O 错误。最小原生探针确认相同路径下 GUI 默认配置与 user／Background 均可加载，只有 user 默认会话配置失败；原生夹具已改为默认 GUI 成功安装与 user／Background 二进制 plist 回退场景，指南同步会话类型要求。
-
-版本候选的 Apple Silicon 原生验收通过。Intel 在安装后的重复停止检查发现：主进程已退出时，launchd 仍可能短暂保留正在移除的服务定义，再次 bootout 返回 ESRCH。适配现等待精确服务目标真正卸载后才返回，ESRCH 按已进入停止处理，其余错误仍上报；原生断言增加外部确认服务已不再注册。继续以修正候选完成两种架构、完整 Checks、六平台打包、双架构镜像、签名和公开产物验收。当前尚未发布。
+最终完整 Checks、六平台打包、双架构镜像、签名和公开产物验收。当前尚未发布。

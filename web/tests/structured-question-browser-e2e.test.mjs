@@ -15,6 +15,7 @@ const LONG_QUESTION = '先选择执行策略，并确认该策略能够覆盖依
 const LONG_OPTION = '先完成依赖梳理、接口核对和真实浏览器验证，再开始跨端发布流程'
 const MANY_OPTIONS = ['测试', '核对依赖', '检查日志', '保留镜像', '复核存储', '部署检查', '准备回滚', '说明影响', '文档']
 const LONG_DESCRIPTION = '这个说明需要在窄屏上完整换行，并让选项按钮按内容自然增高，不能覆盖后续选项。'
+const BEFORE_QUESTION = '提问前的建议：先比较两种实现，再选择适合的方案。'
 
 function startTernilo(dataDirectory) {
   const child = spawn(binary, ['serve', '--listen', '127.0.0.1:0', '--data-dir', dataDirectory], {
@@ -109,9 +110,10 @@ async function startModelFixture() {
         ] })
         const call = { type: 'function_call', call_id: 'ask-structured', name: 'ask_user', arguments: argumentsValue }
         response.end([
-          sse({ type: 'response.output_item.added', output_index: 0, item: { ...call, arguments: '' } }),
-          sse({ type: 'response.function_call_arguments.done', output_index: 0, arguments: argumentsValue }),
-          completed([call]),
+          sse({ type: 'response.output_text.delta', output_index: 0, content_index: 0, delta: BEFORE_QUESTION }),
+          sse({ type: 'response.output_item.added', output_index: 1, item: { ...call, arguments: '' } }),
+          sse({ type: 'response.function_call_arguments.done', output_index: 1, arguments: argumentsValue }),
+          completed([{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: BEFORE_QUESTION }] }, call]),
         ].join(''))
         return
       }
@@ -205,11 +207,8 @@ function findToolOutput(value) {
   return undefined
 }
 
-async function revealQuestion(page, question) {
+async function visibleQuestion(page, question) {
   const row = page.locator('[data-question-lifecycle][data-state="answered"]').filter({ hasText: question }).first()
-  await row.waitFor({ state: 'attached' })
-  const process = row.locator('xpath=ancestor::*[@data-chat-turn][1]').locator('[data-turn-process]')
-  if (await process.count() && await process.getAttribute('aria-expanded') === 'false') await process.click()
   await row.waitFor({ state: 'visible' })
   return row
 }
@@ -399,12 +398,20 @@ test('Local Chromium completes structured single and multi-select ask_user', { t
     await page.getByText('结构化回答已收到。', { exact: true }).waitFor()
     await takeover.waitFor({ state: 'detached' })
 
-    const single = await revealQuestion(page, LONG_QUESTION)
+    const single = await visibleQuestion(page, LONG_QUESTION)
     assert.equal(await single.locator('[data-question-answer]').textContent(), '回答稳妥 (Recommended)')
-    const multi = await revealQuestion(page, '选择要覆盖的表面')
+    const multi = await visibleQuestion(page, '选择要覆盖的表面')
     assert.equal(await multi.locator('[data-question-answer]').textContent(), '回答测试, 文档, 发布说明')
+    assert.equal(await page.getByText(BEFORE_QUESTION, { exact: true }).isVisible(), true)
     await page.reload({ waitUntil: 'domcontentloaded' })
-    assert.equal(await (await revealQuestion(page, '选择要覆盖的表面')).locator('[data-question-answer]').textContent(), '回答测试, 文档, 发布说明')
+    await page.locator('[data-history-state="loading"], [data-history-state="backfilling"]').waitFor({ state: 'detached' })
+    assert.equal(await (await visibleQuestion(page, '选择要覆盖的表面')).locator('[data-question-answer]').textContent(), '回答测试, 文档, 发布说明')
+    assert.equal(await page.getByText(BEFORE_QUESTION, { exact: true }).isVisible(), true)
+    assert.equal(await page.getByText('结构化回答已收到。', { exact: true }).isVisible(), true)
+    if (artifacts) {
+      await page.getByText(BEFORE_QUESTION, { exact: true }).scrollIntoViewIfNeeded()
+      await page.screenshot({ path: path.join(artifacts, 'ask-history-conversation.png') })
+    }
     assert.deepEqual(pageErrors, [])
     assert.deepEqual(consoleErrors, [])
     assert.deepEqual(responseErrors, [])
