@@ -1,6 +1,6 @@
 # Node 账号撤销与执行端收尾
 
-状态：已随 v0.1.3 发布，Node／Server／浏览器、SQLite／受限 PostgreSQL 及平台回归已通过。交付详情见[发行反馈](release-feedback.md)，OIDC 修复见 [OIDC 浏览器来源与公网地址](oidc-browser-origin.md)。
+状态：已随 v0.1.3 发布，Node／Server／浏览器、SQLite／受限 PostgreSQL 及平台回归已通过。交付详情见[v0.1.3 发行验收](release-0.1.3-acceptance.md)，OIDC 修复见 [OIDC 浏览器来源与公网地址](oidc-browser-origin.md)。
 
 ## 持久授权与清理通道
 

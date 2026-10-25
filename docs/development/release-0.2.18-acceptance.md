@@ -1,12 +1,12 @@
 # v0.2.18 补丁发行验收
 
-2026-10-19：用户要求将本轮交互修复发布为小版本。候选从 `github/main` 的 `c56d67b` 单独准备，包含已完成的初始化历史恢复、Provider 错误提示，以及本轮 Ask 滚动、个人默认模型、授权说明和会话缓存改进。未合入资源迁移开发分支。
+2026-10-19：交互修复候选从 `github/main` 的 `c56d67b` 单独准备，包含已完成的初始化历史恢复、Provider 错误提示，以及本轮 Ask 滚动、个人默认模型、授权说明和会话缓存改进。未合入资源迁移开发分支。
 
 初始化历史修复移入时保留稳定分支不存在迁移回执模块的状态；前端产物已从发行分支源码重新生成，不携带资源迁移界面。Cargo、lockfile、Desktop 和维护中的 Compose／打包示例统一为 0.2.18。
 
 发行分支的类型检查、三语门禁、215 份文档门禁、1077 项前端单测（162 文件，190.61 秒）和生产前端构建通过。21 个 workspace 包、Desktop 与维护中的部署示例版本一致，外部依赖未因升版改写。问答、个人默认模型、Provider 错误和扩展运行反馈合同纳入既有浏览器 CI。
 
-本轮原改动的真实 CLI Ask 与 Server／Node 浏览器验证、严格 Clippy 结果见[交互反馈验收](2026-10-19-interaction-feedback.md)。移入时只调整默认模型读取中稳定分支的原有 tenant 路由，未引入资源迁移类型或接口。发行前端由本分支重新构建。
+本轮原改动的真实 CLI Ask 与 Server／Node 浏览器验证、严格 Clippy 结果见[交互反馈验收](session-interactions.md)。移入时只调整默认模型读取中稳定分支的原有 tenant 路由，未引入资源迁移类型或接口。发行前端由本分支重新构建。
 
 [PR #8](https://github.com/mosttt/ternilo/pull/8) 已通过[完整 Checks](https://github.com/mosttt/ternilo/actions/runs/39293325495)并合入 main；`v0.2.18` 标签指向合并提交 `20bdf6757c2c49bcdfd5ba5202db5f4e6d17bf67`。[正式发布流程](https://github.com/mosttt/ternilo/actions/runs/39300592143)第二次执行全部通过，[v0.2.18 已公开发布](https://github.com/mosttt/ternilo/releases/tag/v0.2.18)，并完成下述公开产物验收。用户现有服务不由本次开发验证替换或重启。
 

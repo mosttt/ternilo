@@ -1,6 +1,6 @@
 # 搜索服务扩展
 
-2026-10-03，按用户优先级 2 增加 Brave Search 与 Tavily，保留 SearXNG。三种服务使用独立插件 kind，共享 `web_search` 的工具、结果和生命周期；同一预设只启用一种。
+2026-10-03 增加 Brave Search 与 Tavily，保留 SearXNG。三种服务使用独立插件 kind，共享 `web_search` 的工具、结果和生命周期；同一预设只启用一种。
 
 ## 当前结果
 

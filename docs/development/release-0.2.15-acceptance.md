@@ -1,8 +1,8 @@
 # v0.2.15 发布验收
 
-2026-10-16。用户要求先发布已完成的 12 项能力，再合并其余已完成分支。发行从 `feat/capability-completion` 的 `3e74470` 准备，只包含已验收的能力补齐；资源迁移分支的后续提交不进入本版。
+2026-10-16。能力补齐候选从 `feat/capability-completion` 的 `3e74470` 准备，只包含已验收的能力补齐；资源迁移分支的后续提交不进入本版。
 
-本版增量为上下文组成、按工具预算、候选调用影响、GitHub 发布状态、实际自动推理控制和离线公式渲染。功能实现及本机／Node／Worker／中英韩证据沿用各功能记录；发行说明见[中文](../zh-CN/releases/0.2.15.md)和[英文](../en/releases/0.2.15.md)。Cargo、Desktop 和部署示例同步为 0.2.15。
+本版增量为上下文组成、按工具预算、候选调用影响、GitHub 发布状态、实际自动推理控制和离线公式渲染。功能实现及本机／Node／Worker／中英韩证据沿用各功能记录；最终发行说明见[中文](../zh-CN/releases/0.2.16.md)和[英文](../en/releases/0.2.16.md)。Cargo、Desktop 和部署示例同步为 0.2.15。
 
 最终 [PR 检查](https://github.com/mosttt/ternilo/actions/runs/38938587845)全部通过，[PR #5](https://github.com/mosttt/ternilo/pull/5)已合入 main。`v0.2.15` 指向合并提交 `b447fd79348b49dcca3f87de73085df24e8c0e27`，其内容与通过检查的候选一致。
 

@@ -1,6 +1,6 @@
 # 本地服务自动打开浏览器
 
-2026-10-02：按用户要求为 `ternilo serve` 增加本次启动的 `--open-browser`。默认不自动打开，开关不写入总配置，也不改变 Desktop 自行创建窗口的行为。
+`ternilo serve --open-browser` 仅控制本次启动是否打开浏览器。默认不自动打开，开关不写入总配置，也不改变 Desktop 自行创建窗口的行为。
 
 浏览器启动等待认证后的服务接口就绪，使用实际回环监听地址和端口，不向 URL 添加令牌。Linux 使用 `xdg-open`、macOS 使用 `open`、Windows 使用无控制台窗口的 `rundll32.exe url.dll,FileProtocolHandler` 调用系统默认浏览器。不添加新的平台依赖。
 
