@@ -163,7 +163,24 @@ pub(super) async fn action(
     let loaded = inspect(&target).await?.is_some();
     match action {
         "stop" if loaded => {
-            checked(run("/bin/launchctl", &["bootout".as_ref(), target.as_ref()]).await?)?;
+            let output = run("/bin/launchctl", &["bootout".as_ref(), target.as_ref()]).await?;
+            // launchd can retain a retiring job briefly after its process exits.
+            // ESRCH means it is already stopping; other failures still need attention.
+            if output.status.code() != Some(3) {
+                checked(output)?;
+            }
+            tokio::time::timeout(Duration::from_secs(30), async {
+                while inspect(&target).await?.is_some() {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Ok::<(), HarnessError>(())
+            })
+            .await
+            .map_err(|_| {
+                HarnessError::unavailable(
+                    "LaunchAgent has not finished unloading; check its status before retrying",
+                )
+            })??;
         }
         "stop" => {}
         "start" => {

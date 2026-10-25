@@ -12,4 +12,6 @@ Cargo 工作区、22 个锁文件工作区包、Tauri、默认镜像及构建示
 
 ## 待完成门禁
 
-macOS 首轮原生夹具将默认 GUI 会话配置加载进 user 域，bootstrap 返回 I/O 错误。最小原生探针确认相同路径下 GUI 默认配置与 user／Background 均可加载，只有 user 默认会话配置失败；原生夹具已改为默认 GUI 成功安装与 user／Background 二进制 plist 回退场景，指南同步会话类型要求。Apple Silicon／Intel 原生安装与回退通过后，再完成当前版本的完整 Checks、六平台打包、双架构镜像、签名和公开产物验收。当前尚未发布。
+macOS 首轮原生夹具将默认 GUI 会话配置加载进 user 域，bootstrap 返回 I/O 错误。最小原生探针确认相同路径下 GUI 默认配置与 user／Background 均可加载，只有 user 默认会话配置失败；原生夹具已改为默认 GUI 成功安装与 user／Background 二进制 plist 回退场景，指南同步会话类型要求。
+
+版本候选的 Apple Silicon 原生验收通过。Intel 在安装后的重复停止检查发现：主进程已退出时，launchd 仍可能短暂保留正在移除的服务定义，再次 bootout 返回 ESRCH。适配现等待精确服务目标真正卸载后才返回，ESRCH 按已进入停止处理，其余错误仍上报；原生断言增加外部确认服务已不再注册。继续以修正候选完成两种架构、完整 Checks、六平台打包、双架构镜像、签名和公开产物验收。当前尚未发布。

@@ -325,6 +325,16 @@ async fn launch_agent_installs_and_rolls_back_with_keepalive() {
         launch_agent::action(&label, domain, &plist, "stop")
             .await
             .unwrap();
+        assert_eq!(
+            std::process::Command::new("/bin/launchctl")
+                .args(["print", &format!("{domain}/{label}")])
+                .output()
+                .unwrap()
+                .status
+                .code(),
+            Some(113),
+            "stop must finish unregistering the job before it can be bootstrapped again",
+        );
         tokio::time::timeout(Duration::from_secs(30), async {
             while crate::service::discover(&root).await.unwrap().is_some() {
                 tokio::time::sleep(Duration::from_millis(100)).await;
