@@ -328,6 +328,13 @@ pub(super) async fn verify_manager_process(
 ) -> Result<(), HarnessError> {
     let mut command = match restart {
         RestartMethod::Direct => return Ok(()),
+        RestartMethod::LaunchAgent {
+            label,
+            domain,
+            plist,
+        } => {
+            return super::launch_agent::verify(label, domain, plist, expected).await;
+        }
         RestartMethod::Systemd { unit, user } => {
             let mut command = Command::new("systemctl");
             if *user {
@@ -456,6 +463,13 @@ async fn manager_command(manager: &RestartMethod, action: &str) -> Result<(), Ha
             command
         }
         RestartMethod::Direct => return Ok(()),
+        RestartMethod::LaunchAgent {
+            label,
+            domain,
+            plist,
+        } => {
+            return super::launch_agent::action(label, domain, plist, action).await;
+        }
     };
     command.stdin(Stdio::null()).kill_on_drop(true);
     let result = tokio::time::timeout(Duration::from_secs(60), command.output())
@@ -560,6 +574,10 @@ fn executable() -> &'static str {
         "ternilo"
     }
 }
+
+#[cfg(all(test, target_os = "macos"))]
+#[path = "launch_agent_tests.rs"]
+mod launch_agent_tests;
 
 #[cfg(test)]
 mod tests {

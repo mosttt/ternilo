@@ -190,7 +190,7 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 ### 统一工作台
 
-`GET /api/v1/sessions/{session_id}/workspace` 返回绑定目录的浏览能力；Server 返回的 `applications` 始终为空。`POST` 的 `kind` 支持 `list` 和 `read`，使用工作区相对路径，要求工作区查看权限（不仅是会话共享）。Server 拒绝所有 `open` 请求，包括资源所有者的请求，不转发到 Node 启动桌面程序；该操作只保留在本机 Ternilo 接口。列表与读取仍发往实际 Node／Worker。当前执行器协议版本为 48，包含输入账号及凭据版本证明、逐项设置、定时来源、事件确认、原生模型思考签名、设备 Provider 用量事件和有界历史分页。队列编辑必须携带版本条件。Server、Node 与 Worker 使用同一发行版本。
+`GET /api/v1/sessions/{session_id}/workspace` 返回绑定目录的浏览能力；Server 返回的 `applications` 始终为空。`POST` 的 `kind` 支持 `list` 和 `read`，使用工作区相对路径，要求工作区查看权限（不仅是会话共享）。Server 拒绝所有 `open` 请求，包括资源所有者的请求，不转发到 Node 启动桌面程序；该操作只保留在本机 Ternilo 接口。列表与读取仍发往实际 Node／Worker。当前执行器协议版本为 49，包含输入账号及凭据版本证明、逐项设置、定时来源、事件确认、原生模型思考签名、设备 Provider 用量事件和有界历史分页。队列编辑必须携带版本条件。Server、Node 与 Worker 使用同一发行版本。
 
 `ModelRequest` 必须带当前 `run_id`；Models／ModelGateway 服务合同升至 `@3`，SessionTitles 升至 `@2`，内置与本机目录版本升至 v19。Node 模型网关同时提交实际子会话、原始输入会话和 Server 接受的输入证明，不能再按父会话最新输入推测作者。旧历史仍可读取，但没有运行绑定证明的旧远程输入不能用于新的账号模型调用，应重新提交任务；不会静默冒充其他账号或更换预算。
 

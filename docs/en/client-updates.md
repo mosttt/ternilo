@@ -30,7 +30,17 @@ ternilo updates enable --restart supervisor --service ternilo --supervisor-confi
 
 Supervisor names must exactly match `supervisorctl status`. If it lists `ternilo:ternilo_00`, use `--service 'ternilo:ternilo_00'`, not just the group name `ternilo`. The client checks process ownership before downloading and again before installation.
 
-Windows currently supports direct restart only. Do not select direct for a systemd/Supervisor-managed service: its manager may restart the old process during replacement. Managers should launch the stable entry point (`bin/ternilo` created by the official installer), not a fixed `releases/<version>-<target>/bin/ternilo` path.
+For a macOS user LaunchAgent:
+
+```sh
+ternilo updates enable --restart launch-agent --service com.ternilo.client --data-dir "<instance-directory>"
+```
+
+`--service` is the plist's `Label`, not its filename. The default plist is `~/Library/LaunchAgents/<Label>.plist`; use `--launch-agent-plist "<absolute-plist-path>"` for another location. Both XML and binary plists are supported. The default domain is the current user's `gui/<uid>` login domain; add `--launchd-domain user` for an agent actually loaded in `user/<uid>`. Its plist must use `LimitLoadToSessionType` set to `Background`; a default GUI-session plist cannot be loaded directly in a user domain. Enable updates as the account running the agent, without switching accounts through `sudo`. This adapter does not manage system LaunchDaemons.
+
+Before updating, Ternilo verifies the plist Label and the loaded agent's actual PID. Installation uses `bootout` to prevent KeepAlive from relaunching the old program, then `bootstrap` and `kickstart` with the original plist after installation or rollback. Arguments, environment variables and KeepAlive are not rewritten. The updater runs in a separate process group and survives unloading the main agent. A GUI domain requires an active login session; do not log out during installation.
+
+Windows currently supports direct restart only. Do not select direct for a systemd/Supervisor/LaunchAgent-managed service: its manager may restart the old process during replacement. Managers should launch the stable entry point (`bin/ternilo` created by the official installer), not a fixed `releases/<version>-<target>/bin/ternilo` path.
 
 Restart Ternilo once using its normal startup method, then refresh the Server dialog. One instance owns each installation. Separate instances need separate installations. Updates also check for other service processes using the same installation.
 
@@ -55,7 +65,7 @@ ternilo updates status --data-dir "<instance-directory>"
 ternilo updates disable --data-dir "<instance-directory>"
 ```
 
-Disabling prevents new updates without interrupting installation already in progress. Status is available locally when Server is disconnected. If an interrupted activation leaves an incomplete marker, service startup refuses to use a partially installed bundle. Stop the configured systemd/Supervisor service or direct instance, then run:
+Disabling prevents new updates without interrupting installation already in progress. Status is available locally when Server is disconnected. If an interrupted activation leaves an incomplete marker, service startup refuses to use a partially installed bundle. Stop the configured manager or direct instance first. For LaunchAgent, use `launchctl bootout 'gui/<uid>/<Label>'` (or `user/<uid>/<Label>` for a non-GUI domain); merely killing the process may cause KeepAlive to restart it immediately. Then run:
 
 ```sh
 ternilo updates recover --data-dir "<instance-directory>"

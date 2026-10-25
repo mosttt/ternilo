@@ -15,6 +15,7 @@ mod apply;
 mod cli;
 mod config;
 mod installation;
+mod launch_agent;
 pub use apply::{apply, recover};
 pub(crate) use cli::installation_guard;
 pub use cli::{UpdateCommand, execute};

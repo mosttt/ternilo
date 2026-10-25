@@ -43,6 +43,15 @@ describe('Chat turn process projection', () => {
     expect(buildChatTurns(items, [...items.map(item => item.event), event(5, 'turn_finished')], true)[0]?.foldable).toBe(false)
   })
 
+  it('retains the reply before a follow-up input within the same run', () => {
+    const items = [user(0, 'first prompt'), assistant(1, 'first response'), user(2, 'follow-up'),
+      assistant(3, 'checking', [{ id: 'call', name: 'read_file', arguments: {} }]), tool(4, 'read_file'), assistant(5, 'follow-up response')]
+    const turn = buildChatTurns(items, [...items.map(item => item.event), event(6, 'turn_finished')])[0]!
+    expect([...turn.processKeys]).toEqual(['event-3', 'tool-4'])
+    expect(turn.counts).toEqual({ messages: 1, tools: 1, subagents: 0 })
+    expect(turn.finalAnswerKey).toBe('event-5')
+  })
+
   it('folds final-answer reasoning even without external process rows', () => {
     const answer = assistant(2, 'answer')
     if (answer.kind === 'assistant') answer.reasoning = {

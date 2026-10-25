@@ -192,3 +192,10 @@ jobs:
           cargo test --locked --target "$RUST_TARGET" -p ternilo-extension --lib registry
         env:
           RUST_TARGET: ${{ matrix.target }}
+      - name: Native LaunchAgent update and rollback
+        if: runner.os == 'macOS'
+        run: |
+          cargo build --locked --target "$RUST_TARGET" -p ternilo
+          TERNILO_LA_TEST_CLIENT="$PWD/target/$RUST_TARGET/debug/ternilo" cargo test --locked --target "$RUST_TARGET" -p ternilo --lib launch_agent -- --include-ignored --nocapture
+        env:
+          RUST_TARGET: ${{ matrix.target }}

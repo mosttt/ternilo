@@ -62,9 +62,24 @@ function isFinalAnswer(item: ConversationItem) {
 
 function isProcessItem(item: ConversationItem) {
   return item.kind !== 'user'
+    && item.kind !== 'question'
     && item.kind !== 'system_prompt'
     && item.kind !== 'max_tokens'
     && !(item.kind === 'card' && independentCardTypes.has(item.event.type))
+}
+
+function repliesBeforeInput(items: ConversationItem[]): ReadonlySet<string> {
+  const replies = new Set<string>()
+  let previousReply: string | undefined
+  for (const item of items) {
+    if (item.kind === 'assistant' && item.content.trim()) previousReply = item.key
+    if (item.kind !== 'user' && item.kind !== 'question') continue
+    // A run can continue after a question answer or steering input. Its earlier
+    // reply is still conversation, not disposable execution commentary.
+    if (previousReply) replies.add(previousReply)
+    previousReply = undefined
+  }
+  return replies
 }
 
 function isSubagentDelegation(name: string) {
@@ -214,9 +229,10 @@ export function buildChatTurns(
     const closed = terminalRuns.has(runId)
     const finalAnswerIndex = closed ? turnItems.findLastIndex(isFinalAnswer) : -1
     const finalAnswer = finalAnswerIndex < 0 ? undefined : turnItems[finalAnswerIndex]
+    const replies = repliesBeforeInput(turnItems)
     const processItems = finalAnswerIndex < 0
-      ? turnItems.filter(isProcessItem)
-      : turnItems.slice(0, finalAnswerIndex).filter(isProcessItem)
+      ? turnItems.filter(item => isProcessItem(item) && !replies.has(item.key))
+      : turnItems.slice(0, finalAnswerIndex).filter(item => isProcessItem(item) && !replies.has(item.key))
     const processKeys = new Set(processItems.map(item => item.key))
     const counts: ChatTurnProcessCounts = { messages: 0, tools: 0, subagents: 0 }
     for (const item of processItems) {

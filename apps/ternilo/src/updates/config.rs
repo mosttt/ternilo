@@ -18,6 +18,11 @@ pub enum RestartMethod {
         program: String,
         config: Option<PathBuf>,
     },
+    LaunchAgent {
+        label: String,
+        domain: String,
+        plist: PathBuf,
+    },
 }
 impl RestartMethod {
     pub fn label(&self) -> &'static str {
@@ -25,6 +30,7 @@ impl RestartMethod {
             Self::Direct => "direct",
             Self::Systemd { .. } => "systemd",
             Self::Supervisor { .. } => "supervisor",
+            Self::LaunchAgent { .. } => "launch_agent",
         }
     }
     pub fn validate(&self) -> Result<(), HarnessError> {
@@ -32,6 +38,24 @@ impl RestartMethod {
             Self::Direct => return Ok(()),
             Self::Systemd { unit, .. } => unit,
             Self::Supervisor { program, .. } => program,
+            Self::LaunchAgent {
+                label,
+                domain,
+                plist,
+            } => {
+                let (kind, uid) = domain.split_once('/').unwrap_or_default();
+                if !matches!(kind, "gui" | "user")
+                    || uid.is_empty()
+                    || !uid.bytes().all(|byte| byte.is_ascii_digit())
+                    || label.contains('/')
+                    || !plist.is_absolute()
+                {
+                    return Err(HarnessError::invalid(
+                        "LaunchAgent requires a gui/<uid> or user/<uid> domain, one Label and an absolute plist path",
+                    ));
+                }
+                label
+            }
         };
         if name.is_empty()
             || name.starts_with('-')
