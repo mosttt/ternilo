@@ -186,6 +186,7 @@ jobs:
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib model_connections::tests
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib presets::tests
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib attachments::tests
+          cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib file_write_contract
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::tests::forks
           cargo test --locked --target "$RUST_TARGET" -p ternilo-local --lib application::account_authorizations_tests
           cargo test --locked --target "$RUST_TARGET" -p ternilo-builtins --lib process_supervision
