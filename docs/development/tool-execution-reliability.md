@@ -32,3 +32,6 @@ Local 实际 reviewer 测试通过：标准库单元测试成功，工作区写�
 首轮 Apple Silicon 原生测试确认：只读 scratch 可写、工作区写入被拒，但系统 Python 的 xcrun shim 仍尝试写入用户级 `T/xcrun_db-*`，不使用进程的 `TMPDIR`。保留原“标准错误为空”断言，增加 `xcrun_nocache=1`，而不把整个用户临时目录加入只读检查的可写范围；两个 macOS 架构继续按实际程序验证。
 
 依赖扫描新报告 [RUSTSEC-2026-0391](https://rustsec.org/advisories/RUSTSEC-2026-0391)、[0398](https://rustsec.org/advisories/RUSTSEC-2026-0398)、[0403](https://rustsec.org/advisories/RUSTSEC-2026-0403) 和 [0410](https://rustsec.org/advisories/RUSTSEC-2026-0410)。Salvo 0.95／0.96 依赖的 zstd 0.13 无法解析到已修复版本，因此改用 Salvo 1.0.1，将依赖更新为 zstd 0.14.3、zstd-safe 8.2.0 和 zstd-sys 2.1.2。保留原审计策略，不为这些公告增加忽略项；HTTP／流式交互随依赖更新重新验收。
+
+
+Cloud catalog 修订随共享工具 Schema 更新为 v3；执行 policy、可运行 envelope、恢复夹具和浏览器夹具同步引用该修订。首轮全量检查发现示例仍为 v2，已补齐同一合同的调用方；不增加 Work 执行功能，也不自动改写运营者私有 policy。
