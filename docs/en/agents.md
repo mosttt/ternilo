@@ -86,6 +86,32 @@ Automatic selection is capped at high and by any lower manually selected main or
 
 After a successful response, the conversation process shows the actual effort, suggestion and basis. “Record reasoning suggestions” provides observation-only behavior when automatic adjustment is off. Automatic adjustment always records its actual selection.
 
+## Run checks from a read-only review
+
+Configure **Named verification checks** in the session's `shell-tool` plugin to let reviewers run selected tests without arbitrary Shell access. For a Python project:
+
+```json
+{
+  "checks": [
+    { "name": "unit", "command": "python3 -m unittest discover -s tests", "timeout_ms": 30000 }
+  ]
+}
+```
+
+Child agents inherit the configuration, and the tool schema lists available names. A reviewer calls `run_check` with `name: "unit"`; it cannot add commands, arguments or full-access escalation. Ordinary Shell, terminals, jobs and file writes remain denied by read-only policy. Without configured checks, `run_check` is absent; have the lead run tests and supply evidence.
+
+Checks always use a read-only workspace sandbox, even for a full-access lead. Temporary directories and caches are writable and cleaned up with the managed process. Tests requiring project writes need a suitably authorized execution path. Configure trusted commands and project test code only; the computer's sandbox and network boundaries still apply. Named checks support local and Server-connected computers; the existing Worker outer sandbox does not provide this read-only mode.
+
+To inspect a failed check and continue:
+
+```rhai
+let check = try_tool("run_check", #{ name: "unit" });
+if !check.ok { print(check.error.message); }
+check.result
+```
+
+The result retains `exit_code`, `stdout`, `stderr` and `timed_out`. Nonzero exits and timeouts set `ok` to `false`; output captured before a timeout is retained. `tools::run_check` and other existing tool calls still throw on failure.
+
 ## Project memory and history search
 
 History search also matches continuous text fragments, including Chinese/Korean text and English terms embedded in CJK text, with case-insensitive English matching. `session_search` searches authorized history; `session_event_search` limits the search to one session. Workspace, run, event-category, time and result-count filters still apply. The local index retains full-text relevance and adds substring matches even when full-word matches already exist.

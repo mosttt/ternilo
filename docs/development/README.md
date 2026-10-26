@@ -19,7 +19,7 @@
 
 - [模型转发可靠性](model-gateway-reliability.md)、[电脑模型转发](computer-model-forwarding.md)、[托管模型委托](managed-model-delegation.md)、[用量核对](model-usage-reconciliation.md)及[Cloud 统计](cloud-session-stats.md)。
 - [电脑管理](computer-management.md)、[工作区管理项目迁移](workspace-project-move.md)、[管理权交接](resource-ownership.md)及[跨 Server 路由](server-node-routing.md)。
-- [文件与检索合同](file-and-history-contracts.md)、[工具上下文](tool-context-and-code-map.md)、[上下文组成](context-composition.md)、[项目交付工具](project-delivery-tools.md)及[Work 设计边界](execution-coordination.md)。
+- [工具失败与只读验证](tool-execution-reliability.md)、[文件与检索合同](file-and-history-contracts.md)、[工具上下文](tool-context-and-code-map.md)、[上下文组成](context-composition.md)、[项目交付工具](project-delivery-tools.md)及[Work 设计边界](execution-coordination.md)。
 
 ## 更新与交付
 

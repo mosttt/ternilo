@@ -258,6 +258,7 @@ impl ToolHandler for RepositoryTool {
                             command,
                             timeout_ms: 60_000,
                             full_access: false,
+                            read_only: false,
                             stdin,
                             env: [("GIT_TERMINAL_PROMPT".into(), "0".into())].into(),
                         },

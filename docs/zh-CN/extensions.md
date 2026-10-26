@@ -138,6 +138,25 @@ let value = tools::read_file(#{ path: "README.md" });
 
 其他工具用 `call_tool("server-tool", #{ ... })`。SDK 从工具 JSON Schema 生成参数形状；`run_code` 本身不会递归出现在 binding 集合。
 
+工具的预期失败需要进一步分析时，使用 `try_tool` 保留结构化结果，避免把 JSON 包进异常字符串：
+
+```rhai
+let status = try_tool("git_inspect", #{ action: "status" });
+if !status.ok { print(status.error.message); }
+status.result
+```
+
+返回对象包含 `ok`、原始 `result` 和可空的 `error`（`code`、`message`）。Shell 与具名检查的结果保留退出码、标准输出、标准错误及超时标记；非零退出不代表脚本本身出错，调用方可决定是否继续。`tools::name` 和 `call_tool` 的失败抛错语义不变；共享权限、Hooks、调用次数、输出预算和取消规则仍适用。完整失败结果保存在子调用轨迹中，异常只给出简短原因。
+
+文本包含 Markdown 反引号时，使用双引号字符串，而不要嵌套反引号定界符：
+
+```rhai
+let text = "Markdown uses `code`.\nNext line.";
+text
+```
+
+解析失败会给出出错位置附近的有界源码片段，以及相关定界符或保留字提示；整个脚本均不执行。
+
 每次调用创建新的 Engine 和 Scope，不共享变量或模块。Rhai 没有文件、网络、进程、环境变量、credential、WASI、`import` 或 `eval`；唯一宿主入口是当次 binding。默认限制包括 1,000,000 operations、60 秒墙钟、4 MiB 输出、1 MiB 单字符串、100,000 collection items、64 层调用/表达式、4,096 变量和 256 函数。
 
 每个 SDK 子调用重新执行：Code-only 检查、PreTool Hook、permission/Plan/guard、一次性危险审批、handler 和 PostTool Hook。父子 dispatch 写入 durable event，但 model history 只看到外层 `run_code` 结果。Rhai capability sandbox 不替代多租户 OS 隔离；cloud run 仍位于无网络 child 中。

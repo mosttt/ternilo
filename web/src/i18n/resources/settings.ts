@@ -1,4 +1,7 @@
 export const zh = {
+  "checks.title": "具名验证检查",
+  "checks.invalid": "请配置最多 32 个检查，每项使用不同的非空 name、非空 command 和 100–300000 毫秒的 timeout_ms。",
+  "checks.description": "供只读 reviewer 运行的固定命令列表。每项填写 name、command 和 timeout_ms；检查不能修改工作区，临时缓存可写。仅配置你信任的检查，留空则不提供 run_check。",
   "updates.title": "客户端更新",
   "updates.action": "更新客户端",
   "updates.description": "Server 下载官方签名包，电脑验证后等待任务结束再安装。配置和会话保留，重启期间电脑会短暂离线。",
@@ -911,6 +914,9 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  "checks.title": "Named verification checks",
+  "checks.invalid": "Configure up to 32 checks with unique nonempty names, nonempty commands and timeout_ms between 100 and 300000.",
+  "checks.description": "Fixed commands for read-only reviewers. Each entry contains name, command and timeout_ms. Checks cannot write to the workspace; temporary caches are writable. Configure trusted checks only. Leave empty to omit run_check.",
   "updates.title": "Client updates",
   "updates.action": "Update client",
   "updates.description": "Server downloads the signed official package. Each computer verifies it and waits for tasks to finish before installing. Settings and sessions are kept; the computer briefly goes offline during restart.",
@@ -1866,6 +1872,9 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  "checks.title": "이름이 지정된 검증 검사",
+  "checks.invalid": "검사를 최대 32개까지 등록하세요. 이름과 명령은 비어 있으면 안 되며 이름은 고유해야 합니다. timeout_ms는 100–300000이어야 합니다.",
+  "checks.description": "읽기 전용 검토자가 실행할 고정 명령입니다. 항목마다 name, command, timeout_ms를 입력하세요. 작업 공간에는 쓸 수 없으며 임시 캐시는 쓸 수 있습니다. 신뢰하는 검사만 등록하세요. 비워 두면 run_check가 제공되지 않습니다.",
   "updates.title": "클라이언트 업데이트",
   "updates.action": "클라이언트 업데이트",
   "updates.description": "Server가 서명된 공식 패키지를 다운로드합니다. 컴퓨터가 패키지를 검증하고 작업이 끝나면 설치합니다. 설정과 세션은 유지되며 재시작 중에는 잠시 오프라인 상태가 됩니다.",

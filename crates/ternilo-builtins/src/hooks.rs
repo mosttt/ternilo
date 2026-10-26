@@ -438,6 +438,7 @@ impl HookHandler for CommandHookHandler {
                         command: self.definition.command.clone(),
                         timeout_ms: self.definition.timeout_ms,
                         full_access: false,
+                        read_only: false,
                         stdin: Some(stdin),
                         env,
                     },

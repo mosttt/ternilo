@@ -216,7 +216,12 @@ impl CoordinationConfig {
             overrides.push(child);
         }
         let extra = self.role(role).instructions.trim();
-        let instructions = format!("{}\n\n{}", role.instructions(), extra);
+        let permission = if self.role_read_only(role) {
+            "Your workspace is read-only. Shell, terminal, job and file-write tools are unavailable. If run_check is present, use only its configured check names; otherwise ask the lead to supply execution evidence."
+        } else {
+            "Your permissions inherit the parent session ceiling; inspect the available tools before acting."
+        };
+        let instructions = format!("{}\n\n{}\n\n{}", role.instructions(), permission, extra);
         overrides.push(PluginEntry {
             id: "agent-role-guidance".to_owned(),
             kind: "ternilo.prompt.section".to_owned(),

@@ -2,6 +2,9 @@ import type { Translate } from '@/i18n/runtime'
 import { fieldLabel, type PluginConfigField } from './plugin-config'
 
 export function pluginFieldCopy(kind: string, field: PluginConfigField, t: Translate<'settings'>) {
+  if (kind === 'ternilo.tool.shell' && field.key === 'checks') {
+    return { label: t('checks.title'), description: t('checks.description') }
+  }
   const subagentFields = {
     max_children: ['coordination.children', 'coordination.childrenHint'],
     max_steps: ['coordination.steps', 'coordination.stepsHint'],

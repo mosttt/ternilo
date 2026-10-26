@@ -201,6 +201,7 @@ impl ToolHandler for JobTool {
                                 command: arguments.command,
                                 timeout_ms: arguments.timeout_ms,
                                 full_access: false,
+                                read_only: false,
                                 stdin: None,
                                 env: std::collections::BTreeMap::new(),
                             },

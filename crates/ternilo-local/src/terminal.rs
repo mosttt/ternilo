@@ -257,13 +257,18 @@ impl LocalTerminals {
             .environment
             .acquire_workspace(RunCancellation::new())
             .await?;
-        let mut command = self.shell_command().await?;
+        let scratch = (!self.environment.permissions().await.allows_full_access())
+            .then(crate::sandbox::scratch_directory)
+            .transpose()?;
+        let mut command = self.shell_command(scratch.as_ref()).await?;
         self.environment
             .check_run_authorization(run_id.clone())
             .await?;
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (completion, finished) = watch::channel(None);
-        let held_lease = Arc::new(std::sync::Mutex::new(Some(lease)));
+        let held_lease = Arc::new(std::sync::Mutex::new(Some(WorkspaceExecutionLease::hold(
+            (lease, scratch),
+        ))));
         let control = Arc::new(TerminalControl {
             stop: stop_sender.clone(),
             finished,
@@ -350,7 +355,10 @@ impl LocalTerminals {
         entry.snapshot().await
     }
 
-    async fn shell_command(&self) -> Result<Command, HarnessError> {
+    async fn shell_command(
+        &self,
+        scratch: Option<&tempfile::TempDir>,
+    ) -> Result<Command, HarnessError> {
         let permissions = self.environment.permissions().await;
         let (program, arguments) = native_interactive_shell();
         let mut command = if permissions.allows_full_access() {
@@ -371,6 +379,7 @@ impl LocalTerminals {
                     SandboxPolicy {
                         mode,
                         workspace_root: self.root.clone(),
+                        scratch_root: scratch.map(|directory| directory.path().to_path_buf()),
                     },
                 )
                 .await?;

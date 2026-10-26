@@ -31,6 +31,8 @@ mod windows {
         workspace: PathBuf,
         #[arg(long, value_enum)]
         mode: Mode,
+        #[arg(long)]
+        scratch: Option<PathBuf>,
         #[arg(last = true, required = true, allow_hyphen_values = true)]
         command: Vec<OsString>,
     }
@@ -45,15 +47,19 @@ mod windows {
             .command
             .split_first()
             .ok_or("sandbox command must not be empty")?;
+        let mut writable_roots = match cli.mode {
+            Mode::ReadOnly => Vec::new(),
+            Mode::WorkspaceWrite => vec![workspace.clone()],
+        };
+        if let Some(scratch) = cli.scratch {
+            writable_roots.push(scratch.canonicalize()?);
+        }
         let mut plan = plan_exec(PlanInput {
             program: os_string(program),
             args: arguments.iter().map(|value| os_string(value)).collect(),
             cwd: workspace.clone(),
             env: child_environment(),
-            writable_roots: match cli.mode {
-                Mode::ReadOnly => Vec::new(),
-                Mode::WorkspaceWrite => vec![workspace],
-            },
+            writable_roots,
             protected_write_paths: Vec::new(),
             network_allowed: true,
             mode: WindowsSandboxMode::Unelevated,

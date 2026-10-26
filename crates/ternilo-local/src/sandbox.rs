@@ -211,11 +211,23 @@ fn bwrap_command(
         "--proc",
         "/proc",
     ]);
-    if policy.mode == SandboxMode::WorkspaceWrite {
-        args.extend(os_args(["--tmpfs", "/tmp", "--bind"]));
-        args.push(policy.workspace_root.as_os_str().to_owned());
-        args.push(policy.workspace_root.as_os_str().to_owned());
+    args.extend(os_args(["--tmpfs", "/tmp"]));
+    if let Some(scratch) = &policy.scratch_root {
+        args.push("--bind".into());
+        args.push(scratch.as_os_str().to_owned());
+        args.push(scratch.as_os_str().to_owned());
     }
+    args.push(
+        if policy.mode == SandboxMode::WorkspaceWrite {
+            "--bind"
+        } else {
+            "--ro-bind"
+        }
+        .into(),
+    );
+    // Rebind after the private /tmp mount, including workspaces located below /tmp.
+    args.push(policy.workspace_root.as_os_str().to_owned());
+    args.push(policy.workspace_root.as_os_str().to_owned());
     args.extend(os_args(["--chdir"]));
     args.push(policy.workspace_root.as_os_str().to_owned());
     args.push(OsString::from("--"));
@@ -224,7 +236,7 @@ fn bwrap_command(
     ConfinedCommand {
         program: runner.into_os_string(),
         arguments: args,
-        environment: BTreeMap::new(),
+        environment: scratch_environment(policy),
         backend: "bubblewrap".to_owned(),
         enforcement: SandboxEnforcement::Full,
     }
@@ -243,6 +255,15 @@ fn seatbelt_command(
         writable.push(PathBuf::from("/private/tmp"));
         if let Some(temp) = std::env::var_os("TMPDIR").map(PathBuf::from) {
             writable.push(temp);
+        }
+    }
+    if let Some(scratch) = &policy.scratch_root {
+        writable.push(scratch.clone());
+    }
+    // Seatbelt compares canonical paths; /var and /tmp are aliases on macOS.
+    for path in &mut writable {
+        if let Ok(canonical) = std::fs::canonicalize(&*path) {
+            *path = canonical;
         }
     }
     writable.sort();
@@ -268,7 +289,7 @@ fn seatbelt_command(
     ConfinedCommand {
         program: runner.into_os_string(),
         arguments: args,
-        environment: BTreeMap::new(),
+        environment: scratch_environment(policy),
         backend: "seatbelt".to_owned(),
         enforcement: SandboxEnforcement::Full,
     }
@@ -289,16 +310,51 @@ fn windows_command(
         SandboxMode::ReadOnly => "read-only",
         SandboxMode::WorkspaceWrite => "workspace-write",
     }));
+    if let Some(scratch) = &policy.scratch_root {
+        args.push("--scratch".into());
+        args.push(scratch.as_os_str().to_owned());
+    }
     args.push(OsString::from("--"));
     args.push(program);
     args.extend(arguments);
+    let mut environment = scratch_environment(policy);
+    environment.insert("ZAGENS_HOME".into(), state_root.into_os_string());
     ConfinedCommand {
         program: runner.into_os_string(),
         arguments: args,
-        environment: BTreeMap::from([(OsString::from("ZAGENS_HOME"), state_root.into_os_string())]),
+        environment,
         backend: "windows-restricted-token-acl".to_owned(),
         enforcement: SandboxEnforcement::Partial,
     }
+}
+
+pub(crate) fn scratch_directory() -> Result<tempfile::TempDir, HarnessError> {
+    tempfile::Builder::new()
+        .prefix("ternilo-process-")
+        .tempdir()
+        .map_err(|error| {
+            HarnessError::execution(format!("create process temporary directory: {error}"))
+        })
+}
+
+fn scratch_environment(policy: &SandboxPolicy) -> BTreeMap<OsString, OsString> {
+    let Some(root) = &policy.scratch_root else {
+        return BTreeMap::new();
+    };
+    [
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "XDG_CACHE_HOME",
+        "CLANG_MODULE_CACHE_PATH",
+    ]
+    .into_iter()
+    .map(|name| (OsString::from(name), root.as_os_str().to_owned()))
+    .chain([(
+        OsString::from("PYTHONDONTWRITEBYTECODE"),
+        OsString::from("1"),
+    )])
+    .collect()
 }
 
 fn unavailable(mode: SandboxMode, detail: &str) -> HarnessError {
@@ -371,6 +427,7 @@ pub(crate) async fn readiness(
     #[cfg(not(windows))]
     let (program, arguments) = (OsString::from("/bin/sh"), os_args(["-c", "exit 0"]));
     let policy = SandboxPolicy {
+        scratch_root: None,
         mode,
         workspace_root: root.to_owned(),
     };
@@ -500,8 +557,77 @@ mod tests {
 
     fn policy(mode: SandboxMode) -> SandboxPolicy {
         SandboxPolicy {
+            scratch_root: None,
             mode,
             workspace_root: PathBuf::from("/work tree"),
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+    #[tokio::test]
+    async fn read_only_process_can_write_private_scratch_but_not_the_workspace() {
+        let workspace = tempfile::tempdir().unwrap();
+        let scratch = scratch_directory().unwrap();
+        let policy = SandboxPolicy {
+            mode: SandboxMode::ReadOnly,
+            workspace_root: workspace.path().canonicalize().unwrap(),
+            scratch_root: Some(scratch.path().to_owned()),
+        };
+        #[cfg(not(windows))]
+        let spec = LocalSandbox::platform_command(
+            "/bin/sh".into(),
+            os_args([
+                "-c",
+                "printf cache > \"$TMPDIR/check\" && ! touch forbidden.txt",
+            ]),
+            &policy,
+        )
+        .unwrap();
+        #[cfg(windows)]
+        let spec = LocalSandbox { windows_runner: std::env::var_os("TERNILO_TEST_SANDBOX_WINDOWS").map(PathBuf::from) }.platform_command(
+            "powershell.exe".into(), os_args(["-NoProfile", "-NonInteractive", "-Command", "Set-Content -Path (Join-Path $env:TMPDIR 'check') -Value cache -NoNewline; try { Set-Content forbidden.txt blocked -ErrorAction Stop; exit 1 } catch { exit 0 }"]), &policy).unwrap();
+        let output = command_from_confined(spec, workspace.path())
+            .output()
+            .await
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            std::fs::read(scratch.path().join("check")).unwrap(),
+            b"cache"
+        );
+        assert!(!workspace.path().join("forbidden.txt").exists());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn macos_system_python_uses_writable_temporary_storage_without_xcrun_noise() {
+        let workspace = tempfile::tempdir().unwrap();
+        let scratch = scratch_directory().unwrap();
+        for mode in [SandboxMode::ReadOnly, SandboxMode::WorkspaceWrite] {
+            let spec = LocalSandbox::platform_command(
+                "/usr/bin/python3".into(),
+                os_args(["-c", "import tempfile, pathlib; p = pathlib.Path(tempfile.gettempdir()) / 'python-cache-check'; p.write_text('ok'); print(p.read_text())"]),
+                &SandboxPolicy { mode, workspace_root: workspace.path().canonicalize().unwrap(), scratch_root: Some(scratch.path().to_owned()) },
+            ).unwrap();
+            let output = command_from_confined(spec, workspace.path())
+                .output()
+                .await
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ok");
+            assert!(
+                output.stderr.is_empty(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
     }
 
@@ -542,6 +668,7 @@ mod tests {
             OsString::from("bash"),
             Vec::new(),
             &SandboxPolicy {
+                scratch_root: None,
                 mode: SandboxMode::WorkspaceWrite,
                 workspace_root: PathBuf::from("/tmp/a \"quoted\" path"),
             },
@@ -560,6 +687,7 @@ mod tests {
             OsString::from("powershell.exe"),
             vec![OsString::from("-Command"), OsString::from("echo ok")],
             &SandboxPolicy {
+                scratch_root: None,
                 mode: SandboxMode::ReadOnly,
                 workspace_root: PathBuf::from("C:/workspace"),
             },
@@ -580,6 +708,7 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         let runner = resolve_program(OsStr::new("bwrap")).expect("bubblewrap is installed");
         let writable_policy = SandboxPolicy {
+            scratch_root: None,
             mode: SandboxMode::WorkspaceWrite,
             workspace_root: workspace.path().to_path_buf(),
         };
@@ -619,6 +748,7 @@ mod tests {
             OsString::from("/usr/bin/touch"),
             vec![OsString::from("blocked.txt")],
             &SandboxPolicy {
+                scratch_root: None,
                 mode: SandboxMode::ReadOnly,
                 workspace_root: workspace.path().to_path_buf(),
             },

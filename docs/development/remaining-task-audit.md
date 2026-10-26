@@ -4,7 +4,7 @@
 
 ## 当前可靠性修复
 
-`fix/agent-reliability` 已完成模型转发保活与请求诊断、Responses 可选参数、空文件及父目录写入、混合语言历史检索四项修复，定向测试和真实浏览器验收通过，尚未发行。实现与证据见[模型转发可靠性](model-gateway-reliability.md)和[文件与检索合同](file-and-history-contracts.md)。资源迁移仍按下列范围与顺序推进。
+`fix/agent-reliability` 包含模型转发保活与请求诊断、Responses 可选参数、空文件及父目录写入、混合语言历史检索，并补充具名只读验证、进程临时目录、Rhai 结构化失败和图谱精简。v0.2.27 正在验收，尚未发行。实现与证据见[模型转发可靠性](model-gateway-reliability.md)、[文件与检索合同](file-and-history-contracts.md)和[工具失败与只读验证](tool-execution-reliability.md)。资源迁移仍按下列范围与顺序推进。
 
 ## 实施顺序
 

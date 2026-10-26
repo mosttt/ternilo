@@ -145,7 +145,7 @@ export function PluginConfigCard({
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause)
       const localized = entry.kind === 'ternilo.subagents.in_process' ? coordinationErrorKey(message) : null
-      setError(localized ? t(localized) : entry.kind === 'ternilo.tools.registry' && message.includes('tool schema') ? t('toolSchemas.invalid') : message)
+      setError(localized ? t(localized) : entry.kind === 'ternilo.tool.shell' && message.includes('workspace checks') ? t('checks.invalid') : entry.kind === 'ternilo.tools.registry' && message.includes('tool schema') ? t('toolSchemas.invalid') : message)
     } finally {
       setBusy(false)
     }

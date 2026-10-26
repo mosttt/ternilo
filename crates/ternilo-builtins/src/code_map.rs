@@ -2,7 +2,7 @@ use linorun_core::{Activation, CleanupError, ComponentContext, ComponentDescript
 use linorun_macros::component_descriptor;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{future::Future, path::Path, pin::Pin, sync::Arc};
+use std::{collections::BTreeSet, future::Future, path::Path, pin::Pin, sync::Arc};
 use ternilo_kernel::{
     HarnessPlugin, PluginFactory, PluginManifest, ToolEffect, ToolExecutionContext, ToolHandler,
     ToolRegistration, Tools, WorkspaceFiles, WorkspaceFilesClient,
@@ -66,8 +66,8 @@ impl HarnessPlugin for Plugin {
             let registration = tools.register_tool(ToolRegistration {
                 spec: ToolSpec {
                     name: "code_map".into(),
-                    description: "Parse explicit workspace files into AST symbols, imports and calls. Supports Rust, TypeScript/TSX, JavaScript/JSX, Python and Go. Pass an impact_symbol ID from a previous map to trace candidate direct and indirect callers within the selected files. Call matching is syntactic, not type or import resolution; inspect reported locations before editing.".into(),
-                    input_schema: json!({"type":"object","required":["paths"],"properties":{"paths":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":32},"impact_symbol":{"type":"string","description":"Exact symbol ID from code_map, including its file and source position"},"impact_depth":{"type":"integer","minimum":1,"maximum":16,"default":8}},"additionalProperties":false}),
+                    description: "Parse explicit workspace files into AST symbols, imports and calls. Supports Rust, TypeScript/TSX, JavaScript/JSX, Python and Go. Pass an impact_symbol ID from a previous map to trace candidate direct and indirect callers within the selected files. Call matching is syntactic, not type or import resolution; inspect reported locations before editing. Default detail=summary includes symbols, imports and calls to symbols declared in the selected files; use detail=full for all calls, including builtins and unresolved targets.".into(),
+                    input_schema: json!({"type":"object","required":["paths"],"properties":{"detail":{"type":"string","enum":["summary","full"],"default":"summary"},"paths":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":32},"impact_symbol":{"type":"string","description":"Exact symbol ID from code_map, including its file and source position"},"impact_depth":{"type":"integer","minimum":1,"maximum":16,"default":8}},"additionalProperties":false}),
                 }, effect: ToolEffect::ReadOnly, handler,
             }).await.map_err(|error| linorun_core::ActivationFailure::user(error.to_string()))?;
             Ok(Some(effect::inverse(move || async move {
@@ -87,10 +87,20 @@ struct CodeMap {
 #[serde(deny_unknown_fields)]
 struct Arguments {
     paths: Vec<String>,
+    #[serde(default)]
+    detail: Detail,
     impact_symbol: Option<String>,
     #[serde(default = "default_impact_depth")]
     impact_depth: usize,
 }
+#[derive(Clone, Copy, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum Detail {
+    #[default]
+    Summary,
+    Full,
+}
+
 const fn default_impact_depth() -> usize {
     8
 }
@@ -118,7 +128,7 @@ impl ToolHandler for CodeMap {
             let mut results = Vec::new();
             let mut maps = Vec::new();
             let mut unreadable = Vec::new();
-            let analyze_impact = args.impact_symbol.is_some();
+            let mut result_indices = Vec::new();
             for path in args.paths {
                 context.cancellation.check()?;
                 let result = self.inspect(&path).await;
@@ -126,9 +136,8 @@ impl ToolHandler for CodeMap {
                     Ok(map) => {
                         let value = serde_json::to_value(&map)
                             .map_err(|error| HarnessError::execution(error.to_string()))?;
-                        if analyze_impact {
-                            maps.push(map);
-                        }
+                        result_indices.push(results.len());
+                        maps.push(map);
                         value
                     }
                     Err(error) => {
@@ -137,7 +146,28 @@ impl ToolHandler for CodeMap {
                     }
                 });
             }
-            let mut result = json!({"files":results,"edge_resolution":"syntactic"});
+            if args.detail == Detail::Summary {
+                let names: BTreeSet<_> = maps
+                    .iter()
+                    .flat_map(|map| &map.symbols)
+                    .map(|symbol| symbol.name.as_str())
+                    .collect();
+                for (index, map) in result_indices.into_iter().zip(&maps) {
+                    let calls: Vec<_> = map
+                        .calls
+                        .iter()
+                        .filter(|call| {
+                            call.symbol_name
+                                .as_deref()
+                                .is_some_and(|name| names.contains(name))
+                        })
+                        .collect();
+                    results[index]["omitted_calls"] = json!(map.calls.len() - calls.len());
+                    results[index]["calls"] = serde_json::to_value(calls)
+                        .map_err(|error| HarnessError::execution(error.to_string()))?;
+                }
+            }
+            let mut result = json!({"files":results,"edge_resolution":"syntactic", "detail":if args.detail == Detail::Full {"full"} else {"summary"}});
             if let Some(symbol) = args.impact_symbol {
                 result["impact"] = impact::analyze(&maps, &symbol, args.impact_depth, &unreadable)?;
             }

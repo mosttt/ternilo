@@ -28,6 +28,7 @@ serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
 sha2.workspace = true
+tempfile.workspace = true
 tokio.workspace = true
 tokio-rusqlite.workspace = true
 
@@ -44,4 +45,3 @@ codepage-strings.workspace = true
 cap-std.workspace = true
 cap-fs-ext.workspace = true
 ed25519-dalek.workspace = true
-tempfile.workspace = true
