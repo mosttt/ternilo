@@ -134,7 +134,7 @@ ternilo-sandbox-windows.exe --workspace <absolute-path> --mode <read-only|worksp
 
 它复用 MIT `zagens-windows-sandbox` 的 Windows API，但 Ternilo 自己拥有协议、环境清理和 capability seam。归属见 [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md)。
 
-受限 Shell、后台任务及持久终端使用进程专属的可写临时／缓存目录，随进程树回收；这不授予工作区或其他宿主目录的新写权限。macOS 临时路径按规范路径加入 Seatbelt；通过 `xcrun_nocache` 禁用不遵循 `TMPDIR` 的系统工具缓存，不放宽用户临时目录的写权限。`run_check` 仅执行插件设置中预先登记的命令，并强制工作区只读，不因主会话完全访问而绕过沙箱。
+受限 Shell、后台任务及持久终端使用进程专属的可写临时／缓存目录，随进程树回收，工作区写权限不变。macOS 的系统工具 shim 不遵循 `TMPDIR` 或 `xcrun_nocache`，因此 Seatbelt 只额外允许系统查询到的用户临时目录中的 `xcrun_db` 缓存文件，不开放该目录的其他写入。`run_check` 仅执行插件设置中预先登记的命令，并强制工作区只读，不因主会话完全访问而绕过沙箱。
 
 ## 云端隔离
 

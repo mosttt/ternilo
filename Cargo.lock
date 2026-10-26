@@ -7062,6 +7062,7 @@ dependencies = [
  "linorun-macros",
  "nix",
  "rand 0.10.2",
+ "regex",
  "reqwest",
  "rustls",
  "schemars 1.2.2",

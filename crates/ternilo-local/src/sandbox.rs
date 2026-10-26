@@ -149,7 +149,10 @@ impl LocalSandbox {
         if !runner.is_file() {
             return Err(unavailable(policy.mode, "sandbox-exec is not installed"));
         }
-        Ok(seatbelt_command(runner, program, arguments, policy))
+        let user_temp = darwin_user_temp_directory()?;
+        Ok(seatbelt_command(
+            runner, program, arguments, policy, &user_temp,
+        ))
     }
 
     #[cfg(target_os = "windows")]
@@ -248,6 +251,7 @@ fn seatbelt_command(
     program: OsString,
     arguments: Vec<OsString>,
     policy: &SandboxPolicy,
+    user_temp: &Path,
 ) -> ConfinedCommand {
     let mut writable = vec![PathBuf::from("/dev/null")];
     if policy.mode == SandboxMode::WorkspaceWrite {
@@ -276,9 +280,14 @@ fn seatbelt_command(
         } else {
             "subpath "
         });
-        profile.push_str(&seatbelt_string(&path));
+        profile.push_str(&seatbelt_string(&path.to_string_lossy()));
         profile.push_str("))");
     }
+    // Apple's executable shims cache lookups here, ignoring TMPDIR and xcrun_nocache.
+    // Permit only their cache files, not the user-wide temporary directory.
+    profile.push_str(" (allow file-write* (regex #");
+    profile.push_str(&seatbelt_string(&xcrun_cache_pattern(user_temp)));
+    profile.push_str("))");
     let mut args = vec![
         OsString::from("-p"),
         OsString::from(profile),
@@ -286,14 +295,10 @@ fn seatbelt_command(
     ];
     args.push(program);
     args.extend(arguments);
-    let mut environment = scratch_environment(policy);
-    // Apple's executable shims use a per-user cache independent of TMPDIR.
-    // Disable that cache rather than granting writes outside the private scratch directory.
-    environment.insert("xcrun_nocache".into(), "1".into());
     ConfinedCommand {
         program: runner.into_os_string(),
         arguments: args,
-        environment,
+        environment: scratch_environment(policy),
         backend: "seatbelt".to_owned(),
         enforcement: SandboxEnforcement::Full,
     }
@@ -533,13 +538,42 @@ fn windows_sandbox_state_root() -> PathBuf {
 }
 
 #[cfg(any(target_os = "macos", test))]
-fn seatbelt_string(path: &Path) -> String {
+fn seatbelt_string(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn xcrun_cache_pattern(user_temp: &Path) -> String {
     format!(
-        "\"{}\"",
-        path.to_string_lossy()
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
+        "^{}/xcrun_db(-[^/]+)?$",
+        regex::escape(&user_temp.to_string_lossy())
     )
+}
+
+#[cfg(target_os = "macos")]
+fn darwin_user_temp_directory() -> Result<PathBuf, HarnessError> {
+    let output = std::process::Command::new("/usr/bin/getconf")
+        .arg("DARWIN_USER_TEMP_DIR")
+        .output()
+        .map_err(|error| {
+            HarnessError::execution(format!("query Darwin user temporary directory: {error}"))
+        })?;
+    if !output.status.success() {
+        return Err(HarnessError::execution(
+            "getconf DARWIN_USER_TEMP_DIR failed",
+        ));
+    }
+    let path = String::from_utf8(output.stdout)
+        .map_err(|_| HarnessError::execution("Darwin user temporary directory is not UTF-8"))?;
+    let path = Path::new(path.trim_end_matches(['\r', '\n']));
+    if !path.is_absolute() {
+        return Err(HarnessError::execution(
+            "Darwin user temporary directory is not absolute",
+        ));
+    }
+    path.canonicalize().map_err(|error| {
+        HarnessError::execution(format!("resolve Darwin user temporary directory: {error}"))
+    })
 }
 
 fn os_args<const N: usize>(values: [&str; N]) -> Vec<OsString> {
@@ -611,12 +645,30 @@ mod tests {
     async fn macos_system_python_uses_writable_temporary_storage_without_xcrun_noise() {
         let workspace = tempfile::tempdir().unwrap();
         let scratch = scratch_directory().unwrap();
+        let unrelated = tempfile::tempdir().unwrap();
+        let denied_path = unrelated.path().join("not-an-xcrun-cache");
         for mode in [SandboxMode::ReadOnly, SandboxMode::WorkspaceWrite] {
+            let denied_literal = serde_json::to_string(&denied_path.to_string_lossy()).unwrap();
+            let deny_check = if mode == SandboxMode::ReadOnly {
+                format!(
+                    "\ntry:\n pathlib.Path({denied_literal}).write_text('blocked')\nexcept PermissionError:\n pass\nelse:\n raise AssertionError('unrelated user temporary file was writable')\n"
+                )
+            } else {
+                String::new()
+            };
+            let script = format!(
+                "import tempfile, pathlib; p = pathlib.Path(tempfile.gettempdir()) / 'python-cache-check'; p.write_text('ok'); print(p.read_text()){deny_check}"
+            );
             let spec = LocalSandbox::platform_command(
                 "/usr/bin/python3".into(),
-                os_args(["-c", "import tempfile, pathlib; p = pathlib.Path(tempfile.gettempdir()) / 'python-cache-check'; p.write_text('ok'); print(p.read_text())"]),
-                &SandboxPolicy { mode, workspace_root: workspace.path().canonicalize().unwrap(), scratch_root: Some(scratch.path().to_owned()) },
-            ).unwrap();
+                os_args(["-c", &script]),
+                &SandboxPolicy {
+                    mode,
+                    workspace_root: workspace.path().canonicalize().unwrap(),
+                    scratch_root: Some(scratch.path().to_owned()),
+                },
+            )
+            .unwrap();
             let output = command_from_confined(spec, workspace.path())
                 .output()
                 .await
@@ -676,11 +728,23 @@ mod tests {
                 mode: SandboxMode::WorkspaceWrite,
                 workspace_root: PathBuf::from("/tmp/a \"quoted\" path"),
             },
+            Path::new("/private/var/folders/example/T"),
         );
         let profile = spec.arguments[1].to_string_lossy();
         assert!(profile.contains("(deny file-write*)"));
         assert!(profile.contains("a \\\"quoted\\\" path"));
         assert_eq!(spec.enforcement, SandboxEnforcement::Full);
+    }
+
+    #[test]
+    fn xcrun_cache_permission_does_not_allow_other_temporary_files_or_subdirectories() {
+        let root = "/private/var/folders/user.with+[chars]/T";
+        let allowed = regex::Regex::new(&xcrun_cache_pattern(Path::new(root))).unwrap();
+        assert!(allowed.is_match(&format!("{root}/xcrun_db-AbC123")));
+        assert!(allowed.is_match(&format!("{root}/xcrun_db")));
+        assert!(!allowed.is_match(&format!("{root}/unrelated.txt")));
+        assert!(!allowed.is_match(&format!("{root}/xcrun_db-a/subdir")));
+        assert!(!allowed.is_match("/private/var/folders/userXwithchars/T/xcrun_db-AbC123"));
     }
 
     #[test]

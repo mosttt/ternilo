@@ -8,7 +8,7 @@
 
 ## 进程专属临时目录
 
-受限 Shell、后台任务和持久终端创建专属临时目录，并传入临时／缓存环境。目录与已有执行租约一起持有，完成进程树清理后释放；取消调用不提前删除。Linux 在私有 `/tmp` 后重新挂载工作区，保留 `/tmp` 下工作区的可见性和原写权限。Seatbelt 使用规范路径，并设置 `xcrun_nocache=1`，避免系统工具把缓存写到不受 `TMPDIR` 控制的用户临时目录；Windows runner 只为宿主指定的 scratch 目录增加写权限，原读取隔离边界不变。
+受限 Shell、后台任务和持久终端创建专属临时目录，并传入临时／缓存环境。目录与已有执行租约一起持有，完成进程树清理后释放；取消调用不提前删除。Linux 在私有 `/tmp` 后重新挂载工作区，保留 `/tmp` 下工作区的可见性和原写权限。Seatbelt 使用规范路径；系统工具 shim 的缓存文件不受 `TMPDIR` 控制，由 `getconf DARWIN_USER_TEMP_DIR` 查询并规范化目录后，只允许其 `xcrun_db` 文件及随机后缀缓存文件写入；Windows runner 只为宿主指定的 scratch 目录增加写权限，原读取隔离边界不变。
 
 ## Rhai 失败结果与图谱
 
@@ -29,7 +29,7 @@ Local 实际 reviewer 测试通过：标准库单元测试成功，工作区写�
 
 ## 发行检查补充
 
-首轮 Apple Silicon 原生测试确认：只读 scratch 可写、工作区写入被拒，但系统 Python 的 xcrun shim 仍尝试写入用户级 `T/xcrun_db-*`，不使用进程的 `TMPDIR`。保留原“标准错误为空”断言，增加 `xcrun_nocache=1`，而不把整个用户临时目录加入只读检查的可写范围；两个 macOS 架构继续按实际程序验证。
+首轮 Apple Silicon 原生测试确认：只读 scratch 可写、工作区写入被拒，但系统 Python 的 xcrun shim 仍尝试写入用户级 `T/xcrun_db-*`，不使用进程的 `TMPDIR`。`xcrun_nocache=1` 也未阻止可执行程序 shim 的缓存写入，因此移除该无效设置。保留原“标准错误为空”断言，改为读取系统用户临时目录，对规范路径下的缓存文件使用精确正则授权；同时验证其他临时文件仍不可写。两个 macOS 架构继续按实际程序验证。
 
 依赖扫描新报告 [RUSTSEC-2026-0391](https://rustsec.org/advisories/RUSTSEC-2026-0391)、[0398](https://rustsec.org/advisories/RUSTSEC-2026-0398)、[0403](https://rustsec.org/advisories/RUSTSEC-2026-0403) 和 [0410](https://rustsec.org/advisories/RUSTSEC-2026-0410)。Salvo 0.95／0.96 依赖的 zstd 0.13 无法解析到已修复版本，因此改用 Salvo 1.0.1，将依赖更新为 zstd 0.14.3、zstd-safe 8.2.0 和 zstd-sys 2.1.2。保留原审计策略，不为这些公告增加忽略项；HTTP／流式交互随依赖更新重新验收。
 
