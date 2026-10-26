@@ -593,3 +593,22 @@ fn explicit_prompt_caching_is_opt_in_and_does_not_change_reasoning_or_other_prot
             .prompt_cache
     );
 }
+
+#[test]
+fn responses_preserves_optional_tool_arguments_without_changing_other_adapters() {
+    let mut input = request();
+    let schema = json!({"type":"object","properties":{"action":{"type":"string","enum":["status","show"]},"reference":{"type":"string"}},"required":["action"],"additionalProperties":false});
+    input.tools = vec![ternilo_protocol::ToolSpec {
+        name: "git_inspect".into(),
+        description: "Inspect Git".into(),
+        input_schema: schema.clone(),
+    }];
+    let body =
+        protocols::request_body(&model(ProviderProtocol::OpenAiResponses, None), &input).unwrap();
+    assert_eq!(body["tools"][0]["strict"], false);
+    assert_eq!(body["tools"][0]["parameters"], schema);
+    let deepseek =
+        protocols::request_body(&model(ProviderProtocol::DeepSeekResponses, None), &input).unwrap();
+    assert!(deepseek["tools"][0].get("strict").is_none());
+    assert_eq!(deepseek["tools"][0]["parameters"], schema);
+}

@@ -88,6 +88,8 @@ After a successful response, the conversation process shows the actual effort, s
 
 ## Project memory and history search
 
+History search also matches continuous text fragments, including Chinese/Korean text and English terms embedded in CJK text, with case-insensitive English matching. `session_search` searches authorized history; `session_event_search` limits the search to one session. Workspace, run, event-category, time and result-count filters still apply. The local index retains full-text relevance and adds substring matches even when full-word matches already exist.
+
 Project memory stores stable facts, conventions and verification commands. Use conversation history search for past discussions and execution details. With `ternilo.tools.project_memory` enabled, `read_project_memory` searches entries in `.ternilo-memory.json` at the workspace root. `update_project_memory` requires workspace write permission and the `expected_revision` returned by a read. A stale revision is rejected; read again before deciding how to merge. Use `content: null` to remove an entry.
 
 Sessions using the same workspace directory share memory. Defaults are 64 entries and 4,096 characters per entry, configurable in plugin settings. Exclude credentials and temporary execution state. The plugin is enabled locally by default; managed execution requires it to be enabled and allowed by Worker policy.

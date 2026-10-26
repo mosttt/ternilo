@@ -192,3 +192,14 @@ it('keeps an administrator personal model keys outside the platform management n
   expect(host.textContent).toContain('用户设置')
   expect(host.textContent).toContain('创建接入密钥')
 })
+
+it('opens request history with the failure ID already searched and lets the user clear it', async () => {
+  history.replaceState({}, '', '/models?tab=usage&request=mrq_interrupted')
+  await render(<ModelAccessShell />)
+  expect(api.request).toHaveBeenCalledWith('/model-access/requests?limit=25&query=mrq_interrupted', expect.anything())
+  const search = host.querySelector<HTMLInputElement>('[role="search"] input')!
+  expect(search.value).toBe('mrq_interrupted')
+  await input('[role="search"] input', '')
+  await click(button('搜索'))
+  expect(api.request).toHaveBeenCalledWith('/model-access/requests?limit=25', expect.anything())
+})

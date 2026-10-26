@@ -719,3 +719,140 @@ async fn deleted_session_ids_cannot_be_recreated_or_forked_after_restart() {
     );
     application.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn empty_file_write_contract_preserves_disk_result_and_historical_versions() {
+    let temp = tempfile::tempdir().unwrap();
+    let data = temp.path().join("data");
+    let folder = temp.path().join("workspace");
+    tokio::fs::create_dir(&folder).await.unwrap();
+    let app = open(&data).await;
+    let workspace = app.add_workspace(folder.to_str().unwrap()).await.unwrap();
+    let session = app
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let id = session.identity.session_id.as_str();
+    let outcome = app
+        .run_turn(
+            id,
+            None,
+            r#"/code tools::write_file(#{ path: "empty.txt", content: "" })"#.into(),
+        )
+        .await;
+    assert_eq!(
+        tokio::fs::read(folder.join("empty.txt")).await.unwrap(),
+        b""
+    );
+    outcome.unwrap();
+    let events = app.events(id).await.unwrap();
+    let output = events
+        .iter()
+        .find_map(|event| match &event.kind {
+            SessionEventKind::CodeDispatchFinished { name, output, .. } if name == "write_file" => {
+                Some(output)
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert!(
+        !output.is_error,
+        "disk write succeeded but tool returned {output:?}"
+    );
+    let files = app.files(SessionFileQuery::default()).await.unwrap();
+    assert_eq!(files.items.len(), 1);
+    let first_id = files.items[0].id.clone();
+    assert!(
+        app.session_file_content(id, &first_id)
+            .await
+            .unwrap()
+            .content_base64
+            .is_empty()
+    );
+    app.run_turn(id, None, "/write empty.txt temporary content".into())
+        .await
+        .unwrap();
+    app.run_turn(id, None, r#"/code tools::replace_in_file(#{ path: "empty.txt", old: "temporary content", "new": "" })"#.into()).await.unwrap();
+    assert!(
+        tokio::fs::read(folder.join("empty.txt"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let files = app.files(SessionFileQuery::default()).await.unwrap();
+    assert_eq!(
+        files.items.len(),
+        3,
+        "empty replacement must retain a file version"
+    );
+    app.shutdown().await.unwrap();
+    drop(app);
+    let restored = open(&data).await;
+    assert!(
+        restored
+            .session_file_content(id, &first_id)
+            .await
+            .unwrap()
+            .content_base64
+            .is_empty()
+    );
+    restored.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn nested_file_write_contract_creates_parents_without_escaping_workspace() {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().join("workspace");
+    tokio::fs::create_dir(&folder).await.unwrap();
+    let app = open(&temp.path().join("data")).await;
+    let workspace = app.add_workspace(folder.to_str().unwrap()).await.unwrap();
+    let session = app
+        .create_session(workspace.workspace_id.clone(), None, None)
+        .await
+        .unwrap();
+    let id = session.identity.session_id.as_str();
+    app.run_turn(
+        id,
+        None,
+        r#"/code tools::write_file(#{ path: "package/nested/file.txt", content: "created" })"#
+            .into(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        tokio::fs::read(folder.join("package/nested/file.txt"))
+            .await
+            .unwrap(),
+        b"created"
+    );
+    let _ = app.run_turn(id, None, r#"/code tools::write_file(#{ path: "../outside/new/file.txt", content: "forbidden" })"#.into()).await;
+    assert!(!temp.path().join("outside").exists());
+    #[cfg(unix)]
+    {
+        let outside = temp.path().join("link-target");
+        tokio::fs::create_dir(&outside).await.unwrap();
+        std::os::unix::fs::symlink(&outside, folder.join("outside-link")).unwrap();
+        let _ = app.run_turn(id, None, r#"/code tools::write_file(#{ path: "outside-link/new/file.txt", content: "forbidden" })"#.into()).await;
+        assert!(!outside.join("new").exists());
+    }
+    let read_only = app
+        .create_session_with_options(
+            workspace.workspace_id,
+            None,
+            None,
+            None,
+            Some(ternilo_protocol::PermissionPreset::ReadOnly),
+        )
+        .await
+        .unwrap();
+    let _ = app
+        .run_turn(
+            read_only.identity.session_id.as_str(),
+            None,
+            r#"/code tools::write_file(#{ path: "read-only/new.txt", content: "forbidden" })"#
+                .into(),
+        )
+        .await;
+    assert!(!folder.join("read-only").exists());
+    app.shutdown().await.unwrap();
+}

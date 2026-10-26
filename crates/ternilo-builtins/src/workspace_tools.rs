@@ -268,7 +268,7 @@ fn file_tool_definitions() -> [(ToolSpec, FileOperation); 5] {
         (
             ToolSpec {
                 name: "write_file".to_owned(),
-                description: "Create or overwrite a UTF-8 text file inside the current workspace.".to_owned(),
+                description: "Create or overwrite a UTF-8 text file inside the current workspace, creating missing parent directories. Empty content creates or clears the file.".to_owned(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {

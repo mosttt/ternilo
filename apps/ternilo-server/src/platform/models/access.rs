@@ -168,6 +168,9 @@ enum UserModelFailure {
     QuotaExceeded,
     ModelBusy,
     Cancelled,
+    ClientDisconnected,
+    ServerStopping,
+    RequestAuthorityChanged,
     RequestExpired,
     StreamInterrupted,
     ModelConfigurationChanged,
@@ -184,6 +187,9 @@ fn public_failure(code: Option<&str>) -> Option<UserModelFailure> {
         "quota_exceeded" => UserModelFailure::QuotaExceeded,
         "upstream_http_429" | "unavailable" => UserModelFailure::ModelBusy,
         "request_cancelled" | "cancelled" => UserModelFailure::Cancelled,
+        "client_disconnected" => UserModelFailure::ClientDisconnected,
+        "server_stopping" => UserModelFailure::ServerStopping,
+        "request_authority_changed" => UserModelFailure::RequestAuthorityChanged,
         "request_expired" => UserModelFailure::RequestExpired,
         "upstream_stream_error" | "upstream_stream_incomplete" => {
             UserModelFailure::StreamInterrupted

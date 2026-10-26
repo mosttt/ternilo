@@ -4,6 +4,7 @@ export interface RuntimeErrorPresentation {
   title: string
   message: string
   raw: string
+  requestId?: string
 }
 
 type ErrorKey = Parameters<Translate<'chat'>>[0]
@@ -38,7 +39,20 @@ const apiErrors: Record<string, { title: ErrorKey; message: ErrorKey }> = {
 
 export function presentRuntimeError(value: unknown, t: Translate<'chat'>): RuntimeErrorPresentation {
   const raw = value instanceof Error ? value.message : String(value ?? '')
+  const requestId = raw.match(/; Server request ID: (mrq_[A-Za-z0-9_-]{1,124})$/)?.[1]
+  const diagnostic = requestId ? raw.slice(0, raw.lastIndexOf('; Server request ID: ')) : raw
+  const presentation = presentDiagnostic(diagnostic, t)
+  return requestId ? { ...presentation, raw, requestId } : presentation
+}
+
+function presentDiagnostic(raw: string, t: Translate<'chat'>): RuntimeErrorPresentation {
   const normalized = raw.toLocaleLowerCase()
+  if (/^(?:execution:\s*)?(?:Server|Worker) model connection ended without completion;/.test(raw)) {
+    return { title: t('runtimeError.gateway.title'), message: t('runtimeError.gateway.message'), raw }
+  }
+  if (/^(?:execution:\s*)?model request failed; check the Server model request log$/.test(raw)) {
+    return { title: t('runtimeError.gatewayFailure.title'), message: t('runtimeError.gatewayFailure.message'), raw }
+  }
   const toolLimit = normalized.match(/turn exceeded max_tool_calls \((\d+)\)/)
 
   const deepseekStatus = raw.match(/^(?:execution:\s*)?DeepSeek API error \(HTTP (400|401|402|422|429|500|503)\):/i)?.[1]

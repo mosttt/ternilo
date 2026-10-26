@@ -8,7 +8,7 @@ import { ModelUsageReconciliationDialog } from './model-usage-reconciliation'
 import type { ModelServiceAttempt } from './model-service-api'
 import css from './model-service.module.css'
 
-export function ModelUsage({ admin = false, editable = false, source }: { admin?: boolean; editable?: boolean; source?: 'user_provider' | 'platform_grant' }) {
+export function ModelUsage({ admin = false, editable = false, source, requestId = '' }: { admin?: boolean; editable?: boolean; source?: 'user_provider' | 'platform_grant'; requestId?: string }) {
   const t = useTranslate('modelService')
   const date = useModelDate()
   const [selected, setSelected] = React.useState<{ request: ModelServiceRequest; attempt?: ModelServiceAttempt } | null>(null)
@@ -17,6 +17,9 @@ export function ModelUsage({ admin = false, editable = false, source }: { admin?
     quota_exceeded: t('errorQuotaExceeded'),
     model_busy: t('errorModelBusy'),
     cancelled: t('errorCancelled'),
+    client_disconnected: t('errorClientDisconnected'),
+    server_stopping: t('errorServerStopping'),
+    request_authority_changed: t('errorAuthorityChanged'),
     request_expired: t('errorExpired'),
     stream_interrupted: t('errorStreamInterrupted'),
     model_configuration_changed: t('errorConfigurationChanged'),
@@ -26,7 +29,7 @@ export function ModelUsage({ admin = false, editable = false, source }: { admin?
   }
   const path = admin ? modelAdminPath : modelAccessPath
   const filter = source ? `?source=${source}` : ''
-  const directory = useModelPage<ModelServiceRequest>(`${path}/requests${filter}`, 'requests')
+  const directory = useModelPage<ModelServiceRequest>(`${path}/requests${filter}`, 'requests', undefined, requestId)
   const [report, setReport] = React.useState<ModelUsageReport | null>(null)
   const [error, setError] = React.useState('')
   const [revision, reload] = React.useReducer(value => value + 1, 0)
@@ -56,6 +59,7 @@ export function ModelUsage({ admin = false, editable = false, source }: { admin?
         <div className={css.identity}><strong>{request.model_id}</strong><span className={css.badge}>{t(request.state)}</span><p>{request.source === 'user_provider' ? t('sourceByok') : t('sourceGrant', { name: request.grant_name ?? request.grant_id ?? '' })} · {date(request.created_at_ms)}</p><p>{t(request.origin === 'workload' ? 'originWorkload' : request.origin === 'client_device' ? 'originClientDevice' : 'originApiKey')}</p><code>{request.request_id}</code>
           <p>{request.accounted_tokens !== null ? t('requestUsage', { count: request.accounted_tokens.toLocaleString() }) : !request.attempted ? t('notAttempted') : request.state === 'pending' ? t('requestReserved', { count: request.attempts.filter(attempt => attempt.accounted_tokens === null).reduce((sum, attempt) => sum + attempt.reserved_tokens, 0).toLocaleString() }) : t('unknown')}</p>
           {request.usage && <p>{t('inputTokens')}: {request.usage.input_tokens ?? t('notReported')} · {t('outputTokens')}: {request.usage.output_tokens ?? t('notReported')} · {t('reasoningTokens')}: {request.usage.reasoning_tokens ?? t('notReported')}</p>}
+          {request.error_code && (errorLabels[request.error_code] ? <p>{errorLabels[request.error_code]}</p> : <code>{request.error_code}</code>)}
           {(admin || request.workload) && <p>{t('actor', { id: request.actor_user_id })}{request.resource_owner_user_id && <> · {t('resourceOwner', { id: request.resource_owner_user_id })}</>} · {t('beneficiary', { id: request.model_beneficiary_user_id })}</p>}
           {request.workload && <code>{request.workload.session_id} · {request.workload.run_id}</code>}
           {request.attempts.length > 0 && <details className={css.attempts}><summary>{t('attempts', { count: request.attempts.length })}</summary><p>{t('attemptsDescription')}</p><ol>{request.attempts.map(attempt => <li key={attempt.attempt}>
@@ -63,10 +67,9 @@ export function ModelUsage({ admin = false, editable = false, source }: { admin?
             <p>{attempt.accounted_tokens !== null ? t('requestUsage', { count: attempt.accounted_tokens.toLocaleString() }) : !attempt.attempted ? t('notAttempted') : attempt.state === 'pending' ? t('requestReserved', { count: attempt.reserved_tokens.toLocaleString() }) : t('unknown')}</p>
             {attempt.usage && <p>{t('inputTokens')}: {attempt.usage.input_tokens ?? t('notReported')} · {t('outputTokens')}: {attempt.usage.output_tokens ?? t('notReported')} · {t('reasoningTokens')}: {attempt.usage.reasoning_tokens ?? t('notReported')}</p>}
             {admin && editable && request.state !== 'pending' && attempt.state !== 'pending' && attempt.attempted && attempt.accounted_tokens === null && attempt.settled_at_ms !== null && <Button type="button" size="sm" variant="outline" onClick={() => setSelected({ request, attempt })}>{t('reconcileAction')}</Button>}
-            {attempt.error_code && <code>{errorLabels[attempt.error_code] ?? attempt.error_code}</code>}
+            {attempt.error_code && attempt.error_code !== request.error_code && (errorLabels[attempt.error_code] ? <p>{errorLabels[attempt.error_code]}</p> : <code>{attempt.error_code}</code>)}
           </li>)}</ol></details>}
           {admin && <Button type="button" size="sm" variant="ghost" onClick={() => setSelected({ request })}>{t('reconcileRecords')}</Button>}
-          {request.error_code && <code>{errorLabels[request.error_code] ?? request.error_code}</code>}
         </div>
       </article>)}</div>
     </ModelDirectory>

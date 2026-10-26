@@ -1,4 +1,6 @@
 import * as React from 'react'
+import { navigate } from '@/app/navigation'
+import { Button } from '@/components/ui/button'
 import { ChevronRight, CircleAlert, Clock3, X } from 'lucide-react'
 import { retainHistoricalImageSession } from '@/domain/historical-images'
 import type { ToolTrace } from '@/domain/events'
@@ -121,9 +123,10 @@ function ToolOutputDetails({ trace, selectionKey, outputLabel, t }: {
   </>
 }
 
-export function DetailsPanel({ selection, sessionId, onClose }: {
+export function DetailsPanel({ selection, sessionId, server = false, onClose }: {
   selection: DetailsSelection
   sessionId?: string
+  server?: boolean
   onClose(): void
 }) {
   const t = useTranslate('chat')
@@ -190,7 +193,9 @@ export function DetailsPanel({ selection, sessionId, onClose }: {
       <button ref={closeRef} type="button" className={css.close} aria-label={t('details.close')} onClick={onClose}><X /></button>
     </header>
     <div className={`${css.scroll} details-scroll`} role="region" aria-label={t('details.content')} tabIndex={0}>
-      {failure && <section className={css.failure}><CircleAlert /><div><strong>{failure.title}</strong><p>{failure.message}</p></div></section>}
+      {failure && <section className={css.failure}><CircleAlert /><div><strong>{failure.title}</strong><p>{failure.message}</p>
+        {failure.requestId && <><code className="break-all">{failure.requestId}</code>{server && <Button variant="outline" className="mt-3" onClick={() => navigate(`/models?tab=usage&request=${encodeURIComponent(failure.requestId!)}`)}>{t('runtimeError.requestRecord')}</Button>}</>}
+      </div></section>}
       {attachments.length > 0 && <section className={css.section}><h3>{t('details.attachments')}</h3><MessageAttachments sessionId={sessionId} attachments={attachments} /></section>}
       <section className={css.section}><h3>{t('details.input')}</h3><JsonInspector key={`${selectionKey}:input`} value={input ?? null} label={t('details.input')} t={t} /></section>
       {reasoning && <section className={css.section}><h3>{t('details.think')}</h3><JsonInspector key={`${selectionKey}:think`} value={reasoning} label={t('details.think')} t={t} /></section>}

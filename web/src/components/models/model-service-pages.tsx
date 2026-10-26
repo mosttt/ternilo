@@ -46,6 +46,7 @@ function ModelAccessPage({ tab }: { tab: string }) {
   const search = useSearch()
   const parameters = new URLSearchParams(search)
   const source = ['account', 'device', 'platform'].includes(parameters.get('source') ?? '') ? parameters.get('source')! : 'account'
+  const requestId = parameters.get('request') ?? ''
   const access = parameters.get('access') === 'devices' ? 'devices' : 'keys'
   const usageSource = ['account', 'device', 'platform'].includes(parameters.get('usage_source') ?? '') ? parameters.get('usage_source')! : 'all'
   return <section className={css.page} data-model-access="">
@@ -66,7 +67,7 @@ function ModelAccessPage({ tab }: { tab: string }) {
       {tab === 'usage' && <div className={css.page}>
         <SourceFilters value={usageSource} all onChange={usage_source => navigate(modelCenterPath({ usage_source }, search))} />
         <p className={css.hint}>{t('usageCoverage')}</p>
-        {usageSource === 'device' ? <ComputerUsage /> : <ModelUsage key={usageSource} source={usageSource === 'account' ? 'user_provider' : usageSource === 'platform' ? 'platform_grant' : undefined} />}
+        {usageSource === 'device' ? <ComputerUsage /> : <ModelUsage key={`${usageSource}:${requestId}`} requestId={requestId} source={usageSource === 'account' ? 'user_provider' : usageSource === 'platform' ? 'platform_grant' : undefined} />}
       </div>}
   </section>
 }

@@ -29,7 +29,7 @@ pub struct LocalAttachmentReader {
 struct PreparedAttachment {
     reference: Attachment,
     digest: String,
-    bytes: Vec<u8>,
+    bytes: Option<Vec<u8>>,
 }
 
 impl LocalAttachments {
@@ -67,30 +67,37 @@ impl LocalAttachments {
         for attachment in attachments {
             if max_bytes == MAX_ATTACHMENT_BYTES || attachment.is_reference() {
                 attachment.validate()?;
-            } else if attachment.name.trim().is_empty()
-                || attachment.media_type.trim().is_empty()
-                || attachment.content.is_empty()
-            {
+            } else if attachment.name.trim().is_empty() || attachment.media_type.trim().is_empty() {
                 return Err(HarnessError::invalid(
-                    "retained attachment name, media type, and content must not be empty",
+                    "retained attachment name and media type must not be empty",
                 ));
             }
             if attachment.is_reference() {
-                self.resolve_attachment(attachment.clone()).await?;
+                let bytes = self.reference_bytes(&attachment).await?;
+                if max_bytes == MAX_ATTACHMENT_BYTES && bytes.is_empty() {
+                    return Err(HarnessError::invalid(
+                        "uploaded attachment must not be empty",
+                    ));
+                }
                 prepared.push(PreparedAttachment {
                     digest: attachment
                         .reference_digest()
                         .expect("reference was checked")
                         .to_owned(),
                     reference: attachment,
-                    bytes: Vec::new(),
+                    bytes: None,
                 });
                 continue;
             }
             let bytes = decode_file_content(&attachment)?;
-            if bytes.is_empty() || bytes.len() as u64 > max_bytes {
+            if max_bytes == MAX_ATTACHMENT_BYTES && bytes.is_empty() {
+                return Err(HarnessError::invalid(
+                    "uploaded attachment must not be empty",
+                ));
+            }
+            if bytes.len() as u64 > max_bytes {
                 return Err(HarnessError::invalid(format!(
-                    "decoded attachment must contain 1 byte to {max_bytes} bytes"
+                    "decoded attachment exceeds {max_bytes} bytes"
                 )));
             }
             let digest = hex_digest(&bytes);
@@ -101,13 +108,13 @@ impl LocalAttachments {
                     content: format!("{ATTACHMENT_REFERENCE_PREFIX}{digest}"),
                 },
                 digest,
-                bytes,
+                bytes: Some(bytes),
             });
         }
 
         for item in &prepared {
-            if !item.bytes.is_empty() {
-                self.publish(&item.digest, &item.bytes).await?;
+            if let Some(bytes) = &item.bytes {
+                self.publish(&item.digest, bytes).await?;
             }
         }
         Ok(prepared.into_iter().map(|item| item.reference).collect())
@@ -163,7 +170,7 @@ impl LocalAttachments {
         })?;
         let size = u64::try_from(bytes.len())
             .map_err(|_| HarnessError::invalid("attachment object exceeds retained size limit"))?;
-        if size == 0 || size > MAX_RETAINED_OUTPUT_BYTES {
+        if size > MAX_RETAINED_OUTPUT_BYTES {
             return Err(HarnessError::invalid(
                 "attachment object has an invalid retained size",
             ));
@@ -258,7 +265,7 @@ impl LocalAttachmentReader {
                 path.display()
             ))
         })?;
-        if metadata.len() == 0 || metadata.len() > MAX_RETAINED_OUTPUT_BYTES {
+        if metadata.len() > MAX_RETAINED_OUTPUT_BYTES {
             return Err(HarnessError::execution(format!(
                 "attachment object {digest} has an invalid size"
             )));
@@ -385,6 +392,36 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+
+    #[tokio::test]
+    async fn zero_byte_file_objects_restore_without_allowing_empty_uploads() {
+        let root = tempfile::tempdir().unwrap();
+        let store = LocalAttachments::open(root.path()).await.unwrap();
+        let file = Attachment {
+            name: "empty.txt".into(),
+            media_type: "text/plain".into(),
+            content: String::new(),
+        };
+        assert!(store.save_many(vec![file.clone()]).await.is_err());
+        let reference = store.store(file.clone()).await.unwrap();
+        assert!(reference.is_reference());
+        assert!(store.reference_bytes(&reference).await.unwrap().is_empty());
+        assert_eq!(
+            store.resolve_attachment(reference.clone()).await.unwrap(),
+            file
+        );
+        assert!(store.save_many(vec![reference.clone()]).await.is_err());
+        let destination = tempfile::tempdir().unwrap();
+        let restored = LocalAttachments::open(destination.path()).await.unwrap();
+        restored.restore_reference(&reference, &[]).await.unwrap();
+        assert!(
+            restored
+                .reference_bytes(&reference)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
 
     #[tokio::test]
     async fn stores_deduplicated_private_objects_and_resolves_references() {

@@ -8,6 +8,12 @@ use ternilo_protocol::{HarnessError, ModelRequest, ModelResponse};
 pub(super) fn request_body(model: &ProviderModel, request: &ModelRequest) -> Value {
     let mut body =
         responses_wire::request_body(model, request, &responses_wire::responses_input(request));
+    // Preserve ToolSpec optional fields instead of letting Responses normalize them to required.
+    if let Some(tools) = body.get_mut("tools").and_then(Value::as_array_mut) {
+        for tool in tools {
+            tool["strict"] = Value::Bool(false);
+        }
+    }
     if model
         .reasoning_effort
         .as_deref()

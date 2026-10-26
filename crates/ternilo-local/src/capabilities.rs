@@ -247,7 +247,11 @@ impl LocalFiles {
         Ok(canonical)
     }
 
-    async fn writable_path(&self, requested: &str) -> Result<PathBuf, HarnessError> {
+    async fn writable_path(
+        &self,
+        requested: &str,
+        create_parents: bool,
+    ) -> Result<PathBuf, HarnessError> {
         if !self
             .environment
             .permissions()
@@ -280,14 +284,47 @@ impl LocalFiles {
         let parent = candidate.parent().ok_or_else(|| {
             HarnessError::invalid(format!("path has no parent: {}", candidate.display()))
         })?;
-        let canonical_parent = tokio::fs::canonicalize(parent).await.map_err(|error| {
-            HarnessError::invalid(format!("resolve parent {}: {error}", parent.display()))
-        })?;
+        let canonical_parent = if create_parents {
+            self.parent_for_creation(parent).await?
+        } else {
+            tokio::fs::canonicalize(parent).await.map_err(|error| {
+                HarnessError::invalid(format!("resolve parent {}: {error}", parent.display()))
+            })?
+        };
         self.ensure_contained(&canonical_parent)?;
         let name = candidate.file_name().ok_or_else(|| {
             HarnessError::invalid(format!("path has no file name: {}", candidate.display()))
         })?;
         Ok(canonical_parent.join(name))
+    }
+
+    // Resolve the existing ancestor before creating anything; missing components stay literal.
+    async fn parent_for_creation(&self, mut parent: &Path) -> Result<PathBuf, HarnessError> {
+        let mut missing = Vec::new();
+        loop {
+            match tokio::fs::canonicalize(parent).await {
+                Ok(mut resolved) => {
+                    self.ensure_contained(&resolved)?;
+                    for name in missing.into_iter().rev() {
+                        resolved.push(name);
+                    }
+                    return Ok(resolved);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    let name = parent.file_name().ok_or_else(|| HarnessError::invalid("a new parent directory must have a literal name, without unresolved parent traversal"))?;
+                    missing.push(name.to_owned());
+                    parent = parent
+                        .parent()
+                        .ok_or_else(|| HarnessError::invalid("file path has no existing parent"))?;
+                }
+                Err(error) => {
+                    return Err(HarnessError::invalid(format!(
+                        "resolve parent {}: {error}",
+                        parent.display()
+                    )));
+                }
+            }
+        }
     }
 
     fn candidate(&self, requested: &str) -> Result<PathBuf, HarnessError> {
@@ -326,10 +363,25 @@ async fn write_owned(
     path: PathBuf,
     content: String,
     lease: WorkspaceExecutionLease,
+    create_parents_within: Option<PathBuf>,
 ) -> Result<(), HarnessError> {
     // A cancelled caller cannot release admission while the blocking file write is running.
     tokio::task::spawn_blocking(move || {
         let _lease = lease;
+        if let Some(root) = create_parents_within {
+            let parent = path
+                .parent()
+                .ok_or_else(|| HarnessError::invalid("file path has no parent"))?;
+            std::fs::create_dir_all(parent).map_err(|error| {
+                HarnessError::execution(format!("create parent {}: {error}", parent.display()))
+            })?;
+            let parent = std::fs::canonicalize(parent).map_err(|error| {
+                HarnessError::execution(format!("resolve created parent: {error}"))
+            })?;
+            if !parent.starts_with(root) {
+                return Err(HarnessError::policy("created parent escapes the workspace"));
+            }
+        }
         std::fs::write(&path, content)
             .map_err(|error| HarnessError::execution(format!("write {}: {error}", path.display())))
     })
@@ -377,9 +429,15 @@ impl WorkspaceFilesProvider for LocalFiles {
                 .environment
                 .acquire_workspace(RunCancellation::new())
                 .await?;
-            let path = self.writable_path(&request.path).await?;
+            let path = self.writable_path(&request.path, true).await?;
             self.read_cache.lock().await.invalidate(&path);
-            write_owned(path.clone(), request.content.clone(), lease).await?;
+            write_owned(
+                path.clone(),
+                request.content.clone(),
+                lease,
+                Some(self.root.clone()),
+            )
+            .await?;
             Ok(FileWriteResult {
                 path: self.display_path(&path),
                 bytes_written: u64::try_from(request.content.len())
@@ -403,7 +461,7 @@ impl WorkspaceFilesProvider for LocalFiles {
                 .environment
                 .acquire_workspace(RunCancellation::new())
                 .await?;
-            let path = self.writable_path(&request.path).await?;
+            let path = self.writable_path(&request.path, false).await?;
             let content = self.read_utf8_bounded(&path).await?;
             let matches = content.matches(&request.old).count();
             if matches == 0 {
@@ -420,7 +478,7 @@ impl WorkspaceFilesProvider for LocalFiles {
                 content.replacen(&request.old, &request.new, 1)
             };
             self.read_cache.lock().await.invalidate(&path);
-            write_owned(path.clone(), updated, lease).await?;
+            write_owned(path.clone(), updated, lease, None).await?;
             Ok(FileReplaceResult {
                 path: self.display_path(&path),
                 replacements: u64::try_from(matches)

@@ -10,10 +10,18 @@ use tokio::sync::{mpsc, watch};
 
 use super::access::AcceptedModelCall;
 
+#[derive(Clone)]
+pub(super) struct StopReason {
+    pub error: HarnessError,
+    pub code: &'static str,
+}
+
+pub(super) type SharedStopReason = Arc<Mutex<Option<StopReason>>>;
+
 pub(super) struct RequestMonitor {
     done: watch::Sender<bool>,
     task: tokio::task::JoinHandle<()>,
-    reason: Arc<Mutex<Option<HarnessError>>>,
+    reason: SharedStopReason,
 }
 
 impl RequestMonitor {
@@ -32,24 +40,34 @@ impl RequestMonitor {
             check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             let failure = loop {
                 if *shutdown.borrow() {
-                    break HarnessError::cancelled("Server is stopping");
+                    break StopReason {
+                        error: HarnessError::cancelled("Server is stopping"),
+                        code: "server_stopping",
+                    };
                 }
                 tokio::select! {
                     _ = receiver.changed() => return,
-                    () = frames.closed() => break HarnessError::cancelled("client disconnected during the model request"),
-                    _ = shutdown.changed() => break HarnessError::cancelled("Server is stopping"),
+                    () = frames.closed() => break StopReason { error: HarnessError::cancelled("client disconnected during the model request"), code: "client_disconnected" },
+                    _ = shutdown.changed() => break StopReason { error: HarnessError::cancelled("Server is stopping"), code: "server_stopping" },
                     _ = check.tick() => {
-                        if let Err(error) = call.check().await { break error; }
+                        if let Err(error) = call.check().await { break StopReason { error, code: "request_authority_changed" }; }
                     }
                 }
             };
-            *recorded_reason.lock().expect("model monitor mutex") = Some(failure);
+            recorded_reason
+                .lock()
+                .expect("model monitor mutex")
+                .get_or_insert(failure);
             cancellation.cancel();
         });
         Self { done, task, reason }
     }
 
-    pub(super) async fn finish(self) -> Option<HarnessError> {
+    pub(super) fn reason(&self) -> SharedStopReason {
+        Arc::clone(&self.reason)
+    }
+
+    pub(super) async fn finish(self) -> Option<StopReason> {
         self.done.send_replace(true);
         let _ = self.task.await;
         self.reason.lock().expect("model monitor mutex").clone()

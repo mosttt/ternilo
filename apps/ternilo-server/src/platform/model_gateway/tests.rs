@@ -1,7 +1,12 @@
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 use futures_util::StreamExt as _;
-use salvo_core::{conn::tcp::TcpAcceptor, http::StatusCode, prelude::Json, server::ServerHandle};
+use salvo_core::{
+    conn::tcp::TcpAcceptor,
+    http::{StatusCode, header},
+    prelude::Json,
+    server::ServerHandle,
+};
 use salvo_extra::affix_state;
 use serde_json::{Value, json};
 use ternilo_cloud::{
@@ -81,6 +86,15 @@ async fn fake_upstream(request: &mut Request, depot: &mut Depot, response: &mut 
             error["usage"] = json!({"prompt_tokens":7,"completion_tokens":2});
         }
         response.render(Json(error));
+    } else if case == "silent" {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_TYPE, "text/event-stream".parse().unwrap());
+        response.stream(futures_util::stream::once(async {
+            tokio::time::sleep(Duration::from_secs(35)).await;
+            let event = json!({"choices":[{"index":0,"delta":{"content":"after silent reasoning"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}});
+            Ok::<_, std::io::Error>(format!("data: {event}\n\ndata: [DONE]\n\n").into_bytes())
+        }));
     } else if matches!(case.as_str(), "eof" | "revoke" | "disconnect") {
         response
             .headers_mut()
@@ -199,7 +213,7 @@ impl Fixture {
                 display_name: None,
                 settings: ProviderModelSettings::Inherit,
             }],
-            timeout_ms: 20_000,
+            timeout_ms: 60_000,
             max_attempts: 3,
             retry_base_delay_ms: 10,
         };
@@ -633,6 +647,7 @@ fn request_id(response: &reqwest::Response) -> String {
 
 fn frames(body: &str) -> Vec<WorkerModelFrame> {
     body.lines()
+        .filter(|line| !line.trim().is_empty())
         .map(|line| serde_json::from_str(line).unwrap())
         .collect()
 }
@@ -697,10 +712,14 @@ async fn read_partial(response: &mut reqwest::Response) {
         let mut bytes = Vec::new();
         loop {
             bytes.extend_from_slice(&response.chunk().await.unwrap().expect("model delta"));
-            if let Some(end) = bytes.iter().position(|byte| *byte == b'\n') {
+            while let Some(end) = bytes.iter().position(|byte| *byte == b'\n') {
+                if bytes[..end].iter().all(u8::is_ascii_whitespace) {
+                    bytes.drain(..=end);
+                    continue;
+                }
                 let frame: WorkerModelFrame = serde_json::from_slice(&bytes[..end]).unwrap();
                 assert!(matches!(frame, WorkerModelFrame::Delta { delta } if delta == "partial"));
-                break;
+                return;
             }
         }
     })
@@ -886,6 +905,11 @@ async fn canonical_model_binding_rejects_forgery_and_disconnect_settles_usage() 
     let ledger = fixture.settled(&id).await;
     assert_eq!(ledger.state, ModelRequestState::Cancelled);
     assert_eq!(ledger.accounted_tokens, Some(15));
+    assert_eq!(ledger.error_code.as_deref(), Some("client_disconnected"));
+    assert_eq!(
+        ledger.attempts[0].error_code.as_deref(),
+        Some("client_disconnected")
+    );
     assert_eq!(fixture.captured.0.lock().await.len(), 1);
     fixture.close().await;
 }
@@ -1345,4 +1369,63 @@ async fn delegated_workload_models_keep_three_identities_and_stop_when_source_ac
         );
         fixture.close().await;
     }
+}
+
+#[tokio::test]
+async fn silent_upstream_keeps_the_gateway_open_without_fake_model_output() {
+    let fixture = Fixture::new().await;
+    let mut response = tokio::time::timeout(Duration::from_secs(5), fixture.send("silent", 1))
+        .await
+        .unwrap();
+    let id = request_id(&response);
+    let mut body = Vec::new();
+    let mut heartbeats = 0;
+    while let Some(chunk) = tokio::time::timeout(Duration::from_secs(20), response.chunk())
+        .await
+        .expect("gateway exceeded proxy idle window")
+        .unwrap()
+    {
+        if chunk.iter().all(u8::is_ascii_whitespace) {
+            heartbeats += 1;
+        }
+        body.extend_from_slice(&chunk);
+    }
+    assert!(heartbeats >= 2);
+    let frames = frames(std::str::from_utf8(&body).unwrap());
+    let deltas: Vec<_> = frames
+        .iter()
+        .filter_map(|frame| match frame {
+            WorkerModelFrame::Delta { delta } => Some(delta.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(deltas, ["after silent reasoning"], "{frames:?}");
+    assert!(matches!(
+        frames.last(),
+        Some(WorkerModelFrame::Complete { .. })
+    ));
+    assert_eq!(
+        fixture.ledger(&id).await.state,
+        ModelRequestState::Completed
+    );
+    assert_eq!(fixture.captured.0.lock().await.len(), 1);
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn server_shutdown_preserves_its_cause_in_request_and_attempt_records() {
+    let fixture = Fixture::new().await;
+    let mut response = fixture.send("disconnect", 1).await;
+    let id = request_id(&response);
+    read_partial(&mut response).await;
+    fixture.shutdown.send_replace(true);
+    let ledger = fixture.settled(&id).await;
+    assert_eq!(ledger.error_code.as_deref(), Some("server_stopping"));
+    assert_eq!(
+        ledger.attempts[0].error_code.as_deref(),
+        Some("server_stopping")
+    );
+    assert_eq!(ledger.accounted_tokens, Some(15));
+    drop(response);
+    fixture.close().await;
 }

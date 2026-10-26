@@ -3,7 +3,7 @@ use super::{
     http::{ApiError, now_ms},
     state::AppState,
 };
-use salvo_core::{http::header, prelude::Response};
+use salvo_core::prelude::Response;
 use sha2::{Digest as _, Sha256};
 use std::{fmt::Write as _, time::Duration};
 use ternilo_control::{ControlUser, NodeModelPrincipal, NodePrincipal};
@@ -407,28 +407,7 @@ pub(crate) async fn respond(
 ) -> Result<(), ApiError> {
     let (call, request) = AcceptedCall::accept(state, &token, body).await?;
     let (output, events) = mpsc::channel(64);
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        "application/x-ndjson".parse().expect("MIME"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        "no-store".parse().expect("cache policy"),
-    );
-    response
-        .headers_mut()
-        .insert("x-accel-buffering", "no".parse().expect("proxy policy"));
-    response.stream(futures_util::stream::unfold(
-        events,
-        |mut events| async move {
-            let frame: ModelGatewayFrame = events.recv().await?;
-            let bytes = serde_json::to_vec(&frame).map(|mut bytes| {
-                bytes.push(b'\n');
-                bytes
-            });
-            Some((bytes, events))
-        },
-    ));
+    super::model_gateway::stream_frames(response, &call.id, events)?;
     tokio::spawn(async move {
         let result = call.complete(request, &output).await;
         let state = if result.is_ok() {

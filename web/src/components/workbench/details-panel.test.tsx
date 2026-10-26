@@ -178,3 +178,19 @@ describe('DetailsPanel reasoning details', () => {
     expect(output?.getAttribute('aria-label')).toBe('输出')
   })
 })
+
+it('offers the correlated Server request record, without linking a local view to Server routes', () => {
+  const selection: DetailsSelection = { kind: 'event', event: {
+    seq: 9, occurred_at_ms: 900, run_id: 'interrupted', type: 'turn_failed',
+    message: 'execution: Server model connection ended without completion; its result is unknown and was not replayed; Server request ID: mrq_interrupted',
+  } }
+  act(() => root.render(<DetailsPanel selection={selection} server onClose={() => undefined} />))
+  const button = [...host.querySelectorAll('button')].find(button => button.textContent === '查看请求记录')!
+  expect(button).toBeTruthy()
+  act(() => button.click())
+  expect(window.location.search).toBe('?tab=usage&request=mrq_interrupted')
+  act(() => root.render(<DetailsPanel selection={selection} onClose={() => undefined} />))
+  expect(host.textContent).toContain('mrq_interrupted')
+  expect([...host.querySelectorAll('button')].some(button => button.textContent === '查看请求记录')).toBe(false)
+  history.replaceState({}, '', '/')
+})

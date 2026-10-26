@@ -28,6 +28,16 @@ A denial returns HTTP 429 with `Retry-After` seconds; the public model API uses 
 
 Management API: `GET/PUT /api/v1/admin/models/traffic` reads/saves `{revision, policy: {platform, account_default}}`. Each limit has nullable `requests_per_minute` and `max_concurrent_requests`. `GET /api/v1/admin/models/traffic/accounts` searches/pages accounts. `GET/PUT /api/v1/admin/models/traffic/accounts/{user_id}` reads/saves overrides; PUT accepts `{revision, limits}`, with `limits: null` meaning inheritance. `GET /api/v1/model-access/traffic` reports only the current account. These endpoints neither grant model access nor change Token settlement ownership.
 
+## Closing the browser and handling interruptions
+
+After a task is accepted, you can close the Server browser and return later to view progress and results. The execution computer's Ternilo service owns the task; the browser only subscribes to state. Approval requests and questions wait for input. The computer, its service and the selected model connection must remain available.
+
+Browser subscriptions and computer-to-Server model streams are independent. The model gateway sends transport keepalives every 15 seconds, even without text output. Keepalives do not become model content, reasoning or usage. Reverse proxies must still support streaming and have appropriate total request limits.
+
+When the model connection is interrupted, received content is retained and an uncertain request is not automatically replayed. In the error details, choose **View request record** to open **My models → Usage** filtered by its request ID. A local view retains the ID for lookup on the corresponding Server.
+
+Records distinguish executor connection closure, Server shutdown and changed authorization/run state. A closed executor connection can follow either a stopped task or a network interruption; it does not establish user intent. Missing upstream usage remains unconfirmed.
+
 ## Metering and revocation
 
 Server reserves and settles platform usage against the selected grant and records attempts. Retries recheck authorization and limits; unavailable or revoked sources do not silently fall back. A cancelled or uncertain upstream response must not be represented as a known zero-cost result. See [unknown usage reconciliation](model-usage-reconciliation.md).
