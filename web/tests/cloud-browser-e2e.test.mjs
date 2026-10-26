@@ -664,7 +664,7 @@ test('cloud web completes OIDC PKCE and executes through the host model broker',
   // without widening the mkdtemp parent's 0700 boundary.
   if (containerMode) await chmod(workspaceRoot, 0o777)
   await writeFile(policyPath, JSON.stringify({
-    catalog_revision: 'ternilo-cloud-v2',
+    catalog_revision: 'ternilo-cloud-v3',
     policy_revision: 'cloud-browser-e2e-v2',
     maximum_limits: { max_steps: 4, max_tool_calls: 8 },
     max_run_attempts: 2,

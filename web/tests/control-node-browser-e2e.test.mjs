@@ -616,7 +616,7 @@ test('Control browser drives an enrolled local Node workspace without connecting
   const memberNodeLocalOrigin = `http://127.0.0.1:${memberNodeLocalPort}`
   const policyPath = path.join(temporary, 'worker-policy.json')
   await writeFile(policyPath, JSON.stringify({
-    catalog_revision: 'ternilo-cloud-v2',
+    catalog_revision: 'ternilo-cloud-v3',
     policy_revision: 'control-node-browser-e2e-v1',
     maximum_limits: { max_steps: 4, max_tool_calls: 8 },
     max_run_attempts: 2,

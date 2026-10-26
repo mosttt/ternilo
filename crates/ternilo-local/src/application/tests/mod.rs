@@ -107,3 +107,6 @@ mod presets;
 mod subagents;
 mod workflows;
 mod workspace_tools;
+
+#[cfg(unix)]
+mod reliability;

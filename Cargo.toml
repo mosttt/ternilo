@@ -30,7 +30,7 @@ resolver = "3"
 edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.98"
-version = "0.2.26"
+version = "0.2.27"
 
 [workspace.dependencies]
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
@@ -78,8 +78,8 @@ schemars = { version = "1.2.2", features = ["derive"] }
 semver = "1.0"
 sha2 = "0.11.0"
 sqlx = { version = "0.9.0", default-features = false, features = ["any", "json", "macros", "migrate", "postgres", "sqlite", "runtime-tokio", "tls-rustls-ring-webpki"] }
-salvo_core = { version = "0.95.2", default-features = false, features = ["http1", "server", "server-handle"] }
-salvo_extra = { version = "0.95.2", default-features = false, features = ["affix-state", "size-limiter", "websocket"] }
+salvo_core = { version = "1.0.1", default-features = false, features = ["http1", "server", "server-handle"] }
+salvo_extra = { version = "1.0.1", default-features = false, features = ["affix-state", "size-limiter", "websocket"] }
 tokio = { version = "1.53.3", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }

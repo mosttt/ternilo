@@ -1189,6 +1189,9 @@ pub struct ShellRequest {
     pub command: String,
     pub timeout_ms: u64,
     pub full_access: bool,
+    /// Force a read-only workspace sandbox even for a full-access session.
+    #[serde(default)]
+    pub read_only: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stdin: Option<String>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]

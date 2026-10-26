@@ -43,6 +43,27 @@ Code Mode composes capabilities through Rhai. Hooks can inspect the supported li
 
 External Rhai and WASM Component packages share one registry, trust model and lifecycle. Package installation and profile mounting are separate steps. Signatures, manifests, requested capabilities and runtime limits are checked before activation. For exact package contracts and runnable examples, see [extension packages](extension-packages.md). For everyday orchestration see [Agent tools](agents.md).
 
+## Inspect tool failures in Rhai
+
+Use `try_tool` to inspect an expected tool failure and continue without throwing a JSON exception string:
+
+```rhai
+let status = try_tool("git_inspect", #{ action: "status" });
+if !status.ok { print(status.error.message); }
+status.result
+```
+
+The envelope contains `ok`, the original `result` and nullable `error` (`code`, `message`). Shell and named-check results retain exit status, stdout, stderr and timeout state, including output captured before timeout. `tools::name` and `call_tool` still throw on failure. Permissions, Hooks, call limits, output budgets and cancellation remain enforced. Full failure results stay in nested dispatch history; exceptions provide a concise reason.
+
+For Markdown text containing backticks, use a double-quoted string instead of nesting backtick delimiters:
+
+```rhai
+let text = "Markdown uses `code`.\nNext line.";
+text
+```
+
+Parse errors include a bounded source excerpt and relevant delimiter or reserved-word guidance. They execute nothing. See [read-only verification checks](agents.md#run-checks-from-a-read-only-review) for reviewer configuration.
+
 ## External ACP agents
 
 `ternilo.subagents.acp` starts an installed ACP v1 executable with explicit `provider_name`, `command` and `args`. Each task creates its own external session. Omitting `cwd` uses the parent workspace. Child environments contain only basic system variables, explicit `env` and host credentials named by `env_refs`. For example, `"env_refs": {"ANTHROPIC_API_KEY": "CLAUDE_AGENT_KEY"}` injects that saved credential into the child without storing a key in the preset. Names must not overlap `env`; missing references fail before process launch.

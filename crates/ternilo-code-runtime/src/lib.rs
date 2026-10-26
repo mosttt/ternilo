@@ -291,7 +291,7 @@ fn execute_rhai(config: &RuntimeConfig, request: &CodeRunRequest) -> CodeRunResu
             return failed_result(
                 take_logs(&logs),
                 CodeRunFailureKind::Parse,
-                rhai_parse_diagnostic(&error),
+                rhai_parse_diagnostic(&error, &request.program),
             );
         }
     };
@@ -343,25 +343,28 @@ fn build_rhai_engine(
     });
 
     let runtime = tokio::runtime::Handle::current();
-    let binding = Arc::clone(&request.binding);
-    let binding_cancellation = request.cancellation.clone();
-    let binding_activity = request.activity.clone();
-    let binding_runtime = runtime.clone();
-    engine.register_fn(
-        "call_tool",
-        move |name: rhai::ImmutableString,
-              arguments: Dynamic|
-              -> Result<Dynamic, Box<EvalAltResult>> {
-            invoke_binding(
-                &binding_runtime,
-                &binding,
-                &binding_cancellation,
-                &binding_activity,
-                name.as_str(),
-                &arguments,
-            )
-        },
-    );
+    for (function, structured) in [("call_tool", false), ("try_tool", true)] {
+        let binding = Arc::clone(&request.binding);
+        let cancellation = request.cancellation.clone();
+        let activity = request.activity.clone();
+        let runtime = runtime.clone();
+        engine.register_fn(
+            function,
+            move |name: rhai::ImmutableString,
+                  arguments: Dynamic|
+                  -> Result<Dynamic, Box<EvalAltResult>> {
+                invoke_binding(
+                    &runtime,
+                    &binding,
+                    &cancellation,
+                    &activity,
+                    name.as_str(),
+                    &arguments,
+                    structured,
+                )
+            },
+        );
+    }
     let mut tools_module = Module::new();
     for spec in request
         .bindings
@@ -387,6 +390,7 @@ fn build_rhai_engine(
                         &activity,
                         &name,
                         &arguments,
+                        false,
                     )
                 },
             );
@@ -471,6 +475,7 @@ fn invoke_binding(
     activity: &ActivityBranch,
     name: &str,
     arguments: &Dynamic,
+    structured: bool,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
     let arguments: Value = rhai::serde::from_dynamic(arguments).map_err(|error| {
         Box::new(EvalAltResult::ErrorRuntime(
@@ -484,7 +489,15 @@ fn invoke_binding(
         let result = tokio::select! {
             biased;
             () = cancellation.cancelled() => Err(HarnessError::cancelled("code run was cancelled")),
-            result = binding.call(name.to_owned(), arguments, dispatch.branch()) => result,
+            result = async {
+                if structured {
+                    let output = binding.call_output(name.to_owned(), arguments, dispatch.branch()).await;
+                    if let Err(error) = &output && error.is_cancelled() { return Err(error.clone()); }
+                    Ok(structured_tool_result(name, output))
+                } else {
+                    binding.call(name.to_owned(), arguments, dispatch.branch()).await
+                }
+            } => result,
         };
         // A timeout or cancelled binding may have dropped a dependency wait.
         // Restore admission before an ordinary error can enter a script catch.
@@ -520,13 +533,71 @@ fn valid_rhai_identifier(name: &str) -> bool {
             .is_ok()
 }
 
-fn rhai_parse_diagnostic(error: &rhai::ParseError) -> String {
+fn rhai_parse_diagnostic(error: &rhai::ParseError, source: &str) -> String {
     let mut message =
         format!("{error}. The program was not executed; no tool calls or print statements ran.");
     if matches!(error.err_type(), rhai::ParseErrorType::Reserved(_)) {
         message.push_str(" Use a different variable name. Quote reserved map keys, for example #{\"new\": \"replacement\"}, or assign args[\"new\"] = \"replacement\".");
     }
+    if let Some(line) = error
+        .position()
+        .line()
+        .and_then(|line| source.lines().nth(line.saturating_sub(1)))
+    {
+        message.push_str("\nNear: ");
+        message.extend(line.chars().take(200));
+    }
+    if source.contains('`') {
+        message.push_str(" Backticks delimit interpolated strings. For text containing backticks, use a double-quoted string with escaped quotes and newlines instead.");
+    }
     message
+}
+
+fn tool_value(output: &ToolOutput) -> Value {
+    serde_json::from_str(&output.content).unwrap_or_else(|_| Value::String(output.content.clone()))
+}
+
+fn tool_failure_message(name: &str, value: &Value) -> String {
+    let value = value
+        .get("operations")
+        .and_then(Value::as_array)
+        .and_then(|items| items.last())
+        .unwrap_or(value);
+    if let Some(text) = value.as_str() {
+        return text.to_owned();
+    }
+    let status = if value.get("timed_out").and_then(Value::as_bool) == Some(true) {
+        "timed out".to_owned()
+    } else if let Some(code) = value.get("exit_code").and_then(Value::as_i64) {
+        format!("exited with status {code}")
+    } else {
+        "reported a failure".to_owned()
+    };
+    let detail = value
+        .get("stderr")
+        .and_then(Value::as_str)
+        .and_then(|text| text.lines().find(|line| !line.trim().is_empty()));
+    let mut message = format!("{name} {status}");
+    if let Some(detail) = detail {
+        message.push_str(": ");
+        message.extend(detail.chars().take(400));
+    }
+    message
+}
+
+fn structured_tool_result(name: &str, output: Result<ToolOutput, HarnessError>) -> Value {
+    match output {
+        Ok(output) => {
+            let value = tool_value(&output);
+            let error = output.is_error.then(
+                || json!({"code":"tool_failed", "message":tool_failure_message(name, &value)}),
+            );
+            json!({"ok": !output.is_error, "result":value, "error":error})
+        }
+        Err(error) => {
+            json!({"ok":false, "result":null, "error":{"code":error.code, "message":error.message}})
+        }
+    }
 }
 
 fn take_logs(logs: &Mutex<LogState>) -> Vec<String> {
@@ -681,6 +752,7 @@ fn render_code_mode_prompt(tools: &[ToolSpec], code_only: bool, isolation: &str)
         "`run_code` starts a fresh `{isolation}` Rhai runtime. It has no filesystem, network, process, environment-variable, credential, module-import, or persistent-state API. Tool calls re-enter the native Ternilo permission, workspace, Hook, timeout, and policy pipeline. Arguments and results must be lossless JSON. Use `print(value)` for ordered logs and leave a JSON value as the final expression. Do not call `run_code` recursively."
     );
     prompt.push_str("\nRhai uses `#{\"key\": value}` maps. Quote keys such as `\"new\"`; do not use reserved words as variable names. Ordinary function arguments are copied: return the changed map or array and assign it at the caller, for example `fn add_result(items, value) { items.push(value); items } let results = []; results = add_result(results, 42);`. Use `try { ... } catch (error) { print(error); }` when independent calls should continue after an error. Uncaught runtime errors preserve earlier logs and completed tool effects; parse errors execute nothing. SDK entries below describe argument shapes, not executable programs: replace type placeholders with values and omit unused optional fields.\n");
+    prompt.push_str("\nUse `try_tool(\"shell\", #{command: \"your command\"})` to inspect a failed command without throwing: it returns `#{ok: bool, result: JSON, error: JSON}`. Shell results retain exit_code, stdout, stderr and timed_out; errors include code and message. A nonzero exit or timeout has ok=false. Ordinary tools::name and call_tool still throw on failures. Permission checks, Hooks, call limits and cancellation are unchanged.\n");
     prompt.push_str("\n## Rhai tool SDK\n\n");
     if tools.is_empty() {
         prompt.push_str("No nested tool bindings are available.\n");
@@ -922,89 +994,109 @@ impl CodeBindingHandler for SessionToolBinding {
         activity: ActivityBranch,
     ) -> Pin<Box<dyn Future<Output = Result<Value, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
-            activity.ensure_running().await?;
-            if !self.allowed.contains(&name) {
-                return Err(HarnessError::policy(format!(
-                    "tool {name:?} is not available to this code run"
-                )));
+            let output = self.dispatch(name.clone(), arguments, activity).await?;
+            let value = tool_value(&output);
+            if output.is_error {
+                return Err(HarnessError::execution(tool_failure_message(&name, &value)));
             }
-            let ordinal = self.next.fetch_add(1, Ordering::AcqRel);
-            if ordinal > self.max_subcalls {
-                return Err(HarnessError::policy(format!(
-                    "code run exceeded max_subcalls ({})",
-                    self.max_subcalls
-                )));
-            }
-            self.cancellation.check()?;
-            let mut call = ToolCall {
-                id: format!("{}:code:{ordinal}", self.parent_call_id),
-                name: name.clone(),
-                arguments,
-                presentation: None,
-            };
-            call.presentation = self.tools.describe(call.name.clone()).await;
-            self.sessions
-                .append(
-                    self.run_id.clone(),
-                    SessionEventKind::CodeDispatchStarted {
-                        parent_call_id: self.parent_call_id.clone(),
-                        call: call.clone(),
-                    },
-                )
-                .await?;
-            let mut output = match self
+            Ok(value)
+        })
+    }
+    fn call_output<'a>(
+        &'a self,
+        name: String,
+        arguments: Value,
+        activity: ActivityBranch,
+    ) -> Pin<Box<dyn Future<Output = Result<ToolOutput, HarnessError>> + Send + 'a>> {
+        Box::pin(self.dispatch(name, arguments, activity))
+    }
+}
+
+impl SessionToolBinding {
+    async fn dispatch(
+        &self,
+        name: String,
+        arguments: Value,
+        activity: ActivityBranch,
+    ) -> Result<ToolOutput, HarnessError> {
+        activity.ensure_running().await?;
+        if !self.allowed.contains(&name) {
+            return Err(HarnessError::policy(format!(
+                "tool {name:?} is not available to this code run"
+            )));
+        }
+        let ordinal = self.next.fetch_add(1, Ordering::AcqRel);
+        if ordinal > self.max_subcalls {
+            return Err(HarnessError::policy(format!(
+                "code run exceeded max_subcalls ({})",
+                self.max_subcalls
+            )));
+        }
+        self.cancellation.check()?;
+        let mut call = ToolCall {
+            id: format!("{}:code:{ordinal}", self.parent_call_id),
+            name: name.clone(),
+            arguments,
+            presentation: None,
+        };
+        call.presentation = self.tools.describe(call.name.clone()).await;
+        self.sessions
+            .append(
+                self.run_id.clone(),
+                SessionEventKind::CodeDispatchStarted {
+                    parent_call_id: self.parent_call_id.clone(),
+                    call: call.clone(),
+                },
+            )
+            .await?;
+        let mut output = match self
+            .run_hooks(HookRequest {
+                point: HookPoint::PreToolUse,
+                run_id: self.run_id.clone(),
+                prompt: None,
+                tool_call: Some(call.clone()),
+                tool_output: None,
+                answer: None,
+            })
+            .await
+        {
+            Ok(()) => self.execute_tool(&call, activity.clone()).await,
+            Err(error) => ToolOutput {
+                content: error.to_string(),
+                is_error: true,
+            },
+        };
+        activity.ensure_running().await?;
+        if !output.is_error
+            && let Err(error) = self
                 .run_hooks(HookRequest {
-                    point: HookPoint::PreToolUse,
+                    point: HookPoint::PostToolUse,
                     run_id: self.run_id.clone(),
                     prompt: None,
                     tool_call: Some(call.clone()),
-                    tool_output: None,
+                    tool_output: Some(output.clone()),
                     answer: None,
                 })
                 .await
-            {
-                Ok(()) => self.execute_tool(&call, activity.clone()).await,
-                Err(error) => ToolOutput {
-                    content: error.to_string(),
-                    is_error: true,
-                },
+        {
+            output = ToolOutput {
+                content: error.to_string(),
+                is_error: true,
             };
-            activity.ensure_running().await?;
-            if !output.is_error
-                && let Err(error) = self
-                    .run_hooks(HookRequest {
-                        point: HookPoint::PostToolUse,
-                        run_id: self.run_id.clone(),
-                        prompt: None,
-                        tool_call: Some(call.clone()),
-                        tool_output: Some(output.clone()),
-                        answer: None,
-                    })
-                    .await
-            {
-                output = ToolOutput {
-                    content: error.to_string(),
-                    is_error: true,
-                };
-            }
-            self.sessions
-                .append(
-                    self.run_id.clone(),
-                    SessionEventKind::CodeDispatchFinished {
-                        parent_call_id: self.parent_call_id.clone(),
-                        call_id: call.id,
-                        name,
-                        output: output.clone(),
-                        retained_output: None,
-                    },
-                )
-                .await?;
-            if output.is_error {
-                return Err(HarnessError::execution(output.content));
-            }
-            Ok(serde_json::from_str(&output.content)
-                .unwrap_or_else(|_| Value::String(output.content)))
-        })
+        }
+        self.sessions
+            .append(
+                self.run_id.clone(),
+                SessionEventKind::CodeDispatchFinished {
+                    parent_call_id: self.parent_call_id.clone(),
+                    call_id: call.id,
+                    name: name.clone(),
+                    output: output.clone(),
+                    retained_output: None,
+                },
+            )
+            .await?;
+        Ok(output)
     }
 }
 
@@ -1301,6 +1393,27 @@ mod tests {
             result.failure.as_ref().map(|failure| failure.kind),
             Some(CodeRunFailureKind::Cancelled)
         );
+    }
+
+    #[tokio::test]
+    async fn try_tool_keeps_failures_structured_and_continues_independent_calls() {
+        let result = run(&runtime(10_000), r#"let failed = try_tool("unknown", #{}); let passed = try_tool("double", #{value:21}); #{failed:failed, passed:passed}"#).await;
+        assert!(result.failure.is_none(), "{:?}", result.failure);
+        let value = result.value.unwrap();
+        assert_eq!(value["failed"]["ok"], false);
+        assert_eq!(value["failed"]["error"]["code"], "invalid_input");
+        assert_eq!(value["passed"]["result"], 42);
+        assert_eq!(value["passed"]["ok"], true);
+    }
+
+    #[tokio::test]
+    async fn unterminated_backticks_explain_delimiters_and_execute_nothing() {
+        let result = run(&runtime(10_000), "print(1); let message = `unterminated").await;
+        assert!(result.logs.is_empty());
+        let failure = result.failure.unwrap();
+        assert_eq!(failure.kind, CodeRunFailureKind::Parse);
+        assert!(failure.message.contains("Near:"));
+        assert!(failure.message.contains("Backticks delimit"));
     }
 
     #[test]

@@ -70,7 +70,7 @@ OpenAI Responses 在配置了非 `none` 的实际推理强度时，同时请求 
 
 在电脑上新增或修改 Provider 后，可以在 Server“设备本地”点击上方刷新，同时重新读取电脑和已展开的模型目录；收起的电脑下次展开时也会读取新配置。Provider 区域的“刷新 Provider”只刷新当前来源，普通刷新保留未保存的编辑，不更换聊天模型。这里读取的是已保存的 Provider 配置，不等于再次向供应商“获取可用模型”。本机“Server 模型连接”卡的授权数量只计算 Server 授予的模型，不包含下方本机自有 Provider。
 
-配置使用 `settings.mode: "automatic"` 分开保存 `upstream` 与 `overrides`；未指定的覆盖字段参与自动取值，推理的 `{ "mode": "disabled" }` 明确关闭，`{ "mode": "enabled", "configuration": { ... } }` 保存具体档位。已有 `inherit`／`override` 配置的原含义不变，编辑保存时转为等价逐项设置。当前执行器协议为 48，连接的 Server、Node 与 Worker 需要同步更新。
+配置使用 `settings.mode: "automatic"` 分开保存 `upstream` 与 `overrides`；未指定的覆盖字段参与自动取值，推理的 `{ "mode": "disabled" }` 明确关闭，`{ "mode": "enabled", "configuration": { ... } }` 保存具体档位。已有 `inherit`／`override` 配置的原含义不变，编辑保存时转为等价逐项设置。当前执行器协议为 49，连接的 Server、Node 与 Worker 需要同步更新。
 
 上下文窗口决定占用比例和自动压缩时机。默认达到估算窗口的 80% 时自动压缩；模型没有声明窗口时，不会使用一个猜测的固定阈值，仍可输入 `/compact` 手动压缩。最大输出 token 和推理设置会用于实际模型请求。
 
@@ -93,6 +93,8 @@ OpenAI Responses 在配置了非 `none` 的实际推理强度时，同时请求 
 本机和 Server 接入会话均显示中英韩说明，历史与调用详情保留对应状态码。Server 仅传递固定的原因与处理建议，不公开可能包含密钥或内部地址的上游原始正文。适用范围为显式选择的 DeepSeek Responses，以及使用 `api.deepseek.com` 的兼容接口；其他服务的 402 不会被误标为 DeepSeek 余额不足。
 
 ### OpenAI 与兼容接口调用失败时
+
+OpenAI Responses 的函数工具显式使用 `strict: false`，保留工具 Schema 中可省略字段的原意，与直接调用和 Rhai 使用同一份参数定义；不让上游自动将可选字段规范化为必填。省略、空字符串和 `null` 仍按各工具自己的合同区分，不通过填空字符串补齐字段。见 [OpenAI 工具严格模式](https://developers.openai.com/api/docs/guides/function-calling#strict-mode)。
 
 HTTP 429 不一定是请求过频。Ternilo 按 [OpenAI 官方错误码](https://developers.openai.com/api/docs/guides/error-codes)读取 `error.code`，区分需要处理账单的失败与可以等待重试的限流：
 

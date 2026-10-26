@@ -546,3 +546,95 @@ async fn bounded_history_matches_active_and_archived_logs_and_checks_archive_sta
     tokio::fs::remove_dir_all(data_dir).await.unwrap();
     tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
 }
+
+#[tokio::test]
+async fn mixed_language_session_search_matches_substrings_and_preserves_filters() {
+    let root = tempfile::tempdir().unwrap();
+    let folder = root.path().join("workspace");
+    tokio::fs::create_dir(&folder).await.unwrap();
+    let data = root.path().join("data");
+    let app = open_test_application(data.clone()).await;
+    let workspace = app.add_workspace(folder.to_str().unwrap()).await.unwrap();
+    let session = app
+        .create_session(workspace.workspace_id.clone(), None, None)
+        .await
+        .unwrap();
+    for text in [
+        "工作区里有一份ui说明，请完成后阅读",
+        "independent ui token",
+        "请试用Ternilo并检查한국어검색결과",
+    ] {
+        app.run_turn(
+            session.identity.session_id.as_str(),
+            None,
+            format!("/code {}", serde_json::to_string(text).unwrap()),
+        )
+        .await
+        .unwrap();
+    }
+    let request = |query: &str| SessionSearchRequest {
+        query: query.to_owned(),
+        session_id: Some(session.identity.session_id.clone()),
+        workspace_id: Some(workspace.workspace_id.clone()),
+        filters: ternilo_protocol::SessionSearchFilters {
+            category: Some(ternilo_protocol::SessionEventCategory::User),
+            ..Default::default()
+        },
+        limit: 20,
+    };
+    let hits = app.search_sessions(request("ui")).await.unwrap();
+    assert_eq!(
+        hits.len(),
+        2,
+        "substring hits must not depend on FTS returning zero matches: {hits:?}"
+    );
+    assert_ne!(hits[0].event_seq, hits[1].event_seq);
+    assert!(
+        hits[0].excerpt.contains("independent ui token"),
+        "keep existing full-word relevance first"
+    );
+    for query in [
+        "工作区",
+        "工作区里有一份ui说明",
+        "Ternilo",
+        "TERNILO",
+        "검색",
+    ] {
+        let hits = app.search_sessions(request(query)).await.unwrap();
+        assert_eq!(hits.len(), 1, "query {query}: {hits:?}");
+        assert_eq!(
+            hits[0].category,
+            Some(ternilo_protocol::SessionEventCategory::User)
+        );
+    }
+    let mut limited = request("UI");
+    limited.limit = 1;
+    assert_eq!(app.search_sessions(limited).await.unwrap().len(), 1);
+    let mixed = hits
+        .iter()
+        .find(|hit| hit.excerpt.contains("工作区"))
+        .unwrap();
+    let mut filtered = request("ui");
+    filtered.filters.run_id = mixed.run_id.clone();
+    assert_eq!(app.search_sessions(filtered).await.unwrap().len(), 1);
+    let mut filtered = request("工作区");
+    filtered.filters.occurred_after_ms = Some(mixed.occurred_at_ms.unwrap() + 1);
+    assert!(app.search_sessions(filtered).await.unwrap().is_empty());
+    let mut filtered = request("ui");
+    filtered.workspace_id = Some(ternilo_protocol::WorkspaceId::new("another-workspace"));
+    assert!(app.search_sessions(filtered).await.unwrap().is_empty());
+    assert!(
+        app.search_sessions(request("x' OR 1=1 --"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    app.shutdown().await.unwrap();
+    drop(app);
+    let restored = open_test_application(data).await;
+    assert_eq!(
+        restored.search_sessions(request("ui")).await.unwrap().len(),
+        2
+    );
+    restored.shutdown().await.unwrap();
+}

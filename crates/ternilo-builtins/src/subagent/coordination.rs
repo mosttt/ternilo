@@ -38,5 +38,6 @@ pub(super) fn instructions(config: &CoordinationConfig) -> String {
         };
         let _ = write!(text, "\n- {}: {purpose}; {permission}.", role.as_str());
     }
+    text.push_str("\n\nRead-only roles cannot use shell, terminals, jobs or file writes. When run_check is present, they may execute only the named checks approved in the shell plugin settings, in a read-only workspace sandbox with writable temporary caches. Inspect the available check names before delegating verification. If no checks are configured, have the lead run verification and give the reviewer its evidence.");
     text
 }

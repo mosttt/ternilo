@@ -306,6 +306,8 @@ pub enum SandboxEnforcement {
 pub struct SandboxPolicy {
     pub mode: SandboxMode,
     pub workspace_root: PathBuf,
+    /// A host-owned private directory held until the process tree exits.
+    pub scratch_root: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -879,6 +881,23 @@ pub trait ToolPresenter: Send + Sync + 'static {
 }
 
 pub trait CodeBindingHandler: Send + Sync + 'static {
+    /// Preserve a failed tool's structured result for the non-throwing Rhai API.
+    fn call_output<'a>(
+        &'a self,
+        name: String,
+        arguments: Value,
+        activity: ActivityBranch,
+    ) -> Pin<Box<dyn Future<Output = Result<ToolOutput, HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            let value = self.call(name, arguments, activity).await?;
+            Ok(ToolOutput {
+                content: serde_json::to_string(&value)
+                    .map_err(|error| HarnessError::execution(error.to_string()))?,
+                is_error: false,
+            })
+        })
+    }
+
     fn call<'a>(
         &'a self,
         name: String,

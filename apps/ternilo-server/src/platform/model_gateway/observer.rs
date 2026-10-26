@@ -12,6 +12,7 @@ use super::access::AcceptedModelCall;
 pub(super) struct AttemptObserver {
     pub(super) call: Arc<AcceptedModelCall>,
     pub(super) protocol: ProviderProtocol,
+    pub(super) stop_reason: super::monitor::SharedStopReason,
 }
 
 impl ModelAttemptObserver for AttemptObserver {
@@ -34,7 +35,12 @@ impl ModelAttemptObserver for AttemptObserver {
             };
             let error_code = report.error.as_ref().map(|error| {
                 if error.is_cancelled() {
-                    "request_cancelled".to_owned()
+                    self.stop_reason
+                        .lock()
+                        .expect("model monitor mutex")
+                        .as_ref()
+                        .map_or("request_cancelled", |reason| reason.code)
+                        .to_owned()
                 } else if let Some(status) = report.http_status.filter(|status| *status >= 400) {
                     format!("upstream_http_{status}")
                 } else if error.message == "model stream ended before its completion event" {

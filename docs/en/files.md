@@ -8,6 +8,10 @@ Use the file tree to navigate directories and open supported files in the applic
 
 Opening a file for inspection does not automatically send its full contents to the model. Use explicit references or attachments when the contents should be part of a submission. Large output can be stored as a separate artifact with a reference instead of being inserted into every message.
 
+`write_file` creates missing parent directories inside the workspace; `content: ""` creates or clears a UTF-8 file. `replace_in_file` may also leave an empty file. Both retain zero-byte historical versions for preview, download and recovery. Paths outside the workspace, external symlinks and read-only sessions remain protected. Ordinary uploaded attachments must still be nonempty.
+
+`code_map` defaults to `detail: "summary"`: symbols, imports and candidate calls to symbols declared in the selected files, with an omitted-call count. Use `detail: "full"` for all builtin, external and unresolved call locations. Impact analysis always uses the full parsed graph.
+
 ## Messages and attachments
 
 A submitted message records its selected references and attachments. Uploading from the browser stores the attachment with the application's state; project files remain in the project directory unless explicitly copied or written there. Keep the data directory in backups if attachments and generated artifacts must survive recovery.

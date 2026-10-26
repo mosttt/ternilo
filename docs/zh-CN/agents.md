@@ -218,7 +218,35 @@ Agent loop 插件中的“自动调整推理强度”默认关闭。开启后，
 
 成功响应后，聊天过程展示本步实际使用的档位、建议及依据。“记录推理强度建议”用于自动调整关闭时的只观察模式，不改变实际档位；自动调整开启时始终记录实际选择。
 
+## 让只读审查运行检查
+
+在会话设置的 `shell-tool` 插件中配置“具名验证检查”，reviewer 就能运行选定测试而不获得任意 Shell 权限。例如 Python 项目可以保存：
+
+```json
+{
+  "checks": [
+    { "name": "unit", "command": "python3 -m unittest discover -s tests", "timeout_ms": 30000 }
+  ]
+}
+```
+
+配置会由子代理继承，工具定义直接列出可选名称。reviewer 使用 `run_check` 的 `name: "unit"`，不能通过调用追加命令、参数或完全访问权限；普通 Shell、终端、后台任务和文件写入仍受只读策略禁止。未配置检查时不提供 `run_check`，应由主代理执行测试并提供证据。
+
+检查始终通过工作区只读沙箱，即使主会话具有完全访问权限也不例外。临时目录和缓存可写，随受管理进程退出清理；需要修改项目文件的测试应交给具有相应权限的执行路径。只登记你信任的命令和项目测试代码；检查仍受执行电脑的沙箱与网络边界约束。当前具名检查用于本机及 Server 接入的电脑；既有 Worker 外层沙箱不提供此只读检查模式。
+
+需要在检查失败后继续分析，可使用：
+
+```rhai
+let check = try_tool("run_check", #{ name: "unit" });
+if !check.ok { print(check.error.message); }
+check.result
+```
+
+结果保留 `exit_code`、`stdout`、`stderr` 和 `timed_out`；非零退出或超时使 `ok` 为 `false`，超时前已捕获的输出仍保留。`tools::run_check` 和其他原有工具调用仍在失败时抛错。
+
 ## 项目记忆与历史检索
+
+历史检索支持连续文本片段，包括中文、韩文，以及夹在中文里的 `ui`、`Ternilo` 等英文词；英文字母大小写不敏感。`session_search` 查找有权访问的历史，`session_event_search` 限定到指定会话；工作区、运行、事件类别、时间和数量筛选照常生效。本机索引保留原全文检索及其相关性排序，同时补充子串命中，不因已找到其他整词结果而漏掉混合文本。
 
 项目记忆保存稳定的项目事实、约定和验证命令；查找某次讨论或执行细节仍使用会话历史检索。启用 `ternilo.tools.project_memory` 后，`read_project_memory` 可按关键词读取工作区根目录 `.ternilo-memory.json` 中的条目。`update_project_memory` 需要工作区写权限，并传入读取到的 `expected_revision`，避免覆盖其他会话刚保存的内容；`content: null` 删除指定条目。发生版本冲突后先重新读取，再决定如何合并。
 

@@ -132,3 +132,16 @@ describe('runtime error presentation', () => {
     })
   })
 })
+
+it('localizes gateway interruption and retains a bounded request ID for navigation', () => {
+  const diagnostic = 'Server model connection ended without completion; its result is unknown and was not replayed'
+  for (const resource of [zh, en, ko]) {
+    const raw = `execution: ${diagnostic}; Server request ID: mrq_connection-1`
+    expect(presentRuntimeError(raw, translate(resource))).toEqual({
+      title: resource['runtimeError.gateway.title'], message: resource['runtimeError.gateway.message'], raw, requestId: 'mrq_connection-1',
+    })
+  }
+  expect(presentRuntimeError(`${diagnostic}; Server request ID: ../../secrets`, t).requestId).toBeUndefined()
+  expect(presentRuntimeError(diagnostic, t).requestId).toBeUndefined()
+  expect(presentRuntimeError('execution: Model API error (HTTP 429; insufficient_quota): failure; Server request ID: mrq_404', t).title).toBe('模型 API 额度不足')
+})

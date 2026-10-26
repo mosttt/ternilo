@@ -34,6 +34,8 @@ The account administration page shows pending cleanup, confirmation times and ou
 
 A revoked Node credential can only synchronize its own cleanup requests and submit receipts. It cannot reconnect normally or access application data. Each credential binds one local storage instance; another data directory cannot confirm cleanup for the original. Receipts validate credential, storage identity and account revision, and repeated confirmation is idempotent.
 
+Restricted Shell commands, jobs and persistent terminals receive process-private writable temporary/cache directories, held until process-tree cleanup. Workspace write permissions remain unchanged. macOS executable shims ignore `TMPDIR` and `xcrun_nocache`, so Seatbelt additionally permits only `xcrun_db` cache files in the system-reported user temporary directory, not other writes there. `run_check` executes only commands preconfigured in plugin settings and forces a read-only workspace even for a full-access lead.
+
 ## Extensions and durable data
 
 Extension signatures establish publisher/package integrity; requested capabilities must still be allowed by host policy. Rhai and WASM use the same package lifecycle and capability rules. A signature alone does not authorize arbitrary network, process or credential access.

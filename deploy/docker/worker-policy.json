@@ -1,5 +1,5 @@
 {
-  "catalog_revision": "ternilo-cloud-v2",
+  "catalog_revision": "ternilo-cloud-v3",
   "policy_revision": "docker-cloud-v4",
   "maximum_limits": {
     "max_steps": 0,

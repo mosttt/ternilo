@@ -88,7 +88,7 @@ for (const placement of ['local', 'server-node']) {
           await page.locator('[data-composer-input]').waitFor()
         }
         const openTeam = async () => {
-          await page.getByRole('button', { name: text.team, exact: true }).filter({ hasText: locale === 'ko' ? '에이전트 팀' : 'Agent Team' }).click()
+          await page.getByRole('button', { name: text.team, exact: true }).first().click()
           const team = page.locator('[data-agent-team-panel]')
           await team.waitFor()
           assert.equal(await team.getByRole('heading').evaluate(element => element === document.activeElement), true)
@@ -214,6 +214,35 @@ for (const placement of ['local', 'server-node']) {
         assert.equal(await card.getByRole('button', { name: text.save, exact: true }).isEnabled(), false)
         await files.getByRole('button', { name: text.reset, exact: true }).click()
         await until(stored, value => value.profile_plugins.length === 0, 'reset fixture overrides')
+        const shell = settings.locator('[data-plugin-id="shell-tool"]')
+        const checkLabel = { zh: '具名验证检查', en: 'Named verification checks', ko: '이름이 지정된 검증 검사' }[locale]
+        const checks = [{ name: 'unit', command: 'printf reviewed', timeout_ms: 30000 }]
+        const field = shell.getByLabel(checkLabel, { exact: true })
+        await field.fill(JSON.stringify(checks, null, 2))
+        await shell.getByRole('button', { name: text.save, exact: true }).click()
+        await until(stored, value => value.profile_plugins.some(entry => entry.id === 'shell-tool' && entry.config.checks?.[0]?.name === 'unit'), 'named checks saved')
+        await settings.getByRole('tab', { name: text.configuration, exact: true }).click()
+        await shell.locator('button[aria-expanded]').click()
+        assert.deepEqual(JSON.parse(await field.inputValue()), checks)
+        await page.setViewportSize({ width: 390, height: 700 })
+        while (await page.locator('[data-notification-action]').count()) await page.locator('[data-notification-action]').first().click()
+        await page.mouse.move(4, 680)
+        await page.getByRole('tooltip').waitFor({ state: 'hidden' })
+        await field.scrollIntoViewIfNeeded()
+        assert.equal(await settings.evaluate(element => element.scrollWidth <= element.clientWidth), true)
+        await page.screenshot({ path: path.join(artifacts, `named-checks-${placement}-${locale}.png`), animations: 'disabled' })
+        await closeSettings()
+        const previousSequence = (await request(`${resource}/events`)).at(-1)?.seq ?? 0
+        await page.locator('[data-composer-input]').fill('/code try_tool("run_check", #{ name: "unit" })')
+        await page.getByRole('button', { name: { zh: '发送', en: 'Send', ko: '전송' }[locale], exact: true }).click()
+        await until(() => request(`${resource}/events`), events => {
+          const check = events.findLast(event => event.seq > previousSequence && event.type === 'code_dispatch_finished' && event.name === 'run_check')
+          return check && !check.output.is_error && JSON.parse(check.output.content).stdout === 'reviewed'
+            && events.some(event => event.run_id === check.run_id && event.type === 'turn_finished')
+        }, 'configured check executed through the composer')
+        await openSettings()
+        await shell.getByRole('button', { name: text.reset, exact: true }).click()
+        await until(stored, value => value.profile_plugins.length === 0, 'named checks inheritance restored')
         await closeSettings()
         await page.reload()
         await page.locator('[data-composer-input]').waitFor()

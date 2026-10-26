@@ -305,14 +305,18 @@ impl LocalSearchIndex {
         let request = request.clone();
         self.call(move |database| {
             let mut sql = String::from(
-                "SELECT e.session_id, e.workspace_id, e.seq, e.run_id, e.occurred_at_ms,
-                        e.category,
-                        snippet(search_events_fts, 0, '', '', ' … ', 32)
-                 FROM search_events_fts
-                 JOIN search_events e ON e.rowid = search_events_fts.rowid
-                 WHERE search_events_fts MATCH ?",
+                "WITH full_text AS MATERIALIZED (
+                    SELECT rowid, bm25(search_events_fts) AS rank,
+                           snippet(search_events_fts, 0, '', '', ' … ', 32) AS excerpt
+                    FROM search_events_fts WHERE search_events_fts MATCH ?1
+                 )
+                 SELECT e.session_id, e.workspace_id, e.seq, e.run_id, e.occurred_at_ms,
+                        e.category, COALESCE(f.excerpt,
+                            substr(e.body, MAX(1, instr(lower(e.body), lower(?2)) - 80), 240))
+                 FROM search_events e LEFT JOIN full_text f ON f.rowid = e.rowid
+                 WHERE (f.rowid IS NOT NULL OR instr(lower(e.body), lower(?2)) > 0)",
             );
-            let mut parameters = vec![SqlValue::Text(query)];
+            let mut parameters = vec![SqlValue::Text(query), SqlValue::Text(request.query.trim().to_owned())];
             if let Some(session_id) = request.session_id {
                 sql.push_str(" AND e.session_id = ?");
                 parameters.push(SqlValue::Text(session_id.as_str().to_owned()));
@@ -337,7 +341,7 @@ impl LocalSearchIndex {
                 sql.push_str(" AND e.occurred_at_ms <= ?");
                 parameters.push(SqlValue::Integer(to_i64(before, "search upper timestamp")?));
             }
-            sql.push_str(" ORDER BY bm25(search_events_fts), e.occurred_at_ms DESC LIMIT ?");
+            sql.push_str(" ORDER BY COALESCE(f.rank, 0), e.occurred_at_ms DESC, e.session_id, e.seq DESC LIMIT ?");
             parameters.push(SqlValue::Integer(i64::try_from(limit).map_err(|_| {
                 HarnessError::invalid("session search limit exceeds SQLite integer range")
             })?));

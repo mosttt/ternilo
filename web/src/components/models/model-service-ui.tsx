@@ -22,9 +22,9 @@ function modelPagePath(path: string, query: string, cursor: string | null) {
   return `${base}?${parameters}`
 }
 
-export function useModelPage<T, K extends string = string>(path: string, field: K, tenantId?: string | null) {
-  const [draft, setDraft] = React.useState('')
-  const [query, setQuery] = React.useState('')
+export function useModelPage<T, K extends string = string>(path: string, field: K, tenantId?: string | null, initialQuery = '') {
+  const [draft, setDraft] = React.useState(initialQuery)
+  const [query, setQuery] = React.useState(initialQuery)
   const [cursors, setCursors] = React.useState<Array<string | null>>([null])
   const [items, setItems] = React.useState<T[]>([])
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)

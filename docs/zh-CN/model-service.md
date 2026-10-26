@@ -97,6 +97,16 @@ Server 可以集中接入模型服务商，再把模型使用权限分配给账�
 
 管理 API：`GET/PUT /api/v1/admin/models/traffic` 读取／保存 `{revision, policy: {platform, account_default}}`；每组限制包含可空的 `requests_per_minute` 与 `max_concurrent_requests`。`GET /api/v1/admin/models/traffic/accounts` 提供按需搜索与分页；`GET/PUT /api/v1/admin/models/traffic/accounts/{user_id}` 查看／保存账号覆盖值，PUT 接收 `{revision, limits}`，`limits: null` 表示继承。`GET /api/v1/model-access/traffic` 仅查看当前账号。上述接口不新增模型授权，不改变 Token 结算归属。
 
+## 关闭页面与连接中断
+
+任务提交成功后，可以关闭 Server 浏览器，稍后重新打开查看进度和结果。任务由执行电脑的 Ternilo 后台处理，浏览器只订阅状态；需要授权或回答问题时，任务等待输入。执行电脑、Ternilo 后台和实际使用的模型连接仍须可用。
+
+电脑通过 Server 调用账号模型时，浏览器连接与模型转发连接彼此独立。模型网关每 15 秒发送传输保活，长时间没有正文输出也不会完全静默；保活不计作模型内容、思考或用量。反向代理仍须支持流式响应，并正确配置自身的总时限。
+
+若显示“与 Server 的模型连接中断”，已有内容保留，系统不会自动重发结果未知的请求。在错误详情中选择“查看请求记录”，可进入“我的模型 → 用量”并按请求 ID 筛选。本机界面保留请求 ID，可在对应 Server 查询。
+
+调用记录分别说明执行端连接关闭、Server 停机和授权／运行状态变化。“执行端连接关闭”可能来自任务停止或网络断开，不能单独作为用户主动取消的证明。没有取得完整上游计量时，仍显示“用量待核对”。
+
 ## 用量与撤销
 
 “我的模型 → 用量”显示自己的调用记录；管理员在模型服务的“用量”查看平台记录。输入、输出、缓存读取、缓存写入和上游提供的推理 token 分别显示。缓存和推理中的子项不会再次算成一笔 token 消耗；这些记录不是金额账单。

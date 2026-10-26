@@ -1,9 +1,6 @@
 use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 
-use salvo_core::{
-    http::header,
-    prelude::{Depot, Request, Response, Router, handler},
-};
+use salvo_core::prelude::{Depot, Request, Response, Router, handler};
 use salvo_extra::size_limiter::max_size;
 use ternilo_cloud::{WorkerModelFrame, WorkerModelRequest};
 use ternilo_control::ModelRequestState;
@@ -22,6 +19,8 @@ mod monitor;
 mod node_access;
 mod observer;
 mod route;
+mod stream;
+pub(super) use stream::stream_frames;
 
 #[cfg(test)]
 mod tests;
@@ -84,33 +83,7 @@ fn stream_response(
     resolved: route::ResolvedBrokeredRoute,
 ) -> Result<(), ApiError> {
     let (frames, receiver) = mpsc::channel::<WorkerModelFrame>(64);
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        "application/x-ndjson".parse().expect("static MIME type"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        "no-store".parse().expect("static cache policy"),
-    );
-    response.headers_mut().insert(
-        "x-accel-buffering",
-        "no".parse().expect("static proxy policy"),
-    );
-    response.headers_mut().insert(
-        "x-request-id",
-        call.request_id.parse().map_err(invalid_request)?,
-    );
-    response.stream(futures_util::stream::unfold(
-        receiver,
-        |mut receiver| async move {
-            let frame = receiver.recv().await?;
-            let data = serde_json::to_vec(&frame).map(|mut bytes| {
-                bytes.push(b'\n');
-                bytes
-            });
-            Some((data, receiver))
-        },
-    ));
+    stream_frames(response, &call.request_id, receiver)?;
     tokio::spawn(complete(call, request, resolved, frames));
     Ok(())
 }
@@ -122,17 +95,19 @@ async fn complete(
     frames: mpsc::Sender<WorkerModelFrame>,
 ) {
     let cancellation = RunCancellation::default();
+    let monitor =
+        monitor::RequestMonitor::start(Arc::clone(&call), frames.clone(), cancellation.clone());
     let output: Arc<dyn ModelOutput> = Arc::new(StreamOutput {
         frames: frames.clone(),
         cancellation: cancellation.clone(),
+        stop_reason: monitor.reason(),
     });
     let observer: Arc<dyn ternilo_builtins::ModelAttemptObserver> =
         Arc::new(observer::AttemptObserver {
             call: Arc::clone(&call),
             protocol: resolved.route.protocol,
+            stop_reason: monitor.reason(),
         });
-    let monitor =
-        monitor::RequestMonitor::start(Arc::clone(&call), frames.clone(), cancellation.clone());
     // The monitor cancels the token; it never suspends a callback that owns a
     // database transaction. Observed attempt usage is settled even on cancel.
     let mut result = ternilo_builtins::complete_provider_model(
@@ -144,11 +119,14 @@ async fn complete(
         Some(observer),
     )
     .await;
-    let reason = monitor.finish().await;
+    let reason = monitor
+        .finish()
+        .await
+        .filter(|_| result.as_ref().is_err_and(HarnessError::is_cancelled));
     if result.as_ref().is_err_and(HarnessError::is_cancelled)
-        && let Some(reason) = reason
+        && let Some(reason) = &reason
     {
-        result = Err(reason);
+        result = Err(reason.error.clone());
     }
     let state =
         if cancellation.is_cancelled() || result.as_ref().is_err_and(HarnessError::is_cancelled) {
@@ -158,7 +136,11 @@ async fn complete(
         } else {
             ModelRequestState::Failed
         };
-    let error_code = result.as_ref().err().map(|error| error.code.to_string());
+    let error_code = result.as_ref().err().map(|error| {
+        reason
+            .as_ref()
+            .map_or_else(|| error.code.to_string(), |reason| reason.code.to_owned())
+    });
     let settled = match now_ms() {
         Ok(now) => call.finish(state, error_code.as_deref(), now).await,
         Err(error) => Err(error),
@@ -191,6 +173,7 @@ fn visible_error(mut error: HarnessError) -> HarnessError {
 struct StreamOutput {
     frames: mpsc::Sender<WorkerModelFrame>,
     cancellation: RunCancellation,
+    stop_reason: monitor::SharedStopReason,
 }
 
 impl StreamOutput {
@@ -198,7 +181,11 @@ impl StreamOutput {
         tokio::select! {
             biased;
             () = self.cancellation.cancelled() => Err(HarnessError::cancelled("model request was cancelled")),
-            sent = self.frames.send(frame) => sent.map_err(|_|HarnessError::cancelled("model gateway stream was closed")),
+            sent = self.frames.send(frame) => sent.map_err(|_| {
+                let error = HarnessError::cancelled("client disconnected during the model request");
+                self.stop_reason.lock().expect("model monitor mutex").get_or_insert(monitor::StopReason { error: error.clone(), code: "client_disconnected" });
+                error
+            }),
         }
     }
 }

@@ -95,6 +95,7 @@ pub(crate) async fn render(
             OsString::from(browser),
             arguments,
             SandboxPolicy {
+                scratch_root: None,
                 mode: SandboxMode::WorkspaceWrite,
                 workspace_root: if cloud {
                     workspace.to_path_buf()

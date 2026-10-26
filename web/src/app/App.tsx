@@ -426,6 +426,7 @@ function WorkbenchShell({ runtime }: { runtime: SessionRuntime }) {
           <DetailsPanel
             selection={workspacePanel.state.open ? null : selection}
             sessionId={currentSessionId ?? undefined}
+            server={platform}
             onClose={() => setSelection(null)}
           />
         </>}

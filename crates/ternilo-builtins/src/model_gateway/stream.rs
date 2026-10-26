@@ -6,6 +6,31 @@ pub async fn read_model_gateway_response(
     response: reqwest::Response,
     output: &dyn ModelOutput,
 ) -> Result<ModelResponse, HarnessError> {
+    let request_id = response
+        .headers()
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| {
+            value.starts_with("mrq_")
+                && value.len() <= 128
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        })
+        .map(str::to_owned);
+    read_response(response, output).await.map_err(|mut error| {
+        if let Some(id) = request_id {
+            error.message.push_str("; Server request ID: ");
+            error.message.push_str(&id);
+        }
+        error
+    })
+}
+
+async fn read_response(
+    response: reqwest::Response,
+    output: &dyn ModelOutput,
+) -> Result<ModelResponse, HarnessError> {
     if !response.status().is_success() {
         let status = response.status();
         let error = response
@@ -76,4 +101,72 @@ async fn emit_model_gateway_line(
         ModelGatewayFrame::Error { error } => return Err(error),
     }
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{future::Future, pin::Pin, sync::Mutex};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[derive(Default)]
+    struct Output(Mutex<Vec<String>>);
+    impl ModelOutput for Output {
+        fn emit<'a>(
+            &'a self,
+            delta: String,
+        ) -> Pin<Box<dyn Future<Output = Result<(), HarnessError>> + Send + 'a>> {
+            Box::pin(async move {
+                self.0.lock().unwrap().push(delta);
+                Ok(())
+            })
+        }
+    }
+
+    async fn response(body: &'static str, id: &'static str) -> reqwest::Response {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0; 4096];
+            assert!(socket.read(&mut buffer).await.unwrap() > 0);
+            socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nX-Request-Id: {id}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+        });
+        reqwest::get(format!("http://{address}")).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn heartbeat_is_not_output_and_incomplete_stream_retains_correlation() {
+        let output = Output::default();
+        let body = "\n \n{\"type\":\"delta\",\"delta\":\"partial\"}\n\n";
+        let error = read_model_gateway_response(response(body, "mrq_test-1").await, &output)
+            .await
+            .unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("result is unknown and was not replayed")
+        );
+        assert!(error.message.ends_with("; Server request ID: mrq_test-1"));
+        assert_eq!(*output.0.lock().unwrap(), ["partial"]);
+    }
+
+    #[tokio::test]
+    async fn terminal_error_keeps_its_category_and_rejects_noncanonical_correlation_headers() {
+        let body = "\n{\"type\":\"error\",\"error\":{\"code\":\"policy_denied\",\"message\":\"access changed\"}}\n";
+        for id in ["mrq_safe", "private-url/secret", "mrq_invalid: value"] {
+            let error = read_model_gateway_response(response(body, id).await, &Output::default())
+                .await
+                .unwrap_err();
+            assert_eq!(error.code, ternilo_protocol::ErrorCode::PolicyDenied);
+            assert_eq!(
+                error.message,
+                if id == "mrq_safe" {
+                    "access changed; Server request ID: mrq_safe"
+                } else {
+                    "access changed"
+                }
+            );
+        }
+    }
 }

@@ -90,11 +90,12 @@ pub fn shell_tool_factory() -> PluginFactory {
             provides: &[],
         },
         |value| {
-            let _: EmptyConfig = parse_config(value)?;
-            Ok(Arc::new(ShellToolPlugin))
+            let config: crate::workspace_checks::ShellToolConfig = parse_config(value)?;
+            config.validate()?;
+            Ok(Arc::new(ShellToolPlugin { config }))
         },
     )
-    .with_config_schema::<EmptyConfig>()
+    .with_config_schema::<crate::workspace_checks::ShellToolConfig>()
 }
 
 pub fn ask_user_tool_factory() -> PluginFactory {
@@ -268,7 +269,7 @@ fn file_tool_definitions() -> [(ToolSpec, FileOperation); 5] {
         (
             ToolSpec {
                 name: "write_file".to_owned(),
-                description: "Create or overwrite a UTF-8 text file inside the current workspace.".to_owned(),
+                description: "Create or overwrite a UTF-8 text file inside the current workspace, creating missing parent directories. Empty content creates or clears the file.".to_owned(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -496,7 +497,9 @@ const fn default_result_limit() -> u32 {
     200
 }
 
-struct ShellToolPlugin;
+struct ShellToolPlugin {
+    config: crate::workspace_checks::ShellToolConfig,
+}
 
 impl HarnessPlugin for ShellToolPlugin {
     fn descriptor(&self) -> &'static ComponentDescriptor {
@@ -512,6 +515,7 @@ impl HarnessPlugin for ShellToolPlugin {
             .context()
             .service::<Shell>()
             .expect("shell tool declares Shell");
+        let config = self.config.clone();
         Activation::Once(Box::pin(async move {
             let registration = tools
                 .register_tool(ToolRegistration {
@@ -543,15 +547,21 @@ impl HarnessPlugin for ShellToolPlugin {
                         }),
                     },
                     effect: ternilo_kernel::ToolEffect::Mutating,
-                    handler: Arc::new(ShellTool { shell }),
+                    handler: Arc::new(ShellTool { shell: shell.clone() }),
                 })
                 .await
                 .map_err(|error| linorun_core::ActivationFailure::user(error.to_string()))?;
+            let mut registrations = vec![registration];
+            match crate::workspace_checks::register(&tools, shell, config).await {
+                Ok(Some(check)) => registrations.push(check),
+                Ok(None) => {}
+                Err(error) => {
+                    let _ = tools.unregister_tool(registration).await;
+                    return Err(linorun_core::ActivationFailure::user(error.to_string()));
+                }
+            }
             Ok(Some(effect::inverse(move || async move {
-                tools
-                    .unregister_tool(registration)
-                    .await
-                    .map_err(|error| CleanupError::user(error.to_string()))
+                unregister_all(&tools, registrations).await
             })))
         }))
     }
@@ -636,6 +646,7 @@ impl ToolHandler for ShellTool {
                         command: arguments.command,
                         timeout_ms: arguments.timeout_ms,
                         full_access: arguments.full_access,
+                        read_only: false,
                         stdin: None,
                         env: std::collections::BTreeMap::new(),
                     },

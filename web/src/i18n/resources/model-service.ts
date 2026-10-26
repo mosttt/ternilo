@@ -159,6 +159,10 @@ export const zh = {
   errorQuotaExceeded: '模型预算不足，请补充额度或选择其他预算。',
   errorModelBusy: '模型并发已满，请稍后重试。',
   errorCancelled: '请求已取消。',
+  errorClientDisconnected: "执行端与 Server 的模型连接已关闭，Server 已停止上游调用。任务停止或网络中断都可能导致此状态；请检查电脑连接和任务状态。",
+  errorServerStopping: "Server 停机时结束了这次调用。待 Server 恢复后，检查已有结果再继续。",
+  errorAuthorityChanged: "模型调用的授权或运行状态发生变化，Server 已停止调用。请检查访问权限及任务状态。",
+
   errorExpired: '请求已超时，请重试。',
   errorStreamInterrupted: '响应中断，已收到的用量仍会保留，请检查结果后决定是否重试。',
   errorConfigurationChanged: '模型配置已改变，请重新选择模型。',
@@ -503,6 +507,10 @@ export const en: Record<keyof typeof zh, string> = {
   errorQuotaExceeded: 'The model budget is insufficient. Increase the limit or choose another budget.',
   errorModelBusy: 'Model concurrency is full. Try again later.',
   errorCancelled: 'The request was cancelled.',
+  errorClientDisconnected: "The executor’s model connection to Server closed, so Server stopped the upstream call. This can follow a stopped task or a network interruption; check the computer connection and task state.",
+  errorServerStopping: "Server stopped during this call. After Server is available again, check existing results before continuing.",
+  errorAuthorityChanged: "Model authorization or run state changed, so Server stopped the call. Check access permissions and task state.",
+
   errorExpired: 'The request expired. Try again.',
   errorStreamInterrupted: 'The response was interrupted. Reported usage is retained; check the result before retrying.',
   errorConfigurationChanged: 'Model configuration changed. Select the model again.',
@@ -719,6 +727,10 @@ export const ko = {
   errorQuotaExceeded: '모델 예산이 부족합니다. 한도를 늘리거나 다른 예산을 선택하세요.',
   errorModelBusy: '모델 동시 실행 한도가 가득 찼습니다. 잠시 후 다시 시도하세요.',
   errorCancelled: '요청이 취소되었습니다.',
+  errorClientDisconnected: "실행기와 Server의 모델 연결이 닫혀 Server가 업스트림 호출을 중단했습니다. 작업 중지 또는 연결 끊김일 수 있으니 컴퓨터 연결과 작업 상태를 확인하세요.",
+  errorServerStopping: "Server가 종료되면서 호출이 중단되었습니다. Server가 복구되면 기존 결과를 확인한 뒤 계속하세요.",
+  errorAuthorityChanged: "모델 권한 또는 실행 상태가 변경되어 Server가 호출을 중단했습니다. 접근 권한과 작업 상태를 확인하세요.",
+
   errorExpired: '요청이 만료되었습니다. 다시 시도하세요.',
   errorStreamInterrupted: '응답이 중단되었습니다. 보고된 사용량은 유지되므로, 다시 시도하기 전에 결과를 확인하세요.',
   errorConfigurationChanged: '모델 구성이 변경되었습니다. 모델을 다시 선택하세요.',

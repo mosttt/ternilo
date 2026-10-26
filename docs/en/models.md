@@ -10,6 +10,8 @@ Add models manually or fetch the upstream catalog. Discovery runs through the ex
 
 Supported protocol families include OpenAI Chat Completions, OpenAI Responses, DeepSeek Responses, Gemini and Anthropic. Choose the actual protocol; the application does not silently infer a different protocol from a hostname. DeepSeek Responses retains the upstream reasoning content needed for follow-up tool calls. Standard OpenAI Responses uses its reasoning-summary behavior. Missing reasoning text is never fabricated from token usage.
 
+OpenAI Responses function tools explicitly set `strict: false` to preserve optional fields from the same ToolSpec used by direct and Rhai calls. Omitted values, empty strings and `null` keep each tool’s own semantics; clients should not fill optional fields with empty strings. See [OpenAI strict mode](https://developers.openai.com/api/docs/guides/function-calling#strict-mode).
+
 ## Catalog and reasoning
 
 For each capability, explicit manual values override upstream-provided values, which override provider defaults. Context capacity, output capacity and reasoning configuration are independent. Catalog refresh can update upstream data while preserving your manual overrides and names. Search filters discovery results without discarding selections hidden by the filter; changes persist only when saved.

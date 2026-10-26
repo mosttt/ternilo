@@ -118,8 +118,8 @@ Windows 的 shell 输出按执行主机的 PowerShell 输出代码页解码，�
 
 | 平台 | Backend | 边界 |
 |---|---|---|
-| Linux | bubblewrap | 只读 `/`、私有 PID/`/proc`/`/dev`；写模式额外提供私有 `/tmp` 和工作区 bind |
-| macOS | Seatbelt `sandbox-exec` | 默认拒绝全局写；写模式只放行工作区与系统临时目录 |
+| Linux | bubblewrap | 只读 `/`、私有 PID/`/proc`/`/dev`；两种模式均提供私有 `/tmp`，工作区按权限只读或可写挂载 |
+| macOS | Seatbelt `sandbox-exec` | 默认拒绝全局写；进程专属临时目录可写，写模式额外放行工作区与系统临时目录 |
 | Windows | `ternilo-sandbox-windows.exe` | Restricted token、capability-SID workspace ACL、Job Object 进程树回收；当前不宣称完整读取隔离 |
 
 本地文件 sandbox 不隐式关闭网络：Linux 不创建 network namespace，macOS profile 不限制网络，Windows runner 标记 network allowed。需要限制出网时应在主机/容器层增加策略。云端 worker 使用更强的无网络边界。
@@ -129,10 +129,12 @@ Shell/job/terminal 启动前会清理凭据、宿主配置、沙箱实现和模�
 Windows wrapper 的稳定 argv：
 
 ```text
-ternilo-sandbox-windows.exe --workspace <absolute-path> --mode <read-only|workspace-write> -- <program> <args...>
+ternilo-sandbox-windows.exe --workspace <absolute-path> --mode <read-only|workspace-write> [--scratch <private-temp-path>] -- <program> <args...>
 ```
 
 它复用 MIT `zagens-windows-sandbox` 的 Windows API，但 Ternilo 自己拥有协议、环境清理和 capability seam。归属见 [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md)。
+
+受限 Shell、后台任务及持久终端使用进程专属的可写临时／缓存目录，随进程树回收，工作区写权限不变。macOS 的系统工具 shim 不遵循 `TMPDIR` 或 `xcrun_nocache`，因此 Seatbelt 只额外允许系统查询到的用户临时目录中的 `xcrun_db` 缓存文件，不开放该目录的其他写入。`run_check` 仅执行插件设置中预先登记的命令，并强制工作区只读，不因主会话完全访问而绕过沙箱。
 
 ## 云端隔离
 

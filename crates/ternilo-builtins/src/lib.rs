@@ -52,6 +52,7 @@ mod tools;
 mod web;
 mod web_search;
 mod workflow;
+mod workspace_checks;
 mod workspace_tools;
 
 use std::{fmt::Write as _, sync::Arc};
@@ -108,7 +109,7 @@ pub use web_search::{BRAVE_KIND as WEB_SEARCH_BRAVE_KIND, TAVILY_KIND as WEB_SEA
 pub use workflow::{ENGINE_KIND as WORKFLOW_ENGINE_KIND, TOOL_KIND as WORKFLOW_TOOL_KIND};
 pub use workspace_tools::{ASK_USER_TOOL_KIND, FILE_TOOLS_KIND, PLAN_TOOL_KIND, SHELL_TOOL_KIND};
 
-pub const CATALOG_REVISION: &str = "ternilo-builtins-v19";
+pub const CATALOG_REVISION: &str = "ternilo-builtins-v20";
 
 const MAX_PROVIDER_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
 

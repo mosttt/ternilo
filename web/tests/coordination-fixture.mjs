@@ -27,7 +27,7 @@ export async function modelFixture() {
     const mapDone = turnMessages.some(message => message.tool_call_id === 'code-map-fixture')
     const mapLoaded = body.tools?.some(tool => tool.function?.name === 'code_map')
     const budgetCalls = { tool_calls: ['one', 'two'].map((name, index) => ({ index, id: `budget-${name}`, type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: `budget-${name}.txt` }) } })) }
-    const mapCall = { tool_calls: [{ index: 0, id: mapLoaded ? 'code-map-fixture' : 'code-map-search', type: 'function', function: { name: mapLoaded ? 'code_map' : 'search_tools', arguments: JSON.stringify(mapLoaded ? { paths: ['map-fixture.py'], impact_symbol: 'map-fixture.py:2:1' } : { names: ['code_map'] }) } }] }
+    const mapCall = { tool_calls: [{ index: 0, id: mapLoaded ? 'code-map-fixture' : 'code-map-search', type: 'function', function: { name: mapLoaded ? 'code_map' : 'search_tools', arguments: JSON.stringify(mapLoaded ? { paths: ['map-fixture.py'], detail: 'full', impact_symbol: 'map-fixture.py:2:1' } : { names: ['code_map'] }) } }] }
     const reasoning = !title && JSON.stringify(body.messages[latestUser]).includes('Reasoning control fixture')
     const read = turnMessages.some(message => message.tool_call_id === 'reason-read')
     const failed = turnMessages.some(message => message.tool_call_id === 'reason-error')

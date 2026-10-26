@@ -1,5 +1,6 @@
 use std::{
     ffi::OsString,
+    fmt::Write as _,
     future::Future,
     io,
     path::{Path, PathBuf},
@@ -247,7 +248,11 @@ impl LocalFiles {
         Ok(canonical)
     }
 
-    async fn writable_path(&self, requested: &str) -> Result<PathBuf, HarnessError> {
+    async fn writable_path(
+        &self,
+        requested: &str,
+        create_parents: bool,
+    ) -> Result<PathBuf, HarnessError> {
         if !self
             .environment
             .permissions()
@@ -280,14 +285,47 @@ impl LocalFiles {
         let parent = candidate.parent().ok_or_else(|| {
             HarnessError::invalid(format!("path has no parent: {}", candidate.display()))
         })?;
-        let canonical_parent = tokio::fs::canonicalize(parent).await.map_err(|error| {
-            HarnessError::invalid(format!("resolve parent {}: {error}", parent.display()))
-        })?;
+        let canonical_parent = if create_parents {
+            self.parent_for_creation(parent).await?
+        } else {
+            tokio::fs::canonicalize(parent).await.map_err(|error| {
+                HarnessError::invalid(format!("resolve parent {}: {error}", parent.display()))
+            })?
+        };
         self.ensure_contained(&canonical_parent)?;
         let name = candidate.file_name().ok_or_else(|| {
             HarnessError::invalid(format!("path has no file name: {}", candidate.display()))
         })?;
         Ok(canonical_parent.join(name))
+    }
+
+    // Resolve the existing ancestor before creating anything; missing components stay literal.
+    async fn parent_for_creation(&self, mut parent: &Path) -> Result<PathBuf, HarnessError> {
+        let mut missing = Vec::new();
+        loop {
+            match tokio::fs::canonicalize(parent).await {
+                Ok(mut resolved) => {
+                    self.ensure_contained(&resolved)?;
+                    for name in missing.into_iter().rev() {
+                        resolved.push(name);
+                    }
+                    return Ok(resolved);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    let name = parent.file_name().ok_or_else(|| HarnessError::invalid("a new parent directory must have a literal name, without unresolved parent traversal"))?;
+                    missing.push(name.to_owned());
+                    parent = parent
+                        .parent()
+                        .ok_or_else(|| HarnessError::invalid("file path has no existing parent"))?;
+                }
+                Err(error) => {
+                    return Err(HarnessError::invalid(format!(
+                        "resolve parent {}: {error}",
+                        parent.display()
+                    )));
+                }
+            }
+        }
     }
 
     fn candidate(&self, requested: &str) -> Result<PathBuf, HarnessError> {
@@ -326,10 +364,25 @@ async fn write_owned(
     path: PathBuf,
     content: String,
     lease: WorkspaceExecutionLease,
+    create_parents_within: Option<PathBuf>,
 ) -> Result<(), HarnessError> {
     // A cancelled caller cannot release admission while the blocking file write is running.
     tokio::task::spawn_blocking(move || {
         let _lease = lease;
+        if let Some(root) = create_parents_within {
+            let parent = path
+                .parent()
+                .ok_or_else(|| HarnessError::invalid("file path has no parent"))?;
+            std::fs::create_dir_all(parent).map_err(|error| {
+                HarnessError::execution(format!("create parent {}: {error}", parent.display()))
+            })?;
+            let parent = std::fs::canonicalize(parent).map_err(|error| {
+                HarnessError::execution(format!("resolve created parent: {error}"))
+            })?;
+            if !parent.starts_with(root) {
+                return Err(HarnessError::policy("created parent escapes the workspace"));
+            }
+        }
         std::fs::write(&path, content)
             .map_err(|error| HarnessError::execution(format!("write {}: {error}", path.display())))
     })
@@ -377,9 +430,15 @@ impl WorkspaceFilesProvider for LocalFiles {
                 .environment
                 .acquire_workspace(RunCancellation::new())
                 .await?;
-            let path = self.writable_path(&request.path).await?;
+            let path = self.writable_path(&request.path, true).await?;
             self.read_cache.lock().await.invalidate(&path);
-            write_owned(path.clone(), request.content.clone(), lease).await?;
+            write_owned(
+                path.clone(),
+                request.content.clone(),
+                lease,
+                Some(self.root.clone()),
+            )
+            .await?;
             Ok(FileWriteResult {
                 path: self.display_path(&path),
                 bytes_written: u64::try_from(request.content.len())
@@ -403,7 +462,7 @@ impl WorkspaceFilesProvider for LocalFiles {
                 .environment
                 .acquire_workspace(RunCancellation::new())
                 .await?;
-            let path = self.writable_path(&request.path).await?;
+            let path = self.writable_path(&request.path, false).await?;
             let content = self.read_utf8_bounded(&path).await?;
             let matches = content.matches(&request.old).count();
             if matches == 0 {
@@ -420,7 +479,7 @@ impl WorkspaceFilesProvider for LocalFiles {
                 content.replacen(&request.old, &request.new, 1)
             };
             self.read_cache.lock().await.invalidate(&path);
-            write_owned(path.clone(), updated, lease).await?;
+            write_owned(path.clone(), updated, lease, None).await?;
             Ok(FileReplaceResult {
                 path: self.display_path(&path),
                 replacements: u64::try_from(matches)
@@ -516,12 +575,16 @@ impl ShellProvider for LocalShell {
                 .await?;
             let timeout_ms = request.timeout_ms.clamp(100, 600_000);
             let permissions = self.environment.permissions().await;
-            let direct = request.full_access || permissions.allows_full_access();
+            let direct =
+                !request.read_only && (request.full_access || permissions.allows_full_access());
+            let scratch = (!direct)
+                .then(crate::sandbox::scratch_directory)
+                .transpose()?;
             let (program, arguments) = native_script_command(&request.command);
             let mut command = if direct {
                 command_from_program(program, arguments, &self.root)
             } else {
-                let mode = if permissions.allows_workspace_write() {
+                let mode = if !request.read_only && permissions.allows_workspace_write() {
                     SandboxMode::WorkspaceWrite
                 } else {
                     SandboxMode::ReadOnly
@@ -534,6 +597,9 @@ impl ShellProvider for LocalShell {
                         SandboxPolicy {
                             mode,
                             workspace_root: self.root.clone(),
+                            scratch_root: scratch
+                                .as_ref()
+                                .map(|directory| directory.path().to_path_buf()),
                         },
                     )
                     .await?;
@@ -567,6 +633,7 @@ impl ShellProvider for LocalShell {
                 request.stdin.as_deref(),
                 Some(lease),
                 Some((self.environment.clone(), run_id)),
+                scratch,
             )
             .await?
             {
@@ -579,12 +646,19 @@ impl ShellProvider for LocalShell {
                         timed_out: false,
                     })
                 }
-                CaptureResult::TimedOut => Ok(ShellResult {
-                    exit_code: None,
-                    stdout: String::new(),
-                    stderr: format!("command timed out after {timeout_ms} ms"),
-                    timed_out: true,
-                }),
+                CaptureResult::TimedOut(output) => {
+                    let (stdout, mut stderr) = output.render().await;
+                    if !stderr.is_empty() {
+                        stderr.push('\n');
+                    }
+                    let _ = write!(stderr, "command timed out after {timeout_ms} ms");
+                    Ok(ShellResult {
+                        exit_code: None,
+                        stdout,
+                        stderr,
+                        timed_out: true,
+                    })
+                }
             }
         })
     }
@@ -656,9 +730,10 @@ impl CapturedOutput {
 
 pub(super) enum CaptureResult {
     Completed(CapturedOutput),
-    TimedOut,
+    TimedOut(CapturedOutput),
 }
 
+#[derive(Default)]
 pub(super) struct CapturedStream {
     bytes: Vec<u8>,
     truncated: bool,
@@ -681,9 +756,22 @@ pub(super) async fn capture_command(
     max_capture_bytes: usize,
     stdin: Option<&str>,
 ) -> Result<CaptureResult, HarnessError> {
-    capture_command_owned(command, timeout_ms, max_capture_bytes, stdin, None, None).await
+    capture_command_owned(
+        command,
+        timeout_ms,
+        max_capture_bytes,
+        stdin,
+        None,
+        None,
+        None,
+    )
+    .await
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep partial-output capture, process ownership and the cleanup receipt in one supervisor."
+)]
 async fn capture_command_owned(
     command: &mut Command,
     timeout_ms: u64,
@@ -691,10 +779,13 @@ async fn capture_command_owned(
     stdin: Option<&str>,
     lease: Option<WorkspaceExecutionLease>,
     ownership: Option<(RunEnvironmentClient, ternilo_protocol::RunId)>,
+    scratch: Option<tempfile::TempDir>,
 ) -> Result<CaptureResult, HarnessError> {
     let (stop, mut stopped) = tokio::sync::watch::channel(false);
     let (completed, completion) = tokio::sync::watch::channel(None);
-    let held_lease = Arc::new(std::sync::Mutex::new(lease));
+    let held_lease = Arc::new(std::sync::Mutex::new(Some(WorkspaceExecutionLease::hold(
+        (lease, scratch),
+    ))));
     let control = Arc::new(CaptureControl {
         stop: stop.clone(),
         completion,
@@ -738,6 +829,8 @@ async fn capture_command_owned(
     let stdin = stdin.map(str::to_owned);
     // The independent supervisor retains ownership while cancellation reaps the process.
     let supervisor = tokio::spawn(async move {
+        let mut stdout_capture = CapturedStream::default();
+        let mut stderr_capture = CapturedStream::default();
         let capture = async {
             let write_stdin = async {
                 if let (Some(mut child_stdin), Some(stdin)) = (child_stdin.take(), stdin) {
@@ -751,35 +844,47 @@ async fn capture_command_owned(
                 process_group.terminate();
                 status
             };
-            let ((), status, stdout, stderr) = tokio::try_join!(
+            let ((), status, (), ()) = tokio::try_join!(
                 write_stdin,
                 wait,
-                capture_stream(stdout, max_capture_bytes),
-                capture_stream(stderr, max_capture_bytes)
+                capture_stream(stdout, max_capture_bytes, &mut stdout_capture),
+                capture_stream(stderr, max_capture_bytes, &mut stderr_capture)
             )?;
-            Ok::<_, io::Error>(CapturedOutput {
-                status,
-                stdout,
-                stderr,
-            })
+            Ok::<_, io::Error>(status)
         };
         let outcome = tokio::select! {
             result = tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), capture) => match result {
-                Ok(Ok(output)) => Ok(CaptureResult::Completed(output)),
+                Ok(Ok(status)) => Ok(Some(status)),
                 Ok(Err(error)) => Err(HarnessError::execution(format!("capture command output: {error}"))),
-                Err(_) => Ok(CaptureResult::TimedOut),
+                Err(_) => Ok(None),
             },
             _ = stopped.changed() => Err(HarnessError::cancelled("command capture was cancelled")),
         };
         process_group.terminate();
         let _ = child.start_kill();
-        let _ = child.wait().await;
+        let final_status = child.wait().await;
         let cleanup = process_group.wait_quiescent().await;
         if cleanup.is_ok() {
             held_lease.lock().expect("process lease lock").take();
         }
         completed.send_replace(Some(cleanup.map_err(|error| error.to_string())));
-        outcome
+        let status = match outcome? {
+            Some(status) => {
+                return Ok(CaptureResult::Completed(CapturedOutput {
+                    status,
+                    stdout: stdout_capture,
+                    stderr: stderr_capture,
+                }));
+            }
+            None => final_status.map_err(|error| {
+                HarnessError::execution(format!("reap timed-out command: {error}"))
+            })?,
+        };
+        Ok(CaptureResult::TimedOut(CapturedOutput {
+            status,
+            stdout: stdout_capture,
+            stderr: stderr_capture,
+        }))
     });
     admission.0 = None;
     supervisor
@@ -826,23 +931,25 @@ impl ternilo_kernel::ExecutionResourceControl for CaptureControl {
     }
 }
 
-async fn capture_stream<R>(mut stream: R, max_capture_bytes: usize) -> io::Result<CapturedStream>
+async fn capture_stream<R>(
+    mut stream: R,
+    max_capture_bytes: usize,
+    captured: &mut CapturedStream,
+) -> io::Result<()>
 where
     R: AsyncRead + Unpin,
 {
-    let mut bytes = Vec::new();
-    let mut truncated = false;
     let mut chunk = vec![0_u8; 8192];
     loop {
         let read = stream.read(&mut chunk).await?;
         if read == 0 {
             break;
         }
-        let retained = read.min(max_capture_bytes.saturating_sub(bytes.len()));
-        bytes.extend_from_slice(&chunk[..retained]);
-        truncated |= retained < read;
+        let retained = read.min(max_capture_bytes.saturating_sub(captured.bytes.len()));
+        captured.bytes.extend_from_slice(&chunk[..retained]);
+        captured.truncated |= retained < read;
     }
-    Ok(CapturedStream { bytes, truncated })
+    Ok(())
 }
 
 #[cfg(test)]
@@ -870,12 +977,16 @@ mod tests {
     #[tokio::test]
     async fn command_timeout_returns_after_killing_its_process_group() {
         let mut command = Command::new("bash");
-        command.args(["-c", "sleep 5 & wait"]);
+        command.args(["-c", "printf before; printf diagnostic >&2; sleep 5 & wait"]);
         let started = tokio::time::Instant::now();
         let result = capture_command(&mut command, 50, MAX_SHELL_CAPTURE_BYTES, None)
             .await
             .unwrap();
-        assert!(matches!(result, CaptureResult::TimedOut));
+        let CaptureResult::TimedOut(output) = result else {
+            panic!("command must time out");
+        };
+        assert_eq!(output.stdout.render(), "before");
+        assert_eq!(output.stderr.render(), "diagnostic");
         assert!(started.elapsed() < std::time::Duration::from_secs(1));
     }
 
