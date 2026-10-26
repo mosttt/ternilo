@@ -286,10 +286,14 @@ fn seatbelt_command(
     ];
     args.push(program);
     args.extend(arguments);
+    let mut environment = scratch_environment(policy);
+    // Apple's executable shims use a per-user cache independent of TMPDIR.
+    // Disable that cache rather than granting writes outside the private scratch directory.
+    environment.insert("xcrun_nocache".into(), "1".into());
     ConfinedCommand {
         program: runner.into_os_string(),
         arguments: args,
-        environment: scratch_environment(policy),
+        environment,
         backend: "seatbelt".to_owned(),
         enforcement: SandboxEnforcement::Full,
     }

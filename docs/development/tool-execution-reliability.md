@@ -8,7 +8,7 @@
 
 ## 进程专属临时目录
 
-受限 Shell、后台任务和持久终端创建专属临时目录，并传入临时／缓存环境。目录与已有执行租约一起持有，完成进程树清理后释放；取消调用不提前删除。Linux 在私有 `/tmp` 后重新挂载工作区，保留 `/tmp` 下工作区的可见性和原写权限。Seatbelt 使用规范路径；Windows runner 只为宿主指定的 scratch 目录增加写权限，原读取隔离边界不变。
+受限 Shell、后台任务和持久终端创建专属临时目录，并传入临时／缓存环境。目录与已有执行租约一起持有，完成进程树清理后释放；取消调用不提前删除。Linux 在私有 `/tmp` 后重新挂载工作区，保留 `/tmp` 下工作区的可见性和原写权限。Seatbelt 使用规范路径，并设置 `xcrun_nocache=1`，避免系统工具把缓存写到不受 `TMPDIR` 控制的用户临时目录；Windows runner 只为宿主指定的 scratch 目录增加写权限，原读取隔离边界不变。
 
 ## Rhai 失败结果与图谱
 
@@ -25,3 +25,10 @@ Local 实际 reviewer 测试通过：标准库单元测试成功，工作区写�
 配置相关前端 24 项、TypeScript、i18n 与生产构建通过。Local 与 Server 接入电脑的真实浏览器验收分别为 41.13 秒和 41.31 秒，覆盖中英韩配置保存、集中／独立视图同步、实际输入框提交检查、恢复继承及 390px 手机布局。截图已检查，页面、控制台与 HTTP 无非预期错误。验收中修复关闭状态的 Tooltip 残留：取消退场动画，闭合内容立即隐藏。模型连接浏览器合同另通过 15.38 秒。
 
 239 份 Markdown 与发行元数据检查通过。Windows、两个 macOS 架构和 Linux ARM 的原生检查由既有 Checks 执行；正式发行和公开程序验收结果另记于对应版本的发行验收。
+
+
+## 发行检查补充
+
+首轮 Apple Silicon 原生测试确认：只读 scratch 可写、工作区写入被拒，但系统 Python 的 xcrun shim 仍尝试写入用户级 `T/xcrun_db-*`，不使用进程的 `TMPDIR`。保留原“标准错误为空”断言，增加 `xcrun_nocache=1`，而不把整个用户临时目录加入只读检查的可写范围；两个 macOS 架构继续按实际程序验证。
+
+依赖扫描新报告 [RUSTSEC-2026-0391](https://rustsec.org/advisories/RUSTSEC-2026-0391)、[0398](https://rustsec.org/advisories/RUSTSEC-2026-0398)、[0403](https://rustsec.org/advisories/RUSTSEC-2026-0403) 和 [0410](https://rustsec.org/advisories/RUSTSEC-2026-0410)。Salvo 0.95／0.96 依赖的 zstd 0.13 无法解析到已修复版本，因此改用 Salvo 1.0.1，将依赖更新为 zstd 0.14.3、zstd-safe 8.2.0 和 zstd-sys 2.1.2。保留原审计策略，不为这些公告增加忽略项；HTTP／流式交互随依赖更新重新验收。

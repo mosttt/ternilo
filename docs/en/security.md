@@ -34,7 +34,7 @@ The account administration page shows pending cleanup, confirmation times and ou
 
 A revoked Node credential can only synchronize its own cleanup requests and submit receipts. It cannot reconnect normally or access application data. Each credential binds one local storage instance; another data directory cannot confirm cleanup for the original. Receipts validate credential, storage identity and account revision, and repeated confirmation is idempotent.
 
-Restricted Shell commands, jobs and persistent terminals receive process-private writable temporary/cache directories, held until process-tree cleanup. This grants no new workspace or host-directory writes. macOS Seatbelt uses canonical temporary paths so system Python/xcrun cache writes are not denied accidentally. `run_check` executes only commands preconfigured in plugin settings and forces a read-only workspace even for a full-access lead.
+Restricted Shell commands, jobs and persistent terminals receive process-private writable temporary/cache directories, held until process-tree cleanup. This grants no new workspace or host-directory writes. macOS Seatbelt uses canonical temporary paths and disables the system-tool cache with `xcrun_nocache`, since xcrun does not follow `TMPDIR`; it does not grant writes to the user-wide temporary directory. `run_check` executes only commands preconfigured in plugin settings and forces a read-only workspace even for a full-access lead.
 
 ## Extensions and durable data
 
