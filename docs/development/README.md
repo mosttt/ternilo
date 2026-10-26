@@ -5,6 +5,7 @@
 ## 当前工作与发行
 
 - [后续任务与能力边界](remaining-task-audit.md)：资源迁移、界面验收、历史问题调查及未排期扩展的统一清单。
+- [v0.2.28 验收](release-0.2.28-acceptance.md)：模型与工具可靠性改进，以及浏览器保存完成条件修正。
 - [v0.2.26 验收](release-0.2.26-acceptance.md)：LaunchAgent 更新与紧凑对话问答显示修复。
 - [v0.2.25 验收](release-0.2.25-acceptance.md)：慢启动更新、旧执行资源及升级状态说明。
 - [资源迁移](personal-resource-migration.md)：未合入实现的选择范围、管理身份与执行身份边界。

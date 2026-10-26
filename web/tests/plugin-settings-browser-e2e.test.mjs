@@ -221,6 +221,7 @@ for (const placement of ['local', 'server-node']) {
         await field.fill(JSON.stringify(checks, null, 2))
         await shell.getByRole('button', { name: text.save, exact: true }).click()
         await until(stored, value => value.profile_plugins.some(entry => entry.id === 'shell-tool' && entry.config.checks?.[0]?.name === 'unit'), 'named checks saved')
+        await until(() => shell.getByRole('button', { name: text.save, exact: true }).isEnabled(), value => !value, 'named checks save complete')
         await settings.getByRole('tab', { name: text.configuration, exact: true }).click()
         await shell.locator('button[aria-expanded]').click()
         assert.deepEqual(JSON.parse(await field.inputValue()), checks)

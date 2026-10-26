@@ -72,6 +72,8 @@ The local file plugin's read cache is a per-session byte budget and is disabled 
 
 `code_map` reads specified Rust, TypeScript/TSX, JavaScript/JSX, Python and Go files. It returns symbol positions, nesting, imports and syntactic call targets without executing project code. For example: `{"paths":["src/lib.rs","web/src/app.tsx"]}`.
 
+The default `detail: "summary"` includes symbols, imports and candidate calls to symbols declared in the selected files, with `omitted_calls` reporting excluded calls. To include all call locations, including builtins and unresolved targets, pass `{"paths":["src/lib.rs"],"detail":"full"}`. Impact queries always use the complete parsed map, regardless of display detail.
+
 Defaults are 16 files and 256 KiB per file. Truncation and parse errors are reported; partial results are not a complete dependency graph. Dynamic calls are not resolved through type inference. The plugin is enabled locally by default. For managed execution, enable `code-map` and ensure Worker policy allows `ternilo.tools.code_map`.
 
 To assess a function or method change, select its symbol `id` from the map, pass it as `impact_symbol`, and list related files in `paths`. Results include direct and indirect candidate callers, locations and candidate files. `impact_depth` defaults to 8 and accepts 1–16; cycles are bounded. Ambiguous declarations, unknown dynamic targets, read/parse errors, truncation and depth limits are reported separately. Matching uses syntax names in the selected files, without resolving import aliases, types or dynamic dispatch; inspect the returned paths and lines.

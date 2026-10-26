@@ -20,18 +20,16 @@
 
 Local 实际 reviewer 测试通过：标准库单元测试成功，工作区写入、普通 Shell、未知名称和额外命令被拒绝，完全访问主会话仍不能借检查写文件；超时输出和临时目录清理保留，重启后配置可用。非 Git 目录的结构化结果与简短异常、图谱精简及完整视图通过。Rhai 13 项测试通过，包含取消、重新准入、结构化失败继续执行及反引号解析提示。
 
-严格 all-targets Clippy、最终版本的本机沙箱 5 项、命令捕获 4 项、持久终端生命周期 3 项、Code Mode 5 项、图谱 4 项及角色策略 1 项通过。客户端／Server 匹配构建通过。
+严格 all-targets Clippy、最终版本的本机沙箱 6 项、命令捕获 4 项、持久终端生命周期 3 项、Code Mode 5 项、图谱 4 项及角色策略 1 项通过。客户端／Server 匹配构建通过。
 
-配置相关前端 24 项、TypeScript、i18n 与生产构建通过。Local 与 Server 接入电脑的真实浏览器验收分别为 41.13 秒和 41.31 秒，覆盖中英韩配置保存、集中／独立视图同步、实际输入框提交检查、恢复继承及 390px 手机布局。截图已检查，页面、控制台与 HTTP 无非预期错误。验收中修复关闭状态的 Tooltip 残留：取消退场动画，闭合内容立即隐藏。模型连接浏览器合同另通过 15.38 秒。
+配置相关前端 24 项、TypeScript、i18n 与生产构建通过。HTTP 依赖更新后，Local 与 Server 接入电脑的真实浏览器验收分别为 45.31 秒和 45.44 秒，覆盖中英韩配置保存、集中／独立视图同步、实际输入框提交检查、恢复继承及 390px 手机布局；模型连接浏览器合同为 16.68 秒，三项共 108.40 秒。截图已检查，页面、控制台与 HTTP 无非预期错误。验收中修复关闭状态的 Tooltip 残留：取消退场动画，闭合内容立即隐藏。
 
 239 份 Markdown 与发行元数据检查通过。Windows、两个 macOS 架构和 Linux ARM 的原生检查由既有 Checks 执行；正式发行和公开程序验收结果另记于对应版本的发行验收。
 
-
 ## 发行检查补充
 
-首轮 Apple Silicon 原生测试确认：只读 scratch 可写、工作区写入被拒，但系统 Python 的 xcrun shim 仍尝试写入用户级 `T/xcrun_db-*`，不使用进程的 `TMPDIR`。`xcrun_nocache=1` 也未阻止可执行程序 shim 的缓存写入，因此移除该无效设置。保留原“标准错误为空”断言，改为读取系统用户临时目录，对规范路径下的缓存文件使用精确正则授权；同时验证其他临时文件仍不可写。两个 macOS 架构继续按实际程序验证。
+首轮 Apple Silicon 原生测试确认：只读 scratch 可写、工作区写入被拒，但系统 Python 的 xcrun shim 仍尝试写入用户级 `T/xcrun_db-*`，不使用进程的 `TMPDIR`。`xcrun_nocache=1` 也未阻止可执行程序 shim 的缓存写入，因此移除该无效设置。保留原“标准错误为空”断言，改为读取系统用户临时目录，对规范路径下的缓存文件使用精确正则授权；同时验证其他临时文件仍不可写。最终候选 [Checks 40351597379](https://github.com/mosttt/ternilo/actions/runs/40351597379) 的 Intel 与 Apple Silicon 原生检查均已通过：系统 Python 的标准错误为空、专属临时目录可写、工作区及其他用户临时文件写入被拒；同轮只读 reviewer 和 LaunchAgent 更新／回退通过。
 
 依赖扫描新报告 [RUSTSEC-2026-0391](https://rustsec.org/advisories/RUSTSEC-2026-0391)、[0398](https://rustsec.org/advisories/RUSTSEC-2026-0398)、[0403](https://rustsec.org/advisories/RUSTSEC-2026-0403) 和 [0410](https://rustsec.org/advisories/RUSTSEC-2026-0410)。Salvo 0.95／0.96 依赖的 zstd 0.13 无法解析到已修复版本，因此改用 Salvo 1.0.1，将依赖更新为 zstd 0.14.3、zstd-safe 8.2.0 和 zstd-sys 2.1.2。保留原审计策略，不为这些公告增加忽略项；HTTP／流式交互随依赖更新重新验收。
-
 
 Cloud catalog 修订随共享工具 Schema 更新为 v3；执行 policy、可运行 envelope、恢复夹具和浏览器夹具同步引用该修订。首轮全量检查发现示例仍为 v2，已补齐同一合同的调用方；不增加 Work 执行功能，也不自动改写运营者私有 policy。
