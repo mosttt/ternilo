@@ -204,6 +204,8 @@ MCP、LSP、HTTP fetch、SearXNG／Brave／Tavily 搜索、Hooks、Code Mode 和
 
 `code_map` 读取指定文件的 AST，适合先了解代码结构，再定点阅读和修改。支持 Rust、TypeScript／TSX、JavaScript／JSX、Python、Go，返回符号位置、嵌套所属关系、导入及语法调用目标，不执行项目代码。例如参数 `{"paths":["src/lib.rs","web/src/app.tsx"]}`。
 
+默认 `detail: "summary"` 返回符号、导入及所选文件中已声明符号的候选调用，并以 `omitted_calls` 标明省略数量。需要查看内置函数或未解析目标等全部调用位置时，传入 `{"paths":["src/lib.rs"],"detail":"full"}`。影响查询始终使用完整解析结果，不受显示精简影响。
+
 代码图谱插件默认最多分析 16 个文件、每文件 256 KiB；超限或语法错误会标记，不能将部分结果视为完整依赖图。动态调用不做类型推断，需要结合源码或语言服务确认。Local 默认提供该插件；托管 Worker 中先在插件配置启用 `code-map`，并确保管理员的 Worker 策略允许 `ternilo.tools.code_map`。配置界面支持中英韩文。
 
 评估函数或方法的改动影响时，先从图谱选取要修改符号的 `id`，再用 `impact_symbol` 传入该 ID，并在 `paths` 中列出需要一起检查的文件。结果给出直接和间接候选调用者、调用位置及候选文件。`impact_depth` 默认 8，可设置为 1–16；循环调用不会无限展开。同名声明、未识别的动态调用目标、读取失败、语法错误、截断和深度上限分别列出。查询按所选文件中的语法名称匹配，不解析导入别名、类型或动态分派，需沿返回的路径和行号复核。
