@@ -55,6 +55,18 @@ function presentDiagnostic(raw: string, t: Translate<'chat'>): RuntimeErrorPrese
   }
   const toolLimit = normalized.match(/turn exceeded max_tool_calls \((\d+)\)/)
 
+  const webStatus = raw.match(/^(?:execution:\s*)?DeepSeek web tools error \(HTTP (\d{3})\):/)?.[1]
+  if (webStatus) {
+    const messages: Record<string, ErrorKey> = {
+      400: 'runtimeError.deepseekWeb.request', 413: 'runtimeError.deepseekWeb.request',
+      401: 'runtimeError.deepseekWeb.auth', 402: 'runtimeError.deepseekWeb.balance',
+      403: 'runtimeError.deepseekWeb.blocked', 404: 'runtimeError.deepseekWeb.missing',
+      408: 'runtimeError.deepseekWeb.timeout', 504: 'runtimeError.deepseekWeb.timeout',
+      429: 'runtimeError.deepseekWeb.limit',
+    }
+    return { title: t('runtimeError.deepseekWeb.title'), message: t(messages[webStatus] ?? 'runtimeError.deepseekWeb.service'), raw }
+  }
+
   const deepseekStatus = raw.match(/^(?:execution:\s*)?DeepSeek API error \(HTTP (400|401|402|422|429|500|503)\):/i)?.[1]
   const deepseekError = deepseekErrors[deepseekStatus ?? '']
   if (deepseekError) {

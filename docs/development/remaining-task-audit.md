@@ -6,6 +6,10 @@
 
 v0.2.28 已合入 main 并公开，交付模型转发保活与请求诊断、Responses 可选参数、空文件及父目录写入、混合语言历史检索，以及具名只读验证、进程临时目录、Rhai 结构化失败和图谱精简。完整 CI、公开包验签、三语浏览器和正式跨版升级已通过，见[发行验收](release-0.2.28-acceptance.md)。未发布 v0.2.27 的浏览器保存等待条件已确定性修正，证据见[候选记录](release-0.2.27-acceptance.md)；尚未确定原因的历史和原生偶发检查保留为调查项。后续工作按下列范围与顺序推进。
 
+## 当前开发
+
+DeepSeek 独立搜索／抓取插件和 Responses 内置搜索已完成开发验收，尚未包含在公开 v0.2.28 安装包中。对应第 35、29 项的 DeepSeek 部分，其余协议和供应商保留原边界。
+
 ## 实施顺序
 
 依次处理 **8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 20 → 6 → 7**。Desktop 签名、公证和完整实机安装依赖相应发行者资料与设备。额外供应商、原生移动包和未排期扩展不构成本补丁的交付范围。
@@ -39,13 +43,13 @@ v0.2.28 已合入 main 并公开，交付模型转发保活与请求诊断、Res
 | 26 | 通用执行环境目录 | 未定级／未排期；仅保留现有 Node／Worker 范围的独立能力，不纳入 Work 容器产品 |
 | 27 | 执行池与完整组合授权 | 未定级／未排期；既有 Worker 执行基础不等于完整执行池 |
 | 28 | Claude 更完整的供应商托管工具 | 动态过滤、供应商代码执行等未排期；已完成基本托管搜索／网页读取，见[记录](hosted-web-tools.md) |
-| 29 | Responses 等其他协议的供应商托管工具 | 包含 DeepSeek Responses 内置 `web_search`，尚未适配；需处理模型能力、搜索事件与结果历史。[DeepSeek 官方文档](https://api-docs.deepseek.com/zh-cn/guides/responses_api/)当前仅支持 `deepseek-v4-pro`，`deepseek-flash` 忽略该工具。本机工具和 Claude 已完成部分不重复计入 |
+| 29 | Responses 等其他协议的供应商托管工具 | DeepSeek Responses 内置搜索已实现并通过四条模型来源、三语配置及历史／引用浏览器验收，仅 `deepseek-v4-pro` 启用；见[技术记录](hosted-web-tools.md)。标准 OpenAI Responses 和其他未适配协议／工具仍待推进 |
 | 30 | Vertex AI 与相应 OAuth 认证接入 | 未排期 |
 | 31 | Amazon Bedrock 接入 | 未排期 |
 | 32 | 供应商 Files API 上传与文件引用 | 未排期；已有图片／附件输入不等于供应商文件服务 |
 | 33 | 实时语音 | 未排期 |
 | 34 | 图像生成 | 未排期；已有图像输入不等于图像生成 |
-| 35 | 更多搜索服务与外部代理供应商适配 | DeepSeek 独立 [Search／Fetch API](https://api-docs.deepseek.com/zh-cn/guides/search/) 尚无插件适配，与第 29 项模型服务端内置搜索分开；其余额外供应商未指定。Brave／Tavily／SearXNG、Gemini／Claude 已完成部分不重复计入 |
+| 35 | 更多搜索服务与外部代理供应商适配 | DeepSeek 独立 Search／Fetch 插件已实现并通过本机／Server Node 三语浏览器验收，见[搜索服务](search-services.md)；其余额外供应商未指定。Brave／Tavily／SearXNG、Gemini／Claude 已完成部分不重复计入 |
 | 36 | 外部 ACP 更完整的会话与交互能力 | 图片、终端、持久会话恢复、续发及供应商私有扩展未排期；目前每项任务建立独立外部会话，见[接入记录](external-agent-adapters.md) |
 | 37 | 非标准 OIDC 的第三方 OAuth 服务商适配 | 未指定服务商；多 OIDC 提供方已支持，不等于任意 OAuth 接口兼容 |
 | 38 | Responses 上游持久引用及后台请求 | response／conversation／prompt 引用、后台请求未排期；当前 `store: false`，由客户端携带历史；文件引用见第 32 项 |

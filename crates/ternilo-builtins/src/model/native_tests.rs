@@ -476,8 +476,8 @@ fn hosted_web_requests_replace_same_named_local_tools_and_keep_other_functions()
     model.hosted_tools = Some(ternilo_protocol::HostedWebTools {
         web_search: true,
         web_fetch: true,
-        max_uses: 2,
-        max_content_tokens: 1000,
+        max_uses: Some(2),
+        max_content_tokens: Some(1000),
         allowed_domains: vec!["example.com/docs".to_owned()],
         blocked_domains: Vec::new(),
     });
@@ -611,4 +611,120 @@ fn responses_preserves_optional_tool_arguments_without_changing_other_adapters()
         protocols::request_body(&model(ProviderProtocol::DeepSeekResponses, None), &input).unwrap();
     assert!(deepseek["tools"][0].get("strict").is_none());
     assert_eq!(deepseek["tools"][0]["parameters"], schema);
+}
+
+#[test]
+fn deepseek_hosted_search_is_model_specific_and_never_replaces_local_fetch() {
+    let mut model = model(ProviderProtocol::DeepSeekResponses, None);
+    model.model = "deepseek-v4-pro".to_owned();
+    model.hosted_tools = Some(serde_json::from_value(json!({"web_search":true})).unwrap());
+    let mut request = request();
+    for name in ["web_search", "web_fetch"] {
+        request.tools.push(serde_json::from_value(json!({"name":name,"description":"Local web tool","input_schema":{"type":"object"}})).unwrap());
+    }
+    let body = protocols::request_body(&model, &request).unwrap();
+    let tools = body["tools"].as_array().unwrap();
+    assert!(tools.contains(&json!({"type":"web_search"})));
+    assert!(!tools.iter().any(|tool| tool["name"] == "web_search"));
+    assert!(
+        tools
+            .iter()
+            .any(|tool| tool["name"] == "web_fetch" && tool["type"] == "function")
+    );
+    assert!(body.get("max_tool_calls").is_none());
+    request.step = 0;
+    let compact = protocols::request_body(&model, &request).unwrap();
+    assert!(
+        !compact["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["type"] == "web_search")
+    );
+    request.step = 1;
+    model.model = "deepseek-flash".to_owned();
+    let flash = protocols::request_body(&model, &request).unwrap();
+    assert!(
+        flash["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["name"] == "web_search")
+    );
+    model.hosted_tools = None;
+    model.model = "deepseek-v4-pro".to_owned();
+    assert!(
+        protocols::request_body(&model, &request).unwrap()["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tool| tool["type"] == "function")
+    );
+}
+
+#[test]
+fn deepseek_search_state_survives_streaming_persistence_and_local_tool_continuation() {
+    let blocks = json!([
+        {"type":"reasoning","content":[{"type":"reasoning_text","text":"Search first."}],"summary":[]},
+        {"type":"web_search_call","id":"ws-one","status":"completed","action":{"type":"search","query":"fixture evidence"}},
+        {"type":"message","role":"assistant","content":[{"type":"output_text","text":"Found evidence.","annotations":[{"type":"url_citation","url":"https://example.com/source","title":"Source","start_index":0,"end_index":15}]}]},
+        {"type":"function_call","call_id":"read-one","name":"read_file","arguments":"{\"path\":\"fixture.txt\"}"}
+    ]);
+    let value = json!({"status":"completed","output":blocks,"usage":{"input_tokens":123,"output_tokens":30}});
+    let mut completion = StreamCompletion::default();
+    for (index, item) in blocks.as_array().unwrap().iter().enumerate() {
+        for kind in ["response.output_item.added", "response.output_item.done"] {
+            protocols::decode_stream_data(
+                json!({"type":kind,"output_index":index,"item":item}),
+                ProviderProtocol::DeepSeekResponses,
+                &mut completion,
+            )
+            .unwrap();
+        }
+    }
+    protocols::decode_stream_data(json!({"type":"response.output_text.delta","output_index":2,"content_index":0,"delta":"Found evidence."}),ProviderProtocol::DeepSeekResponses,&mut completion).unwrap();
+    protocols::decode_stream_data(
+        json!({"type":"response.completed","response":value}),
+        ProviderProtocol::DeepSeekResponses,
+        &mut completion,
+    )
+    .unwrap();
+    let streamed = completion.finish("deepseek", "deepseek-v4-pro").unwrap();
+    let direct = protocols::decode_completion(
+        &serde_json::to_vec(&value).unwrap(),
+        ProviderProtocol::DeepSeekResponses,
+        "deepseek",
+        "deepseek-v4-pro",
+    )
+    .unwrap();
+    assert_eq!(streamed.provider_state, direct.provider_state);
+    assert_eq!(
+        streamed.tool_calls.len(),
+        1,
+        "hosted searches never become local tool calls"
+    );
+    assert_eq!(streamed.tool_calls[0].name, "read_file");
+    assert_eq!(streamed.content, "Found evidence.");
+    let mut model = model(ProviderProtocol::DeepSeekResponses, None);
+    model.model = "deepseek-v4-pro".to_owned();
+    let replay = protocols::request_body(&model, &history(&streamed)).unwrap();
+    assert_eq!(
+        &replay["input"].as_array().unwrap()[1..5],
+        blocks.as_array().unwrap().as_slice()
+    );
+    assert_eq!(replay["input"][5]["type"], "function_call_output");
+    model.model = "deepseek-flash".to_owned();
+    assert!(
+        !protocols::request_body(&model, &history(&streamed))
+            .unwrap()
+            .to_string()
+            .contains("ws-one")
+    );
+    model.protocol = ProviderProtocol::OpenAiResponses;
+    assert!(
+        !protocols::request_body(&model, &history(&streamed))
+            .unwrap()
+            .to_string()
+            .contains("ws-one")
+    );
 }

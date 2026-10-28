@@ -14,13 +14,14 @@ use crate::{factory as make_factory, parse_config};
 
 mod providers;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use providers::SearchProvider;
 
 pub const KIND: &str = "ternilo.web.search.searxng";
 pub const BRAVE_KIND: &str = "ternilo.web.search.brave";
 pub const TAVILY_KIND: &str = "ternilo.web.search.tavily";
+pub const DEEPSEEK_KIND: &str = "ternilo.web.search.deepseek";
 
 component_descriptor! {
     static DESCRIPTOR: () {
@@ -46,10 +47,18 @@ component_descriptor! {
     }
 }
 
+component_descriptor! {
+    static DEEPSEEK_DESCRIPTOR: () {
+        id: "ternilo/builtin-deepseek-search@1",
+        requires: [Tools, RunEnvironment],
+        provides: [],
+    }
+}
+
 #[derive(Clone, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SearchConfig {
-    /// Service base URL. Brave and Tavily default to their official endpoints.
+    /// Service base URL. Hosted search services default to their official endpoints.
     #[serde(default)]
     base_url: Option<String>,
     #[serde(default)]
@@ -81,6 +90,10 @@ pub fn tavily_factory() -> PluginFactory {
     provider_factory(SearchProvider::Tavily)
 }
 
+pub fn deepseek_factory() -> PluginFactory {
+    provider_factory(SearchProvider::DeepSeek)
+}
+
 fn provider_factory(provider: SearchProvider) -> PluginFactory {
     make_factory(
         PluginManifest {
@@ -92,6 +105,7 @@ fn provider_factory(provider: SearchProvider) -> PluginFactory {
             SearchProvider::Searxng => |value| build_plugin(value, SearchProvider::Searxng),
             SearchProvider::Brave => |value| build_plugin(value, SearchProvider::Brave),
             SearchProvider::Tavily => |value| build_plugin(value, SearchProvider::Tavily),
+            SearchProvider::DeepSeek => |value| build_plugin(value, SearchProvider::DeepSeek),
         },
     )
     .with_config_schema::<SearchConfig>()
@@ -160,6 +174,7 @@ impl HarnessPlugin for SearchPlugin {
             SearchProvider::Searxng => &DESCRIPTOR,
             SearchProvider::Brave => &BRAVE_DESCRIPTOR,
             SearchProvider::Tavily => &TAVILY_DESCRIPTOR,
+            SearchProvider::DeepSeek => &DEEPSEEK_DESCRIPTOR,
         }
     }
 
@@ -191,7 +206,7 @@ impl HarnessPlugin for SearchPlugin {
                         input_schema: json!({
                             "type": "object",
                             "properties": {
-                                "query": { "type": "string" },
+                                "query": if provider == SearchProvider::DeepSeek { json!({"type":"string","maxLength":128}) } else { json!({"type":"string"}) },
                                 "limit": { "type": "integer", "minimum": 1, "maximum": config.max_results },
                                 "language": { "type": "string" }
                             },
@@ -282,6 +297,8 @@ impl SearchTool {
         } else {
             None
         };
+        self.provider
+            .validate_query(query, arguments.language.as_deref())?;
         let request = self.provider.request(
             &self.client,
             self.config.base_url(self.provider)?,

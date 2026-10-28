@@ -1,18 +1,19 @@
 # 网页访问与代理 DNS
 
-`web_fetch` 用于读取公开网页，不需要单独的模型 Provider 或网页 API Key。在能够正常解析公网地址的网络中，启用 `web-fetch` 插件即可使用。搜索网页的 `web_search` 支持 SearXNG、Brave Search 和 Tavily，需要单独配置搜索服务。
+默认 `web-fetch` 插件直接读取公开网页，不需要网页 API Key；也可选择 DeepSeek 抓取服务获取 Markdown 正文。搜索网页的 `web_search` 支持 SearXNG、Brave Search、Tavily 和 DeepSeek，需要单独配置搜索服务。
 
-这两项本机工具由执行任务的 Ternilo 运行。Claude 还可以使用下面单独配置的供应商托管网页工具。
+这两项本机工具由执行任务的 Ternilo 运行。Claude 和 DeepSeek Responses 还可使用下面单独配置的供应商托管网页工具。
 
 ## 选择搜索服务
 
-在自定义 Agent 预设中添加一个搜索插件。三个插件都注册 `web_search`，同一预设只启用其中一个；不会因某个服务失败而自动切换供应商。
+在自定义 Agent 预设中添加一个搜索插件。这些插件都注册 `web_search`，同一预设只启用其中一个；不会因某个服务失败而自动切换供应商。
 
 | 插件 kind | 默认 base_url | 凭据引用 | max_results 上限 |
 |---|---|---|---|
 | `ternilo.web.search.searxng` | 必填，自建 SearXNG 地址 | 可选，Bearer 鉴权 | 50 |
 | `ternilo.web.search.brave` | `https://api.search.brave.com/res/v1` | 必填，Brave API Key | 20 |
 | `ternilo.web.search.tavily` | `https://api.tavily.com` | 必填，Tavily API Key | 20 |
+| `ternilo.web.search.deepseek` | `https://api.deepseek.com` | 必填，DeepSeek API Key | 50 |
 
 先在执行电脑的“凭据与登录”保存凭据，例如名称 `SEARCH_KEY`，再把名称填入 `api_key_env`。这个字段引用凭据或宿主环境变量，不填写 Key 原文。Server 远程会话由执行电脑调用搜索服务；跨电脑模型转发不会改变搜索工具的执行位置，也不提供搜索凭据。托管 Worker 必须另有可用的凭据和网络策略；本配置不会突破 Worker 隔离。
 
@@ -37,6 +38,50 @@ Tavily 固定使用 `basic` 搜索，关闭自动参数、生成答案、原始�
 
 搜索请求可取消，默认超时 30 秒，响应最多 2 MiB。不会跟随搜索接口的 HTTP 重定向；错误只显示服务名和状态类别，不回显上游正文、查询 URL 或 Key。结果来自外部网页，是供模型参考的内容。
 
+## DeepSeek 搜索与 Markdown 抓取
+
+DeepSeek 搜索插件使用独立 Search API，不要求对话模型来自 DeepSeek。在上面的插件行中将 kind 改为 `ternilo.web.search.deepseek`，并填写执行电脑上的 DeepSeek 凭据名称即可。`query` 支持 `site:`、`-site:`、`lang:`、`after:`、`before:` 等官方搜索语法；可选 `language` 会追加为 `lang:` 筛选，最终查询不能超过 128 个 Unicode 字符。返回结果优先使用适合模型阅读的长摘要，不附带整页正文。
+
+需要网页正文时，停用原来的 `web-fetch`，添加以下插件；同一预设只启用一种 `web_fetch` 实现：
+
+```json
+{
+  "id": "deepseek-fetch",
+  "kind": "ternilo.web.fetch.deepseek",
+  "enabled": true,
+  "config": {
+    "api_key_env": "SEARCH_KEY",
+    "timeout_ms": 30000,
+    "max_bytes": 2097152
+  }
+}
+```
+
+模型仍调用 `web_fetch({"url":"https://example.com/article"})`，收到页面标题、原始 URL 和 Markdown 正文。查询和目标网址会发送给 DeepSeek，不会由执行电脑直接抓取目标网页；目标网页能否读取取决于 DeepSeek 的访问与安全策略。插件配置可在集中配置和单插件配置之间同步修改。
+
+两项服务使用同一种 DeepSeek API Key，但独立于模型 Provider 配置，按成功且有结果的请求计费。没有结果、失败或超时的请求不计费；当前官方价格与限速见 [DeepSeek 搜索与抓取](https://api-docs.deepseek.com/zh-cn/guides/search/)。HTTP 402 需要为该凭据所属账号充值；401 检查凭据；403／404 检查或更换目标网页；429 降低调用频率。错误不回显上游正文或密钥，取消会关闭当前请求。
+
+## DeepSeek Responses 内置搜索
+
+在模型提供方中选择 **DeepSeek Responses** 协议，添加 `deepseek-v4-pro`，再打开“自定义设置 → DeepSeek 内置搜索 → 托管网页搜索”。默认关闭；只有 Flash 的提供方不能启用。混合提供方中仅 Pro 使用内置搜索，Flash 和其他模型仍使用各自的本机工具。
+
+Provider 配置为：
+
+```json
+{
+  "protocol": "deepseek-responses",
+  "hosted_tools": { "web_search": true }
+}
+```
+
+内置搜索由 DeepSeek 在模型请求内部执行，使用模型提供方的凭据；本机的同名 `web_search` 不会重复提交。本机 `web_fetch`、文件和命令工具继续独立执行。普通工具执行后，下一次模型请求会带回保存的搜索调用与回答；引用显示在答案下的“网页来源”，刷新后保留。切换协议或模型时不会把专属搜索状态带到不同模型。
+
+本机 Provider、Server 账号／平台模型、电脑转发模型及“连接 Server”的模型服务均使用同一配置。仅模型提供方所有者能够启用；外部客户端不能通过添加 `web_search` 定义替共享模型开启搜索。标题生成和上下文压缩不启用内置搜索。
+
+DeepSeek 当前不支持内置搜索调用次数上限、域名筛选或内置 Fetch 配置，界面不展示这些无效选项。Server 按完整上下文与最大输出预留 Token，并按上游报告结算；这是预留估算，不能硬性限制上游内部多次生成或额外搜索费用。搜索计费由 DeepSeek 账号承担，Ternilo 的 Token 额度不是费用上限。需要自己控制每次搜索与抓取时，使用前面的独立插件。
+
+能力与限制依据 [DeepSeek Responses 文档](https://api-docs.deepseek.com/zh-cn/guides/responses_api/)。当前官方仅为 `deepseek-v4-pro` 提供 `web_search`；该配置不会为标准 OpenAI Responses 或 Flash 启用搜索。
+
 ## Claude 托管网页工具
 
 在 Claude Provider 的“自定义设置 → Claude 托管网页工具”中，可以显式开启网页搜索和网页读取，设置每次请求每种工具的调用上限、读取正文的 Token 上限及域名筛选。默认关闭。域名列表使用裸域名和可选路径，例如 `example.com/docs`；允许列表与阻止列表二选一。
@@ -54,7 +99,7 @@ Tavily 固定使用 `basic` 搜索，关闭自动参数、生成答案、原始�
 }
 ```
 
-这是 Provider 对象中的字段，仅适用于 `anthropic-messages`。采用官方基本工具 `web_search_20250305` 和 `web_fetch_20250910`；执行地点是模型服务商，同名的本机网页工具不会同时提交到模型。其他本机文件和命令工具继续在执行电脑运行，模型请求通过 Server 或另一台电脑转发时也保留这个分工。标题生成和上下文压缩不启用托管网页工具。
+这是 Provider 对象中的 Claude 工具配置，适用于 `anthropic-messages`。采用官方基本工具 `web_search_20250305` 和 `web_fetch_20250910`；执行地点是模型服务商，同名的本机网页工具不会同时提交到模型。其他本机文件和命令工具继续在执行电脑运行，模型请求通过 Server 或另一台电脑转发时也保留这个分工。标题生成和上下文压缩不启用托管网页工具。
 
 搜索和读取由供应商计费，平台 Token 预算不代表搜索费用额度。Server 的账号／平台模型按配置的最大工具次数、模型上下文和输出上限保守预留 Token，完成后按实际报告结算；额度不足会在调用前拒绝。修改 Provider 的工具设置影响后续请求，预算、授权和停止仍遵守原模型来源。
 

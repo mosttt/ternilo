@@ -41,7 +41,7 @@ export function changeProviderProtocol(draft: ProviderDraft, protocol: ProviderP
   return {
     ...draft,
     protocol,
-    hostedTools: protocol === 'anthropic-messages' ? draft.hostedTools : null,
+    hostedTools: protocol === draft.protocol ? draft.hostedTools : null,
     baseUrl: (baseUrl === previousDefault || !baseUrl) && defaultProtocolUrls[protocol]
       ? defaultProtocolUrls[protocol]!
       : draft.baseUrl,
@@ -159,7 +159,7 @@ export function ProviderEditorCard({
         </section>
 
         <ProviderModelEditor defaults={draft.defaults} models={draft.models} onChange={models => setDraft(current => ({ ...current, models }))} onDiscover={discover} />
-        {draft.protocol === 'anthropic-messages' && <HostedToolsEditor value={draft.hostedTools} onChange={hostedTools => setDraft(current => ({ ...current, hostedTools }))} />}
+        {(draft.protocol === 'anthropic-messages' || draft.protocol === 'deepseek-responses') && <HostedToolsEditor protocol={draft.protocol} models={draft.models.map(model => model.id)} value={draft.hostedTools} onChange={hostedTools => setDraft(current => ({ ...current, hostedTools }))} />}
 
         <details className="mt-5 border-t pt-4"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">{t('provider.requestRetry')}</summary><p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t('provider.timeoutHint')}</p><div className="mt-4 grid gap-4 sm:grid-cols-3"><Field><Label htmlFor={`${fieldId}-provider-timeout`}>{t('provider.timeout')}</Label><Input id={`${fieldId}-provider-timeout`} type="number" min={0} value={draft.timeoutMs} onChange={event => setDraft(current => ({ ...current, timeoutMs: Number(event.target.value) }))} /></Field><><Field><Label htmlFor={`${fieldId}-provider-attempts`}>{t('provider.attempts')}</Label><Input id={`${fieldId}-provider-attempts`} type="number" min={1} max={8} value={draft.maxAttempts} onChange={event => setDraft(current => ({ ...current, maxAttempts: Number(event.target.value) }))} /></Field><Field><Label htmlFor={`${fieldId}-provider-retry-delay`}>{t('provider.retryDelay')}</Label><Input id={`${fieldId}-provider-retry-delay`} type="number" min={1} value={draft.retryBaseDelayMs} onChange={event => setDraft(current => ({ ...current, retryBaseDelayMs: Number(event.target.value) }))} /></Field></></div></details>
       </details>

@@ -801,3 +801,17 @@ async fn disconnected_clients_release_concurrency_without_zeroing_unknown_usage(
     assert_eq!(fixture.captured.requests.lock().await.len(), 3);
     fixture.close().await;
 }
+
+#[test]
+fn deepseek_responses_accepts_search_history_but_keeps_enablement_owner_controlled() {
+    let body = json!({"model":"m","input":[{"type":"web_search_call","id":"ws-1","status":"completed","action":{"type":"search","query":"evidence"}}]});
+    assert!(PreparedRequest::parse(body.clone(), ProviderProtocol::DeepSeekResponses).is_ok());
+    assert!(PreparedRequest::parse(body, ProviderProtocol::OpenAiResponses).is_err());
+    for body in [
+        json!({"model":"m","input":"x","tools":[{"type":"web_search"}]}),
+        json!({"model":"m","input":[{"type":"item_reference","id":"other-item"}]}),
+        json!({"model":"m","input":"x","previous_response_id":"other-response"}),
+    ] {
+        assert!(PreparedRequest::parse(body, ProviderProtocol::DeepSeekResponses).is_err());
+    }
+}

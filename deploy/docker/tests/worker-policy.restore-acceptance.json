@@ -1,5 +1,5 @@
 {
-  "catalog_revision": "ternilo-cloud-v3",
+  "catalog_revision": "ternilo-cloud-v4",
   "policy_revision": "restore-acceptance-v2",
   "maximum_limits": {
     "max_steps": 8,

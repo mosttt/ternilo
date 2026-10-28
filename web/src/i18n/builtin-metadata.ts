@@ -41,6 +41,8 @@ const pluginDescriptionKeys = {
   'ternilo.web.search.searxng': 'plugin.webSearch',
   'ternilo.web.search.brave': 'plugin.braveSearch',
   'ternilo.web.search.tavily': 'plugin.tavilySearch',
+  'ternilo.web.search.deepseek': 'plugin.deepseekSearch',
+  'ternilo.web.fetch.deepseek': 'plugin.deepseekFetch',
   'ternilo.workflow.rhai': 'plugin.workflowRuntime',
   'ternilo.tools.workflow': 'plugin.workflowTools',
   'ternilo.model.rule': 'plugin.ruleModel',

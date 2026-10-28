@@ -141,3 +141,5 @@ Ternilo 没有单独的思考时钟。选中命名 Provider（例如 `ds`）时�
 获取失败时会显示上游 HTTP 状态及检查方向，例如 Key、权限、API 版本入口或限流；连接失败、超时和非 JSON 目录分别提示。上游原始错误正文与 Key 不返回浏览器。
 
 Claude Provider 支持显式配置供应商托管网页搜索／读取，详见[网页工具](web-access.md#claude-托管网页工具)。
+
+DeepSeek Responses Provider 可为 `deepseek-v4-pro` 开启[内置搜索](web-access.md#deepseek-responses-内置搜索)，独立 Search／Fetch 插件则可供不同模型使用。

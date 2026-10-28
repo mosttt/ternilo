@@ -18,6 +18,16 @@ function presentation(value: ToolTrace) {
 }
 
 describe('tool presentation', () => {
+  it('shows Markdown fetch content without inventing the target website status', () => {
+    const url = 'https://example.test/article'
+    expect(presentation(trace('web_fetch', { url }, JSON.stringify({ url, title: 'Article', content: '# Body' })))).toEqual({
+      kind: 'web-fetch', url, title: 'Article', contentType: 'text/markdown', body: '# Body',
+    })
+    expect(presentation(trace('web_fetch', { url }, 'HTTP 200\nContent-Type: text/html\n\nRaw page'))).toEqual({
+      kind: 'web-fetch', url, statusCode: 200, contentType: 'text/html', body: 'Raw page',
+    })
+  })
+
   it('projects file reads and literal replace diffs without parsing output as markup', () => {
     expect(presentation(trace('read_file', { path: 'src/a.rs' }, JSON.stringify({
       path: 'src/a.rs', content: '<script>plain</script>\nline 2', start_line: 4, end_line: 5, total_lines: 9,

@@ -9,6 +9,17 @@ const translate = (resource: Record<keyof typeof zh, string>): Translate<'chat'>
 const t = translate(zh)
 
 describe('runtime error presentation', () => {
+  it('distinguishes webpage failures from model failures in every locale', () => {
+    for (const resource of [zh, en, ko]) {
+      for (const [status, category] of [[400, 'request'], [401, 'auth'], [402, 'balance'], [403, 'blocked'], [404, 'missing'], [429, 'limit'], [504, 'timeout']] as const) {
+        const raw = `execution: DeepSeek web tools error (HTTP ${status}): safe diagnostic`
+        expect(presentRuntimeError(raw, translate(resource))).toEqual({
+          title: resource['runtimeError.deepseekWeb.title'], message: resource[`runtimeError.deepseekWeb.${category}`], raw,
+        })
+      }
+    }
+  })
+
   it('keeps OpenAI billing, spend, usage and rate limits distinct in every locale', () => {
     const cases = {
       credit_balance_exhausted: 'balance', organization_spend_limit_exceeded: 'orgSpend', project_spend_limit_exceeded: 'projectSpend',

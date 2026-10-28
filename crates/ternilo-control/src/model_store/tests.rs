@@ -1464,8 +1464,8 @@ async fn hosted_tools_reserve_provider_work_before_admission_and_settle_actual_u
     upstream.profile.hosted_tools = Some(ternilo_protocol::HostedWebTools {
         web_search: true,
         web_fetch: false,
-        max_uses: 1,
-        max_content_tokens: 1000,
+        max_uses: Some(1),
+        max_content_tokens: Some(1000),
         allowed_domains: Vec::new(),
         blocked_domains: Vec::new(),
     });
@@ -1555,4 +1555,22 @@ async fn hosted_tools_reserve_provider_work_before_admission_and_settle_actual_u
         .await
         .unwrap();
     assert_eq!(ordinary.request.reserved_tokens, 50);
+    let mut route = ordinary.route;
+    route.provider.protocol = ProviderProtocol::DeepSeekResponses;
+    route.provider.hosted_tools =
+        Some(serde_json::from_value(serde_json::json!({"web_search":true})).unwrap());
+    route.upstream_model = "deepseek-v4-pro".to_owned();
+    assert_eq!(
+        requests::with_provider_budget(&input, &route)
+            .unwrap()
+            .reserved_tokens,
+        32768 + 4096
+    );
+    route.upstream_model = "deepseek-flash".to_owned();
+    assert_eq!(
+        requests::with_provider_budget(&input, &route)
+            .unwrap()
+            .reserved_tokens,
+        50
+    );
 }

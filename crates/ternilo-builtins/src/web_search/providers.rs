@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::json;
 use ternilo_protocol::HarnessError;
 
-use super::{BRAVE_KIND, KIND, SearchResult, TAVILY_KIND};
+use super::{BRAVE_KIND, DEEPSEEK_KIND, KIND, SearchResult, TAVILY_KIND};
 
 const MAX_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
 
@@ -12,6 +12,7 @@ pub(super) enum SearchProvider {
     Searxng,
     Brave,
     Tavily,
+    DeepSeek,
 }
 
 impl SearchProvider {
@@ -20,6 +21,7 @@ impl SearchProvider {
             Self::Searxng => KIND,
             Self::Brave => BRAVE_KIND,
             Self::Tavily => TAVILY_KIND,
+            Self::DeepSeek => DEEPSEEK_KIND,
         }
     }
 
@@ -28,6 +30,7 @@ impl SearchProvider {
             Self::Searxng => "SearXNG",
             Self::Brave => "Brave",
             Self::Tavily => "Tavily",
+            Self::DeepSeek => "DeepSeek",
         }
     }
 
@@ -36,14 +39,28 @@ impl SearchProvider {
             Self::Searxng => None,
             Self::Brave => Some("https://api.search.brave.com/res/v1"),
             Self::Tavily => Some("https://api.tavily.com"),
+            Self::DeepSeek => Some("https://api.deepseek.com"),
         }
     }
 
     pub(super) const fn max_results(self) -> usize {
         match self {
-            Self::Searxng => 50,
+            Self::Searxng | Self::DeepSeek => 50,
             Self::Brave | Self::Tavily => 20,
         }
+    }
+
+    pub(super) fn validate_query(
+        self,
+        query: &str,
+        language: Option<&str>,
+    ) -> Result<(), HarnessError> {
+        if self == Self::DeepSeek && deepseek_query(query, language).chars().count() > 128 {
+            return Err(HarnessError::invalid(
+                "DeepSeek search query, including its language filter, must not exceed 128 characters",
+            ));
+        }
+        Ok(())
     }
 
     pub(super) fn request(
@@ -80,6 +97,10 @@ impl SearchProvider {
                 }
                 request
             }
+            Self::DeepSeek => client
+                .post(format!("{base}/v1/tools/search"))
+                .bearer_auth(key.unwrap_or_default())
+                .json(&json!({"query": deepseek_query(query, language), "count": limit, "need_content": false})),
             Self::Tavily => {
                 let mut body = json!({
                     "query": query, "max_results": limit, "topic": "general",
@@ -103,6 +124,13 @@ impl SearchProvider {
         request: RequestBuilder,
         limit: usize,
     ) -> Result<Vec<SearchResult>, HarnessError> {
+        if self == Self::DeepSeek {
+            let bytes =
+                crate::deepseek_web::read_response(request, "search", MAX_RESPONSE_BYTES).await?;
+            return self.parse(&bytes, limit).map_err(|_| {
+                HarnessError::execution("DeepSeek returned an invalid search response")
+            });
+        }
         let mut response = request.send().await.map_err(|error| {
             let reason = if error.is_timeout() {
                 "timed out"
@@ -158,7 +186,7 @@ impl SearchProvider {
                     .unwrap_or_default()
                     .results
             }
-            Self::Searxng | Self::Tavily => {
+            Self::Searxng | Self::Tavily | Self::DeepSeek => {
                 serde_json::from_slice::<SearchResponse>(bytes)?.results
             }
         };
@@ -170,6 +198,13 @@ impl SearchProvider {
                 url: result.url,
                 snippet: match self {
                     Self::Brave => result.description,
+                    Self::DeepSeek => {
+                        if result.summary.is_empty() {
+                            result.snippet
+                        } else {
+                            result.summary
+                        }
+                    }
                     _ => result.content,
                 },
                 engine: if self == Self::Searxng {
@@ -205,4 +240,15 @@ struct ProviderResult {
     description: String,
     #[serde(default)]
     engine: String,
+    #[serde(default)]
+    snippet: String,
+    #[serde(default)]
+    summary: String,
+}
+
+fn deepseek_query(query: &str, language: Option<&str>) -> String {
+    match language.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(language) => format!("{query} lang:{language}"),
+        None => query.to_owned(),
+    }
 }

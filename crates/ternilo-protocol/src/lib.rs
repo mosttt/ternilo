@@ -938,10 +938,25 @@ impl ExtensionProviderMaterializeRequest {
 }
 
 impl ProviderProfile {
-    pub fn validate(&self) -> Result<(), HarnessError> {
+    fn validate_hosted_tools(&self) -> Result<(), HarnessError> {
         if let Some(tools) = &self.hosted_tools {
             tools.validate(self.protocol)?;
+            if self.protocol == ProviderProtocol::DeepSeekResponses
+                && !self
+                    .models
+                    .iter()
+                    .any(|model| tools.applies_to(self.protocol, &model.id))
+            {
+                return Err(HarnessError::invalid(
+                    "DeepSeek hosted search requires a deepseek-v4-pro model in this Provider",
+                ));
+            }
         }
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), HarnessError> {
+        self.validate_hosted_tools()?;
         if !valid_provider_id(&self.id) {
             return Err(HarnessError::invalid(
                 "provider id must start with a lowercase letter and use lowercase letters, digits, dash, or underscore",

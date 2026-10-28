@@ -468,8 +468,8 @@ export interface ProviderModelDiscoveryRequest {
 export interface HostedWebTools {
   web_search: boolean
   web_fetch: boolean
-  max_uses: number
-  max_content_tokens: number
+  max_uses?: number | null
+  max_content_tokens?: number | null
   allowed_domains: string[]
   blocked_domains: string[]
 }

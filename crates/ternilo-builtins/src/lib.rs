@@ -21,6 +21,7 @@ mod goal_execution_tests;
 mod hooks;
 mod hosted_tools;
 pub use hosted_tools::apply_hosted_web_tools;
+mod deepseek_web;
 mod instructions;
 mod jobs;
 mod lsp;
@@ -83,6 +84,7 @@ pub use project_memory::KIND as PROJECT_MEMORY_KIND;
 pub use repository_tools::KIND as REPOSITORY_TOOLS_KIND;
 mod provider_errors;
 mod provider_http;
+pub use deepseek_web::KIND as WEB_FETCH_DEEPSEEK_KIND;
 pub use model_replay::KIND as MODEL_REPLAY_KIND;
 pub use model_rule::{RuleCommand, parse_rule_command, rule_command_name};
 pub use projection::{session_stats, stats_unit};
@@ -104,12 +106,13 @@ pub use telemetry::{
 };
 pub use terminal::KIND as TERMINAL_TOOLS_KIND;
 pub use web::KIND as WEB_FETCH_KIND;
+pub use web_search::DEEPSEEK_KIND as WEB_SEARCH_DEEPSEEK_KIND;
 pub use web_search::KIND as WEB_SEARCH_SEARXNG_KIND;
 pub use web_search::{BRAVE_KIND as WEB_SEARCH_BRAVE_KIND, TAVILY_KIND as WEB_SEARCH_TAVILY_KIND};
 pub use workflow::{ENGINE_KIND as WORKFLOW_ENGINE_KIND, TOOL_KIND as WORKFLOW_TOOL_KIND};
 pub use workspace_tools::{ASK_USER_TOOL_KIND, FILE_TOOLS_KIND, PLAN_TOOL_KIND, SHELL_TOOL_KIND};
 
-pub const CATALOG_REVISION: &str = "ternilo-builtins-v20";
+pub const CATALOG_REVISION: &str = "ternilo-builtins-v21";
 
 const MAX_PROVIDER_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
 
@@ -185,6 +188,8 @@ pub fn register(catalog: &mut Catalog) -> Result<(), HarnessError> {
         web_search::factory(),
         web_search::brave_factory(),
         web_search::tavily_factory(),
+        web_search::deepseek_factory(),
+        deepseek_web::factory(),
         workflow::engine_factory(),
         workflow::factory(),
         model_rule::factory(),
@@ -296,6 +301,10 @@ fn plugin_description(kind: &str) -> &'static str {
         "ternilo.web.search.searxng" => "通过配置的 SearXNG endpoint 搜索网页。",
         "ternilo.web.search.brave" => "使用执行电脑的凭据通过 Brave Search 搜索网页。",
         "ternilo.web.search.tavily" => "使用执行电脑的凭据通过 Tavily Search 搜索网页。",
+        "ternilo.web.search.deepseek" => {
+            "使用执行电脑的凭据通过 DeepSeek 搜索网页，独立于对话模型。"
+        }
+        "ternilo.web.fetch.deepseek" => "通过 DeepSeek 抓取网页并返回 Markdown，按次计费。",
         "ternilo.workflow.rhai" => "用受限 Rhai runtime 编排并行和流水线子代理。",
         "ternilo.tools.workflow" => "向模型公开需审批的 Workflow 工具。",
         "ternilo.model.rule" => "无需联网的确定性规则模型，用于验证 Harness 链路。",

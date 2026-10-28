@@ -16,6 +16,13 @@ function draft(): ProviderDraft {
 }
 
 describe('providerModelDiscoveryRequest', () => {
+  it('clears protocol-specific hosted settings when switching provider protocols', () => {
+    const original: ProviderDraft = { ...draft(), protocol: 'anthropic-messages', hostedTools: { web_search: true, web_fetch: false, max_uses: 2, max_content_tokens: 20000, allowed_domains: [], blocked_domains: [] } }
+    expect(changeProviderProtocol(original, 'deepseek-responses').hostedTools).toBeNull()
+    expect(changeProviderProtocol(original, 'anthropic-messages').hostedTools).toEqual(original.hostedTools)
+    expect(changeProviderProtocol({ ...original, protocol: 'deepseek-responses' }, 'anthropic-messages').hostedTools).toBeNull()
+  })
+
   it('selects native default URLs without overwriting custom relay endpoints or credentials', () => {
     const initial = { ...draft(), baseUrl: 'https://api.openai.com/v1' }
     const gemini = changeProviderProtocol(initial, 'google-gemini')

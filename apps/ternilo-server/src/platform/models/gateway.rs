@@ -267,10 +267,14 @@ async fn accept_request(
             json!(method == "streamGenerateContent"),
         );
     }
-    let mut prepared = PreparedRequest::parse(body, protocol)?;
+    let model_id = body
+        .get("model")
+        .and_then(Value::as_str)
+        .filter(|id| !id.trim().is_empty())
+        .ok_or_else(|| HarnessError::invalid("model must name a published model"))?;
     let published = models
         .iter()
-        .find(|model| model.model_id == prepared.model_id)
+        .find(|model| model.model_id == model_id)
         .ok_or_else(|| {
             GatewayError::new(
                 StatusCode::FORBIDDEN,
@@ -285,6 +289,7 @@ async fn accept_request(
             "use the protocol published for this model",
         ));
     }
+    let mut prepared = PreparedRequest::parse(body, published.protocol)?;
     let reserved_tokens =
         prepared.prepare_upstream(published.protocol, &published.model_id, &published.defaults)?;
     let input = ModelRequestInput {
@@ -376,7 +381,12 @@ async fn execute_guarded(
 ) -> Result<(), GatewayError> {
     let route = &permit.route;
     if let Some(hosted) = &route.provider.hosted_tools {
-        ternilo_builtins::apply_hosted_web_tools(&mut prepared.body, hosted);
+        ternilo_builtins::apply_hosted_web_tools(
+            &mut prepared.body,
+            hosted,
+            route.provider.protocol,
+            &route.upstream_model,
+        );
     }
     let budget = prepared.prepare_upstream(
         route.provider.protocol,

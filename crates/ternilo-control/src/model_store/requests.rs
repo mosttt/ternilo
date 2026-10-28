@@ -19,12 +19,15 @@ pub(super) fn with_provider_budget(
     route: &ResolvedModelRoute,
 ) -> Result<ModelRequestInput, HarnessError> {
     let mut input = input.clone();
-    if let Some(hosted) = &route.provider.hosted_tools {
-        // Provider-side searches can introduce input and model iterations absent
-        // from the client payload. Reserve their configured upper envelope.
-        let calls = u64::from(hosted.max_uses)
-            * (u64::from(hosted.web_search) + u64::from(hosted.web_fetch))
-            + 1;
+    if let Some(hosted) = &route.provider.hosted_tools
+        && hosted.applies_to(route.provider.protocol, &route.upstream_model)
+    {
+        // Claude exposes an enforced call limit. DeepSeek does not, so reserve
+        // a full context/output estimate and settle its actual reported usage.
+        // Search fees are billed separately by the provider.
+        let calls = hosted.max_uses.map_or(1, |uses| {
+            u64::from(uses) * (u64::from(hosted.web_search) + u64::from(hosted.web_fetch)) + 1
+        });
         let ceiling = route
             .model
             .defaults

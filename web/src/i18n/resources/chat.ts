@@ -1,4 +1,14 @@
 export const zh = {
+  "runtimeError.deepseekWeb.title": "DeepSeek 网页服务调用失败",
+  "runtimeError.deepseekWeb.request": "请检查搜索词、返回条数或网页地址后重试。",
+  "runtimeError.deepseekWeb.auth": "请检查执行电脑中该插件使用的凭据，确认 DeepSeek API Key 有效。",
+  "runtimeError.deepseekWeb.balance": "请为搜索插件凭据所属的 DeepSeek 账号充值：https://platform.deepseek.com/top_up。增加 Ternilo 的 Token 额度不能解决上游余额不足。",
+  "runtimeError.deepseekWeb.blocked": "网页被抓取服务的安全策略拒绝，请换用其他公开网址。",
+  "runtimeError.deepseekWeb.missing": "未找到可读取的网页正文，请检查网址或换一个页面。",
+  "runtimeError.deepseekWeb.timeout": "网页服务请求超时，请稍后重试。",
+  "runtimeError.deepseekWeb.limit": "搜索账号或目标网站的请求过于频繁，请降低调用频率后重试。",
+  "runtimeError.deepseekWeb.service": "网页服务暂时不可用，请稍后重试。",
+
   "tool.constrainedLanguage": "此电脑的 PowerShell 处于受限语言模式，当前命令使用了不允许的 .NET 方法。需要改用此环境允许的命令。",
   "tool.powershellSyntax": "PowerShell 未能解析此命令，尚未正常执行。请检查引号、管道及嵌套 PowerShell 命令。",
 
@@ -403,6 +413,16 @@ export const zh = {
 export type ChatKey = keyof typeof zh
 
 export const en = {
+  "runtimeError.deepseekWeb.title": "DeepSeek web service request failed",
+  "runtimeError.deepseekWeb.request": "Check the search query, result count or page URL before retrying.",
+  "runtimeError.deepseekWeb.auth": "Check the plugin credential on the execution computer and ensure the DeepSeek API key is valid.",
+  "runtimeError.deepseekWeb.balance": "Top up the DeepSeek account used by the search plugin: https://platform.deepseek.com/top_up. Increasing Ternilo’s token budget will not replenish the provider balance.",
+  "runtimeError.deepseekWeb.blocked": "The fetch service blocked this page under its safety policy. Use another public URL.",
+  "runtimeError.deepseekWeb.missing": "No readable page content was found. Check the URL or use another page.",
+  "runtimeError.deepseekWeb.timeout": "The web service request timed out. Try again later.",
+  "runtimeError.deepseekWeb.limit": "The search account or target website request limit was reached. Reduce request frequency and try again.",
+  "runtimeError.deepseekWeb.service": "The web service is temporarily unavailable. Try again later.",
+
   "tool.constrainedLanguage": "PowerShell on this computer is in ConstrainedLanguage mode. This command used a .NET method that is not allowed; use a permitted command instead.",
   "tool.powershellSyntax": "PowerShell could not parse this command, so it did not execute normally. Check quoting, pipelines, and nested PowerShell commands.",
 
@@ -805,6 +825,16 @@ export const en = {
 } satisfies Record<ChatKey, string>
 
 export const ko = {
+  "runtimeError.deepseekWeb.title": "DeepSeek 웹 서비스 요청 실패",
+  "runtimeError.deepseekWeb.request": "검색어, 결과 수 또는 웹 페이지 주소를 확인한 후 다시 시도하세요.",
+  "runtimeError.deepseekWeb.auth": "실행 컴퓨터의 플러그인 자격 증명을 확인하고 DeepSeek API 키가 유효한지 확인하세요.",
+  "runtimeError.deepseekWeb.balance": "검색 플러그인에 연결된 DeepSeek 계정을 충전하세요: https://platform.deepseek.com/top_up. Ternilo 토큰 한도를 늘려도 공급자 잔액은 충전되지 않습니다.",
+  "runtimeError.deepseekWeb.blocked": "가져오기 서비스의 안전 정책에 의해 페이지가 차단되었습니다. 다른 공개 URL을 사용하세요.",
+  "runtimeError.deepseekWeb.missing": "읽을 수 있는 페이지 본문이 없습니다. URL을 확인하거나 다른 페이지를 사용하세요.",
+  "runtimeError.deepseekWeb.timeout": "웹 서비스 요청 시간이 초과되었습니다. 나중에 다시 시도하세요.",
+  "runtimeError.deepseekWeb.limit": "검색 계정 또는 대상 웹 사이트의 요청 한도에 도달했습니다. 요청 빈도를 줄이고 다시 시도하세요.",
+  "runtimeError.deepseekWeb.service": "웹 서비스를 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요.",
+
   "tool.constrainedLanguage": "이 컴퓨터의 PowerShell은 제한된 언어 모드입니다. 명령에 허용되지 않는 .NET 메서드가 사용되었습니다. 이 환경에서 허용되는 명령으로 바꿔야 합니다.",
   "tool.powershellSyntax": "PowerShell이 명령을 해석하지 못해 정상 실행되지 않았습니다. 따옴표, 파이프라인 및 중첩 PowerShell 명령을 확인하세요.",
 

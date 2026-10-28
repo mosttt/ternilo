@@ -223,7 +223,7 @@ sys.exit(0 if sys.argv[1]=='--list' and pathlib.Path(sys.argv[2]).read_bytes()==
     def test_execution_policy_is_private_and_restart_recreates_the_server(self):
         target = self.init()
         policy = self.directory / "execution-policy.json"
-        policy.write_text(json.dumps({"catalog_revision": "ternilo-cloud-v3", "denied_tools": []}))
+        policy.write_text(json.dumps({"catalog_revision": "ternilo-cloud-v4", "denied_tools": []}))
         self.run_tool("configure", "--directory", target, "--worker-policy", policy)
         calls = [json.loads(line)["args"] for line in Path(self.environment["DEPLOY_TEST_CALLS"]).read_text().splitlines()]
         writes = [call for call in calls if '--entrypoint' in call and 'sh' in call and 'cat >' in call[-1]]

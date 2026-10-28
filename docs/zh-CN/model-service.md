@@ -142,7 +142,7 @@ Key 列表中的“未撤销”仅说明这份 Key 没有被主动撤销。实�
 
 上述协议分别支持流式和非流式调用，保留文本、图片输入、客户端函数工具及结果和已配置的推理能力；结构化输出须按各协议与模型实际支持的参数提供。服务不自动跨协议转换，请按模型声明的协议调用。`GET /v1/models` 使用 Gemini 或 Claude 的原生鉴权请求头时返回对应协议的目录形状，并只列该协议模型；密钥放在请求头中，不放进 URL。
 
-当前 Responses 调用不保存跨请求状态，使用 `store: false`；不支持引用上游已有的 response、conversation、prompt、file 或后台请求。需要继续对话时，由客户端携带本轮所需历史。Responses 协议的供应商托管搜索、音频和其他托管工具仍需单独适配。
+当前 Responses 调用不保存跨请求状态，使用 `store: false`；不支持引用上游已有的 response、conversation、prompt、file 或后台请求。需要继续对话时，由客户端携带本轮所需历史。DeepSeek Responses 可由 Provider 所有者为 `deepseek-v4-pro` 启用内置搜索，并回传完整的搜索历史项；标准 OpenAI Responses 托管搜索、音频和其他托管工具仍需单独适配。见[DeepSeek 内置搜索](web-access.md#deepseek-responses-内置搜索)。
 
 原生网关同样不提供上游托管状态：拒绝 `cachedContent`、`container`、`context_management`、`mcp_servers`，客户端提交的工具定义仅允许函数；Claude Provider 所有者可显式开启托管网页搜索／读取，由网关按设置添加，支持原样传递暂停与引用，见[网页工具](web-access.md#claude-托管网页工具)。Gemini 每次请求只允许一个候选。Vertex AI/OAuth、Bedrock、Files 上传、实时语音、图像生成及其他供应商的托管工具不在当前接入范围；完整原生配置见[模型说明](models.md#gemini-与-claude-原生协议)。
 

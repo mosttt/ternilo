@@ -42,7 +42,7 @@ impl PreparedRequest {
             ProviderProtocol::OpenAiResponses | ProviderProtocol::DeepSeekResponses => {
                 validate_tools(object, protocol)?;
                 validate_tool_choice(object, protocol)?;
-                validate_responses(object)?;
+                validate_responses(object, protocol)?;
             }
         }
         let mut canonical_body = body.clone();
@@ -230,7 +230,10 @@ fn validate_chat(object: &Map<String, Value>) -> Result<(), HarnessError> {
     Ok(())
 }
 
-fn validate_responses(object: &Map<String, Value>) -> Result<(), HarnessError> {
+fn validate_responses(
+    object: &Map<String, Value>,
+    protocol: ProviderProtocol,
+) -> Result<(), HarnessError> {
     reject_fields(
         object,
         &[
@@ -267,6 +270,17 @@ fn validate_responses(object: &Map<String, Value>) -> Result<(), HarnessError> {
         match item.get("type").and_then(Value::as_str) {
             None | Some("message") => validate_content(item.get("content"), true)?,
             Some("function_call" | "reasoning") => {}
+            Some("web_search_call") if protocol == ProviderProtocol::DeepSeekResponses => {
+                if item
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .is_none_or(str::is_empty)
+                {
+                    return Err(HarnessError::invalid(
+                        "DeepSeek search history requires the returned search call id",
+                    ));
+                }
+            }
             Some("function_call_output") => validate_content(item.get("output"), true)?,
             Some(kind) => {
                 return Err(HarnessError::invalid(format!(

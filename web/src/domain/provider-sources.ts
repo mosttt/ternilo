@@ -7,7 +7,7 @@ export class ProviderSourceIndex {
 
   read(response: Record<string, unknown>): ProviderSource[] {
     const state = asRecord(response.provider_state)
-    if (state.protocol !== 'anthropic-messages' || !Array.isArray(state.blocks)) return []
+    if (!['anthropic-messages', 'deepseek-responses'].includes(String(state.protocol)) || !Array.isArray(state.blocks)) return []
     const sources = new Map<string, ProviderSource>()
     const add = (url: unknown, title: unknown) => {
       if (typeof url !== 'string') return
@@ -16,6 +16,21 @@ export class ProviderSourceIndex {
         if (!['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password) return
       } catch { return }
       sources.set(url, { url, title: typeof title === 'string' && title ? title : url })
+    }
+    if (state.protocol === 'deepseek-responses') {
+      for (const value of state.blocks) {
+        const item = asRecord(value)
+        if (item.type !== 'message' || !Array.isArray(item.content)) continue
+        for (const value of item.content) {
+          const part = asRecord(value)
+          if (part.type !== 'output_text' || !Array.isArray(part.annotations)) continue
+          for (const value of part.annotations) {
+            const citation = asRecord(value)
+            if (citation.type === 'url_citation') add(citation.url, citation.title)
+          }
+        }
+      }
+      return [...sources.values()]
     }
     for (const value of state.blocks) {
       const block = asRecord(value)

@@ -79,7 +79,7 @@ use serde_json::json;
 use ternilo_kernel::Catalog;
 use ternilo_protocol::{HarnessError, PluginEntry, Profile};
 
-pub const LOCAL_CATALOG_REVISION: &str = "ternilo-local-v20";
+pub const LOCAL_CATALOG_REVISION: &str = "ternilo-local-v21";
 
 pub fn catalog() -> Result<Catalog, HarnessError> {
     let mut catalog = Catalog::new(LOCAL_CATALOG_REVISION);
