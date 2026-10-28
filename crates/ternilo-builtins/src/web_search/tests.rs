@@ -4,7 +4,7 @@ use tokio::{
     net::TcpListener,
 };
 
-async fn endpoint(reply: String) -> (String, tokio::task::JoinHandle<String>) {
+pub(crate) async fn endpoint(reply: String) -> (String, tokio::task::JoinHandle<String>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let task = tokio::spawn(async move {
@@ -32,7 +32,7 @@ async fn endpoint(reply: String) -> (String, tokio::task::JoinHandle<String>) {
     (base, task)
 }
 
-fn ok(body: &Value) -> String {
+pub(crate) fn ok(body: &Value) -> String {
     let body = body.to_string();
     format!(
         "HTTP/1.1 200 OK\r\ncontent-length: {}\r\ncontent-type: application/json\r\nconnection: close\r\n\r\n{body}",
@@ -40,7 +40,7 @@ fn ok(body: &Value) -> String {
     )
 }
 
-fn client() -> reqwest::Client {
+pub(crate) fn client() -> reqwest::Client {
     reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -55,9 +55,10 @@ async fn services_use_native_auth_and_normalize_bounded_results() {
         SearchProvider::Searxng,
         SearchProvider::Brave,
         SearchProvider::Tavily,
+        SearchProvider::DeepSeek,
     ] {
         let results = json!([
-            {"title":"Ternilo", "url":"https://example.com/one", "content":"Content", "description":"Brave snippet", "engine":"fixture"},
+            {"title":"Ternilo", "url":"https://example.com/one", "content":"Content", "description":"Brave snippet", "engine":"fixture", "snippet":"Short snippet", "summary":"DeepSeek long summary"},
             {"title":"Two", "url":"https://example.com/two"}
         ]);
         let body = if provider == SearchProvider::Brave {
@@ -98,6 +99,17 @@ async fn services_use_native_auth_and_normalize_bounded_results() {
                 assert!(headers.contains("x-subscription-token: fixture-key"));
                 assert!(!headers.contains("authorization:"));
                 assert_eq!(results[0].snippet, "Brave snippet");
+            }
+            SearchProvider::DeepSeek => {
+                assert!(headers.starts_with("post /v1/tools/search "));
+                assert!(headers.contains("authorization: bearer fixture-key"));
+                let body: Value = serde_json::from_str(body).unwrap();
+                assert_eq!(
+                    body,
+                    json!({"query":"a & b lang:en","count":1,"need_content":false})
+                );
+                assert_eq!(results[0].snippet, "DeepSeek long summary");
+                assert_eq!(results[0].engine, "DeepSeek");
             }
             SearchProvider::Tavily => {
                 assert!(headers.starts_with("post /search "));
@@ -194,6 +206,39 @@ fn configuration_requires_credentials_and_provider_limits() {
     assert!(
         factory()
             .build(json!({"base_url":"http://localhost:8888", "max_results":50}))
+            .is_ok()
+    );
+}
+
+#[test]
+fn deepseek_query_limits_count_unicode_and_include_language_syntax() {
+    let provider = SearchProvider::DeepSeek;
+    assert!(provider.validate_query(&"中".repeat(128), None).is_ok());
+    assert!(provider.validate_query(&"中".repeat(129), None).is_err());
+    assert!(
+        provider
+            .validate_query(&"한".repeat(120), Some("ko"))
+            .is_ok()
+    );
+    assert!(
+        provider
+            .validate_query(&"한".repeat(121), Some("ko"))
+            .is_err()
+    );
+    assert!(
+        provider_factory(provider)
+            .build(json!({"api_key_env":"DEEPSEEK_KEY","max_results":50}))
+            .is_ok()
+    );
+    assert!(
+        provider_factory(provider)
+            .build(json!({"api_key_env":"DEEPSEEK_KEY","max_results":51}))
+            .is_err()
+    );
+    assert!(provider_factory(provider).build(json!({})).is_err());
+    assert!(
+        SearchProvider::Tavily
+            .validate_query(&"x".repeat(129), None)
             .is_ok()
     );
 }

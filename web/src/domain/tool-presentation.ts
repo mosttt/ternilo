@@ -21,7 +21,7 @@ export type BuiltinToolPresentation =
   | { kind: 'search'; query: string; entries: SearchEntry[]; mode: 'search' | 'glob'; warnings: string[]; truncated: boolean }
   | { kind: 'terminal'; command: string; stdout: string; stderr: string; exitCode?: number; timedOut: boolean }
   | { kind: 'web-search'; query: string; sources: WebSource[] }
-  | { kind: 'web-fetch'; url: string; statusCode: number; contentType: string; body: string }
+  | { kind: 'web-fetch'; url: string; title?: string; statusCode?: number; contentType: string; body: string }
   | { kind: 'skill'; name: string; content: string; error: boolean }
   | { kind: 'generic'; content: string; error: boolean }
 

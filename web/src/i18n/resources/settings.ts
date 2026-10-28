@@ -1,4 +1,19 @@
 export const zh = {
+  "provider.deepseekHostedTools": "DeepSeek 内置搜索",
+  "provider.deepseekHostedDescription": "仅对 deepseek-v4-pro 启用，其他模型保留本机搜索工具。由 DeepSeek 执行并单独计费，搜索次数由上游控制；Ternilo 的 Token 预留是估算，不是费用上限。",
+  "provider.deepseekHostedModel": "请先在模型列表添加 deepseek-v4-pro；deepseek-flash 不支持内置搜索。",
+
+  "webTools.url": "服务地址",
+  "webTools.urlHint": "默认使用 https://api.deepseek.com；模型不能修改此地址。",
+  "webTools.credential": "凭据名称",
+  "webTools.credentialHint": "填写执行电脑中已保存的凭据名称，不填写 API Key 原文。",
+  "webTools.timeout": "请求超时（毫秒）",
+  "webTools.timeoutHint": "包括等待与读取结果的时间，默认 30000 毫秒。",
+  "webTools.results": "最多搜索结果",
+  "webTools.resultsHint": "每次返回 1–50 条，默认 10 条；结果条数不影响 DeepSeek 单次搜索价格。",
+  "webTools.bytes": "响应大小上限（字节）",
+  "webTools.bytesHint": "限制单次网页读取的响应大小，默认 2 MiB。",
+
   "checks.title": "具名验证检查",
   "checks.invalid": "请配置最多 32 个检查，每项使用不同的非空 name、非空 command 和 100–300000 毫秒的 timeout_ms。",
   "checks.description": "供只读 reviewer 运行的固定命令列表。每项填写 name、command 和 timeout_ms；检查不能修改工作区，临时缓存可写。仅配置你信任的检查，留空则不提供 run_check。",
@@ -914,6 +929,21 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  "provider.deepseekHostedTools": "DeepSeek built-in search",
+  "provider.deepseekHostedDescription": "Applies only to deepseek-v4-pro; other models retain local search tools. DeepSeek runs and bills searches and controls their count. Ternilo’s token reservation is an estimate, not a spending cap.",
+  "provider.deepseekHostedModel": "Add deepseek-v4-pro to the model list first. deepseek-flash does not support built-in search.",
+
+  "webTools.url": "Service URL",
+  "webTools.urlHint": "Defaults to https://api.deepseek.com. The model cannot change this address.",
+  "webTools.credential": "Credential name",
+  "webTools.credentialHint": "Use a credential name saved on the execution computer, not the API key itself.",
+  "webTools.timeout": "Request timeout (ms)",
+  "webTools.timeoutHint": "Includes waiting and reading the result. Defaults to 30000 ms.",
+  "webTools.results": "Maximum search results",
+  "webTools.resultsHint": "Return 1–50 results per search, 10 by default. The result count does not change DeepSeek’s price per search.",
+  "webTools.bytes": "Response size limit (bytes)",
+  "webTools.bytesHint": "Limits a single page response. Defaults to 2 MiB.",
+
   "checks.title": "Named verification checks",
   "checks.invalid": "Configure up to 32 checks with unique nonempty names, nonempty commands and timeout_ms between 100 and 300000.",
   "checks.description": "Fixed commands for read-only reviewers. Each entry contains name, command and timeout_ms. Checks cannot write to the workspace; temporary caches are writable. Configure trusted checks only. Leave empty to omit run_check.",
@@ -1872,6 +1902,21 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  "provider.deepseekHostedTools": "DeepSeek 내장 검색",
+  "provider.deepseekHostedDescription": "deepseek-v4-pro에만 적용되며 다른 모델은 로컬 검색 도구를 유지합니다. DeepSeek가 검색을 실행하고 요금과 호출 횟수를 관리합니다. Ternilo 토큰 예약은 추정치이며 비용 상한이 아닙니다.",
+  "provider.deepseekHostedModel": "먼저 모델 목록에 deepseek-v4-pro를 추가하세요. deepseek-flash는 내장 검색을 지원하지 않습니다.",
+
+  "webTools.url": "서비스 주소",
+  "webTools.urlHint": "기본값은 https://api.deepseek.com입니다. 모델은 이 주소를 변경할 수 없습니다.",
+  "webTools.credential": "자격 증명 이름",
+  "webTools.credentialHint": "API 키 원문이 아닌 실행 컴퓨터에 저장된 자격 증명 이름을 입력하세요.",
+  "webTools.timeout": "요청 제한 시간(ms)",
+  "webTools.timeoutHint": "대기와 결과 읽기를 포함하며 기본값은 30000ms입니다.",
+  "webTools.results": "최대 검색 결과 수",
+  "webTools.resultsHint": "검색당 1–50개, 기본 10개입니다. 결과 수는 DeepSeek의 검색당 요금에 영향을 주지 않습니다.",
+  "webTools.bytes": "응답 크기 제한(바이트)",
+  "webTools.bytesHint": "한 번의 페이지 응답 크기를 제한합니다. 기본값은 2MiB입니다.",
+
   "checks.title": "이름이 지정된 검증 검사",
   "checks.invalid": "검사를 최대 32개까지 등록하세요. 이름과 명령은 비어 있으면 안 되며 이름은 고유해야 합니다. timeout_ms는 100–300000이어야 합니다.",
   "checks.description": "읽기 전용 검토자가 실행할 고정 명령입니다. 항목마다 name, command, timeout_ms를 입력하세요. 작업 공간에는 쓸 수 없으며 임시 캐시는 쓸 수 있습니다. 신뢰하는 검사만 등록하세요. 비워 두면 run_check가 제공되지 않습니다.",

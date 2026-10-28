@@ -1,6 +1,6 @@
-# Claude 托管网页工具
+# 供应商托管网页工具
 
-2026-10-03，优先级 2 的托管模型工具接入。Provider 所有者显式配置 `hosted_tools`，仅 Claude Messages 协议使用基本 `web_search_20250305` 和 `web_fetch_20250910`；默认关闭。
+Provider 所有者通过 `hosted_tools` 显式启用供应商网页工具，默认关闭。Claude Messages 使用基本 `web_search_20250305` 和 `web_fetch_20250910`；DeepSeek Responses 的模型范围与独立合同见后文。以下先保留 2026-10-03 的 Claude 实现和验收。
 
 ## 行为与边界
 
@@ -21,3 +21,17 @@
 额外客户端验收发现独立原生网关仍将 `pause_turn` 当作失败，已按官方协议修正。SQLite 与受限 PostgreSQL 的四条路径均通过。前端全量检查通过 152 文件／989 项；相关 Rust 全目标 Clippy 通过。阶段 Rust 套件的关闭测试仍读取旧会话目录，修正为分类目录后两项关闭测试通过；其余模块与后续文档测试通过。
 
 官方依据：[网页搜索](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)、[网页读取](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-fetch-tool)、[工具定义与选择](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools)。动态过滤、供应商代码执行以及其他协议的托管工具没有并入这一批实现。
+
+## DeepSeek Responses 内置搜索
+
+新增显式 DeepSeek Responses 策略，仅 `deepseek-v4-pro` 注入 `{"type":"web_search"}`；其他模型保留本机工具。Provider 对象继续使用 `hosted_tools`。Claude 原有次数、正文和域名配置合同保留；DeepSeek 不接受上游不支持的控制参数，所有者通过一个默认关闭的开关启用。
+
+搜索调用、模型回答、函数调用和引用使用现有 `ModelProviderState` 持久化，按协议和模型匹配回放。SSE 搜索状态不转换成本机工具；搜索后调用本机工具仍能续传完整搜索历史。只有引用、没有新搜索调用的最终回答也保存来源。标准 OpenAI Responses 的状态与托管工具边界不变。
+
+原生网关先解析已授权目录中的实际协议，再验证历史；只有 DeepSeek 协议接受返回的搜索历史项，客户端提交的工具定义仍仅允许函数，托管搜索由所有者策略注入。Server 对 DeepSeek 按上下文和输出上限预留估算，按报告结算，不把不受上游支持的次数限制当作硬上限。界面和正式指南明确区分 Token 估算与搜索费用。
+
+DeepSeek 相关 Rust 合同 15 项、配置策略 1 项、预算生命周期 1 项、Server 原生网关 12 项通过。真实四条模型来源浏览器通过（30.10 秒、8 次上游调用），覆盖中英韩启停保存、Flash 禁用状态、搜索历史续传、引用刷新及 390 px 窄屏；现有 Claude 四路径浏览器回归通过（31.47 秒、12 次上游调用）。已检查插件字段、Markdown 正文、内置搜索设置和引用截图，控制台、页面与非预期 HTTP 错误为空。使用官方协议合同服务，不使用真实收费凭据。官方依据：[DeepSeek Responses](https://api-docs.deepseek.com/zh-cn/guides/responses_api/)，引用结构参考其兼容的 [Responses 输出与引用](https://developers.openai.com/api/docs/guides/tools-web-search#output-and-citations)。
+
+本次相关 Builtins／Protocol／Control／Server／Local／Cloud 六个 crate 的全目标严格 Clippy、Web 类型与三语检查、242 篇 Markdown 文档门禁和 23 项部署工具测试通过。
+
+PR 安全检查命中 2026-10-28 公布的 [RUSTSEC-2026-0414](https://rustsec.org/advisories/RUSTSEC-2026-0414.html)：`pulldown-cmark` 的 WikiLinks 空显示文本可造成事件指数增长。文档工具未启用该选项；依赖仍升级并锁定至修复版本 0.13.5，没有新增忽略项。更新后的 advisories／licenses／sources 检查及 Markdown 公式、代码和货币文本合同通过。

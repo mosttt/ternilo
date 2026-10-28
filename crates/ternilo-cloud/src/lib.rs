@@ -69,7 +69,7 @@ pub use types::{
     ExecutionAttachmentObject, ExecutionEnvelope, StartedRun, TerminalState,
 };
 
-pub const CLOUD_CATALOG_REVISION: &str = "ternilo-cloud-v3";
+pub const CLOUD_CATALOG_REVISION: &str = "ternilo-cloud-v4";
 
 /// Remove exporters owned by the trusted Cloud parent before a profile is
 /// serialized into a child envelope or booted for an inspection child.

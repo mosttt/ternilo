@@ -36,6 +36,10 @@ export const webFetchTool = defineToolPresentation<BuiltinView<'web-fetch'>>({
   matches: trace => trace.name === 'web_fetch',
   parse: trace => {
     if (!trace.output || trace.output.is_error) return null
+    const page = toolRecord(outputJson(trace))
+    if (page && typeof page.url === 'string' && typeof page.title === 'string' && typeof page.content === 'string') {
+      return { kind: 'web-fetch', url: page.url, title: page.title, contentType: 'text/markdown', body: page.content }
+    }
     const match = /^HTTP (\d+)\nContent-Type: ([^\n]+)\n\n([\s\S]*)$/.exec(trace.output.content)
     return match ? {
       kind: 'web-fetch',

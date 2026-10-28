@@ -108,7 +108,7 @@ export function WebFetchToolResult({ view, t }: {
   t: ChatTranslate
 }) {
   return <div className={css.resultCard} data-tool-view="web-fetch">
-    <header className={css.resultHeader}><Globe2 /><SafeLink url={view.url}>{view.url}</SafeLink><span>HTTP {view.statusCode} · {view.contentType}</span></header>
+    <header className={css.resultHeader}><Globe2 /><SafeLink url={view.url}>{view.title || view.url}</SafeLink><span>{view.statusCode != null && <>HTTP {view.statusCode} · </>}{view.contentType}</span></header>
     <pre className={css.webBody} data-tool-scroll="" tabIndex={0} role="region" aria-label={t('tool.webFetch')}>{view.body || t('tool.emptyResponse')}</pre>
   </div>
 }

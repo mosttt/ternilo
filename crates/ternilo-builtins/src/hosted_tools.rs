@@ -1,8 +1,21 @@
 use serde_json::{Value, json};
-use ternilo_protocol::HostedWebTools;
+use ternilo_protocol::{HostedWebTools, ProviderProtocol};
 
-/// Apply the provider owner's validated web tool policy to a Claude request.
-pub fn apply_hosted_web_tools(body: &mut Value, settings: &HostedWebTools) {
+/// Apply the provider owner's policy only to a supported protocol and model.
+pub fn apply_hosted_web_tools(
+    body: &mut Value,
+    settings: &HostedWebTools,
+    protocol: ProviderProtocol,
+    model: &str,
+) {
+    if !settings.applies_to(protocol, model)
+        || body["tool_choice"] == "none"
+        || body
+            .pointer("/tool_choice/type")
+            .is_some_and(|value| value == "none")
+    {
+        return;
+    }
     let mut tools = body
         .get("tools")
         .and_then(Value::as_array)
@@ -12,6 +25,11 @@ pub fn apply_hosted_web_tools(body: &mut Value, settings: &HostedWebTools) {
         !((settings.web_search && tool["name"] == "web_search")
             || (settings.web_fetch && tool["name"] == "web_fetch"))
     });
+    if protocol == ProviderProtocol::DeepSeekResponses {
+        tools.push(json!({"type":"web_search"}));
+        body["tools"] = json!(tools);
+        return;
+    }
     for (enabled, name, version) in [
         (settings.web_search, "web_search", "web_search_20250305"),
         (settings.web_fetch, "web_fetch", "web_fetch_20250910"),

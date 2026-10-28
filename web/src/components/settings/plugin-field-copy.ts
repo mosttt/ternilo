@@ -2,6 +2,17 @@ import type { Translate } from '@/i18n/runtime'
 import { fieldLabel, type PluginConfigField } from './plugin-config'
 
 export function pluginFieldCopy(kind: string, field: PluginConfigField, t: Translate<'settings'>) {
+  if (kind === 'ternilo.web.search.deepseek' || kind === 'ternilo.web.fetch.deepseek') {
+    const fields = {
+      base_url: ['webTools.url', 'webTools.urlHint'],
+      api_key_env: ['webTools.credential', 'webTools.credentialHint'],
+      timeout_ms: ['webTools.timeout', 'webTools.timeoutHint'],
+      max_results: ['webTools.results', 'webTools.resultsHint'],
+      max_bytes: ['webTools.bytes', 'webTools.bytesHint'],
+    } as const
+    const copy = fields[field.key as keyof typeof fields]
+    if (copy) return { label: t(copy[0]), description: t(copy[1]) }
+  }
   if (kind === 'ternilo.tool.shell' && field.key === 'checks') {
     return { label: t('checks.title'), description: t('checks.description') }
   }

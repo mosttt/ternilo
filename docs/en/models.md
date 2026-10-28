@@ -45,3 +45,5 @@ Discovery failures show the upstream HTTP status with guidance about keys, permi
 Managed execution, storage and task reservations stay with the original resource owner. The model provider and actual submitter may be different accounts; explicitly authorized service accounts can also submit. Model calls, retries and active execution recheck the model owner's configuration permission. Platform grants must allow resource sharing for other submitters. Removing the model owner's configuration permission stops model calls even if the submitter retains workspace access. Worker receives no upstream key.
 
 Claude Providers can explicitly enable provider-hosted web search/fetch. See [web tools](web-access.md#claude-hosted-web-tools).
+
+DeepSeek Responses Providers can enable [built-in search](web-access.md#deepseek-responses-built-in-search) for `deepseek-v4-pro`. The standalone Search/Fetch plugins work independently of the conversation model.

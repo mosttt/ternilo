@@ -145,7 +145,7 @@ fn deepseek_tool_history_passes_back_full_reasoning_only_for_the_selected_adapte
         ],
         tools: Vec::new(),
     };
-    let deepseek = protocols::deepseek_responses::request_input(&request);
+    let deepseek = protocols::deepseek_responses::request_input(&request, "model");
     assert_eq!(
         deepseek[0],
         json!({"type":"reasoning","summary":[],"content":[{"type":"reasoning_text","text":"The path must be inspected."}]})
