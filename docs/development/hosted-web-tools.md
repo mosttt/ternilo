@@ -33,3 +33,5 @@ Provider 所有者通过 `hosted_tools` 显式启用供应商网页工具，默�
 DeepSeek 相关 Rust 合同 15 项、配置策略 1 项、预算生命周期 1 项、Server 原生网关 12 项通过。真实四条模型来源浏览器通过（30.10 秒、8 次上游调用），覆盖中英韩启停保存、Flash 禁用状态、搜索历史续传、引用刷新及 390 px 窄屏；现有 Claude 四路径浏览器回归通过（31.47 秒、12 次上游调用）。已检查插件字段、Markdown 正文、内置搜索设置和引用截图，控制台、页面与非预期 HTTP 错误为空。使用官方协议合同服务，不使用真实收费凭据。官方依据：[DeepSeek Responses](https://api-docs.deepseek.com/zh-cn/guides/responses_api/)，引用结构参考其兼容的 [Responses 输出与引用](https://developers.openai.com/api/docs/guides/tools-web-search#output-and-citations)。
 
 本次相关 Builtins／Protocol／Control／Server／Local／Cloud 六个 crate 的全目标严格 Clippy、Web 类型与三语检查、242 篇 Markdown 文档门禁和 23 项部署工具测试通过。
+
+PR 安全检查命中 2026-10-28 公布的 [RUSTSEC-2026-0414](https://rustsec.org/advisories/RUSTSEC-2026-0414.html)：`pulldown-cmark` 的 WikiLinks 空显示文本可造成事件指数增长。文档工具未启用该选项；依赖仍升级并锁定至修复版本 0.13.5，没有新增忽略项。更新后的 advisories／licenses／sources 检查及 Markdown 公式、代码和货币文本合同通过。
