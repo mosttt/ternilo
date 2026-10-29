@@ -35,13 +35,14 @@ async fn reviewer_checks_are_named_read_only_and_survive_restart() {
     )
     .await
     .unwrap();
+    // Test retention after output, allowing the isolated login shell time to start.
     app.update_profile_plugins(parent.identity.session_id.as_str(), vec![PluginEntry {
         id: "shell-tool".into(), kind: ternilo_builtins::SHELL_TOOL_KIND.into(), enabled: true,
         config: json!({"checks":[
             {"name":"unit", "command":"python3 -m unittest discover -s tests", "timeout_ms":10000},
             {"name":"blocked", "command":"touch forbidden.txt"},
             {"name":"temporary", "command":"printf '%s' \"$TMPDIR\"; printf cache > \"$TMPDIR/check\""},
-            {"name":"timeout", "command":"printf before; printf diagnostic >&2; sleep 5", "timeout_ms":200}
+            {"name":"timeout", "command":"printf before; printf diagnostic >&2; sleep 30", "timeout_ms":2000}
         ]}),
     }]).await.unwrap();
     let host = app.subagent_session_host();
