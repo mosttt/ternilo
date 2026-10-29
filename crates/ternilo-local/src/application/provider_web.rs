@@ -1,4 +1,4 @@
-use super::LocalApplication;
+use super::{LocalApplication, TurnInput};
 use std::{future::Future, pin::Pin, sync::Arc};
 use ternilo_kernel::ProviderWebCredentials;
 use ternilo_protocol::{HarnessError, ProviderWebAccess, RunId, RunModelBinding, WebCapability};
@@ -36,6 +36,52 @@ pub(super) async fn local_credential(
 }
 
 impl LocalApplication {
+    pub(super) async fn refresh_web_for_input_locked(
+        &self,
+        session_id: &str,
+        input: &TurnInput,
+    ) -> Result<bool, HarnessError> {
+        if let TurnInput::Prompt(text) = input
+            && text.trim_start().starts_with('/')
+        {
+            let cached = self.ensure_session_locked(session_id).await?;
+            return Ok(cached
+                .harness
+                .resolve_command(text.clone())
+                .await
+                .is_none_or(|command| {
+                    command.result.is_ok_and(|call| {
+                        matches!(call.tool_name.as_str(), "web_search" | "web_fetch")
+                    })
+                }));
+        }
+        Ok(true)
+    }
+
+    pub(super) async fn validate_provider_web_submission(
+        &self,
+        session_id: &str,
+        input: &TurnInput,
+    ) -> Result<(), HarnessError> {
+        let lifecycle = self.session_lifecycle(session_id).await;
+        let _lifecycle = lifecycle.lock().await;
+        let snapshot = self
+            .state
+            .session(session_id)
+            .await
+            .and_then(|session| session.server_model);
+        if let Some(snapshot) = snapshot
+            && self.refresh_web_for_input_locked(session_id, input).await?
+        {
+            // Reject known source/configuration failures before accepting a queued task.
+            // Preparation still refreshes when that task actually starts.
+            self.server_models
+                .web_access(session_id, snapshot.binding, None)
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Internal Server-to-source operation; only the separate web credential can be returned.
     pub async fn provider_web_credential(
         &self,

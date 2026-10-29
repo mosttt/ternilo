@@ -160,22 +160,9 @@ impl LocalApplication {
         let attachments = self.attachments.save_many(attachments).await?;
         let lifecycle = self.session_lifecycle(session_id).await;
         let lifecycle_guard = lifecycle.lock().await;
-        let refresh_web = if let TurnInput::Prompt(text) = &input
-            && text.trim_start().starts_with('/')
-        {
-            let cached = self.ensure_session_locked(session_id).await?;
-            cached
-                .harness
-                .resolve_command(text.clone())
-                .await
-                .is_none_or(|command| {
-                    command.result.is_ok_and(|call| {
-                        matches!(call.tool_name.as_str(), "web_search" | "web_fetch")
-                    })
-                })
-        } else {
-            true
-        };
+        let refresh_web = self
+            .refresh_web_for_input_locked(session_id, &input)
+            .await?;
 
         let mut managed = self
             .ensure_session_with_web_locked(session_id, refresh_web)
