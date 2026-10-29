@@ -176,7 +176,9 @@ fn process_running(pid: i32) -> bool {
 
 const SERVER: &str = r#"
 printf '%s' "$$" > "$TERNILO_STDIO_DIRECTORY/leader"
-/bin/sh -c 'trap "" TERM; printf "%s" "$$" > "$1/writer"; while :; do printf x >> "$1/writes"; sleep 0.02; done' writer "$TERNILO_STDIO_DIRECTORY" &
+/bin/sh -c 'trap "" TERM; while :; do printf x >> "$1/writes"; sleep 0.02; done' writer "$TERNILO_STDIO_DIRECTORY" &
+printf '%s' "$!" > "$TERNILO_STDIO_DIRECTORY/writer.next"
+mv "$TERNILO_STDIO_DIRECTORY/writer.next" "$TERNILO_STDIO_DIRECTORY/writer"
 while [ ! -f "$TERNILO_STDIO_DIRECTORY/writes" ]; do sleep 0.01; done
 touch "$TERNILO_STDIO_DIRECTORY/ready"
 case "$TERNILO_STDIO_MODE" in
