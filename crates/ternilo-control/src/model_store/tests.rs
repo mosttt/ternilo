@@ -1573,6 +1573,24 @@ async fn hosted_tools_reserve_provider_work_before_admission_and_settle_actual_u
         requests::with_provider_budget(&input, &route)
             .unwrap()
             .reserved_tokens,
+        32768 + 4096
+    );
+    route.provider.models.push(ternilo_protocol::ProviderModel {
+        id: "deepseek-flash".into(),
+        display_name: None,
+        settings: ternilo_protocol::ProviderModelSettings::Inherit,
+        web_access: Some(Box::new(ternilo_protocol::ProviderModelWebAccess {
+            search: Some(ternilo_protocol::ProviderSearch {
+                mode: ternilo_protocol::WebSearchMode::Disabled,
+                ..Default::default()
+            }),
+            fetch: None,
+        })),
+    });
+    assert_eq!(
+        requests::with_provider_budget(&input, &route)
+            .unwrap()
+            .reserved_tokens,
         50
     );
 }
