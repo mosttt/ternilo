@@ -615,7 +615,7 @@ fn responses_preserves_optional_tool_arguments_without_changing_other_adapters()
 }
 
 #[test]
-fn deepseek_hosted_search_is_model_specific_and_never_replaces_local_fetch() {
+fn deepseek_hosted_search_reaches_new_models_and_never_replaces_local_fetch() {
     let mut model = model(ProviderProtocol::DeepSeekResponses, None);
     model.model = "deepseek-v4-pro".to_owned();
     model.hosted_tools = Some(serde_json::from_value(json!({"web_search":true})).unwrap());
@@ -647,6 +647,12 @@ fn deepseek_hosted_search_is_model_specific_and_never_replaces_local_fetch() {
     let flash = protocols::request_body(&model, &request).unwrap();
     assert!(
         flash["tools"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({"type":"web_search"}))
+    );
+    assert!(
+        !flash["tools"]
             .as_array()
             .unwrap()
             .iter()

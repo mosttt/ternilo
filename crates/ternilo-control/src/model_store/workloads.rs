@@ -223,7 +223,7 @@ impl ControlStore {
             .resolve_workload_route_in(&mut tx, actor_id, model_owner_id, binding, now, false)
             .await?;
         let snapshot = RunModelSnapshot {
-            web_access: route.provider.web_access.clone(),
+            web_access: route.provider.effective_web_access(&route.upstream_model),
             binding: binding.clone(),
             protocol: route.model.protocol,
             defaults: route.model.defaults,

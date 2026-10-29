@@ -779,6 +779,7 @@ mod tests {
         for (index, request) in [
             ApplicationOperation::ProviderWebCredential {
                 provider_id: "private-provider".to_owned(),
+                model: "model".to_owned(),
                 capability: ternilo_protocol::WebCapability::Search,
                 expected: ternilo_protocol::ProviderWebAccess::default(),
             },

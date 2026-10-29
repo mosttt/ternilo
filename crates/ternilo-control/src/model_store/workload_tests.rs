@@ -101,6 +101,7 @@ async fn fixture(
             reasoning: None,
         },
         models: vec![ProviderModel {
+            web_access: None,
             id: "upstream-model".to_owned(),
             display_name: None,
             settings: ProviderModelSettings::Inherit,
@@ -721,6 +722,7 @@ async fn account_provider_contract(
             reasoning: None,
         },
         models: vec![ProviderModel {
+            web_access: None,
             id: "account-model".to_owned(),
             display_name: None,
             settings: ProviderModelSettings::Inherit,
@@ -1604,6 +1606,7 @@ async fn workload_byok_readiness_contract(
         api_key_ref: None,
         defaults: saved.defaults.clone(),
         models: vec![ProviderModel {
+            web_access: None,
             id: "upstream-model".to_owned(),
             display_name: None,
             settings: ProviderModelSettings::Inherit,

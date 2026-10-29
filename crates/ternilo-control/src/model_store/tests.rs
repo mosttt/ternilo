@@ -27,6 +27,7 @@ fn provider() -> ModelProviderInput {
                 reasoning: None,
             },
             models: vec![ProviderModel {
+                web_access: None,
                 id: "private-model".to_owned(),
                 display_name: None,
                 settings: ProviderModelSettings::Inherit,

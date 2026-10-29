@@ -146,11 +146,12 @@ pub(super) async fn handle_application_inner(
         }
         ApplicationOperation::ProviderWebCredential {
             provider_id,
+            model,
             capability,
             expected,
         } => to_value(
             application
-                .provider_web_credential(&provider_id, capability, &expected)
+                .provider_web_credential(&provider_id, &model, capability, &expected)
                 .await?,
         ),
         ApplicationOperation::ProviderList => to_value(application.provider_profiles().await),

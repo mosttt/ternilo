@@ -90,6 +90,16 @@ pub struct ProviderWebAccess {
     pub fetch: ProviderFetch,
 }
 
+/// Each absent capability inherits the Provider default, including its credential reference.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct ProviderModelWebAccess {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search: Option<ProviderSearch>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fetch: Option<ProviderFetch>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WebCapability {
@@ -186,22 +196,6 @@ impl ProviderWebAccess {
             _ => None,
         }
     }
-
-    pub fn validate_model(
-        &self,
-        protocol: ProviderProtocol,
-        model: &str,
-    ) -> Result<(), HarnessError> {
-        if self.search.mode == WebSearchMode::Hosted
-            && protocol == ProviderProtocol::DeepSeekResponses
-            && model != "deepseek-v4-pro"
-        {
-            return Err(HarnessError::invalid(
-                "this model does not support the Provider's built-in search; choose a supported model or computer-executed search",
-            ));
-        }
-        Ok(())
-    }
 }
 
 fn validate_connection(url: Option<&str>, reference: Option<&str>) -> Result<(), HarnessError> {
@@ -221,8 +215,39 @@ fn validate_connection(url: Option<&str>, reference: Option<&str>) -> Result<(),
 
 impl ProviderProfile {
     #[must_use]
-    pub fn effective_hosted_tools(&self) -> Option<HostedWebTools> {
-        let Some(web) = &self.web_access else {
+    pub fn effective_web_access(&self, model: &str) -> Option<Box<ProviderWebAccess>> {
+        let overrides = self
+            .models
+            .iter()
+            .find(|entry| entry.id == model)
+            .and_then(|entry| entry.web_access.as_ref());
+        let Some(overrides) = overrides else {
+            return self.web_access.clone();
+        };
+        let mut web = self.web_access.clone().unwrap_or_else(|| {
+            let mut web = ProviderWebAccess::default();
+            if let Some(hosted) = &self.hosted_tools {
+                if hosted.web_search {
+                    web.search.mode = WebSearchMode::Hosted;
+                }
+                if hosted.web_fetch {
+                    web.fetch.mode = WebFetchMode::Hosted;
+                }
+            }
+            Box::new(web)
+        });
+        if let Some(search) = &overrides.search {
+            web.search = search.clone();
+        }
+        if let Some(fetch) = &overrides.fetch {
+            web.fetch = fetch.clone();
+        }
+        Some(web)
+    }
+
+    #[must_use]
+    pub fn effective_hosted_tools(&self, model: &str) -> Option<HostedWebTools> {
+        let Some(web) = self.effective_web_access(model) else {
             return self.hosted_tools.clone();
         };
         let search = web.search.mode == WebSearchMode::Hosted;
@@ -291,6 +316,81 @@ pub struct ProviderWebAccessReply {
 mod tests {
     use super::*;
     #[test]
+    fn models_inherit_independent_capabilities_and_preserve_credential_references() {
+        let mut provider: ProviderProfile = serde_json::from_value(serde_json::json!({
+            "id":"test", "display_name":"Test", "base_url":"https://example.com",
+            "protocol":"deepseek-responses", "defaults":{"context_window":32000,"max_output_tokens":2048},
+            "models":[
+                {"id":"future-model","settings":{"mode":"inherit"}},
+                {"id":"custom","settings":{"mode":"inherit"},"web_access":{"search":{"mode":"hosted"}}},
+                {"id":"offline","settings":{"mode":"inherit"},"web_access":{"search":{"mode":"disabled"},"fetch":{"mode":"disabled"}}}
+            ],
+            "web_access":{"search":{"mode":"deepseek","api_key_ref":"SEARCH_KEY"},"fetch":{"mode":"deepseek","api_key_ref":"FETCH_KEY"}},
+            "timeout_ms":30000,"max_attempts":1,"retry_base_delay_ms":250
+        })).unwrap();
+        provider.validate().unwrap();
+        let inherited = provider.effective_web_access("future-model").unwrap();
+        assert_eq!(inherited.search.api_key_ref.as_deref(), Some("SEARCH_KEY"));
+        let custom = provider.effective_web_access("custom").unwrap();
+        assert_eq!(custom.search.mode, WebSearchMode::Hosted);
+        assert_eq!(custom.fetch, inherited.fetch);
+        assert!(
+            provider
+                .effective_hosted_tools("custom")
+                .unwrap()
+                .web_search
+        );
+        assert!(provider.effective_hosted_tools("future-model").is_none());
+        assert!(
+            !provider
+                .effective_web_access("offline")
+                .unwrap()
+                .uses_computer()
+        );
+        provider.web_access.as_mut().unwrap().fetch.api_key_ref = Some("ROTATED_FETCH".into());
+        assert_eq!(
+            provider
+                .effective_web_access("custom")
+                .unwrap()
+                .fetch
+                .api_key_ref
+                .as_deref(),
+            Some("ROTATED_FETCH")
+        );
+        assert_eq!(
+            provider
+                .effective_web_access("offline")
+                .unwrap()
+                .fetch
+                .api_key_ref,
+            None
+        );
+        // Removing defaults must retain legacy hosted settings for the inherited capability.
+        provider.web_access = None;
+        provider.hosted_tools =
+            Some(serde_json::from_value(serde_json::json!({"web_search":true})).unwrap());
+        provider.models[1].web_access = Some(Box::new(ProviderModelWebAccess {
+            search: None,
+            fetch: Some(ProviderFetch {
+                mode: WebFetchMode::Direct,
+                ..Default::default()
+            }),
+        }));
+        provider.validate().unwrap();
+        assert_eq!(
+            provider.effective_web_access("custom").unwrap().search.mode,
+            WebSearchMode::Hosted
+        );
+        assert!(
+            provider
+                .effective_hosted_tools("future-model")
+                .unwrap()
+                .web_search
+        );
+        assert!(provider.effective_hosted_tools("offline").is_none());
+    }
+
+    #[test]
     fn independent_services_do_not_inherit_model_credentials_or_protocol() {
         let mut web = ProviderWebAccess::default();
         web.search.mode = WebSearchMode::Deepseek;
@@ -309,12 +409,6 @@ mod tests {
         web.search.mode = WebSearchMode::Hosted;
         assert!(web.validate(ProviderProtocol::OpenAiResponses).is_err());
         web.validate(ProviderProtocol::DeepSeekResponses).unwrap();
-        web.validate_model(ProviderProtocol::DeepSeekResponses, "deepseek-v4-pro")
-            .unwrap();
-        assert!(
-            web.validate_model(ProviderProtocol::DeepSeekResponses, "deepseek-flash")
-                .is_err()
-        );
         web.fetch.mode = WebFetchMode::Hosted;
         assert!(web.validate(ProviderProtocol::DeepSeekResponses).is_err());
         web.validate(ProviderProtocol::AnthropicMessages).unwrap();

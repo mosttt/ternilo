@@ -1,4 +1,7 @@
 export const zh = {
+  "runtimeError.providerWeb.rejectedFetch": "服务商返回：当前模型不支持内置网页读取。请切换模型，或在该模型的网页配置中关闭读取、改用外部集成，然后重试。",
+  "runtimeError.providerWeb.rejectedSearch": "服务商返回：当前模型不支持内置搜索。请切换模型，或在该模型的网页配置中关闭搜索、改用外部集成，然后重试。",
+  "runtimeError.providerWeb.rejectedTitle": "服务商不支持所选网页工具",
   "runtimeError.providerWeb.title": "网页访问未能完成",
   "runtimeError.providerWeb.changed": "Provider 的网页设置已变更。请重新发送任务以使用当前配置。",
   "runtimeError.providerWeb.credential": "请在当前 Provider 的“网页访问”中补充或替换网页服务 API Key，然后重试。",
@@ -418,6 +421,9 @@ export const zh = {
 export type ChatKey = keyof typeof zh
 
 export const en = {
+  "runtimeError.providerWeb.rejectedFetch": "The provider reports that this model does not support built-in page reading. Switch models, or disable reading or choose an external integration in this model’s web settings, then retry.",
+  "runtimeError.providerWeb.rejectedSearch": "The provider reports that this model does not support built-in search. Switch models, or disable search or choose an external integration in this model’s web settings, then retry.",
+  "runtimeError.providerWeb.rejectedTitle": "Provider rejected the selected web tool",
   "runtimeError.providerWeb.title": "Web access could not complete",
   "runtimeError.providerWeb.changed": "The Provider’s web settings changed. Send a new task to use the current configuration.",
   "runtimeError.providerWeb.credential": "Add or replace the web service API key under this Provider’s Web access settings, then retry.",
@@ -835,6 +841,9 @@ export const en = {
 } satisfies Record<ChatKey, string>
 
 export const ko = {
+  "runtimeError.providerWeb.rejectedFetch": "제공업체에 따르면 이 모델은 내장 웹페이지 읽기를 지원하지 않습니다. 모델을 바꾸거나 해당 모델의 웹 설정에서 읽기를 끄거나 외부 연동을 선택한 후 다시 시도하세요.",
+  "runtimeError.providerWeb.rejectedSearch": "제공업체에 따르면 이 모델은 내장 검색을 지원하지 않습니다. 모델을 바꾸거나 해당 모델의 웹 설정에서 검색을 끄거나 외부 연동을 선택한 후 다시 시도하세요.",
+  "runtimeError.providerWeb.rejectedTitle": "제공업체가 선택한 웹 도구를 지원하지 않습니다",
   "runtimeError.providerWeb.title": "웹 접근을 완료하지 못했습니다",
   "runtimeError.providerWeb.changed": "Provider의 웹 설정이 변경되었습니다. 현재 설정으로 새 작업을 보내세요.",
   "runtimeError.providerWeb.credential": "이 Provider의 웹 접근 설정에서 웹 서비스 API 키를 추가하거나 교체한 후 다시 시도하세요.",

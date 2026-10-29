@@ -295,6 +295,7 @@ async fn assert_future_models_follow_device_scope(
 ) {
     let mut changed = profile();
     changed.models.push(ProviderModel {
+        web_access: None,
         id: "future".to_owned(),
         display_name: None,
         settings: ProviderModelSettings::Inherit,
@@ -343,6 +344,7 @@ pub(super) fn profile() -> ProviderProfile {
         models: ["model", "second"]
             .into_iter()
             .map(|id| ProviderModel {
+                web_access: None,
                 id: id.to_owned(),
                 display_name: None,
                 settings: ProviderModelSettings::Inherit,

@@ -3,6 +3,7 @@ import { ChevronDown, DownloadCloud, LoaderCircle, Plus, Trash2 } from 'lucide-r
 import { reasoningEfforts } from '@/domain/model-reasoning'
 import type {
   ProviderModel,
+  ProviderWebAccess,
   ProviderModelDefaults,
   ProviderModelReasoning,
   ProviderModelValues,
@@ -35,6 +36,9 @@ export interface ModelSettingsDraft {
 }
 
 export interface ProviderModelDraft {
+  webAccess?: Partial<ProviderWebAccess> | null
+  webKeys?: { search: string; fetch: string }
+  sharedWebKey?: boolean
   id: string
   displayName: string
   upstream: ProviderModelValues
@@ -97,6 +101,7 @@ export function modelDraft(model: ProviderModel): ProviderModelDraft {
     } : {}
   return {
     id: model.id,
+    ...(model.web_access ? { webAccess: model.web_access } : {}),
     displayName: model.display_name ?? '',
     upstream: model.settings.mode === 'automatic' ? model.settings.upstream : {},
     overrides: {
@@ -155,6 +160,7 @@ export function providerModel(
   return {
     id,
     display_name: draft.displayName.trim() || null,
+    ...(draft.webAccess ? { web_access: draft.webAccess } : {}),
     settings: {
       mode: 'automatic',
       upstream: draft.upstream,
@@ -311,11 +317,13 @@ export function ProviderModelEditor({
   models,
   onChange,
   onDiscover,
+  renderWeb,
 }: {
   defaults: ModelSettingsDraft
   models: ProviderModelDraft[]
   onChange(models: ProviderModelDraft[]): void
   onDiscover(): Promise<ProviderModel[]>
+  renderWeb?(index: number): React.ReactNode
 }) {
   const fieldId = React.useId()
   const t = useTranslate('settings')
@@ -387,6 +395,7 @@ export function ProviderModelEditor({
           </div>
           {open ? <div className="border-t p-4">
             <ModelSettingsEditor idPrefix={`${fieldId}-model-${index}`} defaults={defaults} model={model} onChange={overrides => update(index, { overrides })} />
+            {renderWeb?.(index)}
           </div> : null}
         </div>
       })}

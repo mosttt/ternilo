@@ -3,6 +3,7 @@
 use ternilo_protocol::ProviderProtocol;
 
 mod openai;
+mod web;
 
 /// Only fixed diagnostics may cross the Server's upstream-error redaction boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -80,6 +81,9 @@ impl ProviderHttpFailure {
         status: u16,
         body: &[u8],
     ) -> Option<Self> {
+        if let Some(failure) = web::from_response(status, body) {
+            return Some(failure);
+        }
         let deepseek = protocol == ProviderProtocol::DeepSeekResponses
             || reqwest::Url::parse(endpoint)
                 .is_ok_and(|url| url.host_str() == Some("api.deepseek.com"));
@@ -106,6 +110,7 @@ impl ProviderHttpFailure {
             .find(|(_, failure)| failure.message == message)
             .map(|(_, failure)| *failure)
             .or_else(|| openai::from_public_message(message))
+            .or_else(|| web::from_public_message(message))
     }
 }
 

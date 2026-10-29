@@ -23,6 +23,15 @@ describe('runtime error presentation', () => {
     }
   })
 
+  it('shows supplier tool rejection in all languages without treating unrelated errors as unsupported models', () => {
+    for (const resource of [zh, en, ko]) for (const [capability, key] of [['search', 'rejectedSearch'], ['fetch', 'rejectedFetch']] as const) {
+      const raw = `execution: Model API error (HTTP 400; unsupported_web_${capability}): supplier rejected this tool; Server request ID: mrq_fixture`
+      expect(presentRuntimeError(raw, translate(resource))).toEqual({
+        title: resource['runtimeError.providerWeb.rejectedTitle'], message: resource[`runtimeError.providerWeb.${key}`], raw, requestId: 'mrq_fixture',
+      })
+    }
+    expect(presentRuntimeError('Model API error (HTTP 401; authentication_failed): web_search', t).title).toBe(zh['runtimeError.api.auth.title'])
+  })
   it('distinguishes webpage failures from model failures in every locale', () => {
     for (const resource of [zh, en, ko]) {
       for (const [status, category] of [[400, 'request'], [401, 'auth'], [402, 'balance'], [403, 'blocked'], [404, 'missing'], [429, 'limit'], [504, 'timeout']] as const) {

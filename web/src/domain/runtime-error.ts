@@ -53,6 +53,12 @@ function presentDiagnostic(raw: string, t: Translate<'chat'>): RuntimeErrorPrese
   if (/^(?:execution:\s*)?model request failed; check the Server model request log$/.test(raw)) {
     return { title: t('runtimeError.gatewayFailure.title'), message: t('runtimeError.gatewayFailure.message'), raw }
   }
+  const rejectedWeb = raw.match(/^(?:execution:\s*)?Model API error \(HTTP (?:400|422); unsupported_web_(search|fetch)\):/)
+  if (rejectedWeb) return {
+    title: t('runtimeError.providerWeb.rejectedTitle'),
+    message: t(rejectedWeb[1] === 'search' ? 'runtimeError.providerWeb.rejectedSearch' : 'runtimeError.providerWeb.rejectedFetch'),
+    raw,
+  }
   const webReason = normalized.includes('provider web settings changed') ? 'runtimeError.providerWeb.changed'
     : /(?:provider web credential is missing|web credential is not configured)/.test(normalized) ? 'runtimeError.providerWeb.credential'
     : /(?:web credentials can only|web access is not authorized|web credentials.*owner|platform credentials cannot)/.test(normalized) ? 'runtimeError.providerWeb.authorization'

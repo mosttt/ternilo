@@ -450,6 +450,7 @@ export type ProviderModelSettings = { mode: 'inherit' } | ({ mode: 'override' } 
   | { mode: 'automatic'; upstream: ProviderModelValues; overrides: ProviderModelValues }
 
 export interface ProviderModel {
+  web_access?: Partial<ProviderWebAccess> | null
   id: string
   display_name?: string | null
   settings: ProviderModelSettings

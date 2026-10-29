@@ -183,7 +183,7 @@ impl ControlStore {
             .resolve_workload_route_in(&mut tx, owner, owner, &snapshot.binding, now, false)
             .await
             .map_err(|error| error.error)?;
-        let web = route.provider.web_access;
+        let web = route.provider.effective_web_access(&route.upstream_model);
         let api_key = if let Some(capability) = body.credential {
             let ternilo_protocol::RunModelBinding::UserProvider {
                 tenant_id,

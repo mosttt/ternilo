@@ -133,6 +133,7 @@ async fn direct_commands_bypass_a_real_provider_and_keep_canonical_outcomes() {
                 reasoning: None,
             },
             models: vec![ProviderModel {
+                web_access: None,
                 id: "fixture-model".to_owned(),
                 display_name: None,
                 settings: ProviderModelSettings::Inherit,

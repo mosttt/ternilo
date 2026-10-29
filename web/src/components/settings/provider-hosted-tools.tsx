@@ -5,7 +5,7 @@ import { useTranslate } from '@/i18n/provider'
 
 const defaults: HostedWebTools = { web_search: false, web_fetch: false, max_uses: 5, max_content_tokens: 20000, allowed_domains: [], blocked_domains: [] }
 
-export function HostedToolsEditor({ value, protocol = 'anthropic-messages', models = [], controlsOnly = false, onChange }: { value?: HostedWebTools | null; protocol?: ProviderProtocol; models?: string[]; controlsOnly?: boolean; onChange(value: HostedWebTools | null): void }) {
+export function HostedToolsEditor({ value, protocol = 'anthropic-messages', controlsOnly = false, onChange }: { value?: HostedWebTools | null; protocol?: ProviderProtocol; controlsOnly?: boolean; onChange(value: HostedWebTools | null): void }) {
   const id = React.useId(), t = useTranslate('settings')
   const deepseek = protocol === 'deepseek-responses'
   const settings = value ?? (deepseek ? { web_search: false, web_fetch: false, allowed_domains: [], blocked_domains: [] } : defaults)
@@ -18,10 +18,9 @@ export function HostedToolsEditor({ value, protocol = 'anthropic-messages', mode
     <div className="text-sm font-medium">{t(deepseek ? 'provider.deepseekHostedTools' : 'provider.hostedTools')}</div>
     <p className="text-xs leading-relaxed text-muted-foreground">{t(deepseek ? 'provider.deepseekHostedDescription' : 'provider.hostedDescription')}</p>
     {!controlsOnly && <div className="flex flex-wrap gap-5">
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.web_search} disabled={deepseek && !settings.web_search && !models.includes('deepseek-v4-pro')} onChange={event => update({ web_search: event.target.checked })} />{t('provider.hostedSearch')}</label>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.web_search} onChange={event => update({ web_search: event.target.checked })} />{t('provider.hostedSearch')}</label>
       {!deepseek && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.web_fetch} onChange={event => update({ web_fetch: event.target.checked })} />{t('provider.hostedFetch')}</label>}
     </div>}
-    {deepseek && !models.includes('deepseek-v4-pro') && <p className="text-sm text-muted-foreground">{t('provider.deepseekHostedModel')}</p>}
     {value && !deepseek && <div className="grid gap-4 sm:grid-cols-2">
       <Field><Label htmlFor={`${id}-uses`}>{t('provider.hostedUses')}</Label><Input id={`${id}-uses`} type="number" min={1} max={20} value={settings.max_uses ?? ''} onChange={event => update({ max_uses: Number(event.target.value) })} /></Field>
       {settings.web_fetch && <Field><Label htmlFor={`${id}-tokens`}>{t('provider.hostedContent')}</Label><Input id={`${id}-tokens`} type="number" min={1} value={settings.max_content_tokens ?? ''} onChange={event => update({ max_content_tokens: Number(event.target.value) })} /></Field>}

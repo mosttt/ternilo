@@ -45,6 +45,7 @@ async fn setup(store: &ControlStore) -> (ControlUser, String) {
                         reasoning: None,
                     },
                     models: vec![ProviderModel {
+                        web_access: None,
                         id: "internal".to_owned(),
                         display_name: None,
                         settings: ProviderModelSettings::Inherit,

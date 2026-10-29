@@ -1,14 +1,17 @@
 use super::{LocalApplication, TurnInput};
 use std::{future::Future, pin::Pin, sync::Arc};
 use ternilo_kernel::ProviderWebCredentials;
-use ternilo_protocol::{HarnessError, ProviderWebAccess, RunId, RunModelBinding, WebCapability};
+use ternilo_protocol::{
+    HarnessError, ProviderModelCatalog as _, ProviderWebAccess, RunId, RunModelBinding,
+    WebCapability,
+};
 
 pub(super) struct WebCredentials {
     pub providers: Arc<crate::LocalProviders>,
     pub credentials: Arc<crate::LocalCredentials>,
     pub gateways: Arc<crate::server_models::ServerModelGateways>,
     pub session_id: String,
-    pub provider_id: Option<String>,
+    pub local_model: Option<(String, String)>,
     pub binding: Option<RunModelBinding>,
 }
 
@@ -16,6 +19,7 @@ pub(super) async fn local_credential(
     providers: &crate::LocalProviders,
     credentials: &crate::LocalCredentials,
     provider_id: &str,
+    model: &str,
     capability: WebCapability,
     expected: &ProviderWebAccess,
 ) -> Result<Option<String>, HarnessError> {
@@ -23,7 +27,8 @@ pub(super) async fn local_credential(
         .get(provider_id)
         .await
         .ok_or_else(|| HarnessError::unavailable("the selected web Provider no longer exists"))?;
-    if provider.web_access.as_deref() != Some(expected) {
+    provider.resolved_model(model)?;
+    if provider.effective_web_access(model).as_deref() != Some(expected) {
         return Err(HarnessError::conflict(
             "Provider web settings changed; start a new task to use the current settings",
         ));
@@ -86,6 +91,7 @@ impl LocalApplication {
     pub async fn provider_web_credential(
         &self,
         provider_id: &str,
+        model: &str,
         capability: WebCapability,
         expected: &ProviderWebAccess,
     ) -> Result<Option<String>, HarnessError> {
@@ -93,6 +99,7 @@ impl LocalApplication {
             &self.providers,
             &self.credentials,
             provider_id,
+            model,
             capability,
             expected,
         )
@@ -119,14 +126,15 @@ impl ProviderWebCredentials for WebCredentials {
                     .await
                     .map(|reply| reply.api_key);
             }
-            let id = self
-                .provider_id
-                .as_deref()
+            let (id, model) = self
+                .local_model
+                .as_ref()
                 .ok_or_else(|| HarnessError::policy("no Provider is selected for web access"))?;
             local_credential(
                 &self.providers,
                 &self.credentials,
                 id,
+                model,
                 capability,
                 &expected,
             )

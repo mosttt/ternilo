@@ -24,6 +24,29 @@ describe('Provider web credentials', () => {
     expect(result.writes).toEqual([{ name: 'FETCH_KEY', value: 'replacement' }])
     expect(result.webAccess?.search.api_key_ref).toBe('BRAVE_KEY')
   })
+  it('stores only model overrides and never copies or overwrites inherited keys', () => {
+    const web = initialWebAccess(draft)
+    web.search = { ...web.search, mode: 'deepseek', api_key_ref: 'PROVIDER_SEARCH' }
+    web.fetch = { ...web.fetch, mode: 'deepseek', api_key_ref: 'PROVIDER_FETCH' }
+    const base = { id: 'future/model', displayName: '', upstream: {}, overrides: {} }
+    const result = prepareWebCredentials({ ...draft, webAccess: web, models: [
+      base,
+      { ...base, id: 'override', webAccess: { search: { ...web.search } }, webKeys: { search: 'model-secret', fetch: '' } },
+      { ...base, id: 'reading', webAccess: { fetch: { ...web.fetch, api_key_ref: null } }, sharedWebKey: true },
+    ] }, 'missing')
+    expect(result.modelWebAccess[0]).toBeUndefined()
+    expect(result.modelWebAccess[1]?.fetch).toBeUndefined()
+    expect(result.modelWebAccess[1]?.search?.api_key_ref).not.toBe('PROVIDER_SEARCH')
+    expect(result.writes).toHaveLength(1)
+    expect(result.writes[0]).toEqual({ name: result.modelWebAccess[1]?.search?.api_key_ref, value: 'model-secret' })
+    expect(result.webAccess?.search.api_key_ref).toBe('PROVIDER_SEARCH')
+    expect(result.modelWebAccess[2]?.fetch?.api_key_ref).toBe('PROVIDER_SEARCH')
+    expect(result.modelWebAccess[2]?.search).toBeUndefined()
+    expect(JSON.stringify(result.modelWebAccess)).not.toContain('model-secret')
+    const inherited = prepareWebCredentials({ ...draft, models: [{ ...base, webAccess: {} }] }, 'missing')
+    expect(inherited.modelWebAccess).toEqual([undefined])
+    expect(inherited.writes).toEqual([])
+  })
   it('keeps standalone search across model protocol changes and clears only hosted choices', () => {
     const web = initialWebAccess(draft); web.search.mode = 'brave'; web.fetch.mode = 'hosted'
     const changed = changeProviderProtocol({ ...draft, protocol: 'anthropic-messages', webAccess: web }, 'deepseek-responses')

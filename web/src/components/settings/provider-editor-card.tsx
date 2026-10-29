@@ -51,6 +51,13 @@ export function changeProviderProtocol(draft: ProviderDraft, protocol: ProviderP
       search: { ...draft.webAccess.search, mode: draft.webAccess.search.mode === 'hosted' ? 'session' : draft.webAccess.search.mode },
       fetch: { ...draft.webAccess.fetch, mode: draft.webAccess.fetch.mode === 'hosted' ? 'session' : draft.webAccess.fetch.mode },
     },
+    models: protocol === draft.protocol ? draft.models : draft.models.map(model => ({ ...model,
+      webAccess: model.webAccess ? {
+        ...model.webAccess,
+        ...(model.webAccess.search?.mode === 'hosted' ? { search: undefined } : {}),
+        ...(model.webAccess.fetch?.mode === 'hosted' ? { fetch: undefined } : {}),
+      } : model.webAccess,
+    })),
     baseUrl: (baseUrl === previousDefault || !baseUrl) && defaultProtocolUrls[protocol]
       ? defaultProtocolUrls[protocol]!
       : draft.baseUrl,
@@ -104,11 +111,11 @@ export function ProviderEditorCard({
   onSave,
   onDiscover,
   computerWebAccess = true,
-  webCredentialConfigured,
+  configuredWebCredentials,
 }: {
   provider?: ProviderProfile
   computerWebAccess?: boolean
-  webCredentialConfigured?: { search: boolean; fetch: boolean }
+  configuredWebCredentials?: ReadonlySet<string>
   credentialConfigured: boolean
   onCancel(): void
   onSave(draft: ProviderDraft, apiKey: string): Promise<void>
@@ -173,8 +180,9 @@ export function ProviderEditorCard({
           <ProviderSettingsEditor idPrefix={`${fieldId}-provider-defaults`} name={t('provider.defaults')} value={draft.defaults} onChange={defaults => setDraft(current => ({ ...current, defaults }))} />
         </section>
 
-        <ProviderModelEditor defaults={draft.defaults} models={draft.models} onChange={models => setDraft(current => ({ ...current, models }))} onDiscover={discover} />
-        <ProviderWebEditor draft={draft} onChange={setDraft} computerEnabled={computerWebAccess} credentialConfigured={webCredentialConfigured} />
+        <ProviderWebEditor draft={draft} onChange={setDraft} computerEnabled={computerWebAccess} configuredCredentials={configuredWebCredentials} />
+        <ProviderModelEditor defaults={draft.defaults} models={draft.models} onChange={models => setDraft(current => ({ ...current, models }))} onDiscover={discover}
+          renderWeb={modelIndex => <ProviderWebEditor draft={draft} onChange={setDraft} modelIndex={modelIndex} computerEnabled={computerWebAccess} configuredCredentials={configuredWebCredentials} />} />
 
         <details className="mt-5 border-t pt-4"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">{t('provider.requestRetry')}</summary><p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t('provider.timeoutHint')}</p><div className="mt-4 grid gap-4 sm:grid-cols-3"><Field><Label htmlFor={`${fieldId}-provider-timeout`}>{t('provider.timeout')}</Label><Input id={`${fieldId}-provider-timeout`} type="number" min={0} value={draft.timeoutMs} onChange={event => setDraft(current => ({ ...current, timeoutMs: Number(event.target.value) }))} /></Field><><Field><Label htmlFor={`${fieldId}-provider-attempts`}>{t('provider.attempts')}</Label><Input id={`${fieldId}-provider-attempts`} type="number" min={1} max={8} value={draft.maxAttempts} onChange={event => setDraft(current => ({ ...current, maxAttempts: Number(event.target.value) }))} /></Field><Field><Label htmlFor={`${fieldId}-provider-retry-delay`}>{t('provider.retryDelay')}</Label><Input id={`${fieldId}-provider-retry-delay`} type="number" min={1} value={draft.retryBaseDelayMs} onChange={event => setDraft(current => ({ ...current, retryBaseDelayMs: Number(event.target.value) }))} /></Field></></div></details>
       </details>

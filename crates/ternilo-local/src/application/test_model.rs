@@ -118,6 +118,7 @@ impl TestModel {
                 models: models
                     .iter()
                     .map(|model| ternilo_protocol::ProviderModel {
+                        web_access: None,
                         id: (*model).to_owned(),
                         display_name: None,
                         settings: ternilo_protocol::ProviderModelSettings::Inherit,

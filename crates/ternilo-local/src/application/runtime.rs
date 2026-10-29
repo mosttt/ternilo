@@ -272,7 +272,12 @@ impl LocalApplication {
             credentials: Arc::clone(&self.credentials),
             gateways: Arc::clone(&self.server_models),
             session_id: id.to_owned(),
-            provider_id: named_provider.as_ref().map(|provider| provider.id.clone()),
+            local_model: match &session.model {
+                ModelSelection::NamedProvider {
+                    provider_id, model, ..
+                } => Some((provider_id.clone(), model.clone())),
+                _ => None,
+            },
             binding: session
                 .server_model
                 .as_ref()
@@ -347,15 +352,13 @@ pub(super) async fn resolve_named_provider(
     else {
         return Ok(None);
     };
-    let provider = providers.get(provider_id).await.ok_or_else(|| {
+    let mut provider = providers.get(provider_id).await.ok_or_else(|| {
         HarnessError::invalid(format!("unknown provider profile {provider_id:?}"))
     })?;
-    if let Some(web) = &provider.web_access {
-        web.validate_model(provider.protocol, model)?;
-    }
     provider
         .resolved_model(model)?
         .reasoning_value(*reasoning_effort)?;
+    provider.web_access = provider.effective_web_access(model);
     Ok(Some(provider))
 }
 
@@ -530,7 +533,7 @@ pub(super) fn session_profile(
             "retry_base_delay_ms": retry_base_delay_ms,
             "protocol": protocol,
             "blocked_web_tools": blocked_web_tools,
-            "hosted_tools": named_provider.and_then(ProviderProfile::effective_hosted_tools),
+            "hosted_tools": named_provider.and_then(|provider| provider.effective_hosted_tools(&model)),
             "context_window": context_window,
             "max_tokens": max_tokens,
             "reasoning_effort": reasoning_effort,

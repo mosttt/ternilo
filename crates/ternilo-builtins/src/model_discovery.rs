@@ -55,6 +55,7 @@ fn parse_catalog_page(
             },
         )
         .map(|model| ProviderModel {
+            web_access: None,
             id: model.id,
             display_name: model.name,
             settings: ProviderModelSettings::Automatic {
@@ -128,6 +129,7 @@ fn parse_gemini_catalog(value: &Value) -> Result<Vec<ProviderModel>, HarnessErro
                 .as_str()
                 .ok_or_else(|| HarnessError::execution("Gemini catalog model omitted name"))?;
             Ok(ProviderModel {
+                web_access: None,
                 id: name.strip_prefix("models/").unwrap_or(name).to_owned(),
                 display_name: model["displayName"].as_str().map(str::to_owned),
                 settings: ProviderModelSettings::Automatic {

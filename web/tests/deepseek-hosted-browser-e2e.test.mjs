@@ -18,10 +18,14 @@ async function modelService() {
       const chunks = []; for await (const chunk of request) chunks.push(chunk)
       const body = JSON.parse(Buffer.concat(chunks)); calls.push({ body, key: request.headers.authorization?.replace(/^Bearer /, '') })
       assert.equal(request.url, '/v1/responses')
-      assert.equal(body.model, 'deepseek-v4-pro')
+      assert.ok(['deepseek-v4-pro', 'deepseek-flash', 'future-alias'].includes(body.model))
       assert.equal(body.tools.filter(tool => tool.type === 'web_search').length, 1)
       assert.equal(body.tools.filter(tool => tool.name === 'web_search').length, 0)
       assert.equal(body.max_tool_calls, undefined)
+      if (body.model === 'deepseek-flash') {
+        response.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { code: 'unsupported_tool', param: 'web_search', message: `web_search is not supported for this model; ${request.headers.authorization}` } }))
+        return
+      }
       const finished = body.input.some(item => item.type === 'function_call_output')
       if (finished) assert.deepEqual(body.input.find(item => item.type === 'web_search_call'), searchCall)
       const output = finished
@@ -74,18 +78,18 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
     await settings.getByRole('button', { name: '编辑', exact: true }).click()
     const editor = page.locator('[data-provider-editor="hosted"]')
     await editor.locator('summary').filter({ hasText: '自定义设置' }).click()
-    await editor.getByLabel('网页搜索', { exact: true }).click(); await page.getByRole('option', { name: '模型内置 · 服务商执行', exact: true }).click()
+    await editor.getByLabel('网页搜索', { exact: true }).click(); await page.getByRole('option', { name: '模型内置', exact: true }).click()
     assert.equal(await editor.getByLabel('托管网页读取', { exact: true }).count(), 0)
     assert.equal(await editor.getByLabel('每次请求每种工具最多调用次数', { exact: true }).count(), 0)
     await editor.getByRole('button', { name: '保存', exact: true }).click()
     await editor.waitFor({ state: 'hidden' })
     await closeModels(page)
     const saved = (await local('/providers')).find(provider => provider.id === 'hosted')
-    assert.equal(saved.hosted_tools.web_search, true); assert.equal(saved.hosted_tools.web_fetch, false); assert.equal(saved.hosted_tools.max_uses, undefined)
+    assert.equal(saved.web_access.search.mode, 'hosted'); assert.equal(saved.web_access.fetch.mode, 'session')
     for (const [locale, text] of Object.entries({
-      zh: { settings: '设置', models: '模型', edit: '编辑', save: '保存', title: 'DeepSeek 内置搜索', search: '网页搜索', hosted: '模型内置 · 服务商执行', off: '关闭' },
-      en: { settings: 'Settings', models: 'Models', edit: 'Edit', save: 'Save', title: 'DeepSeek built-in search', search: 'Web search', hosted: 'Built-in · model provider', off: 'Off' },
-      ko: { settings: '설정', models: '모델', edit: '편집', save: '저장', title: 'DeepSeek 내장 검색', search: '웹 검색', hosted: '내장 · 모델 제공업체 실행', off: '끄기' },
+      zh: { settings: '设置', models: '模型', edit: '编辑', save: '保存', title: 'DeepSeek 内置搜索', search: '网页搜索', hosted: '模型内置', off: '关闭' },
+      en: { settings: 'Settings', models: 'Models', edit: 'Edit', save: 'Save', title: 'DeepSeek built-in search', search: 'Web search', hosted: 'Model built-in', off: 'Off' },
+      ko: { settings: '설정', models: '모델', edit: '편집', save: '저장', title: 'DeepSeek 내장 검색', search: '웹 검색', hosted: '모델 내장', off: '끄기' },
     })) {
       await page.evaluate(locale => { localStorage.setItem('ternilo.locale', locale); localStorage.setItem('ternilo.theme', locale === 'en' ? 'light' : 'dark') }, locale); await page.reload()
       await page.getByRole('button', { name: text.settings, exact: true }).click()
@@ -103,12 +107,12 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
       if (artifacts) await page.screenshot({ path: path.join(artifacts, `settings-${locale}.png`) })
       await current.getByLabel(text.search, { exact: true }).click(); await page.getByRole('option', { name: text.off, exact: true }).click()
       await current.getByRole('button', { name: text.save, exact: true }).click(); await current.waitFor({ state: 'hidden' })
-      assert.equal((await local('/providers')).find(item => item.id === 'hosted').hosted_tools, undefined)
+      assert.equal((await local('/providers')).find(item => item.id === 'hosted').web_access.search.mode, 'disabled')
       await page.setViewportSize({ width: 1440, height: 1000 })
       await surface.getByRole('button', { name: text.edit, exact: true }).click(); await current.locator('details > summary').first().click()
       await current.getByLabel(text.search, { exact: true }).click(); await page.getByRole('option', { name: text.hosted, exact: true }).click()
       await current.getByRole('button', { name: text.save, exact: true }).click(); await current.waitFor({ state: 'hidden' })
-      assert.equal((await local('/providers')).find(item => item.id === 'hosted').hosted_tools.web_search, true)
+      assert.equal((await local('/providers')).find(item => item.id === 'hosted').web_access.search.mode, 'hosted')
       await surface.locator('[data-settings-toolbar] > button').last().click()
     }
     await local('/providers', { body: { ...profile, models: [{ id: 'deepseek-flash', settings: { mode: 'inherit' } }] } })
@@ -118,9 +122,11 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
     const flashEditor = page.locator('[data-provider-editor="hosted"]')
     await flashEditor.locator('details > summary').first().click()
     await flashEditor.getByLabel('网页搜索', { exact: true }).click()
-    assert.equal(await page.getByRole('option', { name: '模型内置 · 服务商执行', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('option', { name: '模型内置', exact: true }).count(), 1)
     await page.keyboard.press('Escape')
     await closeModels(page)
+    saved.models = [...saved.models, { id: 'deepseek-flash', settings: { mode: 'inherit' } }, { id: 'future-alias', settings: { mode: 'inherit' } }]
+    saved.max_attempts = 3
     await local('/providers', { body: saved })
     await owner('/credentials', { body: { name: 'HOSTED_KEY', value: 'server-hosted-key' } })
     await owner('/providers', { body: saved })
@@ -137,11 +143,15 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
     for (const scope of ['local', 'server', 'computer']) {
       const folder = path.join(directory, scope + '-workspace'); await mkdir(folder); await writeFile(path.join(folder, 'fixture.txt'), 'Local file evidence')
       let session, api
+      const selectedModel = scope === 'local' ? { provider: 'named_provider', provider_id: 'hosted', model: 'deepseek-flash' }
+        : scope === 'server' ? { provider: 'account_provider', owner_user_id: identity.user.user_id, provider_id: 'hosted', model: 'deepseek-flash' }
+          : { provider: 'computer_provider', executor_id: sourceEnrollment.executor_id, provider_id: 'hosted', model: 'deepseek-flash' }
       if (scope === 'local') {
         api = local
         const workspace = await local('/workspaces', { body: { path: folder } })
+        await local('/default-model', { method: 'PUT', body: selectedModel })
         session = await local('/sessions', { body: { workspace_id: workspace.workspace_id } })
-        await local(`/sessions/${session.identity.session_id}`, { method: 'PATCH', body: { title: 'Local hosted tools', model: { provider: 'named_provider', provider_id: 'hosted', model: 'deepseek-v4-pro' } } })
+        await local(`/sessions/${session.identity.session_id}`, { method: 'PATCH', body: { title: 'Local hosted tools' } })
         await page.evaluate(id => { localStorage.setItem('ternilo.current-session', id); localStorage.setItem('ternilo.transcript-view', 'normal') }, session.identity.session_id)
         await page.reload()
       } else {
@@ -149,10 +159,9 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
         await until(() => owner('/model-computers'), rows => rows.some(row => row.executor_id === enrollment.executor_id && row.connected), 'Node connects')
         const title = `${scope} hosted tools`
         const { workspace } = await owner('/workspaces', { body: { project_id: identity.personal_project_id, name: title, placement: 'local_node', executor_id: enrollment.executor_id, path: folder } })
+        if (scope === 'server') await owner('/default-model', { method: 'PUT', body: selectedModel })
         session = await owner('/sessions', { body: { workspace_id: workspace.workspace_id } })
-        const model = scope === 'server' ? { provider: 'account_provider', owner_user_id: identity.user.user_id, provider_id: 'hosted', model: 'deepseek-v4-pro' }
-          : { provider: 'computer_provider', executor_id: sourceEnrollment.executor_id, provider_id: 'hosted', model: 'deepseek-v4-pro' }
-        await owner(`/sessions/${session.identity.session_id}`, { method: 'PATCH', body: { title, model } })
+        session = await owner(`/sessions/${session.identity.session_id}`, { method: 'PATCH', body: { title, ...(scope === 'computer' ? { model: selectedModel } : {}) } })
         await page.goto(server.origin)
         if (scope === 'server') {
           await page.getByLabel('用户名', { exact: true }).fill(server.owner.username)
@@ -165,11 +174,31 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
         await page.locator(`[data-sidebar-session-row][data-session-id="${session.identity.session_id}"] [data-sidebar-session-button]`).click()
         await page.evaluate(() => localStorage.setItem('ternilo.transcript-view', 'normal')); await page.reload()
       }
-      const id = session.identity.session_id, before = upstream.calls.length
+      const id = session.identity.session_id
+      assert.equal(session.model.model, 'deepseek-flash', 'an unsupported default still creates a usable session')
+      const rejectedBefore = upstream.calls.length
+      await page.locator('[data-composer-input]').fill('Try built-in search on this model.')
+      await page.getByRole('button', { name: '发送', exact: true }).click()
+      const rejected = await until(() => api(`/sessions/${id}/events`), events => events.some(event => event.type === 'turn_failed'), `${scope} upstream rejection`)
+      assert.equal(upstream.calls.length - rejectedBefore, 1, 'do not retry or silently disable hosted search')
+      assert.ok(rejected.some(event => event.type === 'turn_failed' && event.message.includes('unsupported_web_search')), JSON.stringify({ scope, rejected }))
+      assert.ok(!JSON.stringify(rejected).includes(`${scope}-hosted-key`))
+      const errorCard = page.locator('[data-chat-event="turn_failed"]')
+      await errorCard.getByText('服务商不支持所选网页工具', { exact: true }).waitFor()
+      await page.reload(); await errorCard.getByText('服务商不支持所选网页工具', { exact: true }).waitFor()
+      await page.getByText('Try built-in search on this model.', { exact: true }).waitFor()
+      if (artifacts) await page.screenshot({ path: path.join(artifacts, `${scope}-rejection.png`) })
+      await page.locator('[data-input-bar] [data-model-picker]').click()
+      await page.getByRole('menuitem', { name: /^模型/ }).click()
+      if (scope === 'computer') await page.getByRole('menuitem', { name: 'Hosted source computer', exact: true }).click()
+      const sourceKind = scope === 'local' ? 'node' : scope === 'server' ? 'account' : 'computer'
+      await page.locator(`[data-model-source="${sourceKind}"] [data-model-provider="hosted"]`).getByRole('menuitem').filter({ hasText: 'future-alias' }).click()
+      await page.locator('[data-input-bar] [data-model-picker]').filter({ hasText: 'future-alias' }).waitFor()
+      const before = upstream.calls.length
       await page.getByRole('textbox', { name: '输入任务', exact: true }).fill('Search and fetch evidence, then read fixture.txt and answer.')
       await page.getByRole('button', { name: '发送', exact: true }).click()
-      const events = await until(() => api(`/sessions/${id}/events`), events => events.some(event => ['turn_finished', 'turn_failed'].includes(event.type)), `${scope} hosted turn finishes`)
-      assert.equal(events.some(event => event.type === 'turn_failed'), false, JSON.stringify({ events, failures: upstream.failures }))
+      const events = await until(() => api(`/sessions/${id}/events`), events => events.some(event => event.type === 'turn_finished'), `${scope} hosted turn finishes`)
+      assert.equal(events.filter(event => event.type === 'turn_failed').length, 1, JSON.stringify({ events, failures: upstream.failures }))
       assert.equal(upstream.calls.length - before, 2)
       assert.ok(upstream.calls.slice(before).every(call => call.key === `${scope}-hosted-key`))
       assert.equal(events.filter(event => event.type === 'tool_call_finished').length, 1)

@@ -134,11 +134,13 @@ async fn local_requests_use_resolved_provider_defaults_and_model_overrides() {
             },
             models: vec![
                 ProviderModel {
+                    web_access: None,
                     id: "model-a".to_owned(),
                     display_name: None,
                     settings: ProviderModelSettings::Inherit,
                 },
                 ProviderModel {
+                    web_access: None,
                     id: "model-b".to_owned(),
                     display_name: None,
                     settings: ProviderModelSettings::Override {
@@ -320,6 +322,7 @@ async fn named_provider_library_is_persistent_discoverable_and_reference_safe() 
             reasoning: None,
         },
         models: vec![ProviderModel {
+            web_access: None,
             id: "model-a".to_owned(),
             display_name: None,
             settings: ProviderModelSettings::Inherit,

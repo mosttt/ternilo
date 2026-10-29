@@ -357,7 +357,12 @@ impl LocalSubagentSessionHost {
             credentials: Arc::clone(&self.credentials),
             gateways: Arc::clone(&self.server_models),
             session_id: id.to_owned(),
-            provider_id: named_provider.as_ref().map(|provider| provider.id.clone()),
+            local_model: match &session.model {
+                super::ModelSelection::NamedProvider {
+                    provider_id, model, ..
+                } => Some((provider_id.clone(), model.clone())),
+                _ => None,
+            },
             binding: session
                 .server_model
                 .as_ref()

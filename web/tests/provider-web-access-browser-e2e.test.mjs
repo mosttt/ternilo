@@ -9,9 +9,9 @@ import { localApi, until } from './model-device-fixture.mjs'
 import { freePort, initializeServer, repository, serverRequest, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
 
 const labels = {
-  zh: { settings: '设置', models: '模型', edit: '编辑', search: '网页搜索', fetch: '网页读取', computer: '电脑执行 · DeepSeek', key: '搜索 API Key', advanced: '网页服务高级设置', searchUrl: '搜索服务地址', fetchUrl: '读取服务地址', results: '最多搜索结果', save: '保存', send: '发送', stop: '停止运行' },
-  en: { settings: 'Settings', models: 'Models', edit: 'Edit', search: 'Web search', fetch: 'Page reading', computer: 'Computer · DeepSeek', key: 'Search API key', advanced: 'Advanced web service settings', searchUrl: 'Search service address', fetchUrl: 'Page reading service address', results: 'Maximum search results', save: 'Save', send: 'Send', stop: 'Stop run' },
-  ko: { settings: '설정', models: '모델', edit: '편집', search: '웹 검색', fetch: '웹페이지 읽기', computer: '컴퓨터 실행 · DeepSeek', key: '검색 API 키', advanced: '웹 서비스 고급 설정', searchUrl: '검색 서비스 주소', fetchUrl: '읽기 서비스 주소', results: '최대 검색 결과 수', save: '저장', send: '전송', stop: '실행 중지' },
+  zh: { settings: '设置', models: '模型', edit: '编辑', search: '网页搜索', fetch: '网页读取', computer: '外部集成 · DeepSeek', key: '搜索 API Key', advanced: '网页服务高级设置', searchUrl: '搜索服务地址', fetchUrl: '读取服务地址', results: '最多搜索结果', save: '保存', send: '发送', stop: '停止运行' },
+  en: { settings: 'Settings', models: 'Models', edit: 'Edit', search: 'Web search', fetch: 'Page reading', computer: 'External integration · DeepSeek', key: 'Search API key', advanced: 'Advanced web service settings', searchUrl: 'Search service address', fetchUrl: 'Page reading service address', results: 'Maximum search results', save: 'Save', send: 'Send', stop: 'Stop run' },
+  ko: { settings: '설정', models: '모델', edit: '편집', search: '웹 검색', fetch: '웹페이지 읽기', computer: '외부 연동 · DeepSeek', key: '검색 API 키', advanced: '웹 서비스 고급 설정', searchUrl: '검색 서비스 주소', fetchUrl: '읽기 서비스 주소', results: '최대 검색 결과 수', save: '저장', send: '전송', stop: '실행 중지' },
 }
 async function choose(page, field, label) {
   await field.click(); await page.getByRole('option', { name: label, exact: true }).click()
@@ -74,7 +74,7 @@ for (const placement of ['local', 'server-node']) {
       else request = local
       await request('/credentials', { body: { name: 'MODEL_KEY', value: 'fixture-model-only-key' } })
       const base = `http://127.0.0.1:${upstream.address().port}`
-      await request('/providers', { body: { id: 'search-model', display_name: 'Search fixture', base_url: `${base}/v1`, protocol: 'openai-chat-completions', api_key_ref: 'MODEL_KEY', defaults: { context_window: 32000, max_output_tokens: 2048 }, models: [{ id: 'fixture', settings: { mode: 'inherit' } }], timeout_ms: 10000, max_attempts: 1, retry_base_delay_ms: 25 } })
+      await request('/providers', { body: { id: 'search-model', display_name: 'Search fixture', base_url: `${base}/v1`, protocol: 'openai-chat-completions', api_key_ref: 'MODEL_KEY', defaults: { context_window: 32000, max_output_tokens: 2048 }, models: [{ id: 'fixture', settings: { mode: 'inherit' } }, { id: 'fixture-custom', settings: { mode: 'inherit' } }, { id: 'fixture-off', settings: { mode: 'inherit' }, web_access: { search: { mode: 'disabled' }, fetch: { mode: 'disabled' } } }], timeout_ms: 10000, max_attempts: 1, retry_base_delay_ms: 25 } })
       const folder = path.join(directory, 'workspace'); await mkdir(folder)
       const workspace = server ? (await request('/workspaces', { body: { project_id: project.project_id, name: 'Search workspace', placement: 'local_node', executor_id: executor, path: folder } })).workspace : await request('/workspaces', { body: { path: folder } })
       const selection = server ? { provider: 'account_provider', owner_user_id: server.owner.session.user.user_id, provider_id: 'search-model', model: 'fixture' } : { provider: 'named_provider', provider_id: 'search-model', model: 'fixture' }
@@ -120,9 +120,27 @@ for (const placement of ['local', 'server-node']) {
         await editor.locator('[data-provider-web-access]').scrollIntoViewIfNeeded()
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
         if (artifacts) await page.screenshot({ path: path.join(artifacts, `settings-${locale}.png`) })
+        const detailLabel = { zh: '模型详细设置 2', en: 'Model details 2', ko: '모델 세부 정보 2' }[locale]
+        await editor.getByRole('button', { name: detailLabel, exact: true }).click()
+        const modelWeb = editor.locator('[data-provider-web-access="fixture-custom"]')
+        const inherit = { zh: '继承 Provider · ', en: 'Inherit Provider · ', ko: 'Provider 상속 · ' }[locale] + text.computer
+        const off = { zh: '关闭', en: 'Off', ko: '끄기' }[locale]
+        await choose(page, modelWeb.getByLabel(text.search, { exact: true }), off)
+        await choose(page, modelWeb.getByLabel(text.search, { exact: true }), inherit)
+        assert.equal(await modelWeb.getByLabel(text.key, { exact: true }).count(), 0, 'inherited credentials are not duplicated inputs')
+        await choose(page, modelWeb.getByLabel(text.search, { exact: true }), text.computer)
+        await modelWeb.getByText(text.advanced, { exact: true }).click()
+        await modelWeb.getByLabel(text.results, { exact: true }).fill(String(expected + 5))
+        assert.equal(await modelWeb.getByLabel(text.fetch, { exact: true }).textContent(), inherit)
+        if (artifacts) { await modelWeb.scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(artifacts, `model-${locale}.png`) }) }
         await editor.getByRole('button', { name: text.save, exact: true }).click()
         await editor.waitFor({ state: 'hidden' })
         const saved = (await request('/providers')).find(item => item.id === 'search-model')
+        assert.equal(saved.models[0].web_access, undefined)
+        assert.equal(saved.models[1].web_access.search.max_results, expected + 5)
+        assert.equal(saved.models[1].web_access.search.api_key_ref, saved.web_access.search.api_key_ref)
+        assert.equal(saved.models[1].web_access.fetch, undefined)
+        await request(resource, { method: 'PATCH', body: { model: { ...selection, model: 'fixture-custom' } } })
         assert.equal(saved.web_access.search.max_results, expected++)
         assert.equal(saved.web_access.search.api_key_ref, saved.web_access.fetch.api_key_ref)
         assert.notEqual(saved.api_key_ref, saved.web_access.search.api_key_ref)
@@ -167,7 +185,7 @@ for (const placement of ['local', 'server-node']) {
         await source('/credentials', { body: { name: provider.web_access.search.api_key_ref, value: key } })
         await source('/providers', { body: provider })
         await until(() => request('/execution-targets'), value => value.executors.some(item => item.executor_id === enrollment.executor_id && item.connected), 'model source connected')
-        await request(resource, { method: 'PATCH', body: { model: { provider: 'computer_provider', executor_id: enrollment.executor_id, provider_id: provider.id, model: 'fixture' } } })
+        await request(resource, { method: 'PATCH', body: { model: { provider: 'computer_provider', executor_id: enrollment.executor_id, provider_id: provider.id, model: 'fixture-custom' } } })
         const before = calls.length
         const previous = (await request(`${resource}/events`)).filter(event => event.type === 'turn_finished').length
         await page.reload(); await page.locator('[data-composer-input]').fill('Use the selected source Provider and execute its tools here.')
@@ -196,6 +214,15 @@ for (const placement of ['local', 'server-node']) {
         await until(() => request(`${resource}/events`), events => events.filter(event => event.type === 'turn_finished').length > finished, 'Provider switch applied')
         assert.equal(calls.length - before, enabled ? 2 : 0)
       }
+      mode = 'disabled'
+      await request(resource, { method: 'PATCH', body: { model: { ...selection, model: 'fixture-off' } } })
+      const beforeOff = calls.length, finishedOff = (await request(`${resource}/events`)).filter(event => event.type === 'turn_finished').length
+      await page.reload(); await page.locator('[data-composer-input]').fill('Use the model override, not the Provider defaults.')
+      await page.getByRole('button', { name: labels.ko.send, exact: true }).click()
+      await until(() => request(`${resource}/events`), events => events.filter(event => event.type === 'turn_finished').length > finishedOff, 'disabled model finishes')
+      assert.equal(calls.length, beforeOff)
+      mode = 'success'
+      await request(resource, { method: 'PATCH', body: { model: selection } }); await page.reload()
       if (!server) {
         await page.getByRole('button', { name: labels.ko.settings, exact: true }).click()
         const settings = page.locator('[data-settings-surface]')
