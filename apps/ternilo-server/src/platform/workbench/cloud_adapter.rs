@@ -1319,6 +1319,14 @@ fn compose_model_profile(
     model: Option<&RunModelSnapshot>,
     plugins: &[ternilo_protocol::PluginEntry],
 ) -> Result<Profile, HarnessError> {
+    if model
+        .and_then(|model| model.web_access.as_ref())
+        .is_some_and(|web| web.uses_computer())
+    {
+        return Err(HarnessError::policy(
+            "this Provider uses computer-executed web tools; select a computer session or use session/hosted web tools",
+        ));
+    }
     let profile = ternilo_cloud::cloud_child_profile(ternilo_kernel::compose_profiles([
         ternilo_cloud::cloud_profile(model),
         Profile {
@@ -1343,6 +1351,7 @@ mod tests {
     use ternilo_protocol::{ReasoningEffort, UserId};
     fn reasoning_snapshot() -> ternilo_protocol::RunModelSnapshot {
         ternilo_protocol::RunModelSnapshot {
+            web_access: None,
             binding: ternilo_protocol::RunModelBinding::Platform {
                 grant_id: "grant".to_owned(),
                 model_id: "reasoning-model".to_owned(),

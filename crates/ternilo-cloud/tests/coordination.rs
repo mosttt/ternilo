@@ -49,6 +49,7 @@ async fn contract(control: ControlStore, cloud: CloudStore) {
     let mut fixture = fixture::Fixture::open(control, cloud).await;
     let session = fixture.session("coordination-parent").await;
     let snapshot = |model: &str| RunModelSnapshot {
+        web_access: None,
         binding: RunModelBinding::UserProvider {
             tenant_id: fixture.tenant.clone(),
             owner_user_id: fixture.owner.user_id.clone(),

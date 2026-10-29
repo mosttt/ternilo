@@ -139,23 +139,59 @@ impl LocalApplication {
         Ok(())
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "assemble trusted session services before publishing its runtime"
-    )]
     pub(super) async fn ensure_session_locked(
         &self,
         id: &str,
     ) -> Result<Arc<ManagedSession>, HarnessError> {
+        self.ensure_session_with_web_locked(id, false).await
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "assemble trusted session services before publishing its runtime"
+    )]
+    pub(super) async fn ensure_session_with_web_locked(
+        &self,
+        id: &str,
+        refresh_web: bool,
+    ) -> Result<Arc<ManagedSession>, HarnessError> {
         self.stopping.check()?;
-        if let Some(managed) = self.live.read().await.get(id).cloned() {
+        // Inspection and direct local commands do not require an online model source.
+        if !refresh_web && let Some(managed) = self.live.read().await.get(id).cloned() {
             return Ok(managed);
         }
-        let session = self
+
+        let mut session = self
             .state
             .session(id)
             .await
             .ok_or_else(|| HarnessError::invalid(format!("unknown session {id:?}")))?;
+        let named_provider = resolve_named_provider(&session.model, &self.providers).await?;
+        if refresh_web && let Some(snapshot) = &mut session.server_model {
+            snapshot.web_access = self
+                .server_models
+                .web_access(id, snapshot.binding.clone(), None)
+                .await?
+                .configuration;
+            snapshot.validate()?;
+        }
+        let web_access = session
+            .server_model
+            .as_ref()
+            .and_then(|model| model.web_access.clone())
+            .or_else(|| {
+                named_provider
+                    .as_ref()
+                    .and_then(|provider| provider.web_access.clone())
+            });
+        let existing = self.live.read().await.get(id).cloned();
+        if let Some(managed) = existing {
+            if managed.web_access == web_access || managed.harness.active_run().await.is_some() {
+                return Ok(managed);
+            }
+            self.live.write().await.remove(id);
+            managed.harness.shutdown().await?;
+        }
         let store = Arc::new(
             JsonlEventStore::new(&self.state.sessions_dir(), &session.identity.session_id)
                 .with_index(
@@ -182,7 +218,7 @@ impl LocalApplication {
         let interaction = self
             .interaction
             .for_session(session.identity.session_id.clone());
-        let named_provider = resolve_named_provider(&session.model, &self.providers).await?;
+
         let profile = session_profile(
             &self.profile,
             &session.model,
@@ -231,6 +267,17 @@ impl LocalApplication {
             interaction,
             secrets,
         )
+        .with_provider_web_credentials(Arc::new(super::provider_web::WebCredentials {
+            providers: Arc::clone(&self.providers),
+            credentials: Arc::clone(&self.credentials),
+            gateways: Arc::clone(&self.server_models),
+            session_id: id.to_owned(),
+            provider_id: named_provider.as_ref().map(|provider| provider.id.clone()),
+            binding: session
+                .server_model
+                .as_ref()
+                .map(|model| model.binding.clone()),
+        }))
         .with_model_gateway(self.server_models.for_session(id.to_owned()))
         .with_session_mode(session.mode)
         .with_workspace_execution(execution)
@@ -258,6 +305,7 @@ impl LocalApplication {
             gate: Arc::new(Mutex::new(())),
             telemetry,
             boot_mode: session.mode,
+            web_access,
         });
         let mut live = self.live.write().await;
         if self.stopping.is_cancelled() {
@@ -302,6 +350,9 @@ pub(super) async fn resolve_named_provider(
     let provider = providers.get(provider_id).await.ok_or_else(|| {
         HarnessError::invalid(format!("unknown provider profile {provider_id:?}"))
     })?;
+    if let Some(web) = &provider.web_access {
+        web.validate_model(provider.protocol, model)?;
+    }
     provider
         .resolved_model(model)?
         .reasoning_value(*reasoning_effort)?;
@@ -345,6 +396,22 @@ pub(super) fn session_profile(
         });
     }
     let mut profile = compose_profiles(layers);
+    let explicit = compose_profiles([
+        Profile {
+            plugins: preset_plugins.to_vec(),
+        },
+        Profile {
+            plugins: profile_plugins.to_vec(),
+        },
+    ]);
+    let blocked_web_tools =
+        ternilo_builtins::blocked_provider_web_tools(&profile, &explicit.plugins);
+    let web = server_model
+        .and_then(|model| model.web_access.as_ref())
+        .or_else(|| named_provider.and_then(|provider| provider.web_access.as_ref()));
+    if let Some(web) = web {
+        ternilo_builtins::apply_provider_web_access(&mut profile, web, &explicit.plugins);
+    }
     if matches!(
         model,
         ModelSelection::AccountProvider { .. }
@@ -353,7 +420,8 @@ pub(super) fn session_profile(
     ) {
         if let Some(entry) = profile.plugins.iter_mut().find(|entry| entry.id == "model") {
             ternilo_builtins::BROKERED_MODEL_KIND.clone_into(&mut entry.kind);
-            entry.config = serde_json::json!({"snapshot":server_model});
+            entry.config =
+                serde_json::json!({"snapshot":server_model,"blocked_web_tools":blocked_web_tools});
         }
         return profile;
     }
@@ -461,7 +529,8 @@ pub(super) fn session_profile(
             "max_attempts": max_attempts,
             "retry_base_delay_ms": retry_base_delay_ms,
             "protocol": protocol,
-            "hosted_tools": named_provider.and_then(|provider| provider.hosted_tools.clone()),
+            "blocked_web_tools": blocked_web_tools,
+            "hosted_tools": named_provider.and_then(ProviderProfile::effective_hosted_tools),
             "context_window": context_window,
             "max_tokens": max_tokens,
             "reasoning_effort": reasoning_effort,

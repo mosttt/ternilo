@@ -25,6 +25,8 @@ describe('providerModelDiscoveryRequest', () => {
 
   it('selects native default URLs without overwriting custom relay endpoints or credentials', () => {
     const initial = { ...draft(), baseUrl: 'https://api.openai.com/v1' }
+    expect(changeProviderProtocol(initial, 'deepseek-responses').baseUrl).toBe('https://api.deepseek.com')
+    expect(changeProviderProtocol(draft(), 'deepseek-responses').baseUrl).toBe(draft().baseUrl)
     const gemini = changeProviderProtocol(initial, 'google-gemini')
     expect(gemini.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
     const claude = changeProviderProtocol(gemini, 'anthropic-messages')

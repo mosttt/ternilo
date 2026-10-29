@@ -235,6 +235,7 @@ async fn write_and_assert_providers(fixture: &Fixture) {
 
 fn provider(display_name: &str) -> ProviderProfile {
     ProviderProfile {
+        web_access: None,
         hosted_tools: None,
         id: "shared-provider".to_owned(),
         display_name: display_name.to_owned(),

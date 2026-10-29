@@ -55,6 +55,7 @@ export function ProviderEditor({ initial, onClose, onSaved }: { initial: ModelPr
       })
       const profile: ProviderProfile = { id: validated.id, display_name: validated.displayName, base_url: draft.baseUrl.trim().replace(/\/$/, ''), protocol: draft.protocol,
         hosted_tools: draft.hostedTools ?? null,
+        web_access: draft.webAccess ?? null,
         api_key_ref: null, defaults: validated.defaults, models: validated.models, timeout_ms: draft.timeoutMs, max_attempts: draft.maxAttempts, retry_base_delay_ms: draft.retryBaseDelayMs }
       const provider = await api.request<ModelProvider>(initial ? modelResource(`${modelAdminPath}/providers`, initial.profile.id) : `${modelAdminPath}/providers`, {
         method: initial ? 'PUT' : 'POST', body: { profile, enabled, ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}), clear_api_key: clearKey && !apiKey.trim() },
@@ -66,7 +67,7 @@ export function ProviderEditor({ initial, onClose, onSaved }: { initial: ModelPr
     <label className={css.check}><input type="checkbox" checked={enabled} disabled={busy} onChange={event => setEnabled(event.target.checked)} />{t('enabled')}</label>
     {initial?.has_api_key && <div><label className={css.check}><input type="checkbox" checked={clearKey} disabled={busy} onChange={event => setClearKey(event.target.checked)} />{t('clearKey')}</label><p className={css.hint}>{t('clearKeyDescription')}</p></div>}
     <p className={css.notice}>{t('managedRetryNote')}</p>
-    <ProviderEditorCard provider={initial?.profile} credentialConfigured={initial?.has_api_key ?? false} onCancel={() => { if (!busy) onClose() }} onSave={save}
+    <ProviderEditorCard computerWebAccess={false} provider={initial?.profile} credentialConfigured={initial?.has_api_key ?? false} onCancel={() => { if (!busy) onClose() }} onSave={save}
       onDiscover={request => api.request<ProviderModel[]>(`${modelAdminPath}/providers/discover`, { method: 'POST', body: request })} />
   </ModelModal>
 }

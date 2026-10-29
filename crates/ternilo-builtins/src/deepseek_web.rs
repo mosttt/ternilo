@@ -25,9 +25,12 @@ component_descriptor! {
 #[derive(Clone, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct FetchConfig {
+    #[serde(default)]
+    provider_web_access: Option<ternilo_protocol::ProviderWebAccess>,
     #[serde(default = "default_base_url")]
     base_url: String,
     /// Credential name on the execution host, never the API key itself.
+    #[serde(default)]
     api_key_env: String,
     #[serde(default = "default_timeout")]
     timeout_ms: u64,
@@ -51,6 +54,15 @@ pub fn factory() -> PluginFactory {
         PluginManifest { kind: KIND, requires: &["ternilo/tools@1", "ternilo/run-environment@1"], provides: &[] },
         |value| {
             let config: FetchConfig = parse_config(value)?;
+            if let Some(web) = &config.provider_web_access
+                && (web.fetch.mode != ternilo_protocol::WebFetchMode::Deepseek
+                    || web.fetch.base_url.as_deref().unwrap_or("https://api.deepseek.com") != config.base_url
+                    || web.fetch.timeout_ms != config.timeout_ms
+                    || web.fetch.max_bytes != config.max_bytes as u64
+                    || !config.api_key_env.is_empty())
+            {
+                return Err(HarnessError::policy("fetch plugin must use its selected Provider web configuration"));
+            }
             let url = reqwest::Url::parse(&config.base_url)
                 .map_err(|_| HarnessError::composition("DeepSeek fetch base_url must be an HTTP(S) URL"))?;
             if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none()
@@ -58,7 +70,7 @@ pub fn factory() -> PluginFactory {
                 || url.query().is_some() || url.fragment().is_some() {
                 return Err(HarnessError::composition("DeepSeek fetch base_url requires HTTP(S) without embedded credentials, query or fragment"));
             }
-            if config.api_key_env.trim().is_empty() || config.timeout_ms == 0 || config.max_bytes == 0 {
+            if (config.api_key_env.trim().is_empty() && config.provider_web_access.is_none()) || config.timeout_ms == 0 || config.max_bytes == 0 {
                 return Err(HarnessError::composition("DeepSeek fetch requires a credential name, positive timeout_ms and max_bytes"));
             }
             let client = reqwest::Client::builder()
@@ -144,28 +156,36 @@ impl ToolHandler for FetchTool {
             tokio::select! {
                 biased;
                 () = context.cancellation.cancelled() => Err(HarnessError::cancelled("DeepSeek fetch cancelled")),
-                result = self.fetch(arguments) => result,
+                result = self.fetch(context.run_id, arguments) => result,
             }
         })
     }
 }
 
 impl FetchTool {
-    async fn fetch(&self, arguments: Value) -> Result<ToolOutput, HarnessError> {
+    async fn fetch(
+        &self,
+        run_id: ternilo_protocol::RunId,
+        arguments: Value,
+    ) -> Result<ToolOutput, HarnessError> {
         let arguments: FetchArguments = serde_json::from_value(arguments)
             .map_err(|_| HarnessError::invalid("web_fetch requires a URL"))?;
         validate_target(&arguments.url)?;
-        let key = self
-            .environment
-            .resolve_secret(self.config.api_key_env.clone())
-            .await?
-            .filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| {
-                HarnessError::execution(format!(
-                    "DeepSeek fetch credential {:?} is not configured",
-                    self.config.api_key_env
-                ))
-            })?;
+        let key = if let Some(expected) = &self.config.provider_web_access {
+            self.environment
+                .resolve_provider_web_credential(
+                    run_id,
+                    ternilo_protocol::WebCapability::Fetch,
+                    expected.clone(),
+                )
+                .await?
+        } else {
+            self.environment
+                .resolve_secret(self.config.api_key_env.clone())
+                .await?
+        }
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| HarnessError::execution("DeepSeek fetch credential is not configured"))?;
         let request = self
             .client
             .post(format!(

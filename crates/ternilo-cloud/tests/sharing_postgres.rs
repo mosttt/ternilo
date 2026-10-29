@@ -1281,6 +1281,7 @@ fn policy() -> WorkerPolicy {
 
 fn provider(display_name: &str, base_url: &str) -> ProviderProfile {
     ProviderProfile {
+        web_access: None,
         hosted_tools: None,
         id: "route".to_owned(),
         display_name: display_name.to_owned(),

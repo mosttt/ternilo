@@ -14,6 +14,7 @@ const NOW: u64 = 1_800_000_000_000;
 fn provider() -> ModelProviderInput {
     ModelProviderInput {
         profile: ProviderProfile {
+            web_access: None,
             hosted_tools: None,
             id: "upstream".to_owned(),
             display_name: "Internal upstream".to_owned(),

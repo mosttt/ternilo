@@ -128,6 +128,16 @@ pub trait UserInteraction: Send + Sync + 'static {
     ) -> Pin<Box<dyn Future<Output = Result<UserAnswer, HarnessError>> + Send + 'a>>;
 }
 
+/// Resolves only the selected Provider's web credential for an authorized run.
+pub trait ProviderWebCredentials: Send + Sync + 'static {
+    fn resolve<'a>(
+        &'a self,
+        run_id: RunId,
+        capability: ternilo_protocol::WebCapability,
+        expected: ternilo_protocol::ProviderWebAccess,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, HarnessError>> + Send + 'a>>;
+}
+
 pub trait SecretResolver: Send + Sync + 'static {
     fn resolve<'a>(
         &'a self,
@@ -797,6 +807,7 @@ pub struct HostEnvironment {
     event_store: Arc<dyn SessionEventStore>,
     interaction: Arc<dyn UserInteraction>,
     secrets: Arc<dyn SecretResolver>,
+    provider_web_credentials: Option<Arc<dyn ProviderWebCredentials>>,
     attachments: Arc<dyn AttachmentResolver>,
     session_archive: Arc<dyn SessionArchive>,
     runtime_extensions: Arc<dyn RuntimeExtensionsProvider>,
@@ -863,6 +874,7 @@ impl HostEnvironment {
             event_store,
             interaction,
             secrets,
+            provider_web_credentials: None,
             attachments: Arc::new(InlineAttachments),
             session_archive: Arc::new(UnavailableSessionArchive),
             runtime_extensions: Arc::new(UnavailableRuntimeExtensions),
@@ -871,6 +883,15 @@ impl HostEnvironment {
             agent_team: Arc::new(UnavailableAgentTeam),
             telemetry: Arc::new(HostSessionTelemetry::default()),
         }
+    }
+
+    #[must_use]
+    pub fn with_provider_web_credentials(
+        mut self,
+        resolver: Arc<dyn ProviderWebCredentials>,
+    ) -> Self {
+        self.provider_web_credentials = Some(resolver);
+        self
     }
 
     #[must_use]
@@ -1161,6 +1182,26 @@ impl RunEnvironmentProvider for HostEnvironment {
     ) -> Pin<Box<dyn Future<Output = PermissionPreset> + Send + 'a>> {
         let permissions = self.policy.permissions;
         Box::pin(async move { permissions })
+    }
+
+    fn resolve_provider_web_credential<'a>(
+        &'a self,
+        _: CallContext<()>,
+        run_id: RunId,
+        capability: ternilo_protocol::WebCapability,
+        expected: ternilo_protocol::ProviderWebAccess,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            self.provider_web_credentials
+                .as_ref()
+                .ok_or_else(|| {
+                    HarnessError::policy(
+                        "this execution host has no Provider web credential authorization",
+                    )
+                })?
+                .resolve(run_id, capability, expected)
+                .await
+        })
     }
 
     fn resolve_secret<'a>(

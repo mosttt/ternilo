@@ -23,6 +23,7 @@ pub fn snapshot(
     effort: Option<ReasoningEffort>,
 ) -> RunModelSnapshot {
     RunModelSnapshot {
+        web_access: None,
         binding: RunModelBinding::UserProvider {
             tenant_id: tenant.clone(),
             owner_user_id: user.clone(),
@@ -62,6 +63,7 @@ pub async fn configure(
             user,
             tenant,
             ProviderProfile {
+                web_access: None,
                 hosted_tools: None,
                 id: "contract-provider".to_owned(),
                 display_name: snapshot.source_name.clone(),

@@ -24,6 +24,8 @@ component_descriptor! {
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BrokeredModelConfig {
+    #[serde(default)]
+    pub blocked_web_tools: Vec<ternilo_protocol::WebCapability>,
     #[schemars(with = "serde_json::Value")]
     pub snapshot: Option<RunModelSnapshot>,
 }
@@ -158,6 +160,9 @@ impl BrokeredModel {
         output: Arc<dyn ModelOutput>,
         cancellation: RunCancellation,
     ) -> Result<ModelResponse, HarnessError> {
+        request
+            .blocked_web_tools
+            .extend(self.config.blocked_web_tools.iter().copied());
         let snapshot = self.config.snapshot.as_ref().ok_or_else(|| {
             HarnessError::policy("Choose an available model before submitting a task")
         })?;

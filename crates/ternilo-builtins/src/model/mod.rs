@@ -78,6 +78,8 @@ enum UsageSource {
 #[serde(deny_unknown_fields)]
 struct ProviderModelConfig {
     #[serde(default)]
+    blocked_web_tools: Vec<ternilo_protocol::WebCapability>,
+    #[serde(default)]
     #[schemars(skip)]
     usage_source: UsageSource,
     provider: String,
@@ -216,6 +218,7 @@ impl HarnessPlugin for ProviderModelPlugin {
             .service::<Attachments>()
             .expect("OpenAI-compatible model declares Attachments");
         let provider: Arc<dyn ModelsProvider> = Arc::new(ProviderModel {
+            blocked_web_tools: self.config.blocked_web_tools.clone(),
             provider: self.config.provider.clone(),
             endpoint: crate::provider_model_endpoint(
                 &self.config.base_url,
@@ -264,6 +267,7 @@ impl HarnessPlugin for ProviderModelPlugin {
 
 #[derive(Clone)]
 struct ProviderModel {
+    blocked_web_tools: Vec<ternilo_protocol::WebCapability>,
     provider: String,
     endpoint: String,
     protocol: ProviderProtocol,
@@ -295,11 +299,14 @@ impl ModelsProvider for ProviderModel {
     fn complete<'a>(
         &'a self,
         _: CallContext<()>,
-        request: ModelRequest,
+        mut request: ModelRequest,
         output: Arc<dyn ModelOutput>,
         cancellation: RunCancellation,
     ) -> Pin<Box<dyn Future<Output = Result<ModelResponse, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
+            request
+                .blocked_web_tools
+                .extend(self.blocked_web_tools.iter().copied());
             let observer: Option<Arc<dyn ModelAttemptObserver>> =
                 if let Some(sessions) = &self.sessions {
                     let identity = self
@@ -365,6 +372,7 @@ pub async fn complete_provider_model(
         .build()
         .map_err(|error| HarnessError::execution(format!("build model HTTP client: {error}")))?;
     ProviderModel {
+        blocked_web_tools: Vec::new(),
         provider: route.provider,
         endpoint: crate::provider_model_endpoint(
             &route.base_url,

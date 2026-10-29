@@ -69,7 +69,7 @@ pub use types::{
     ExecutionAttachmentObject, ExecutionEnvelope, StartedRun, TerminalState,
 };
 
-pub const CLOUD_CATALOG_REVISION: &str = "ternilo-cloud-v4";
+pub const CLOUD_CATALOG_REVISION: &str = "ternilo-cloud-v5";
 
 /// Remove exporters owned by the trusted Cloud parent before a profile is
 /// serialized into a child envelope or booted for an inspection child.
@@ -740,6 +740,7 @@ mod tests {
             RunModelBinding,
         };
         RunModelSnapshot {
+            web_access: None,
             binding: RunModelBinding::Platform {
                 grant_id: "grant-primary".to_owned(),
                 model_id: "model-a".to_owned(),

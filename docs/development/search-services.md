@@ -7,7 +7,7 @@
 - Brave 默认 `https://api.search.brave.com/res/v1`，GET `/web/search`，使用 `X-Subscription-Token`、`q`、`count`、可选 `search_lang`。
 - Tavily 默认 `https://api.tavily.com`，POST `/search`，Bearer 鉴权，固定 basic、general，关闭自动参数、生成答案、原始正文及图片；支持可选语言。
 - SearXNG 保留自建地址、JSON 搜索、可选 Bearer 凭据。返回数量默认为 10，上限分别为 20／20／50。
-- 凭据从执行电脑的 SecretResolver 按引用读取；不保存到插件 JSON，不因模型转发而复制来源电脑的凭据。取消覆盖凭据解析、发送和响应读取。
+- 独立插件的凭据从执行电脑的 SecretResolver 按引用读取；不保存到插件 JSON，不因模型转发而复制来源电脑的凭据。取消覆盖凭据解析、发送和响应读取。
 - HTTP 重定向不跟随，响应上限 2 MiB；上游错误不回显正文、Key 或查询 URL。没有供应商降级或自动选择。
 - 配置目录、插件说明和搜索结果沿用现有界面，已同步中英文正式文档。
 
@@ -29,4 +29,8 @@ DeepSeek 的 HTTP 402、401、403／404、429、超时及服务失败具有不�
 
 已通过搜索 5 项、DeepSeek 传输 3 项 Rust 合同，以及本机／Server Node 三语浏览器的配置同步、模型→搜索→抓取→回答、刷新、余额不足与取消流程。最终浏览器验收通过：本机 24.80 秒、Server Node 29.73 秒，覆盖 Markdown 专用展示及三语配置、结果刷新、402 和取消；截图已检查，控制台、页面及非预期 HTTP 错误为空。原 Brave／Tavily／SearXNG 浏览器回归也通过。浏览器上游使用官方协议合同服务。
 
-官方依据：[DeepSeek 搜索与抓取](https://api-docs.deepseek.com/zh-cn/guides/search/)。目录修订为 Builtins v21、Local v21、Cloud v4；既有 Worker 的 policy 示例同步为 `ternilo-cloud-v4`。
+官方依据：[DeepSeek 搜索与抓取](https://api-docs.deepseek.com/zh-cn/guides/search/)。目录修订为 Builtins v22、Local v22、Cloud v5；既有 Worker 的 policy 示例同步为 `ternilo-cloud-v5`。
+
+## Provider 统一配置
+
+搜索与读取可跟随账号或设备 Provider；独立插件保留原用法。配置和凭据传递、实际执行位置及验收进度见 [Provider 网页访问](provider-web-access.md)。

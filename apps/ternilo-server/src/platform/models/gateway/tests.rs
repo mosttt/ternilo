@@ -418,6 +418,7 @@ impl Fixture {
                     &owner.session.user,
                     &ModelProviderInput {
                         profile: ProviderProfile {
+                            web_access: None,
                             hosted_tools: None,
                             id: name.to_owned(),
                             display_name: name.to_owned(),

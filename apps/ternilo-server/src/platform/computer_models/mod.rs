@@ -142,6 +142,7 @@ pub(crate) async fn resolve_selection(
     let model = provider.resolved_model(model)?;
     model.reasoning_value(*reasoning_effort)?;
     Ok(RunModelSnapshot {
+        web_access: provider.web_access.clone(),
         binding,
         protocol: provider.protocol,
         defaults: ProviderModelDefaults {

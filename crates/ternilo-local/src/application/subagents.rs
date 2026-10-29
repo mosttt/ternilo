@@ -279,7 +279,7 @@ impl LocalSubagentSessionHost {
         if let Some(managed) = live.read().await.get(id).cloned() {
             return Ok(managed);
         }
-        let session = self
+        let mut session = self
             .state
             .session(id)
             .await
@@ -295,6 +295,14 @@ impl LocalSubagentSessionHost {
         let interaction = self
             .interaction
             .for_session(session.identity.session_id.clone());
+        if let Some(snapshot) = &mut session.server_model {
+            snapshot.web_access = self
+                .server_models
+                .web_access(id, snapshot.binding.clone(), None)
+                .await?
+                .configuration;
+            snapshot.validate()?;
+        }
         let named_provider = resolve_named_provider(&session.model, &self.providers).await?;
         let profile = session_profile(
             &self.profile,
@@ -344,6 +352,17 @@ impl LocalSubagentSessionHost {
             interaction,
             secrets,
         )
+        .with_provider_web_credentials(Arc::new(super::provider_web::WebCredentials {
+            providers: Arc::clone(&self.providers),
+            credentials: Arc::clone(&self.credentials),
+            gateways: Arc::clone(&self.server_models),
+            session_id: id.to_owned(),
+            provider_id: named_provider.as_ref().map(|provider| provider.id.clone()),
+            binding: session
+                .server_model
+                .as_ref()
+                .map(|model| model.binding.clone()),
+        }))
         .with_model_gateway(self.server_models.for_session(id.to_owned()))
         .with_session_mode(session.mode)
         .with_workspace_execution(execution)
@@ -371,6 +390,15 @@ impl LocalSubagentSessionHost {
             gate: Arc::new(Mutex::new(())),
             telemetry,
             boot_mode: session.mode,
+            web_access: session
+                .server_model
+                .as_ref()
+                .and_then(|model| model.web_access.clone())
+                .or_else(|| {
+                    named_provider
+                        .as_ref()
+                        .and_then(|provider| provider.web_access.clone())
+                }),
         });
         let mut sessions = live.write().await;
         if self.stopping.is_cancelled() {

@@ -502,7 +502,8 @@ test('model picker persists the host default across reload and new Session creat
     }, workspace)
     await page.reload({ waitUntil: 'domcontentloaded' })
 
-    await page.getByRole('button', { name: /默认模型/ }).click()
+    // Wait for the catalog to settle; "default" is only a temporary loading label.
+    await page.locator('[data-model-picker]').filter({ hasText: '选择模型' }).click()
     await page.getByRole('menuitem', { name: /^模型/ }).hover()
     const defaultSaved = page.waitForResponse(response => response.request().method() === 'PUT'
       && response.url().includes('/api/v1/default-model?'))

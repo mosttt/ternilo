@@ -76,6 +76,7 @@ pub(super) async fn spawn_controlled_child_with_batch(
                 permissions: PermissionPreset::WorkspaceWrite,
                 mode,
                 profile: ternilo_cloud::cloud_profile(Some(&ternilo_protocol::RunModelSnapshot {
+                    web_access: None,
                     binding: ternilo_protocol::RunModelBinding::Platform {
                         grant_id: "test-grant".to_owned(),
                         model_id: "test-model".to_owned(),

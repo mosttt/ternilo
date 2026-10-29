@@ -80,6 +80,7 @@ async fn restored_stack_accepts_and_executes_a_fresh_workspace_run() {
         .expect("create restore acceptance workspace");
 
     let mut profile = ternilo_cloud::cloud_profile(Some(&ternilo_protocol::RunModelSnapshot {
+        web_access: None,
         binding: ternilo_protocol::RunModelBinding::Platform {
             grant_id: "test-grant".to_owned(),
             model_id: "test-model".to_owned(),

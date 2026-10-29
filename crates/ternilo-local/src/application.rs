@@ -56,6 +56,7 @@ mod history;
 mod input_references;
 mod model_forwarding;
 mod presets;
+mod provider_web;
 mod providers;
 mod services;
 mod sessions;
@@ -101,6 +102,7 @@ struct ManagedSession {
     gate: Arc<Mutex<()>>,
     telemetry: Arc<ternilo_kernel::HostSessionTelemetry>,
     boot_mode: SessionMode,
+    web_access: Option<Box<ternilo_protocol::ProviderWebAccess>>,
 }
 
 type LiveSessions = RwLock<BTreeMap<String, Arc<ManagedSession>>>;

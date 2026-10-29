@@ -7,6 +7,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn model(protocol: ProviderProtocol, effort: Option<&str>) -> ProviderModel {
     ProviderModel {
+        blocked_web_tools: Vec::new(),
         hosted_tools: None,
         provider: "native".to_owned(),
         endpoint: "http://unused.test".to_owned(),
@@ -727,4 +728,49 @@ fn deepseek_search_state_survives_streaming_persistence_and_local_tool_continuat
             .to_string()
             .contains("ws-one")
     );
+}
+
+#[test]
+fn provider_web_session_denial_suppresses_hosted_search_but_keeps_files() {
+    for protocol in [
+        ProviderProtocol::DeepSeekResponses,
+        ProviderProtocol::AnthropicMessages,
+    ] {
+        let mut model = model(protocol, None);
+        model.model = "deepseek-v4-pro".into();
+        model.hosted_tools = Some(
+            serde_json::from_value(
+                json!({"web_search":true,"max_uses":2,"max_content_tokens":1000}),
+            )
+            .unwrap(),
+        );
+        if protocol == ProviderProtocol::DeepSeekResponses {
+            let hosted = model.hosted_tools.as_mut().unwrap();
+            hosted.max_uses = None;
+            hosted.max_content_tokens = None;
+        }
+        let mut request = request();
+        let before = protocols::request_body(&model, &request).unwrap();
+        assert!(before["tools"].as_array().unwrap().iter().any(|tool| {
+            tool["type"]
+                .as_str()
+                .is_some_and(|kind| kind.starts_with("web_search"))
+        }));
+        request
+            .blocked_web_tools
+            .push(ternilo_protocol::WebCapability::Search);
+        let after = protocols::request_body(&model, &request).unwrap();
+        assert!(!after["tools"].as_array().unwrap().iter().any(|tool| {
+            tool["type"]
+                .as_str()
+                .is_some_and(|kind| kind.starts_with("web_search"))
+        }));
+        assert!(
+            after["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|tool| tool["name"] == "read_file")
+        );
+    }
 }

@@ -29,6 +29,11 @@ mod model_binding;
 pub use model_binding::{RunModelBinding, RunModelSnapshot};
 mod model_settings;
 pub use model_settings::{ProviderModelValues, ProviderReasoningSetting};
+mod provider_web;
+pub use provider_web::{
+    NodeRunContext, NodeWebAccessRequest, ProviderFetch, ProviderSearch, ProviderWebAccess,
+    ProviderWebAccessReply, WebCapability, WebFetchMode, WebSearchMode,
+};
 mod hosted_tools;
 pub use hosted_tools::HostedWebTools;
 mod input_provenance;
@@ -879,6 +884,8 @@ pub trait ProviderModelCatalog {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderProfile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_access: Option<Box<ProviderWebAccess>>,
     pub id: String,
     pub display_name: String,
     pub base_url: String,
@@ -939,7 +946,10 @@ impl ExtensionProviderMaterializeRequest {
 
 impl ProviderProfile {
     fn validate_hosted_tools(&self) -> Result<(), HarnessError> {
-        if let Some(tools) = &self.hosted_tools {
+        if let Some(web) = &self.web_access {
+            web.validate(self.protocol)?;
+        }
+        if let Some(tools) = self.effective_hosted_tools() {
             tools.validate(self.protocol)?;
             if self.protocol == ProviderProtocol::DeepSeekResponses
                 && !self
@@ -2259,6 +2269,9 @@ pub struct HookResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelRequest {
+    /// Session restrictions may suppress hosted web tools, never enable them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocked_web_tools: Vec<WebCapability>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_recommendation: Option<ReasoningEffort>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -3462,6 +3475,7 @@ mod tests {
             ]),
         };
         let provider = ProviderProfile {
+            web_access: None,
             hosted_tools: None,
             id: "provider-a".to_owned(),
             display_name: "Provider A".to_owned(),

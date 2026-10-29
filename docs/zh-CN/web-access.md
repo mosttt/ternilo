@@ -4,6 +4,22 @@
 
 这两项本机工具由执行任务的 Ternilo 运行。Claude 和 DeepSeek Responses 还可使用下面单独配置的供应商托管网页工具。
 
+## 让网页工具跟随 Provider
+
+希望换电脑后无需重新配置搜索时，在“我的模型 → 账号自有”编辑 Provider，打开“自定义设置 → 网页访问”。独立使用 Ternilo 时，入口是“设置 → 模型”。
+
+分别选择网页搜索和网页读取：使用会话插件、关闭、电脑执行的服务，或当前协议支持的模型内置工具。电脑搜索支持 DeepSeek、Brave、Tavily、SearXNG；读取可以直接访问网页或使用 DeepSeek 返回 Markdown。选择 DeepSeek 搜索与读取时，可勾选“使用搜索凭据”，只填写一次网页 API Key。服务地址和限制放在高级设置；网页地址不自动沿用模型代理地址。
+
+选择 Provider 后，会话自动采用它的网页设置；个人新会话沿用已有默认模型选择，不另设网页默认值。切换 Provider 会更换对应网页工具。没有配置 `web_access` 或选择“使用会话插件”时，独立插件继续按原配置运行。明确禁用的会话／预设工具不会被 Provider 重新开启；每种能力只提供一个实现，不自动换来源或凭据。
+
+账号只保存一份配置和独立网页凭据。Server 远程电脑会话按当前绑定取得配置；模型来自另一台电脑时，网页工具仍在任务电脑运行。网页 Key 只按需交给同一所有者的已授权执行电脑，不写入该电脑的凭据库、会话历史或插件配置。共享模型的调用权不包含向他人电脑导出网页凭据的权利。模型 Key 不自动用于网页请求。
+
+后续对话任务读取更新后的配置。每次调用前核验配置和权限；已发出的请求保持原配置，后续调用遇到配置或凭据失效时明确失败。配置变化后请重新发起任务。集中配置与单插件视图显示 Provider 管理的生效值，修改入口仍是该 Provider 的“网页访问”。
+
+电脑执行模式适用于本机 Provider、Server 账号 Provider 和同一账号的跨电脑 Provider。平台 Provider 不导出搜索凭据；托管 Worker 会话需要改用独立会话插件或模型内置工具。仅授权模型的独立 Server 连接不附带电脑网页凭据。模型内置搜索始终由上游服务商执行，不在任务电脑或 Ternilo Server 执行。
+
+下面介绍独立插件配置。需要它们独立于所选 Provider 时，保持“使用会话插件”。
+
 ## 选择搜索服务
 
 在自定义 Agent 预设中添加一个搜索插件。这些插件都注册 `web_search`，同一预设只启用其中一个；不会因某个服务失败而自动切换供应商。
@@ -59,18 +75,18 @@ DeepSeek 搜索插件使用独立 Search API，不要求对话模型来自 DeepS
 
 模型仍调用 `web_fetch({"url":"https://example.com/article"})`，收到页面标题、原始 URL 和 Markdown 正文。查询和目标网址会发送给 DeepSeek，不会由执行电脑直接抓取目标网页；目标网页能否读取取决于 DeepSeek 的访问与安全策略。插件配置可在集中配置和单插件配置之间同步修改。
 
-两项服务使用同一种 DeepSeek API Key，但独立于模型 Provider 配置，按成功且有结果的请求计费。没有结果、失败或超时的请求不计费；当前官方价格与限速见 [DeepSeek 搜索与抓取](https://api-docs.deepseek.com/zh-cn/guides/search/)。HTTP 402 需要为该凭据所属账号充值；401 检查凭据；403／404 检查或更换目标网页；429 降低调用频率。错误不回显上游正文或密钥，取消会关闭当前请求。
+两项服务使用同一种 DeepSeek API Key；可在 Provider 的“网页访问”中保存，也可由独立插件引用执行电脑的凭据，按成功且有结果的请求计费。没有结果、失败或超时的请求不计费；当前官方价格与限速见 [DeepSeek 搜索与抓取](https://api-docs.deepseek.com/zh-cn/guides/search/)。HTTP 402 需要为该凭据所属账号充值；401 检查凭据；403／404 检查或更换目标网页；429 降低调用频率。错误不回显上游正文或密钥，取消会关闭当前请求。
 
 ## DeepSeek Responses 内置搜索
 
-在模型提供方中选择 **DeepSeek Responses** 协议，添加 `deepseek-v4-pro`，再打开“自定义设置 → DeepSeek 内置搜索 → 托管网页搜索”。默认关闭；只有 Flash 的提供方不能启用。混合提供方中仅 Pro 使用内置搜索，Flash 和其他模型仍使用各自的本机工具。
+在模型提供方中选择 **DeepSeek Responses** 协议，添加 `deepseek-v4-pro`，再将“自定义设置 → 网页访问 → 网页搜索”设为“模型内置 · 服务商执行”。默认不启用；只有 Flash 的提供方不展示此选项。显式选择内置搜索后，使用不支持的模型会提示更换模型或改用电脑搜索，不自动降级。
 
 Provider 配置为：
 
 ```json
 {
   "protocol": "deepseek-responses",
-  "hosted_tools": { "web_search": true }
+  "web_access": { "search": { "mode": "hosted" } }
 }
 ```
 
@@ -84,10 +100,11 @@ DeepSeek 当前不支持内置搜索调用次数上限、域名筛选或内置 F
 
 ## Claude 托管网页工具
 
-在 Claude Provider 的“自定义设置 → Claude 托管网页工具”中，可以显式开启网页搜索和网页读取，设置每次请求每种工具的调用上限、读取正文的 Token 上限及域名筛选。默认关闭。域名列表使用裸域名和可选路径，例如 `example.com/docs`；允许列表与阻止列表二选一。
+在 Claude Provider 的“自定义设置 → 网页访问”中，将搜索或读取设为“模型内置 · 服务商执行”，再设置每次请求每种工具的调用上限、读取正文的 Token 上限及域名筛选。默认不启用。域名列表使用裸域名和可选路径，例如 `example.com/docs`；允许列表与阻止列表二选一。
 
 ```json
 {
+  "web_access": { "search": { "mode": "hosted" }, "fetch": { "mode": "hosted" } },
   "hosted_tools": {
     "web_search": true,
     "web_fetch": true,

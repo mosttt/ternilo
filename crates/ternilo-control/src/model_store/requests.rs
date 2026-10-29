@@ -19,7 +19,7 @@ pub(super) fn with_provider_budget(
     route: &ResolvedModelRoute,
 ) -> Result<ModelRequestInput, HarnessError> {
     let mut input = input.clone();
-    if let Some(hosted) = &route.provider.hosted_tools
+    if let Some(hosted) = route.provider.effective_hosted_tools()
         && hosted.applies_to(route.provider.protocol, &route.upstream_model)
     {
         // Claude exposes an enforced call limit. DeepSeek does not, so reserve

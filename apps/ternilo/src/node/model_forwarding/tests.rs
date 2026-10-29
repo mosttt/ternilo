@@ -40,6 +40,7 @@ impl Fixture {
         };
         application
             .upsert_provider_profile(ProviderProfile {
+                web_access: None,
                 hosted_tools: None,
                 id: "source-provider".to_owned(),
                 display_name: "Source".to_owned(),
@@ -73,6 +74,7 @@ impl Fixture {
                 reasoning_effort: None,
                 max_attempts: 3,
                 request: ModelRequest {
+                    blocked_web_tools: Vec::new(),
                     reasoning_recommendation: None,
                     prompt_cache: false,
                     run_id: RunId::new("remote-run"),

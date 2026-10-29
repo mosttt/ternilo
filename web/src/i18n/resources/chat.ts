@@ -1,7 +1,12 @@
 export const zh = {
+  "runtimeError.providerWeb.title": "网页访问未能完成",
+  "runtimeError.providerWeb.changed": "Provider 的网页设置已变更。请重新发送任务以使用当前配置。",
+  "runtimeError.providerWeb.credential": "请在当前 Provider 的“网页访问”中补充或替换网页服务 API Key，然后重试。",
+  "runtimeError.providerWeb.authorization": "这台电脑未获准使用该网页凭据。请使用凭据持有人的电脑，或为当前电脑选择自己的 Provider。",
+  "runtimeError.providerWeb.unsupported": "当前模型或协议不支持所选内置搜索。请在 Provider 的“网页访问”中改用电脑搜索，或选择支持的模型。",
   "runtimeError.deepseekWeb.title": "DeepSeek 网页服务调用失败",
   "runtimeError.deepseekWeb.request": "请检查搜索词、返回条数或网页地址后重试。",
-  "runtimeError.deepseekWeb.auth": "请检查执行电脑中该插件使用的凭据，确认 DeepSeek API Key 有效。",
+  "runtimeError.deepseekWeb.auth": "请检查当前 Provider 或独立插件使用的网页凭据，确认 DeepSeek API Key 有效。",
   "runtimeError.deepseekWeb.balance": "请为搜索插件凭据所属的 DeepSeek 账号充值：https://platform.deepseek.com/top_up。增加 Ternilo 的 Token 额度不能解决上游余额不足。",
   "runtimeError.deepseekWeb.blocked": "网页被抓取服务的安全策略拒绝，请换用其他公开网址。",
   "runtimeError.deepseekWeb.missing": "未找到可读取的网页正文，请检查网址或换一个页面。",
@@ -413,6 +418,11 @@ export const zh = {
 export type ChatKey = keyof typeof zh
 
 export const en = {
+  "runtimeError.providerWeb.title": "Web access could not complete",
+  "runtimeError.providerWeb.changed": "The Provider’s web settings changed. Send a new task to use the current configuration.",
+  "runtimeError.providerWeb.credential": "Add or replace the web service API key under this Provider’s Web access settings, then retry.",
+  "runtimeError.providerWeb.authorization": "This computer is not authorized to receive this web credential. Use the credential owner’s computer or select your own Provider.",
+  "runtimeError.providerWeb.unsupported": "This model or protocol does not support the selected built-in search. Choose computer search in the Provider’s Web access settings, or select a supported model.",
   "runtimeError.deepseekWeb.title": "DeepSeek web service request failed",
   "runtimeError.deepseekWeb.request": "Check the search query, result count or page URL before retrying.",
   "runtimeError.deepseekWeb.auth": "Check the plugin credential on the execution computer and ensure the DeepSeek API key is valid.",
@@ -825,6 +835,11 @@ export const en = {
 } satisfies Record<ChatKey, string>
 
 export const ko = {
+  "runtimeError.providerWeb.title": "웹 접근을 완료하지 못했습니다",
+  "runtimeError.providerWeb.changed": "Provider의 웹 설정이 변경되었습니다. 현재 설정으로 새 작업을 보내세요.",
+  "runtimeError.providerWeb.credential": "이 Provider의 웹 접근 설정에서 웹 서비스 API 키를 추가하거나 교체한 후 다시 시도하세요.",
+  "runtimeError.providerWeb.authorization": "이 컴퓨터는 해당 웹 자격 증명을 받을 권한이 없습니다. 자격 증명 소유자의 컴퓨터를 사용하거나 자신의 Provider를 선택하세요.",
+  "runtimeError.providerWeb.unsupported": "이 모델 또는 프로토콜은 선택한 내장 검색을 지원하지 않습니다. Provider 웹 접근 설정에서 컴퓨터 검색을 선택하거나 지원되는 모델을 선택하세요.",
   "runtimeError.deepseekWeb.title": "DeepSeek 웹 서비스 요청 실패",
   "runtimeError.deepseekWeb.request": "검색어, 결과 수 또는 웹 페이지 주소를 확인한 후 다시 시도하세요.",
   "runtimeError.deepseekWeb.auth": "실행 컴퓨터의 플러그인 자격 증명을 확인하고 DeepSeek API 키가 유효한지 확인하세요.",

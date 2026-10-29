@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { createServer } from 'node:http'
-import { connect, createServer as tcpServer } from 'node:net'
+import { Agent, createServer, request as httpRequest } from 'node:http'
+import { connect } from 'node:net'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -36,13 +36,31 @@ async function modelFixture() {
 
 async function proxyFixture(origin) {
   const target = new URL(origin), sockets = new Set(), models = new Set()
-  const server = tcpServer(client => {
+  const track = socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)) }
+  const server = createServer((request, response) => {
+    const client = request.socket
+    const model = request.method === 'POST' && request.url === '/internal/node/v1/model'
+    if (model) models.add(client)
+    const upstream = httpRequest(new URL(request.url, origin), { method: request.method, headers: request.headers }, reply => {
+      response.writeHead(reply.statusCode, reply.headers)
+      response.flushHeaders()
+      reply.on('error', () => response.destroy())
+      reply.pipe(response)
+    })
+    upstream.on('error', () => response.destroy())
+    response.on('close', () => { if (model) models.delete(client); upstream.destroy() })
+    request.pipe(upstream)
+  })
+  server.on('connection', track)
+  server.on('upgrade', (request, client, head) => {
     const upstream = connect(Number(target.port), target.hostname)
-    sockets.add(client).add(upstream)
-    client.once('data', chunk => { if (chunk.toString('latin1').startsWith('POST /internal/node/v1/model ')) models.add(client) })
+    track(upstream)
+    const headers = request.rawHeaders.reduce((text, value, index) => text + (index % 2 ? `${value}\r\n` : `${value}: `), '')
+    upstream.write(`${request.method} ${request.url} HTTP/${request.httpVersion}\r\n${headers}\r\n`)
+    if (head.length) upstream.write(head)
     client.on('error', () => upstream.destroy()); upstream.on('error', () => client.destroy())
-    client.on('close', () => { sockets.delete(client); models.delete(client); upstream.destroy() })
-    upstream.on('close', () => { sockets.delete(upstream); client.destroy() })
+    client.on('close', () => upstream.destroy())
+    upstream.on('close', () => client.destroy())
     client.pipe(upstream); upstream.pipe(client)
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -50,6 +68,35 @@ async function proxyFixture(origin) {
     interrupt: () => { assert.ok(models.size); for (const socket of models) socket.destroy() },
     close: () => new Promise(resolve => { for (const socket of sockets) socket.destroy(); server.close(resolve) }) }
 }
+
+test('gateway proxy identifies model streams after a metadata request reuses the connection', { timeout: 10000 }, async () => {
+  const upstream = createServer((request, response) => {
+    request.resume()
+    if (request.url === '/internal/node/v1/model/web-access') response.end('{}')
+    else { response.writeHead(200, { 'content-type': 'text/event-stream' }); response.flushHeaders() }
+  })
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve))
+  const proxy = await proxyFixture(`http://127.0.0.1:${upstream.address().port}`)
+  const agent = new Agent({ keepAlive: true, maxSockets: 1 })
+  const post = resource => new Promise((resolve, reject) => {
+    const request = httpRequest(new URL(resource, proxy.url.replace('ws:', 'http:')), { agent, method: 'POST', headers: { 'content-length': 2 } }, resolve)
+    request.on('error', reject); request.end('{}')
+  })
+  try {
+    const metadata = await post('/internal/node/v1/model/web-access')
+    const socket = metadata.socket
+    for await (const _chunk of metadata) { /* Drain the reusable connection. */ }
+    const stream = await post('/internal/node/v1/model')
+    assert.equal(stream.socket, socket)
+    stream.on('error', () => {})
+    const aborted = new Promise(resolve => stream.once('aborted', resolve))
+    proxy.interrupt()
+    await aborted
+  } finally {
+    agent.destroy(); await proxy.close()
+    upstream.closeAllConnections(); await new Promise(resolve => upstream.close(resolve))
+  }
+})
 
 test('closing Server browser preserves execution; model disconnect links to the real request record', { timeout: 180_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-model-gateway-'))

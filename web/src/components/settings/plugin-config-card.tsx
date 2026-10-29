@@ -71,10 +71,12 @@ export function PluginConfigCard({
 }) {
   const t = useTranslate('settings')
   const common = useTranslate('common')
+  const providerManaged = entry.id.startsWith('provider-web-')
+  disabledReason ??= providerManaged ? t('provider.webManagedPlugin') : undefined
   const baseline = JSON.stringify(configRecord(entry.config))
   const baselineText = JSON.stringify(configRecord(entry.config), null, 2)
   const schemaFingerprint = JSON.stringify(metadata.config_schema)
-  const fields = React.useMemo(() => pluginConfigFields(metadata.config_schema), [schemaFingerprint])
+  const fields = React.useMemo(() => pluginConfigFields(metadata.config_schema).filter(field => field.key !== 'provider_web_access'), [schemaFingerprint])
   const baselineDraft = React.useMemo(() => configRecord(entry.config), [baseline])
   const baselineTexts = React.useMemo(
     () => initialTexts(baselineDraft, fields),
@@ -193,6 +195,17 @@ export function PluginConfigCard({
       return next
     })
   }
+
+  if (providerManaged) return <article className={styles.card} data-plugin-id={entry.id} data-provider-managed="">
+    <div className="space-y-3 p-4"><strong className="text-sm">{title ?? entry.id}</strong>
+      <p className="text-sm leading-relaxed text-muted-foreground">{t('provider.webManagedPlugin')}</p>
+      <dl className="grid gap-2 text-sm">{fields.filter(field => field.key !== 'api_key_env' && baselineDraft[field.key] !== undefined).map(field => {
+        const { label } = pluginFieldCopy(entry.kind, field, t)
+        const value = baselineDraft[field.key]
+        return <div key={field.key} className="flex flex-wrap justify-between gap-x-4 gap-y-1"><dt className="text-muted-foreground">{label}</dt><dd className="break-all">{value == null ? t('provider.webDefaultAddress') : typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd></div>
+      })}</dl>
+    </div>
+  </article>
 
   return (
     <article className={cn(styles.card, visible && styles.open)} data-plugin-id={entry.id}>

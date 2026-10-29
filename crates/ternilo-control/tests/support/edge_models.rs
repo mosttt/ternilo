@@ -1,6 +1,8 @@
 use super::*;
 #[path = "computer_models.rs"]
 mod computers;
+#[path = "provider_web_access.rs"]
+mod provider_web_access;
 #[path = "edge_model_schedules.rs"]
 mod schedules;
 use ternilo_control::{
@@ -36,6 +38,7 @@ pub(super) async fn contract(
         &fixture.bob.user_id
     );
     tx.commit().await.unwrap();
+    provider_web_access::contract(store, fixture, mapping, &node, &body, &snapshot).await;
     role_model_contract(store, fixture, mapping, &node, &body, &snapshot).await;
     lineage_contract(store, fixture, mapping, &node, &body).await;
     schedules::contract(store, fixture, mapping, &node, &body).await;
@@ -263,6 +266,7 @@ async fn prepare_source(
         .await
         .unwrap();
     let profile = ProviderProfile {
+        web_access: None,
         hosted_tools: None,
         id: "account-provider".to_owned(),
         display_name: "Bob's Provider".to_owned(),
@@ -382,6 +386,7 @@ async fn accepted_input(
         request_id: "request-1".to_owned(),
         binding: snapshot.binding.clone(),
         request: ModelRequest {
+            blocked_web_tools: Vec::new(),
             reasoning_recommendation: None,
             prompt_cache: false,
             run_id: RunId::new("account-model-run"),

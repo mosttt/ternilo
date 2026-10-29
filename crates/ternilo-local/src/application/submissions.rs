@@ -160,6 +160,8 @@ impl LocalApplication {
         self.validate_device_input(session_id, Some(&provenance))
             .await?;
         self.validate_turn_model(session_id, &input).await?;
+        self.validate_provider_web_submission(session_id, &input)
+            .await?;
         let attachments = self.attachments.save_many(request.attachments).await?;
         let now = now_ms()?;
         let submission_id = provenance.input_id.clone();

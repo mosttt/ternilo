@@ -104,6 +104,7 @@ impl TestModel {
     ) {
         application
             .upsert_provider_profile(ternilo_protocol::ProviderProfile {
+                web_access: None,
                 id: provider_id.to_owned(),
                 display_name: provider_id.to_owned(),
                 base_url: self.base_url.clone(),

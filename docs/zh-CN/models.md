@@ -70,7 +70,7 @@ OpenAI Responses 在配置了非 `none` 的实际推理强度时，同时请求 
 
 在电脑上新增或修改 Provider 后，可以在 Server“设备本地”点击上方刷新，同时重新读取电脑和已展开的模型目录；收起的电脑下次展开时也会读取新配置。Provider 区域的“刷新 Provider”只刷新当前来源，普通刷新保留未保存的编辑，不更换聊天模型。这里读取的是已保存的 Provider 配置，不等于再次向供应商“获取可用模型”。本机“Server 模型连接”卡的授权数量只计算 Server 授予的模型，不包含下方本机自有 Provider。
 
-配置使用 `settings.mode: "automatic"` 分开保存 `upstream` 与 `overrides`；未指定的覆盖字段参与自动取值，推理的 `{ "mode": "disabled" }` 明确关闭，`{ "mode": "enabled", "configuration": { ... } }` 保存具体档位。已有 `inherit`／`override` 配置的原含义不变，编辑保存时转为等价逐项设置。当前执行器协议为 49，连接的 Server、Node 与 Worker 需要同步更新。
+配置使用 `settings.mode: "automatic"` 分开保存 `upstream` 与 `overrides`；未指定的覆盖字段参与自动取值，推理的 `{ "mode": "disabled" }` 明确关闭，`{ "mode": "enabled", "configuration": { ... } }` 保存具体档位。已有 `inherit`／`override` 配置的原含义不变，编辑保存时转为等价逐项设置。当前执行器协议为 50，连接的 Server、Node 与 Worker 需要同步更新。
 
 上下文窗口决定占用比例和自动压缩时机。默认达到估算窗口的 80% 时自动压缩；模型没有声明窗口时，不会使用一个猜测的固定阈值，仍可输入 `/compact` 手动压缩。最大输出 token 和推理设置会用于实际模型请求。
 
@@ -142,4 +142,4 @@ Ternilo 没有单独的思考时钟。选中命名 Provider（例如 `ds`）时�
 
 Claude Provider 支持显式配置供应商托管网页搜索／读取，详见[网页工具](web-access.md#claude-托管网页工具)。
 
-DeepSeek Responses Provider 可为 `deepseek-v4-pro` 开启[内置搜索](web-access.md#deepseek-responses-内置搜索)，独立 Search／Fetch 插件则可供不同模型使用。
+DeepSeek Responses Provider 可为 `deepseek-v4-pro` 开启[内置搜索](web-access.md#deepseek-responses-内置搜索)，电脑执行的搜索／读取也可以在同一 Provider 的“网页访问”中配置，并随模型选择生效；独立插件仍可单独使用，见[统一网页配置](web-access.md#让网页工具跟随-provider)。

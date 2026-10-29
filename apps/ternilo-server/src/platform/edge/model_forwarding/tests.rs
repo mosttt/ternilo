@@ -18,6 +18,7 @@ fn request() -> ComputerModelRequest {
         reasoning_effort: None,
         max_attempts: 2,
         request: ModelRequest {
+            blocked_web_tools: Vec::new(),
             reasoning_recommendation: None,
             prompt_cache: false,
             run_id: RunId::new("remote-run"),

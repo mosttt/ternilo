@@ -4,7 +4,8 @@ use crate::{
 };
 use sqlx::Row;
 use ternilo_protocol::{
-    HarnessError, InputAuthor, NodeModelRequest, RunModelSnapshot, SessionId, TenantId,
+    HarnessError, InputAuthor, NodeModelRequest, NodeRunContext, RunModelSnapshot, SessionId,
+    TenantId,
 };
 use ternilo_storage::{Json, Transaction, database_error, for_update, set_tenant_scope};
 
@@ -116,6 +117,115 @@ impl ControlStore {
         tx.commit().await.map_err(database_error)
     }
 
+    /// Authorize only the selected source. This metadata lookup never exports a credential.
+    pub async fn node_web_snapshot(
+        &self,
+        node: &NodePrincipal,
+        body: &ternilo_protocol::NodeWebAccessRequest,
+    ) -> Result<RunModelSnapshot, HarnessError> {
+        body.session_id.validate()?;
+        body.binding.validate()?;
+        let mut tx = self
+            .database
+            .tenant_transaction(&node.scope.tenant_id)
+            .await?;
+        let row = sqlx::query("SELECT session_id, metadata_json FROM control_edge_sessions WHERE tenant_id=$1 AND executor_id=$2 AND node_session_id=$3")
+            .bind(node.scope.tenant_id.as_str()).bind(node.executor_id.as_str()).bind(body.session_id.as_str())
+            .fetch_optional(&mut *tx).await.map_err(database_error)?
+            .ok_or_else(|| HarnessError::policy("web access session is not registered on this Server"))?;
+        let metadata: Json<EdgeSessionMetadata> =
+            row.try_get("metadata_json").map_err(database_error)?;
+        let snapshot = metadata
+            .0
+            .server_model
+            .ok_or_else(|| HarnessError::policy("this session has no authorized Provider"))?;
+        if snapshot.binding != body.binding {
+            return Err(HarnessError::policy(
+                "web access does not match the session Provider",
+            ));
+        }
+        let id: String = row.try_get("session_id").map_err(database_error)?;
+        require_model_resource_action(
+            &mut tx,
+            snapshot.binding.beneficiary_user_id(),
+            &node.scope.tenant_id,
+            &SessionId::new(id),
+            ResourceAction::Configure,
+        )
+        .await?;
+        if let Some(invocation) = &body.invocation {
+            if invocation.session_id != body.session_id || invocation.binding != body.binding {
+                return Err(HarnessError::policy(
+                    "web credential invocation identity does not match its session",
+                ));
+            }
+            self.authorize_node_run_in(&mut tx, node, invocation)
+                .await?;
+        } else if body.credential.is_some() {
+            return Err(HarnessError::policy(
+                "web credentials require an authorized run",
+            ));
+        }
+        tx.commit().await.map_err(database_error)?;
+        Ok(snapshot)
+    }
+
+    pub async fn node_account_web_access(
+        &self,
+        node: &NodePrincipal,
+        body: &ternilo_protocol::NodeWebAccessRequest,
+        now: u64,
+    ) -> Result<ternilo_protocol::ProviderWebAccessReply, HarnessError> {
+        let snapshot = self.node_web_snapshot(node, body).await?;
+        let mut tx = self.database.begin().await?;
+        let owner = snapshot.binding.beneficiary_user_id();
+        let (route, _) = self
+            .resolve_workload_route_in(&mut tx, owner, owner, &snapshot.binding, now, false)
+            .await
+            .map_err(|error| error.error)?;
+        let web = route.provider.web_access;
+        let api_key = if let Some(capability) = body.credential {
+            let ternilo_protocol::RunModelBinding::UserProvider {
+                tenant_id,
+                owner_user_id,
+                ..
+            } = &snapshot.binding
+            else {
+                return Err(HarnessError::policy(
+                    "platform credentials cannot be exported to a computer",
+                ));
+            };
+            if owner_user_id != &node.scope.user_id {
+                return Err(HarnessError::policy(
+                    "computer-executed web credentials can only be used on the Provider owner's computers",
+                ));
+            }
+            let expected = body.expected.as_ref().ok_or_else(|| {
+                HarnessError::policy("web credential requires its selected configuration")
+            })?;
+            if web.as_ref() != Some(expected) {
+                return Err(HarnessError::conflict(
+                    "Provider web settings changed; start a new task to use the current settings",
+                ));
+            }
+            match expected.credential(capability) {
+                Some(reference) => Some(
+                    self.account_credential_in(&mut tx, tenant_id, owner_user_id, reference)
+                        .await?
+                        .to_string(),
+                ),
+                None => None,
+            }
+        } else {
+            None
+        };
+        tx.commit().await.map_err(database_error)?;
+        Ok(ternilo_protocol::ProviderWebAccessReply {
+            configuration: web,
+            api_key,
+        })
+    }
+
     /// Resolve account and resource authority without accepting identity claims from the Node.
     pub async fn authorize_node_model_in(
         &self,
@@ -123,15 +233,25 @@ impl ControlStore {
         node: &NodePrincipal,
         body: &NodeModelRequest,
     ) -> Result<NodeModelPrincipal, HarnessError> {
-        body.session_id.validate()?;
-        body.origin_session_id.validate()?;
-        body.run_id.validate()?;
-        body.binding.validate()?;
         if body.request.run_id != body.run_id {
             return Err(HarnessError::policy(
                 "model request run differs from its authorized input",
             ));
         }
+        self.authorize_node_run_in(tx, node, &NodeRunContext::from(body))
+            .await
+    }
+
+    pub async fn authorize_node_run_in(
+        &self,
+        tx: &mut Transaction,
+        node: &NodePrincipal,
+        body: &NodeRunContext,
+    ) -> Result<NodeModelPrincipal, HarnessError> {
+        body.session_id.validate()?;
+        body.origin_session_id.validate()?;
+        body.run_id.validate()?;
+        body.binding.validate()?;
         let tenant = &node.scope.tenant_id;
         set_tenant_scope(tx, tenant).await?;
         let active: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM control_node_credentials c JOIN control_executors e ON e.tenant_id=c.tenant_id AND e.executor_id=c.executor_id WHERE c.tenant_id=$1 AND c.credential_id=$2 AND c.executor_id=$3 AND c.revoked_at_ms IS NULL AND e.state<>'revoked' AND e.owner_user_id=$4")
@@ -205,7 +325,7 @@ impl ControlStore {
 async fn model_input_actor(
     tx: &mut Transaction,
     node: &NodePrincipal,
-    body: &NodeModelRequest,
+    body: &NodeRunContext,
     owner: &ternilo_protocol::UserId,
     origin_run: &ternilo_protocol::RunId,
 ) -> Result<ternilo_protocol::UserId, HarnessError> {

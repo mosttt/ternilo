@@ -88,6 +88,7 @@ async fn fixture(
         .unwrap()
         .remove(0);
     let profile = ProviderProfile {
+        web_access: None,
         hosted_tools: None,
         id: "upstream".to_owned(),
         display_name: "Upstream".to_owned(),
@@ -184,6 +185,7 @@ async fn fixture(
         run_token_limit: 800,
     };
     let byok = ProviderProfile {
+        web_access: None,
         hosted_tools: None,
         id: "byok".to_owned(),
         api_key_ref: Some("BYOK_KEY".to_owned()),
@@ -706,6 +708,7 @@ async fn account_provider_contract(
     let personal = store.account_provider_space(&owner.user_id).await.unwrap();
     let other_personal = store.account_provider_space(&actor.user_id).await.unwrap();
     let profile = ProviderProfile {
+        web_access: None,
         hosted_tools: None,
         id: "private-account".to_owned(),
         display_name: "Private account model".to_owned(),
@@ -1592,6 +1595,7 @@ async fn workload_byok_readiness_contract(
         "inspection keeps its immutable saved capability snapshot when live model access disappears"
     );
     let no_key = ProviderProfile {
+        web_access: None,
         hosted_tools: None,
         id: "byok".to_owned(),
         display_name: "No-key local model".to_owned(),

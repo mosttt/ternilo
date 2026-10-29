@@ -21,8 +21,8 @@ pub use activity::{
 pub use harness::{HarnessSession, TokioSpawner};
 pub use host::{
     AttachmentResolver, HostEnvironment, HostPolicy, HostSessionTelemetry, MemoryEventStore,
-    SecretResolver, SessionArchive, SessionEventStore, SubagentSessionHost, UserInteraction,
-    session_telemetry_record,
+    ProviderWebCredentials, SecretResolver, SessionArchive, SessionEventStore, SubagentSessionHost,
+    UserInteraction, session_telemetry_record,
 };
 pub use input_references::InputReferenceResolver;
 pub use plugin::{

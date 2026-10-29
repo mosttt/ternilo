@@ -319,6 +319,7 @@ impl ContextManager {
             .models
             .complete(
                 ModelRequest {
+                    blocked_web_tools: Vec::new(),
                     reasoning_recommendation: None,
                     prompt_cache: false,
                     run_id,

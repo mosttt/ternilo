@@ -15,6 +15,29 @@ pub struct ModelInputOrigin {
 }
 
 pub trait ServerModelGateway: Send + Sync {
+    fn web_access<'a>(
+        &'a self,
+        _session_id: &'a str,
+        _binding: RunModelBinding,
+        _credential: Option<(
+            ternilo_protocol::RunId,
+            ternilo_protocol::WebCapability,
+            ternilo_protocol::ProviderWebAccess,
+        )>,
+    ) -> Pin<
+        Box<
+            dyn Future<Output = Result<ternilo_protocol::ProviderWebAccessReply, HarnessError>>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async {
+            Err(HarnessError::unavailable(
+                "this connection does not support Provider web access",
+            ))
+        })
+    }
+
     fn complete<'a>(
         &'a self,
         session_id: &'a str,
@@ -29,6 +52,28 @@ pub trait ServerModelGateway: Send + Sync {
 pub(crate) struct ServerModelGateways(RwLock<Option<Arc<dyn ServerModelGateway>>>);
 
 impl ServerModelGateways {
+    pub(crate) async fn web_access(
+        &self,
+        session_id: &str,
+        binding: RunModelBinding,
+        credential: Option<(
+            ternilo_protocol::RunId,
+            ternilo_protocol::WebCapability,
+            ternilo_protocol::ProviderWebAccess,
+        )>,
+    ) -> Result<ternilo_protocol::ProviderWebAccessReply, HarnessError> {
+        let gateway = self
+            .0
+            .read()
+            .expect("Server model gateway lock")
+            .clone()
+            .ok_or_else(|| {
+                HarnessError::unavailable(
+                    "connect this computer to its Server to use Provider web access",
+                )
+            })?;
+        gateway.web_access(session_id, binding, credential).await
+    }
     pub(crate) fn installed(&self) -> bool {
         self.0.read().expect("Server model gateway lock").is_some()
     }

@@ -3275,6 +3275,7 @@ mod tests {
         let harness = HarnessSession::boot(
             &ternilo_cloud::catalog().unwrap(),
             &ternilo_cloud::cloud_profile(Some(&ternilo_protocol::RunModelSnapshot {
+                web_access: None,
                 binding: ternilo_protocol::RunModelBinding::UserProvider {
                     tenant_id: TenantId::new("closed-window-tenant"),
                     owner_user_id: UserId::new("closed-window-user"),

@@ -153,7 +153,8 @@ impl ReplyCache {
             let previous = if matches!(
                 &command.body,
                 ExecutorCommandBody::Application {
-                    request: ApplicationOperation::SessionFileContent { .. }
+                    request: ApplicationOperation::ProviderWebCredential { .. }
+                        | ApplicationOperation::SessionFileContent { .. }
                         | ApplicationOperation::WorkspaceLocation { .. }
                         | ApplicationOperation::AgentPresetGet { .. }
                 }

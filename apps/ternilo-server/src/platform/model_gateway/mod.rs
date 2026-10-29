@@ -20,6 +20,7 @@ mod node_access;
 mod observer;
 mod route;
 mod stream;
+mod web_access;
 pub(super) use stream::stream_frames;
 
 #[cfg(test)]
@@ -50,6 +51,7 @@ async fn model(
 
 pub(crate) fn node_router() -> Router {
     Router::with_path("internal/node/v1/model")
+        .push(Router::with_path("web-access").post(web_access::node_web_access))
         .hoop(max_size(24 * 1024 * 1024))
         .post(node_model)
 }

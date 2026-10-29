@@ -223,6 +223,7 @@ impl ControlStore {
             .resolve_workload_route_in(&mut tx, actor_id, model_owner_id, binding, now, false)
             .await?;
         let snapshot = RunModelSnapshot {
+            web_access: route.provider.web_access.clone(),
             binding: binding.clone(),
             protocol: route.model.protocol,
             defaults: route.model.defaults,
@@ -253,7 +254,7 @@ impl ControlStore {
         Ok(result)
     }
 
-    pub(super) async fn resolve_workload_route_in(
+    pub(crate) async fn resolve_workload_route_in(
         &self,
         tx: &mut Transaction,
         actor: &UserId,
@@ -400,6 +401,20 @@ impl ControlStore {
         let Some(reference) = provider.api_key_ref.as_deref() else {
             return Ok(None);
         };
+        self.account_credential_in(tx, tenant, owner, reference)
+            .await
+            .map(Some)
+    }
+
+    pub(crate) async fn account_credential_in(
+        &self,
+        tx: &mut Transaction,
+        tenant: &TenantId,
+        owner: &UserId,
+        reference: &str,
+    ) -> Result<Zeroizing<String>, HarnessError> {
+        set_tenant_scope(tx, tenant).await?;
+        set_user_scope(tx, owner).await?;
         let row=sqlx::query("SELECT version,nonce,ciphertext FROM control_user_credentials WHERE tenant_id=$1 AND user_id=$2 AND name=$3")
             .bind(tenant.as_str()).bind(owner.as_str()).bind(reference).fetch_optional(&mut **tx).await.map_err(database_error)?.ok_or_else(||HarnessError::policy("workload BYOK credential is not configured"))?;
         let bytes: Vec<u8> = row.try_get("nonce").map_err(database_error)?;
@@ -421,7 +436,7 @@ impl ControlStore {
         if value.trim().is_empty() {
             return Err(HarnessError::policy("workload BYOK credential is empty"));
         }
-        Ok(Some(Zeroizing::new(value)))
+        Ok(Zeroizing::new(value))
     }
 }
 

@@ -96,6 +96,16 @@ impl ControlStore {
         now_ms: u64,
     ) -> Result<ModelProviderRecord, HarnessError> {
         input.profile.validate()?;
+        if input
+            .profile
+            .web_access
+            .as_ref()
+            .is_some_and(|web| web.uses_computer())
+        {
+            return Err(HarnessError::invalid(
+                "platform Providers cannot export computer web credentials; configure web access on an account or device Provider",
+            ));
+        }
         if input.profile.api_key_ref.is_some() {
             return Err(HarnessError::invalid(
                 "platform Providers use their own saved credential, not api_key_ref",
