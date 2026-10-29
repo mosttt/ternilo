@@ -83,7 +83,7 @@ test('computer management edits metadata, suspends and resumes the same Node, an
     const completed = { id: 'completed-browser-fixture', version: updateSnapshot.target_version, phase: 'completed', revision: 5, error: null }
     await page.route(updatePattern, route => route.fulfill({ json: { ...updateSnapshot, connected: false, availability: 'offline', info: { ...updateSnapshot.info, progress: completed }, job: completed } }))
     await card.getByRole('button', { name: '更新客户端', exact: true }).click()
-    await updates.getByText('电脑离线，上线后才能更新', { exact: true }).waitFor()
+    await updates.getByText('维护通道离线，连接后才能更新', { exact: true }).waitFor()
     await updates.getByText('最近一次更新：更新完成，电脑已重新连接', { exact: true }).waitFor()
     assert.equal(await updates.getByRole('button', { name: '更新所选电脑（0）', exact: true }).isEnabled(), false)
     if (process.env.TERNILO_E2E_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'client-updates-offline-after-completion.png'), fullPage: true, animations: 'disabled' })
@@ -194,9 +194,9 @@ test('computer management edits metadata, suspends and resumes the same Node, an
       await serverRequest(origin, '/enrollments/consume', { body: { token: enrollment.token } })
     }
     for (const [locale, title, offline, close] of [
-      ['en', 'Client updates', 'Computer is offline; reconnect before updating', 'Close'],
-      ['ko', '클라이언트 업데이트', '컴퓨터가 오프라인입니다. 연결 후 업데이트하세요', '닫기'],
-      ['zh', '客户端更新', '电脑离线，上线后才能更新', '关闭'],
+      ['en', 'Client updates', 'Maintenance channel is offline; reconnect before updating', 'Close'],
+      ['ko', '클라이언트 업데이트', '유지보수 채널이 오프라인입니다. 연결 후 업데이트하세요', '닫기'],
+      ['zh', '客户端更新', '维护通道离线，连接后才能更新', '关闭'],
     ]) {
       await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale)
       await page.goto(`${origin}/settings/computers`)

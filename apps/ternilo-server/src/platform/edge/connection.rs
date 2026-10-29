@@ -241,8 +241,20 @@ impl EdgeGateway {
         else {
             return None;
         };
-        if hello.validate().is_err()
-            || hello.executor_id != principal.executor_id
+        if let Err(error) = hello.validate() {
+            let reason = format!(
+                "{error}; update Ternilo and Server to matching releases; use the maintenance channel when available"
+            );
+            eprintln!(
+                "refused execution connection for {}: {reason}",
+                principal.executor_id
+            );
+            if let Ok(message) = serde_json::to_string(&ControlFrame::Shutdown { reason }) {
+                let _ = socket.send(Message::text(message)).await;
+            }
+            return None;
+        }
+        if hello.executor_id != principal.executor_id
             || hello.executor_kind != ExecutorKind::EdgeNode
             || !hello
                 .capabilities

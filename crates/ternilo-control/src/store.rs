@@ -223,6 +223,7 @@ impl ControlStore {
         crate::mfa::initialize(database).await?;
         crate::computer_management::initialize(database).await?;
         crate::client_updates::initialize(database).await?;
+        crate::maintenance::initialize(database).await?;
         crate::service_accounts::initialize(database).await?;
         crate::computer_models::initialize(database).await?;
         crate::model_traffic::initialize(database).await?;

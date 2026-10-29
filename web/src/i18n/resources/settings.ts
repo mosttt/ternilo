@@ -1,4 +1,8 @@
 export const zh = {
+  "updates.availability.protocolMismatch": "客户端与 Server 的执行协议不匹配，请将两端更新到配套版本",
+  "updates.availability.manualUpgrade": "客户端尚未接入维护通道，请在电脑上手动升级到 Server 配套版本并重启",
+  "updates.availability.upgradeRequired": "已连接，需要升级才能执行任务；可在此更新客户端",
+  "computers.maintenance": "维护在线",
   "provider.webProviderCredential": "留空沿用 Provider 的网页凭据",
   "provider.webInherit": "继承 Provider · {value}",
   "provider.webModelDescription": "搜索和读取分别继承 Provider 默认值，也可以只覆盖其中一项。",
@@ -61,7 +65,7 @@ export const zh = {
   "updates.availability.available": "可更新，任务结束后安装",
   "updates.availability.current": "已与 Server 配套，无需更新",
   "updates.availability.newer": "客户端版本更高，不自动降级",
-  "updates.availability.offline": "电脑离线，上线后才能更新",
+  "updates.availability.offline": "维护通道离线，连接后才能更新",
   "updates.availability.not_enabled": "请先在这台电脑上启用远程升级",
   "updates.availability.unsupported": "当前安装未提供远程升级能力",
   "updates.phase.preparing": "Server 正在准备并验证发行包…",
@@ -954,6 +958,10 @@ export const zh = {
 export type SettingsKey = keyof typeof zh
 
 export const en: Record<SettingsKey, string> = {
+  "updates.availability.protocolMismatch": "Client and Server execution protocols differ. Install matching releases on both ends.",
+  "updates.availability.manualUpgrade": "Maintenance is not connected. Manually install the Server’s matching client release on this computer and restart it",
+  "updates.availability.upgradeRequired": "Connected; update this client here before running tasks",
+  "computers.maintenance": "Maintenance online",
   "provider.webProviderCredential": "Leave empty to use the Provider’s web credential",
   "provider.webInherit": "Inherit Provider · {value}",
   "provider.webModelDescription": "Search and reading inherit Provider defaults independently; override either one here.",
@@ -1016,7 +1024,7 @@ export const en: Record<SettingsKey, string> = {
   "updates.availability.available": "Update available; installs after tasks finish",
   "updates.availability.current": "Matches Server; no update needed",
   "updates.availability.newer": "Client is newer; automatic downgrade is disabled",
-  "updates.availability.offline": "Computer is offline; reconnect before updating",
+  "updates.availability.offline": "Maintenance channel is offline; reconnect before updating",
   "updates.availability.not_enabled": "Enable remote updates on this computer first",
   "updates.availability.unsupported": "This installation does not offer remote updates",
   "updates.phase.preparing": "Server is preparing and verifying the package…",
@@ -1952,6 +1960,10 @@ export const en: Record<SettingsKey, string> = {
 }
 
 export const ko: Record<SettingsKey, string> = {
+  "updates.availability.protocolMismatch": "클라이언트와 Server의 실행 프로토콜이 다릅니다. 양쪽을 일치하는 버전으로 업데이트하세요.",
+  "updates.availability.manualUpgrade": "유지보수 채널에 연결되지 않았습니다. 이 컴퓨터에서 Server와 일치하는 클라이언트 버전을 수동 설치한 후 다시 시작하세요",
+  "updates.availability.upgradeRequired": "연결되었습니다. 작업을 실행하려면 여기서 클라이언트를 업데이트하세요",
+  "computers.maintenance": "유지보수 연결됨",
   "provider.webProviderCredential": "비워 두면 Provider 웹 인증 정보를 사용합니다",
   "provider.webInherit": "Provider 상속 · {value}",
   "provider.webModelDescription": "검색과 읽기는 각각 Provider 기본값을 상속하며, 하나만 재정의할 수도 있습니다.",
@@ -2014,7 +2026,7 @@ export const ko: Record<SettingsKey, string> = {
   "updates.availability.available": "업데이트 가능 · 작업 종료 후 설치",
   "updates.availability.current": "Server와 버전이 일치하여 업데이트가 필요하지 않습니다",
   "updates.availability.newer": "클라이언트가 더 최신입니다. 자동 다운그레이드는 하지 않습니다",
-  "updates.availability.offline": "컴퓨터가 오프라인입니다. 연결 후 업데이트하세요",
+  "updates.availability.offline": "유지보수 채널이 오프라인입니다. 연결 후 업데이트하세요",
   "updates.availability.not_enabled": "먼저 이 컴퓨터에서 원격 업데이트를 활성화하세요",
   "updates.availability.unsupported": "이 설치는 원격 업데이트 기능을 제공하지 않습니다",
   "updates.phase.preparing": "Server에서 패키지 준비 및 검증 중…",

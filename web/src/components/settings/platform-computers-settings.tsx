@@ -121,20 +121,29 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
   React.useEffect(() => {
     if (!owned || updateTargets) return
     const controller = new AbortController()
-    const pending = computers.filter(computer => computer.management.removed_at_ms == null)
-    // Read Server-reported versions; listing computers must never wait for a Node RPC.
-    void Promise.all(Array.from({ length: Math.min(4, pending.length) }, async () => {
-      while (pending.length && !controller.signal.aborted) {
-        const computer = pending.shift()!
-        try {
-          const status = await api.request<UpdateStatus>(`/tenants/${encodeURIComponent(tenantId)}/my-computers/${encodeURIComponent(computer.executor_id)}/updates`, { signal: controller.signal })
-          if (!controller.signal.aborted) acceptUpdateStatuses({ [computer.executor_id]: status })
-        } catch (cause) {
-          if (!controller.signal.aborted) setUpdateErrors(previous => ({ ...previous, [computer.executor_id]: cause instanceof Error ? cause.message : String(cause) }))
-        }
-      }
-    }))
-    return () => controller.abort()
+    let reading = false
+    const readStatuses = async () => {
+      if (reading || controller.signal.aborted) return
+      reading = true
+      // Read cached Server state, never wait for a Node RPC or reload the whole list.
+      const pending = computers.filter(computer => computer.management.removed_at_ms == null)
+      try {
+        await Promise.all(Array.from({ length: Math.min(4, pending.length) }, async () => {
+          while (pending.length && !controller.signal.aborted) {
+            const computer = pending.shift()!
+            try {
+              const status = await api.request<UpdateStatus>(`/tenants/${encodeURIComponent(tenantId)}/my-computers/${encodeURIComponent(computer.executor_id)}/updates`, { signal: controller.signal })
+              if (!controller.signal.aborted) acceptUpdateStatuses({ [computer.executor_id]: status })
+            } catch (cause) {
+              if (!controller.signal.aborted) setUpdateErrors(previous => ({ ...previous, [computer.executor_id]: cause instanceof Error ? cause.message : String(cause) }))
+            }
+          }
+        }))
+      } finally { reading = false }
+    }
+    void readStatuses()
+    const timer = setInterval(() => { void readStatuses() }, 3000)
+    return () => { controller.abort(); clearInterval(timer) }
   }, [owned, tenantId, computers, updateTargets, acceptUpdateStatuses])
 
   const generate = async () => {
@@ -286,6 +295,8 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
             const project = projects.find(item => item.project_id === computer.project_id)
             const suspended = computer.management.suspended_at_ms != null
             const removed = computer.management.removed_at_ms != null
+            const executionConnected = updateStatuses[computer.executor_id]?.execution_connected ?? computer.connected
+            const maintenance = !executionConnected && updateStatuses[computer.executor_id]?.connected
             return (
               <article className={`${styles.row} ${styles.computerRow}`} key={computer.executor_id} data-platform-computer={computer.executor_id}>
                 <div className={styles.identity}>
@@ -296,8 +307,8 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
                 </div>
                 <div>
                   <div className={styles.stateLine}>
-                    <span className={styles.status} data-online={String(computer.connected)}>
-                      {t(suspended ? 'computers.suspended' : computer.connected ? 'computers.online' : 'computers.offline')}
+                    <span className={styles.status} data-online={String(executionConnected || maintenance)}>
+                      {t(suspended ? 'computers.suspended' : executionConnected ? 'computers.online' : maintenance ? 'computers.maintenance' : 'computers.offline')}
                     </span>
                     <span className={styles.state}>{removed ? t('computers.removedState') : t(`computers.state.${computer.state}`)}</span>
                   </div>

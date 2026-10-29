@@ -47,7 +47,7 @@ GHCR 上传仅在镜像作业取得 `packages: write`，使用 GitHub 自带的 
 
 稳定版在检查、全部平台打包与镜像发布成功后，进入 `client-update-signing` 受保护环境生成 `client-updates.json` 及 `client-updates.json.sig`。该环境只允许 `v*` 标签，Secret `TERNILO_UPDATE_SIGNING_KEY` 保存专用 Ed25519 私钥；公钥固定在 `crates/ternilo-update/release-public-key.txt`。签名脚本核对密钥匹配，并只对本次已验收的完整客户端包生成清单。私钥不进入发布附件、Server 镜像或客户端。
 
-`.github/client-update-policy.json` 指定最低客户端版本、Server 版本范围及数据代次。更改 Executor 协议或持久数据格式时必须同时收紧对应范围，安排首次统一升级，不能仅通过放宽清单来跨越协议或数据边界。正式版缺少有效签名产物就不能公开 Release；预发行版不生成远程更新清单。签名清单同其他附件一起纳入 `SHA256SUMS`。此签名独立于桌面安装器的系统代码签名／公证。
+`.github/client-update-policy.json` 指定最低客户端版本、Server 版本范围及数据代次。维护通道的最低客户端从 0.2.30 起固定，不随每次 Executor 任务协议变更提高；执行协议不匹配由独立维护通道完成配套升级。维护协议自身或持久数据格式不兼容时，才按实际边界收紧范围并安排人工维护，不能仅放宽清单绕过。正式版缺少有效签名产物就不能公开 Release；预发行版不生成远程更新清单。签名清单同其他附件一起纳入 `SHA256SUMS`。此签名独立于桌面安装器的系统代码签名／公证。
 
 客户端安装与恢复见[客户端更新](client-updates.md)。
 

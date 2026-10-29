@@ -69,6 +69,7 @@ afterEach(() => {
   host.remove()
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
@@ -247,9 +248,22 @@ it('shares refreshed version status from the update dialog back to its computer 
   vi.mocked(api.request).mockResolvedValue({ connected: false, target_version: '0.2.23', availability: 'offline', info: { version: '0.2.22' }, job: null })
   await settle(() => button('更新客户端', row).click())
   expect(row.textContent).toContain('当前 0.2.22 → Server 配套版本 0.2.23')
-  expect(row.textContent).toContain('电脑离线，上线后才能更新')
+  expect(row.textContent).toContain('维护通道离线，连接后才能更新')
   expect(row.querySelector('[data-computer-version-state="current"]')).toBeNull()
   const dialog = document.querySelector('[data-computer-updates]')!
   expect(dialog.textContent).toContain('当前 0.2.22 → Server 配套版本 0.2.23')
   expect(dialog.querySelector('[data-computer-version-state="offline"]')).not.toBeNull()
+})
+
+it('refreshes an expired maintenance lease without reopening settings or querying the computer', async () => {
+  vi.useFakeTimers()
+  vi.mocked(listOwnedComputers).mockResolvedValue([{ ...computer, connected: false }])
+  const initial = { connected: true, execution_connected: false, target_version: '0.2.23', availability: 'available', info: { version: '0.2.22' }, job: null }
+  vi.mocked(api.request).mockResolvedValue(initial)
+  await settle(() => root.render(<LocaleProvider><PlatformComputersSettings tenantId="tenant-a" scope="owned" /></LocaleProvider>))
+  expect(host.querySelector('[data-computer-version-state="available"]')).not.toBeNull()
+  vi.mocked(api.request).mockResolvedValue({ ...initial, connected: false, availability: 'offline' })
+  await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+  expect(host.querySelector('[data-computer-version-state="offline"]')).not.toBeNull()
+  expect(vi.mocked(api.request).mock.calls.every(([url]) => !url.includes('refresh=true'))).toBe(true)
 })

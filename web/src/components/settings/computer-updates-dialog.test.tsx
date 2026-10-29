@@ -15,7 +15,7 @@ beforeEach(() => {
   request.mockReset()
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
 })
-afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks() })
 const buttons = () => [...document.querySelectorAll<HTMLButtonElement>('[data-computer-updates] button')]
 const button = (label: string) => buttons().find(button => button.textContent === label)!
 async function render(ids: string[]) { await act(async () => root.render(<LocaleProvider><ComputerUpdatesDialog tenantId="personal-space" computers={ids.map(computer)} onClose={vi.fn()} /></LocaleProvider>)) }
@@ -63,7 +63,7 @@ it('keeps current offline state visible after an earlier successful update', asy
   request.mockResolvedValue(status('offline', { id: 'completed-12345678', version: '0.2.21', phase: 'completed', revision: 5, error: null }))
   await render(['offline'])
   const row = document.querySelector('[data-computer-update]')!
-  expect(row.querySelector('[role="status"]')?.textContent).toContain('电脑离线，上线后才能更新')
+  expect(row.querySelector('[role="status"]')?.textContent).toContain('维护通道离线，连接后才能更新')
   expect(row.textContent).toContain('最近一次更新：更新完成，电脑已重新连接')
   expect(button('更新所选电脑（0）').disabled).toBe(true)
 })
@@ -92,8 +92,8 @@ it('shows versions with a check or update arrow, and gives unavailable computers
   expect(current.textContent).not.toContain('已与 Server 配套，无需更新')
   expect(ready.querySelector('svg[aria-label="可更新，任务结束后安装"]')).not.toBeNull()
   expect(ready.textContent).not.toContain('可更新，任务结束后安装')
-  expect(offline.querySelector('svg[aria-label="电脑离线，上线后才能更新"]')).not.toBeNull()
-  expect(offline.textContent).toContain('电脑离线，上线后才能更新')
+  expect(offline.querySelector('svg[aria-label="维护通道离线，连接后才能更新"]')).not.toBeNull()
+  expect(offline.textContent).toContain('维护通道离线，连接后才能更新')
 })
 
 it('marks a matching online version as current even when remote upgrades are not enabled', async () => {
@@ -117,4 +117,56 @@ it('keeps a healthy matching release distinct from an unconfirmed earlier update
   expect([...row.querySelectorAll('p')].filter(paragraph => !paragraph.closest('details')).map(paragraph => paragraph.textContent).join(' ')).toBe('新版已正常运行，无需再次更新；上次自动更新未能正常确认结果，详情保留在诊断中。')
   expect(row.querySelector('details')?.textContent).toContain(error)
   expect(button('更新所选电脑（0）').disabled).toBe(true)
+})
+
+it('updates a maintenance-online computer even when execution is incompatible', async () => {
+  request.mockImplementation(async (_path: string, options: { method?: string; body?: { id: string } }) => options?.method === 'POST'
+    ? { job: { id: options.body!.id, version: '0.2.21', phase: 'preparing', revision: 0, error: null } }
+    : { ...status('available'), execution_connected: false, execution_protocol_version: 1, server_execution_protocol_version: 2 })
+  await render(['maintenance'])
+  expect(document.querySelector('[data-computer-version-state="upgrade_required"]')?.textContent).toContain('已连接，需要升级才能执行任务')
+  expect(button('更新所选电脑（1）').disabled).toBe(false)
+  await act(async () => button('更新所选电脑（1）').click())
+  expect(request.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1)
+})
+
+it('does not mark incompatible builds current merely because version strings match', async () => {
+  request.mockResolvedValue({ ...status('current'), execution_connected: false, execution_protocol_version: 1, server_execution_protocol_version: 2 })
+  await render(['incompatible'])
+  expect(document.querySelector('[data-computer-version-state="protocol_mismatch"]')).not.toBeNull()
+  expect(document.querySelector('[data-computer-version-state="current"]')).toBeNull()
+})
+
+it('does not show a matching-version check when execution is incompatible and updates are disabled', async () => {
+  const snapshot = status('not_enabled')
+  snapshot.info.version = snapshot.target_version
+  request.mockResolvedValue({ ...snapshot, execution_connected: false, execution_protocol_version: 1, server_execution_protocol_version: 2 })
+  await render(['disabled'])
+  expect(document.querySelector('[data-computer-version-state="current"]')).toBeNull()
+  expect(document.querySelector('[data-computer-version-state="not_enabled"]')).not.toBeNull()
+})
+
+it('disables an idle update dialog when its maintenance lease expires', async () => {
+  vi.useFakeTimers()
+  request.mockResolvedValue(status('available'))
+  await render(['changing'])
+  expect(button('更新所选电脑（1）').disabled).toBe(false)
+  request.mockResolvedValue(status('offline'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+  expect(document.querySelector('[data-computer-version-state="offline"]')).not.toBeNull()
+  expect(button('更新所选电脑（0）').disabled).toBe(true)
+  expect(request.mock.calls.at(-1)?.[0]).not.toContain('refresh=true')
+})
+
+it('keeps an update action error visible when passive status reads succeed', async () => {
+  vi.useFakeTimers()
+  request.mockImplementation(async (_path: string, options: { method?: string }) => {
+    if (options?.method === 'POST') throw new Error('Release package could not be verified')
+    return status('available')
+  })
+  await render(['failed'])
+  await act(async () => button('更新所选电脑（1）').click())
+  expect(document.querySelector('[data-computer-updates]')?.textContent).toContain('Release package could not be verified')
+  await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+  expect(document.querySelector('[data-computer-updates]')?.textContent).toContain('Release package could not be verified')
 })

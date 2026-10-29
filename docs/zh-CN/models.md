@@ -118,7 +118,7 @@ Chat Completions 和 Responses 共用这些原因与中英韩提示。兼容接�
 
 Server 接入密钥也可用于这两种原生协议：Claude 使用 `/v1/messages` 与 `x-api-key`；Gemini 使用 `/v1/models/{公开模型ID}:generateContent` 或 `:streamGenerateContent?alt=sse` 与 `x-goog-api-key`。基础地址仍填 Server 的 `/v1`，预算、授权撤销及设备范围保持有效，不在 URL 中传递密钥。
 
-当前执行器协议为 **48**，包含原生模型签名历史、队列编辑版本条件与归档恢复。Server、Node 和 Worker 需要同步更新，旧协议会在握手阶段被明确拒绝；不要仅升级网页而保留旧客户端。
+原生模型签名历史、队列编辑版本条件与归档恢复通过执行协议传递。Server、Node 和 Worker 的执行协议需要配套，不能仅更新网页；已具备独立维护通道的 Node 即使执行协议不匹配，也可通过 Server 更新到配套版本，见[客户端更新](client-updates.md)。
 
 ## 长时间思考与复制
 

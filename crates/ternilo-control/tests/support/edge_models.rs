@@ -1,6 +1,8 @@
 use super::*;
 #[path = "computer_models.rs"]
 mod computers;
+#[path = "maintenance.rs"]
+mod maintenance;
 #[path = "provider_web_access.rs"]
 mod provider_web_access;
 #[path = "edge_model_schedules.rs"]
@@ -38,6 +40,7 @@ pub(super) async fn contract(
         &fixture.bob.user_id
     );
     tx.commit().await.unwrap();
+    maintenance::contract(store, fixture, &node).await;
     provider_web_access::contract(store, fixture, mapping, &node, &body, &snapshot).await;
     role_model_contract(store, fixture, mapping, &node, &body, &snapshot).await;
     lineage_contract(store, fixture, mapping, &node, &body).await;

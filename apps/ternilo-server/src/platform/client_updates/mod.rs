@@ -12,10 +12,14 @@ use ternilo_control::ClientUpdateJob;
 use ternilo_protocol::{
     ClientUpdateInfo, ClientUpdatePhase, ClientUpdateProgress, HarnessError, TenantId,
 };
-use ternilo_transport::{ClientUpdateCommand, ClientUpdateRequest, ExecutorId};
+use ternilo_transport::{
+    ClientUpdateCommand, EXECUTOR_PROTOCOL_VERSION, ExecutorId, MaintenanceOperation,
+};
 use ternilo_update::SignedRelease;
 mod cache;
+mod maintenance;
 pub(crate) use cache::UpdateCache;
+pub(super) use maintenance::router as maintenance_router;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -35,17 +39,34 @@ pub(super) async fn status(
         .store
         .computer_details(actor(depot), &tenant, &executor, true)
         .await?;
-    let connected = state.edge.is_connected(&tenant, &executor).await;
-    let mut info = details.hello.and_then(|hello| hello.client);
+    let execution_connected = state.edge.is_connected(&tenant, &executor).await;
+    let maintenance = state
+        .store
+        .maintenance_state(actor(depot), &tenant, &executor)
+        .await?;
+    let now = now_ms()?;
+    let connected = details.executor.state != "revoked"
+        && details.management.suspended_at_ms.is_none()
+        && details.management.removed_at_ms.is_none()
+        && maintenance.as_ref().is_some_and(|state| state.online(now));
+    let execution_protocol_version = maintenance
+        .as_ref()
+        .map(|state| state.hello.execution_protocol_version)
+        .or_else(|| details.hello.as_ref().map(|hello| hello.protocol_version));
+    let has_maintenance = maintenance.is_some();
+    let mut info = maintenance
+        .map(|state| state.hello.info)
+        .or_else(|| details.hello.and_then(|hello| hello.client));
     if connected && info.is_some() && request.query::<bool>("refresh").unwrap_or(false) {
         info = Some(
-            serde_json::from_value(
-                state
-                    .edge
-                    .client_update(&tenant, &executor, ClientUpdateCommand::Status)
-                    .await?,
+            maintenance::call(
+                state,
+                actor(depot),
+                &tenant,
+                &executor,
+                MaintenanceOperation::Status,
             )
-            .map_err(|_| HarnessError::execution("computer returned invalid update status"))?,
+            .await?,
         );
     }
     let mut job = state
@@ -71,6 +92,13 @@ pub(super) async fn status(
             .await?;
     }
     let availability = match &info {
+        _ if !connected
+            && !has_maintenance
+            && execution_protocol_version
+                .is_some_and(|version| version != EXECUTOR_PROTOCOL_VERSION) =>
+        {
+            "manual_upgrade"
+        }
         _ if !connected => "offline",
         None => "unsupported",
         Some(info) if !info.enabled => "not_enabled",
@@ -86,7 +114,7 @@ pub(super) async fn status(
         },
     };
     Ok(Json(
-        json!({"connected":connected,"info":info,"job":job.map(|job|job.progress),"target_version":env!("CARGO_PKG_VERSION"),"availability":availability}),
+        json!({"connected":connected,"execution_connected":execution_connected,"execution_protocol_version":execution_protocol_version,"server_execution_protocol_version":EXECUTOR_PROTOCOL_VERSION,"info":info,"job":job.map(|job|job.progress),"target_version":env!("CARGO_PKG_VERSION"),"availability":availability}),
     ))
 }
 
@@ -115,13 +143,14 @@ pub(super) async fn start(
     {
         return Ok((StatusCode::ACCEPTED, Json(json!({"job":previous.progress}))));
     }
-    let info: ClientUpdateInfo = serde_json::from_value(
-        state
-            .edge
-            .client_update(&tenant, &executor, ClientUpdateCommand::Status)
-            .await?,
+    let info = maintenance::call(
+        state,
+        actor(depot),
+        &tenant,
+        &executor,
+        MaintenanceOperation::Status,
     )
-    .map_err(|_| HarnessError::execution("computer returned invalid update status"))?;
+    .await?;
     if info
         .progress
         .as_ref()
@@ -171,6 +200,7 @@ pub(super) async fn start(
         .create_client_update_job(actor(depot), &tenant, &executor, &job, &token)
         .await?
     {
+        let actor = actor(depot).clone();
         let state = state.clone();
         let tenant = tenant.clone();
         let executor = executor.clone();
@@ -178,23 +208,16 @@ pub(super) async fn start(
         tokio::spawn(async move {
             let result = tokio::time::timeout(std::time::Duration::from_mins(14), async {
                 state.client_updates.package(&release, &job.target).await?;
-                state
-                    .edge
-                    .client_update(
-                        &tenant,
-                        &executor,
-                        ClientUpdateCommand::Start {
-                            request: ClientUpdateRequest {
-                                id: job.progress.id.clone(),
-                                manifest: job.manifest.clone(),
-                                signature: job.signature.clone(),
-                                server_version: env!("CARGO_PKG_VERSION").into(),
-                                download_token: token,
-                                expires_at_ms: job.expires_at_ms,
-                            },
-                        },
-                    )
-                    .await?;
+                maintenance::call(
+                    &state,
+                    &actor,
+                    &tenant,
+                    &executor,
+                    MaintenanceOperation::Start {
+                        id: job.progress.id.clone(),
+                    },
+                )
+                .await?;
                 Ok::<(), HarnessError>(())
             })
             .await
@@ -234,10 +257,17 @@ pub(super) async fn cancel(
         .computer_details(actor(depot), &tenant, &executor, true)
         .await?;
     Ok(Json(
-        state
-            .edge
-            .client_update(&tenant, &executor, ClientUpdateCommand::Cancel { id })
+        serde_json::to_value(
+            maintenance::call(
+                state,
+                actor(depot),
+                &tenant,
+                &executor,
+                MaintenanceOperation::Cancel { id },
+            )
             .await?,
+        )
+        .map_err(invalid_request)?,
     ))
 }
 

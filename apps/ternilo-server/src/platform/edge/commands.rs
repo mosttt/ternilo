@@ -6,24 +6,6 @@ use super::{
 };
 
 impl EdgeGateway {
-    pub(crate) async fn client_update(
-        &self,
-        tenant: &TenantId,
-        executor: &ExecutorId,
-        command: ternilo_transport::ClientUpdateCommand,
-    ) -> Result<Value, HarnessError> {
-        command.validate()?;
-        self.call_routed(
-            RouteKey::new(tenant.clone(), executor.clone()),
-            ExecutorCommandBody::ClientUpdate {
-                command: Box::new(command),
-            },
-            Duration::from_secs(30),
-            None,
-        )
-        .await
-    }
-
     pub(crate) async fn call(
         &self,
         tenant_id: &TenantId,
