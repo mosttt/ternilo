@@ -117,7 +117,7 @@ queued → leased → running | cancel_requested
 - Enrollment token 最长一小时且只能消费一次；Node credential 只保存哈希，签发后没有时间到期，直到显式吊销电脑才失效。已登记电脑不能刷新或重新签发 credential；已吊销或已移除的电脑通过显式恢复签发新凭据并沿用原 ID；正常重启及暂停恢复不重新登记。
 - 电脑管理使用独立 `computer_management` 组件。`/tenants/{tenant}/my-computers/{id}` 为本人入口，`/tenants/{tenant}/executors/{id}` 为具有对应职责的空间入口：`GET` 读取详情，`PATCH` 保存 `{name, notes, expected_revision}`，`PUT /suspension` 保存 `{suspended, expected_revision}`，`DELETE /registration` 接收 `{expected_revision}` 并移除登记；原 `DELETE` 仍表示吊销。状态操作按版本拒绝冲突，暂停不能经原凭据重新连接，恢复沿用原凭据，移除保留关联工作区和历史。详情和列表采用较新的服务端心跳或认证时间。
 - 登记请求为 `{name, project_id?, ttl_seconds?}`，ID 由系统生成；同一账号和空间内名称唯一。列表默认隐藏已移除项，`?include_removed=true` 才读取全部可见登记。`POST /recovery` 接收 `{name, expected_revision}`，仅恢复已吊销或已移除的原身份，保留归属、项目及持久目录绑定。
-- 本人电脑的客户端更新使用 `/api/v1/tenants/{tenant}/my-computers/{id}/updates`：`GET` 读取已保存状态，`?refresh=true` 向在线电脑查询；`POST {id}` 提交调用方生成的操作 ID，返回 `202` 和任务状态，相同 ID 重试返回已有任务；`DELETE /updates/{operation_id}` 取消下载或等待空闲的更新。仅电脑所有者可用，且需在本机启用。独立 `client_updates` 组件保存任务与下载授权摘要，PostgreSQL 以租户 RLS 隔离。安装包使用限定机器和操作的短期授权下载；命令与进度共用 Executor 协议 49 的 WebSocket。见[客户端更新](client-updates.md)。
+- 本人电脑的客户端更新使用 `/api/v1/tenants/{tenant}/my-computers/{id}/updates`：`GET` 读取已保存状态，`?refresh=true` 向在线电脑查询；`POST {id}` 提交调用方生成的操作 ID，返回 `202` 和任务状态，相同 ID 重试返回已有任务；`DELETE /updates/{operation_id}` 取消下载或等待空闲的更新。仅电脑所有者可用，且需在本机启用。独立 `client_updates` 组件保存任务与下载授权摘要，PostgreSQL 以租户 RLS 隔离。安装包使用限定机器和操作的短期授权下载；命令与进度共用 Executor 协议 50 的 WebSocket。见[客户端更新](client-updates.md)。
 - Control 限制 Node 数、并发 run、月度 model token、secret 和扩展数量；Run 预留与模型 attempt 分配在数据库事务中处理，不重复预占同一空间额度。结算只接受 Server 观察到的用量，不提供客户端自报实际消耗的 commit 接口。
 - 空间管理 → 用量供当前空间 owner/admin 按 UTC 月查看 token ledger 与 reservation，并单列不受月份筛选影响的全时段异常；member/viewer 无入口且 API 拒绝。它不是金额账单：空间预算和相关用量按 Run 首次预留的 UTC 月份归属，平台模型授权按逻辑模型请求接受月份归属；各次重试保持该月份。页面分别显示已知消耗、未知预留和活跃 Run 剩余预留，可相加查看占用；当前配额上限不是历史快照。
 - 审计日志 append-only，并以 SHA-256 hash chain 连接；支付、定价、发票和税务属于外部运营系统，不是 usage ledger 的职责。
@@ -286,7 +286,7 @@ Worker 只通过 Server API 访问执行与模型服务。租约代次、事件�
 
 工作区／会话的 `/sharing/ownership` 提供 `GET` 当前管理者与版本、`GET /candidates` 有界接收者搜索、`PUT` 管理权交接。交接仅限同团队有效可写成员，请求包含 `owner_user_id`、`expected_owner_user_id`、`expected_revision` 和 `retain_previous_owner`。过期版本返回 `409 conflict`；保留原管理者时显式授予编辑协作权限，不保留共享管理、删除或再次交接权。项目通过空间角色管理，不提供此操作。
 
-`ResourceAccess.owner_user_id` 为当前管理者，`storage_user_id` 为原存储／执行身份，`ownership_revision` 为管理版本。`is_owner` 与 `is_execution_owner` 分别判断这两种身份；全局配置仍需原执行身份及配置权限。组件 `resource_ownership` 和 `resource_ownership_live` 均为 schema `1`；执行器协议为 `49`。工作区详情显示当前管理者和原存储账号，内部 Node 绑定不变。参见[资源管理权交接](resource-management.md)。
+`ResourceAccess.owner_user_id` 为当前管理者，`storage_user_id` 为原存储／执行身份，`ownership_revision` 为管理版本。`is_owner` 与 `is_execution_owner` 分别判断这两种身份；全局配置仍需原执行身份及配置权限。组件 `resource_ownership` 和 `resource_ownership_live` 均为 schema `1`；执行器协议为 `50`。工作区详情显示当前管理者和原存储账号，内部 Node 绑定不变。参见[资源管理权交接](resource-management.md)。
 
 ### Node 清理确认
 

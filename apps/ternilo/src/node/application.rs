@@ -144,6 +144,15 @@ pub(super) async fn handle_application_inner(
             application.delete_credential_record(&key).await?;
             Ok(Value::Null)
         }
+        ApplicationOperation::ProviderWebCredential {
+            provider_id,
+            capability,
+            expected,
+        } => to_value(
+            application
+                .provider_web_credential(&provider_id, capability, &expected)
+                .await?,
+        ),
         ApplicationOperation::ProviderList => to_value(application.provider_profiles().await),
         ApplicationOperation::ProviderUpsert { provider } => {
             to_value(application.upsert_provider_profile(provider).await?)

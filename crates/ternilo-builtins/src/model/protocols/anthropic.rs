@@ -53,7 +53,13 @@ pub(super) fn request_body(
     if request.step == 0 {
         body["tool_choice"] = json!({"type":"none"});
     } else if let Some(hosted) = &model.hosted_tools {
-        crate::apply_hosted_web_tools(&mut body, hosted, model.protocol, &model.model);
+        crate::hosted_tools::apply_request_hosted_tools(
+            &mut body,
+            hosted,
+            model.protocol,
+            &model.model,
+            request,
+        );
     }
     if let Some(temperature) = model.temperature {
         body["temperature"] = json!(temperature);

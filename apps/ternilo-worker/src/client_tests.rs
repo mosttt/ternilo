@@ -67,6 +67,7 @@ fn request() -> WorkerModelRequest {
             model: "test-model".to_owned(),
         },
         request: ModelRequest {
+            blocked_web_tools: Vec::new(),
             reasoning_recommendation: None,
             prompt_cache: false,
             run_id: ternilo_protocol::RunId::new("model-test-run"),

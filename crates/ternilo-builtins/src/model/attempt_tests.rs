@@ -166,6 +166,7 @@ async fn upstream(replies: Vec<Reply>) -> (String, tokio::task::JoinHandle<Vec<V
 
 fn request() -> ModelRequest {
     ModelRequest {
+        blocked_web_tools: Vec::new(),
         reasoning_recommendation: None,
         prompt_cache: false,
         run_id: ternilo_protocol::RunId::new("model-test-run"),

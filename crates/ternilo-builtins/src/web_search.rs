@@ -58,6 +58,8 @@ component_descriptor! {
 #[derive(Clone, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SearchConfig {
+    #[serde(default)]
+    provider_web_access: Option<ternilo_protocol::ProviderWebAccess>,
     /// Service base URL. Hosted search services default to their official endpoints.
     #[serde(default)]
     base_url: Option<String>,
@@ -122,6 +124,24 @@ fn build_plugin(
 
 impl SearchConfig {
     fn validate(&self, provider: SearchProvider) -> Result<(), HarnessError> {
+        if let Some(web) = &self.provider_web_access {
+            let mode = match provider {
+                SearchProvider::Searxng => ternilo_protocol::WebSearchMode::Searxng,
+                SearchProvider::Brave => ternilo_protocol::WebSearchMode::Brave,
+                SearchProvider::Tavily => ternilo_protocol::WebSearchMode::Tavily,
+                SearchProvider::DeepSeek => ternilo_protocol::WebSearchMode::Deepseek,
+            };
+            if web.search.mode != mode
+                || web.search.base_url != self.base_url
+                || u64::from(web.search.max_results) != self.max_results as u64
+                || web.search.timeout_ms != self.timeout_ms
+                || self.api_key_env.is_some()
+            {
+                return Err(HarnessError::policy(
+                    "search plugin must use its selected Provider web configuration",
+                ));
+            }
+        }
         let url = reqwest::Url::parse(self.base_url(provider)?)
             .map_err(|_| HarnessError::composition("search base_url must be an HTTP(S) URL"))?;
         if !matches!(url.scheme(), "http" | "https")
@@ -146,7 +166,9 @@ impl SearchConfig {
             .api_key_env
             .as_ref()
             .is_some_and(|value| value.trim().is_empty())
-            || (provider != SearchProvider::Searxng && self.api_key_env.is_none())
+            || (provider != SearchProvider::Searxng
+                && self.api_key_env.is_none()
+                && self.provider_web_access.is_none())
         {
             return Err(HarnessError::composition(
                 "search api_key_env must name a configured credential",
@@ -260,14 +282,18 @@ impl ToolHandler for SearchTool {
             tokio::select! {
                 biased;
                 () = context.cancellation.cancelled() => Err(HarnessError::cancelled("web search cancelled")),
-                result = self.search(arguments) => result,
+                result = self.search(context.run_id, arguments) => result,
             }
         })
     }
 }
 
 impl SearchTool {
-    async fn search(&self, arguments: Value) -> Result<ToolOutput, HarnessError> {
+    async fn search(
+        &self,
+        run_id: ternilo_protocol::RunId,
+        arguments: Value,
+    ) -> Result<ToolOutput, HarnessError> {
         let arguments: SearchArguments = serde_json::from_value(arguments).map_err(|error| {
             HarnessError::invalid(format!("invalid web_search arguments: {error}"))
         })?;
@@ -282,7 +308,15 @@ impl SearchTool {
                 self.config.max_results
             )));
         }
-        let key = if let Some(variable) = self.config.api_key_env.as_deref() {
+        let key = if let Some(expected) = &self.config.provider_web_access {
+            self.environment
+                .resolve_provider_web_credential(
+                    run_id,
+                    ternilo_protocol::WebCapability::Search,
+                    expected.clone(),
+                )
+                .await?
+        } else if let Some(variable) = self.config.api_key_env.as_deref() {
             Some(
                 self.environment
                     .resolve_secret(variable.to_owned())

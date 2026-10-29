@@ -49,6 +49,7 @@ async fn control_api_router_covers_visible_platform_actions() {
 #[test]
 fn cloud_model_snapshot_preserves_exact_reasoning_without_provider_secrets() {
     let snapshot = ternilo_protocol::RunModelSnapshot {
+        web_access: None,
         binding: ternilo_protocol::RunModelBinding::Platform {
             grant_id: "grant".to_owned(),
             model_id: "reasoning-model".to_owned(),

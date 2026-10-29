@@ -19,6 +19,8 @@ mod github;
 #[cfg(test)]
 mod goal_execution_tests;
 mod hooks;
+mod provider_web;
+pub use provider_web::{apply_provider_web_access, blocked_provider_web_tools};
 mod hosted_tools;
 pub use hosted_tools::apply_hosted_web_tools;
 mod deepseek_web;
@@ -112,7 +114,7 @@ pub use web_search::{BRAVE_KIND as WEB_SEARCH_BRAVE_KIND, TAVILY_KIND as WEB_SEA
 pub use workflow::{ENGINE_KIND as WORKFLOW_ENGINE_KIND, TOOL_KIND as WORKFLOW_TOOL_KIND};
 pub use workspace_tools::{ASK_USER_TOOL_KIND, FILE_TOOLS_KIND, PLAN_TOOL_KIND, SHELL_TOOL_KIND};
 
-pub const CATALOG_REVISION: &str = "ternilo-builtins-v21";
+pub const CATALOG_REVISION: &str = "ternilo-builtins-v22";
 
 const MAX_PROVIDER_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
 

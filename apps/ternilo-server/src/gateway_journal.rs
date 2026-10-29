@@ -777,6 +777,11 @@ mod tests {
                 .unwrap()
         );
         for (index, request) in [
+            ApplicationOperation::ProviderWebCredential {
+                provider_id: "private-provider".to_owned(),
+                capability: ternilo_protocol::WebCapability::Search,
+                expected: ternilo_protocol::ProviderWebAccess::default(),
+            },
             ApplicationOperation::Snapshot,
             ApplicationOperation::DirectoryList {
                 path: Some("/private/host/workspace".to_owned()),

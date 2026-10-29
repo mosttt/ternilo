@@ -66,6 +66,7 @@ mod tests {
     #[test]
     fn prepared_context_counts_unicode_and_excludes_attachment_references() {
         let request = ModelRequest {
+            blocked_web_tools: Vec::new(),
             reasoning_recommendation: None,
             prompt_cache: false,
             run_id: RunId::new("context"),

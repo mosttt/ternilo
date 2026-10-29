@@ -1009,6 +1009,7 @@ async fn run_in_process_turn(
         let response = driver
             .models
             .complete(ModelRequest {
+                blocked_web_tools: Vec::new(),
                 reasoning_recommendation: None,
                 prompt_cache: false,
                 run_id: parent_run_id.clone(),

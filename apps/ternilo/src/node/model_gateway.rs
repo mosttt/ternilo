@@ -9,6 +9,11 @@ use ternilo_protocol::{
     HarnessError, ModelRequest, ModelResponse, NodeModelRequest, RunModelBinding, SessionId,
 };
 
+#[derive(serde::Deserialize)]
+struct WebAccessFailure {
+    error: HarnessError,
+}
+
 pub(super) struct NodeModelGateway {
     application: Weak<LocalApplication>,
     endpoint: reqwest::Url,
@@ -88,6 +93,81 @@ impl NodeModelGateway {
 }
 
 impl ServerModelGateway for NodeModelGateway {
+    fn web_access<'a>(
+        &'a self,
+        session_id: &'a str,
+        binding: RunModelBinding,
+        credential: Option<(
+            ternilo_protocol::RunId,
+            ternilo_protocol::WebCapability,
+            ternilo_protocol::ProviderWebAccess,
+        )>,
+    ) -> Pin<
+        Box<
+            dyn Future<Output = Result<ternilo_protocol::ProviderWebAccessReply, HarnessError>>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            let (invocation, capability, expected) =
+                if let Some((run_id, capability, expected)) = credential {
+                    let app = self
+                        .application
+                        .upgrade()
+                        .ok_or_else(|| HarnessError::cancelled("Ternilo is stopping"))?;
+                    let origin = app.model_input_origin(session_id, &run_id).await?;
+                    (
+                        Some(ternilo_protocol::NodeRunContext {
+                            session_id: SessionId::new(session_id),
+                            origin_session_id: origin.session_id,
+                            run_id,
+                            provenance: origin.provenance,
+                            schedule_origins: origin.schedule_origins,
+                            binding: binding.clone(),
+                        }),
+                        Some(capability),
+                        Some(Box::new(expected)),
+                    )
+                } else {
+                    (None, None, None)
+                };
+            let body = ternilo_protocol::NodeWebAccessRequest {
+                session_id: SessionId::new(session_id),
+                binding,
+                invocation,
+                credential: capability,
+                expected,
+            };
+            let mut endpoint = self.endpoint.clone();
+            endpoint.set_path("/internal/node/v1/model/web-access");
+            let response = self
+                .client
+                .post(endpoint)
+                .bearer_auth(&self.token)
+                .json(&body)
+                .timeout(std::time::Duration::from_secs(30))
+                .send()
+                .await
+                .map_err(|_| {
+                    HarnessError::unavailable("cannot reach Server for Provider web settings")
+                })?;
+            if !response.status().is_success() {
+                let status = response.status();
+                let failure = response.json::<WebAccessFailure>().await.map_err(|_| {
+                    HarnessError::unavailable(format!(
+                        "Server web gateway returned HTTP {status} without a valid error response"
+                    ))
+                })?;
+                return Err(failure.error);
+            }
+            response
+                .json()
+                .await
+                .map_err(|_| HarnessError::execution("invalid Server web settings response"))
+        })
+    }
+
     fn complete<'a>(
         &'a self,
         session_id: &'a str,

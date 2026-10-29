@@ -53,6 +53,12 @@ function presentDiagnostic(raw: string, t: Translate<'chat'>): RuntimeErrorPrese
   if (/^(?:execution:\s*)?model request failed; check the Server model request log$/.test(raw)) {
     return { title: t('runtimeError.gatewayFailure.title'), message: t('runtimeError.gatewayFailure.message'), raw }
   }
+  const webReason = normalized.includes('provider web settings changed') ? 'runtimeError.providerWeb.changed'
+    : /(?:provider web credential is missing|web credential is not configured)/.test(normalized) ? 'runtimeError.providerWeb.credential'
+    : /(?:web credentials can only|web access is not authorized|web credentials.*owner|platform credentials cannot)/.test(normalized) ? 'runtimeError.providerWeb.authorization'
+    : /(?:model does not support the provider.s built-in search|protocol does not support the selected hosted web tool)/.test(normalized) ? 'runtimeError.providerWeb.unsupported'
+    : null
+  if (webReason) return { title: t('runtimeError.providerWeb.title'), message: t(webReason), raw }
   const toolLimit = normalized.match(/turn exceeded max_tool_calls \((\d+)\)/)
 
   const webStatus = raw.match(/^(?:execution:\s*)?DeepSeek web tools error \(HTTP (\d{3})\):/)?.[1]

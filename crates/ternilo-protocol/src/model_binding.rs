@@ -97,6 +97,8 @@ impl RunModelBinding {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RunModelSnapshot {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_access: Option<Box<crate::ProviderWebAccess>>,
     pub binding: RunModelBinding,
     pub protocol: ProviderProtocol,
     pub defaults: ProviderModelDefaults,
@@ -108,6 +110,10 @@ pub struct RunModelSnapshot {
 impl RunModelSnapshot {
     pub fn validate(&self) -> Result<(), HarnessError> {
         self.binding.validate()?;
+        if let Some(web) = &self.web_access {
+            web.validate(self.protocol)?;
+            web.validate_model(self.protocol, self.binding.model_id())?;
+        }
         crate::validate_model_defaults(&self.defaults, "run model snapshot")?;
         validate_reference(&self.display_name, "model display name", 200)?;
         validate_reference(&self.source_name, "model source name", 200)?;

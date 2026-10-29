@@ -9,6 +9,20 @@ const translate = (resource: Record<keyof typeof zh, string>): Translate<'chat'>
 const t = translate(zh)
 
 describe('runtime error presentation', () => {
+  it('distinguishes Provider web configuration and credential errors from model authentication', () => {
+    const cases = [
+      ['policy_denied: web credentials can only be sent to their owner’s computers', 'authorization'],
+      ['execution: Provider web credential is missing; configure it in the Provider settings', 'credential'],
+      ['conflict: Provider web settings changed; start a new task', 'changed'],
+      ["invalid_input: this model does not support the Provider's built-in search", 'unsupported'],
+    ] as const
+    for (const resource of [zh, en, ko]) for (const [raw, category] of cases) {
+      expect(presentRuntimeError(raw, translate(resource))).toEqual({
+        title: resource['runtimeError.providerWeb.title'], message: resource[`runtimeError.providerWeb.${category}`], raw,
+      })
+    }
+  })
+
   it('distinguishes webpage failures from model failures in every locale', () => {
     for (const resource of [zh, en, ko]) {
       for (const [status, category] of [[400, 'request'], [401, 'auth'], [402, 'balance'], [403, 'blocked'], [404, 'missing'], [429, 'limit'], [504, 'timeout']] as const) {

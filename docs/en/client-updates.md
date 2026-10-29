@@ -2,7 +2,7 @@
 
 In **User Settings → My machines**, choose **Update client** on a computer, or use **Client updates** above the list to select several computers. Server recommends the stable client release matching its own version. Configuration, conversations, computer identity and credentials are retained; the computer briefly goes offline during restart.
 
-This feature updates official browser/CLI bundles, not desktop installers, containers or Work. First manually upgrade Server and connected executors together to versions supporting Executor protocol 49. Remote updates then operate within a compatible protocol and data epoch. Protocol or data-format changes require coordinated maintenance.
+This feature updates official browser/CLI bundles, not desktop installers, containers or Work. First manually upgrade Server and connected executors together to versions supporting Executor protocol 50. Remote updates then operate within a compatible protocol and data epoch. Protocol or data-format changes require coordinated maintenance.
 
 ## Enable on the computer once
 

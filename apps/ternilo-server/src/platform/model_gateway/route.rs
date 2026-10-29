@@ -59,12 +59,16 @@ pub(super) fn resolve(
         .min(resolved.model.defaults.max_output_tokens);
     let max_output = u32::try_from(max_output)
         .map_err(|_| HarnessError::policy("model output limit exceeds u32"))?;
+    if let Some(web) = &resolved.provider.web_access {
+        web.validate_model(resolved.provider.protocol, &resolved.upstream_model)?;
+    }
+    let hosted_tools = resolved.provider.effective_hosted_tools();
     Ok(ResolvedBrokeredRoute {
         route: ProviderModelRoute {
             provider: public_provider(&snapshot.binding).to_owned(),
             base_url: resolved.provider.base_url,
             protocol: resolved.provider.protocol,
-            hosted_tools: resolved.provider.hosted_tools,
+            hosted_tools,
             model: resolved.upstream_model,
             context_window: Some(
                 snapshot
@@ -130,6 +134,7 @@ mod tests {
 
     fn model_snapshot() -> RunModelSnapshot {
         RunModelSnapshot {
+            web_access: None,
             binding: RunModelBinding::Platform {
                 grant_id: "grant".to_owned(),
                 model_id: "public-model".to_owned(),
@@ -155,6 +160,7 @@ mod tests {
     #[test]
     fn conservative_budget_covers_wire_overhead_and_the_frozen_output_limit() {
         let request = ModelRequest {
+            blocked_web_tools: Vec::new(),
             reasoning_recommendation: None,
             prompt_cache: false,
             run_id: ternilo_protocol::RunId::new("model-test-run"),
@@ -178,6 +184,7 @@ mod tests {
         let resolved = resolve(
             ResolvedModelRoute {
                 provider: ProviderProfile {
+                    web_access: None,
                     hosted_tools: None,
                     id: "upstream".to_owned(),
                     display_name: "Provider".to_owned(),

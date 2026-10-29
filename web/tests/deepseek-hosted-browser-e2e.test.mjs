@@ -74,7 +74,7 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
     await settings.getByRole('button', { name: '编辑', exact: true }).click()
     const editor = page.locator('[data-provider-editor="hosted"]')
     await editor.locator('summary').filter({ hasText: '自定义设置' }).click()
-    await editor.getByLabel('托管网页搜索', { exact: true }).check()
+    await editor.getByLabel('网页搜索', { exact: true }).click(); await page.getByRole('option', { name: '模型内置 · 服务商执行', exact: true }).click()
     assert.equal(await editor.getByLabel('托管网页读取', { exact: true }).count(), 0)
     assert.equal(await editor.getByLabel('每次请求每种工具最多调用次数', { exact: true }).count(), 0)
     await editor.getByRole('button', { name: '保存', exact: true }).click()
@@ -83,9 +83,9 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
     const saved = (await local('/providers')).find(provider => provider.id === 'hosted')
     assert.equal(saved.hosted_tools.web_search, true); assert.equal(saved.hosted_tools.web_fetch, false); assert.equal(saved.hosted_tools.max_uses, undefined)
     for (const [locale, text] of Object.entries({
-      zh: { settings: '设置', models: '模型', edit: '编辑', save: '保存', title: 'DeepSeek 内置搜索' },
-      en: { settings: 'Settings', models: 'Models', edit: 'Edit', save: 'Save', title: 'DeepSeek built-in search' },
-      ko: { settings: '설정', models: '모델', edit: '편집', save: '저장', title: 'DeepSeek 내장 검색' },
+      zh: { settings: '设置', models: '模型', edit: '编辑', save: '保存', title: 'DeepSeek 内置搜索', search: '网页搜索', hosted: '模型内置 · 服务商执行', off: '关闭' },
+      en: { settings: 'Settings', models: 'Models', edit: 'Edit', save: 'Save', title: 'DeepSeek built-in search', search: 'Web search', hosted: 'Built-in · model provider', off: 'Off' },
+      ko: { settings: '설정', models: '모델', edit: '편집', save: '저장', title: 'DeepSeek 내장 검색', search: '웹 검색', hosted: '내장 · 모델 제공업체 실행', off: '끄기' },
     })) {
       await page.evaluate(locale => { localStorage.setItem('ternilo.locale', locale); localStorage.setItem('ternilo.theme', locale === 'en' ? 'light' : 'dark') }, locale); await page.reload()
       await page.getByRole('button', { name: text.settings, exact: true }).click()
@@ -96,17 +96,17 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
       await current.locator('details > summary').first().click()
       const hosted = current.locator('[data-hosted-tools]')
       await hosted.getByText(text.title, { exact: true }).waitFor()
-      assert.equal(await hosted.getByRole('checkbox').isChecked(), true)
+      assert.equal(await current.getByLabel(text.search, { exact: true }).textContent(), text.hosted)
       assert.equal(await hosted.getByRole('spinbutton').count(), 0)
       await page.setViewportSize({ width: 390, height: 844 }); await hosted.scrollIntoViewIfNeeded()
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       if (artifacts) await page.screenshot({ path: path.join(artifacts, `settings-${locale}.png`) })
-      await hosted.getByRole('checkbox').uncheck()
+      await current.getByLabel(text.search, { exact: true }).click(); await page.getByRole('option', { name: text.off, exact: true }).click()
       await current.getByRole('button', { name: text.save, exact: true }).click(); await current.waitFor({ state: 'hidden' })
       assert.equal((await local('/providers')).find(item => item.id === 'hosted').hosted_tools, undefined)
       await page.setViewportSize({ width: 1440, height: 1000 })
       await surface.getByRole('button', { name: text.edit, exact: true }).click(); await current.locator('details > summary').first().click()
-      await current.locator('[data-hosted-tools]').getByRole('checkbox').check()
+      await current.getByLabel(text.search, { exact: true }).click(); await page.getByRole('option', { name: text.hosted, exact: true }).click()
       await current.getByRole('button', { name: text.save, exact: true }).click(); await current.waitFor({ state: 'hidden' })
       assert.equal((await local('/providers')).find(item => item.id === 'hosted').hosted_tools.web_search, true)
       await surface.locator('[data-settings-toolbar] > button').last().click()
@@ -117,7 +117,9 @@ test('DeepSeek Responses search preserves sources and history across local, Serv
     await flashSettings.getByRole('button', { name: '编辑', exact: true }).click()
     const flashEditor = page.locator('[data-provider-editor="hosted"]')
     await flashEditor.locator('details > summary').first().click()
-    assert.equal(await flashEditor.locator('[data-hosted-tools]').getByRole('checkbox').isEnabled(), false)
+    await flashEditor.getByLabel('网页搜索', { exact: true }).click()
+    assert.equal(await page.getByRole('option', { name: '模型内置 · 服务商执行', exact: true }).count(), 0)
+    await page.keyboard.press('Escape')
     await closeModels(page)
     await local('/providers', { body: saved })
     await owner('/credentials', { body: { name: 'HOSTED_KEY', value: 'server-hosted-key' } })

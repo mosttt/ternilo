@@ -10,7 +10,7 @@ impl LocalApplication {
         session_id: &str,
         input: &TurnInput,
     ) -> Result<(), HarnessError> {
-        let profile = self.effective_session_profile(session_id).await?;
+        let profile = self.cached_session_profile(session_id).await?;
         let model_error = self.profile_model_error(&profile).await?;
         let Some(error) = model_error else {
             return Ok(());
@@ -107,6 +107,61 @@ mod tests {
             .await
             .unwrap();
         (app, session.identity.session_id.as_str().to_owned())
+    }
+
+    #[tokio::test]
+    async fn local_commands_do_not_require_an_online_provider_web_source() {
+        let root = tempfile::tempdir().unwrap();
+        let (app, session) = setup(root.path(), crate::local_profile()).await;
+        let owner = ternilo_protocol::UserId::new("source-owner");
+        let snapshot = ternilo_protocol::RunModelSnapshot {
+            web_access: None,
+            binding: ternilo_protocol::RunModelBinding::UserProvider {
+                tenant_id: ternilo_protocol::TenantId::new("remote-account"),
+                owner_user_id: owner.clone(),
+                provider_id: "offline".into(),
+                model: "model".into(),
+            },
+            protocol: ternilo_protocol::ProviderProtocol::OpenAiChatCompletions,
+            defaults: ternilo_protocol::ProviderModelDefaults {
+                context_window: 4096,
+                max_output_tokens: 128,
+                reasoning: None,
+            },
+            reasoning_effort: None,
+            display_name: "Model".into(),
+            source_name: "Offline Provider".into(),
+        };
+        app.update_session(
+            &session,
+            LocalSessionUpdate {
+                model: Some(ModelSelection::AccountProvider {
+                    owner_user_id: owner,
+                    provider_id: "offline".into(),
+                    model: "model".into(),
+                    reasoning_effort: None,
+                }),
+                server_model: Some(snapshot),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let result = app
+            .run_turn(&session, None, r#"/code "local diagnostic""#.into())
+            .await
+            .unwrap();
+        assert!(result.answer.contains("local diagnostic"));
+        assert!(!result.events.iter().any(|event| matches!(
+            event.kind,
+            ternilo_protocol::SessionEventKind::ModelRequestStarted { .. }
+        )));
+        assert!(
+            app.run_turn(&session, None, "Ask the model".into())
+                .await
+                .is_err()
+        );
+        app.close().await.unwrap();
     }
 
     #[tokio::test]

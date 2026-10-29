@@ -52,3 +52,26 @@ pub fn apply_hosted_web_tools(
     }
     body["tools"] = json!(tools);
 }
+
+pub(crate) fn apply_request_hosted_tools(
+    body: &mut Value,
+    settings: &HostedWebTools,
+    protocol: ProviderProtocol,
+    model: &str,
+    request: &ternilo_protocol::ModelRequest,
+) {
+    let mut settings = settings.clone();
+    if request
+        .blocked_web_tools
+        .contains(&ternilo_protocol::WebCapability::Search)
+    {
+        settings.web_search = false;
+    }
+    if request
+        .blocked_web_tools
+        .contains(&ternilo_protocol::WebCapability::Fetch)
+    {
+        settings.web_fetch = false;
+    }
+    apply_hosted_web_tools(body, &settings, protocol, model);
+}

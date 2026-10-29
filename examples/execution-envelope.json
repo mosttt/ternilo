@@ -1,7 +1,7 @@
 {
   "spec": {
     "schema_version": 5,
-    "catalog_revision": "ternilo-cloud-v4",
+    "catalog_revision": "ternilo-cloud-v5",
     "policy_revision": "cloud-example-v1",
     "metadata": {
       "tenant_id": "tenant-example",

@@ -16,7 +16,7 @@ use ternilo_protocol::{
     TenantId, UserAnswer, UserId, WorkspaceId, WorkspaceRequest, validate_agent_preset_id,
 };
 
-pub const EXECUTOR_PROTOCOL_VERSION: u32 = 49;
+pub const EXECUTOR_PROTOCOL_VERSION: u32 = 50;
 
 mod client_updates;
 pub use client_updates::{ClientUpdateCommand, ClientUpdateRequest};
@@ -231,6 +231,11 @@ pub enum ApplicationOperation {
         key: String,
     },
     ProviderList,
+    ProviderWebCredential {
+        provider_id: String,
+        capability: ternilo_protocol::WebCapability,
+        expected: ternilo_protocol::ProviderWebAccess,
+    },
     ProviderUpsert {
         provider: ProviderProfile,
     },
@@ -491,6 +496,7 @@ impl ApplicationOperation {
             | Self::ProviderUpsert { .. }
             | Self::ProviderMaterialize { .. }
             | Self::ProviderDelete { .. }
+            | Self::ProviderWebCredential { .. }
             | Self::ProviderDiscover { .. }
             | Self::DefaultModelSet { .. }) => validate_configuration_operation(operation),
             operation @ (Self::AuthorizationSnapshot { .. }
@@ -613,7 +619,8 @@ impl ApplicationOperation {
         self.contains_secret_material()
             || matches!(
                 self,
-                Self::AuthorizationBegin { .. }
+                Self::ProviderWebCredential { .. }
+                    | Self::AuthorizationBegin { .. }
                     | Self::AuthorizationCancel { .. }
                     | Self::SessionFileContent { .. }
                     | Self::SessionWorkspace { .. }
@@ -661,7 +668,10 @@ fn validate_configuration_operation(operation: &ApplicationOperation) -> Result<
         ApplicationOperation::SidebarOrderingSet { ordering } => ordering.validate(),
         ApplicationOperation::ProviderUpsert { provider } => provider.validate(),
         ApplicationOperation::ProviderMaterialize { request } => request.validate(),
-        ApplicationOperation::ProviderDelete { id } => require_text(id, "provider id"),
+        ApplicationOperation::ProviderDelete { id }
+        | ApplicationOperation::ProviderWebCredential {
+            provider_id: id, ..
+        } => require_text(id, "provider id"),
         ApplicationOperation::ProviderDiscover { request } => request.validate(),
         ApplicationOperation::DefaultModelSet { selection } => selection.validate(),
         _ => unreachable!("configuration validation received another operation"),
@@ -1471,7 +1481,7 @@ mod tests {
 
     #[test]
     fn executor_live_capabilities_have_an_explicit_versioned_wire() {
-        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 49);
+        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 50);
         let mut peer = ExecutorHello {
             client: None,
             protocol_version: 40,

@@ -201,6 +201,7 @@ impl Fixture {
             reasoning: None,
         };
         let profile = ProviderProfile {
+            web_access: None,
             hosted_tools: None,
             id: "workload".to_owned(),
             display_name: "Workload provider".to_owned(),
@@ -274,6 +275,7 @@ impl Fixture {
                     &model_owner,
                     &model_space,
                     ProviderProfile {
+                        web_access: None,
                         hosted_tools: None,
                         id: "personal".to_owned(),
                         api_key_ref: Some("PERSONAL_MODEL_KEY".to_owned()),
@@ -301,6 +303,7 @@ impl Fixture {
             };
         }
         let snapshot = RunModelSnapshot {
+            web_access: None,
             binding: binding.clone(),
             protocol: ProviderProtocol::OpenAiChatCompletions,
             defaults,
@@ -565,6 +568,7 @@ impl Fixture {
                 request_id: 1,
                 binding,
                 request: ModelRequest {
+                    blocked_web_tools: Vec::new(),
                     reasoning_recommendation: None,
                     prompt_cache: false,
                     run_id: ternilo_protocol::RunId::new("model-test-run"),

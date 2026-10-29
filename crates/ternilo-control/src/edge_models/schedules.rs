@@ -1,12 +1,12 @@
 use super::require_model_lineage;
 use crate::{ControlStore, NodePrincipal};
 use ternilo_protocol::{
-    HarnessError, NodeModelRequest, RunId, ScheduleChange, ScheduleModelOrigin, SessionEvent,
-    SessionEventKind, SessionId,
+    HarnessError, NodeModelRequest, NodeRunContext, RunId, ScheduleChange, ScheduleModelOrigin,
+    SessionEvent, SessionEventKind, SessionId,
 };
 use ternilo_storage::{Json, Transaction, database_error};
 
-pub(super) fn validate(body: &NodeModelRequest) -> Result<(), HarnessError> {
+pub(super) fn validate(body: &NodeRunContext) -> Result<(), HarnessError> {
     if body.schedule_origins.len() > 32 {
         return Err(HarnessError::policy(
             "scheduled model origin chain is too long",
@@ -37,6 +37,15 @@ impl ControlStore {
         &self,
         node: &NodePrincipal,
         body: &NodeModelRequest,
+    ) -> Result<bool, HarnessError> {
+        self.node_run_registered(node, &NodeRunContext::from(body))
+            .await
+    }
+
+    pub async fn node_run_registered(
+        &self,
+        node: &NodePrincipal,
+        body: &NodeRunContext,
     ) -> Result<bool, HarnessError> {
         validate(body)?;
         if !self
@@ -96,7 +105,7 @@ async fn creator_run(
 pub(super) async fn verify(
     tx: &mut Transaction,
     node: &NodePrincipal,
-    body: &NodeModelRequest,
+    body: &NodeRunContext,
 ) -> Result<RunId, HarnessError> {
     validate(body)?;
     let mut session = body.session_id.clone();

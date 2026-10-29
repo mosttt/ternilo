@@ -198,11 +198,37 @@ impl LocalApplication {
         &self,
         session_id: &str,
     ) -> Result<Profile, HarnessError> {
-        let session = self
+        self.session_profile_configuration(session_id, true).await
+    }
+
+    pub(super) async fn cached_session_profile(
+        &self,
+        session_id: &str,
+    ) -> Result<Profile, HarnessError> {
+        self.session_profile_configuration(session_id, false).await
+    }
+
+    async fn session_profile_configuration(
+        &self,
+        session_id: &str,
+        refresh_web: bool,
+    ) -> Result<Profile, HarnessError> {
+        let mut session = self
             .state
             .session(session_id)
             .await
             .ok_or_else(|| HarnessError::invalid(format!("unknown session {session_id:?}")))?;
+        if let Some(snapshot) = &mut session.server_model {
+            if refresh_web {
+                snapshot.web_access = self
+                    .server_models
+                    .web_access(session_id, snapshot.binding.clone(), None)
+                    .await?
+                    .configuration;
+            } else if let Some(managed) = self.live.read().await.get(session_id) {
+                snapshot.web_access.clone_from(&managed.web_access);
+            }
+        }
         let named_provider = resolve_named_provider(&session.model, &self.providers).await?;
         Ok(session_profile(
             &self.profile,

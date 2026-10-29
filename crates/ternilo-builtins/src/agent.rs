@@ -1201,7 +1201,13 @@ impl ReactAgent {
                 )
                 .await?;
             }
+            let blocked_web_tools =
+                match crate::provider_web::host_web_restrictions(&self.environment).await {
+                    Ok(blocked) => blocked,
+                    Err(error) => return Err(self.fail(&run_id, error).await),
+                };
             let request = ModelRequest {
+                blocked_web_tools,
                 prompt_cache: self.prompt_cache,
                 reasoning_recommendation: reasoning_observation
                     .as_ref()

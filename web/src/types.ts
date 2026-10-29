@@ -474,7 +474,15 @@ export interface HostedWebTools {
   blocked_domains: string[]
 }
 
+export type WebSearchMode = 'session' | 'disabled' | 'hosted' | 'deepseek' | 'brave' | 'tavily' | 'searxng'
+export type WebFetchMode = 'session' | 'disabled' | 'hosted' | 'direct' | 'deepseek'
+export interface ProviderWebAccess {
+  search: { mode: WebSearchMode; base_url?: string | null; api_key_ref?: string | null; timeout_ms: number; max_results: number }
+  fetch: { mode: WebFetchMode; base_url?: string | null; api_key_ref?: string | null; timeout_ms: number; max_bytes: number }
+}
+
 export interface ProviderProfile {
+  web_access?: ProviderWebAccess | null
   id: string
   source?: 'operator' | 'user'
   display_name: string

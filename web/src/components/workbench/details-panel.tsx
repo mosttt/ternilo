@@ -175,7 +175,7 @@ export function DetailsPanel({ selection, sessionId, server = false, onClose }: 
     : selection.kind === 'event' && related.length > 1 ? related : event
   const toolError = selection.kind === 'tool' && selection.trace.output?.is_error ? selection.trace.output.content : ''
   const failure = event.type === 'turn_failed' ? presentRuntimeError(event.message, t)
-    : /^(?:execution:\s*)?DeepSeek web tools error \(HTTP \d{3}\):/.test(toolError) ? presentRuntimeError(toolError, t) : null
+    : toolError && presentRuntimeError(toolError, t).message !== toolError ? presentRuntimeError(toolError, t) : null
   const selectionKey = selection.kind === 'tool'
     ? selection.trace.id
     : selection.kind === 'approval' ? selection.approval.call_id : `${event.run_id}:${event.seq}`

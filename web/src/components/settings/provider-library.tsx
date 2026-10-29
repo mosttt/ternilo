@@ -23,10 +23,7 @@ import { ActionDialog, SectionHeader } from './settings-ui'
 import type { ProviderModelValidationCopy } from './provider-model-editor'
 import styles from './settings-layout.module.css'
 
-function providerCredentialReference(id: string) {
-  const normalized = [...id].map(character => character === '-' ? '_H_' : character === '_' ? '_U_' : character.toUpperCase()).join('')
-  return `TERNILO_PROVIDER_${normalized}_API_KEY`
-}
+import { prepareWebCredentials, providerCredentialReference, providerCredentialReferences } from './provider-web-credentials'
 
 interface ProviderValidationCopy {
   model: ProviderModelValidationCopy
@@ -133,6 +130,11 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
     )),
   )
 
+  const webCredentialConfigured = (provider: ProviderProfile) => ({
+    search: Boolean(provider.web_access?.search.api_key_ref && credentials?.references.some(item => item.reference === provider.web_access?.search.api_key_ref && item.configured)),
+    fetch: Boolean(provider.web_access?.fetch.api_key_ref && credentials?.references.some(item => item.reference === provider.web_access?.fetch.api_key_ref && item.configured)),
+  })
+
   const keyState = (provider: ProviderProfile) => {
     if (provider.source === 'operator') return { usable: true, label: t('models.operatorManaged') }
     if (!provider.api_key_ref) return { usable: true, label: t('models.keyNotRequired') }
@@ -153,10 +155,15 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
     const { id, displayName, defaults, models } = validateProviderDraft(draft, validationCopy)
     const current = providers.find(provider => provider.id === id)
     if (!original && current) throw new Error(t('provider.errorDuplicateProvider', { id }))
+    const { webAccess, writes } = prepareWebCredentials(draft, t('provider.webKeyRequired'))
     const key = apiKey.trim()
     const credentialReference = key ? providerCredentialReference(id) : original?.api_key_ref ?? null
     if (key) {
       await api.request(executionTargetPath('/credentials', target), { headers: executionTargetHeaders(target), method: 'POST', body: { name: credentialReference, value: key } })
+      invalidateProviderInventory(target)
+    }
+    for (const credential of writes) {
+      await api.request(executionTargetPath('/credentials', target), { headers: executionTargetHeaders(target), method: 'POST', body: credential })
       invalidateProviderInventory(target)
     }
     await api.request(executionTargetPath('/providers', target), {
@@ -168,6 +175,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
         base_url: draft.baseUrl.trim().replace(/\/$/, ''),
         protocol: draft.protocol,
         hosted_tools: draft.hostedTools ?? null,
+        web_access: webAccess,
         api_key_ref: credentialReference,
         defaults,
         models,
@@ -201,23 +209,20 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
     try {
       await api.request(executionTargetPath(`/providers/${encodeURIComponent(provider.id)}`, target), { headers: executionTargetHeaders(target), method: 'DELETE' })
       invalidateProviderInventory(target)
-      const managedReference = credentials?.references.find((reference) => (
-        reference.reference === provider.api_key_ref
-        && reference.reference === providerCredentialReference(provider.id)
-        && reference.writable
-        && reference.source !== 'environment'
-      ))
-      if (managedReference) {
+      const prefix = providerCredentialReference(provider.id)
+      const otherReferences = new Set(providers.filter(item => item.id !== provider.id).flatMap(providerCredentialReferences))
+      const managedReferences = credentials?.references.filter(reference => (
+        providerCredentialReferences(provider).includes(reference.reference)
+        && (reference.reference === prefix || /^(?:SEARCH|FETCH)_(?:DEEPSEEK|BRAVE|TAVILY|SEARXNG)$/.test(reference.reference.slice(`${prefix}_WEB_`.length)) && reference.reference.startsWith(`${prefix}_WEB_`))
+        && !otherReferences.has(reference.reference) && reference.writable && reference.source !== 'environment'
+      )) ?? []
+      for (const reference of managedReferences) {
         try {
-          await api.request(executionTargetPath(`/credentials/${encodeURIComponent(managedReference.reference)}`, target), { headers: executionTargetHeaders(target), method: 'DELETE' })
+          await api.request(executionTargetPath(`/credentials/${encodeURIComponent(reference.reference)}`, target), { headers: executionTargetHeaders(target), method: 'DELETE' })
           invalidateProviderInventory(target)
         } catch (cause) {
-          await load(true)
-          setRemoveTarget(null)
-          setStatus({ kind: 'error', text: t('models.deletedKeyCleanupFailed', {
-            name: provider.display_name,
-            error: cause instanceof Error ? cause.message : String(cause),
-          }) })
+          await load(true); setRemoveTarget(null)
+          setStatus({ kind: 'error', text: t('models.deletedKeyCleanupFailed', { name: provider.display_name, error: cause instanceof Error ? cause.message : String(cause) }) })
           return
         }
       }
@@ -252,7 +257,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
           const writable = providerAuthoring && provider.source !== 'operator'
           const credential = keyState(provider)
           return <>
-        <div className={cn('rounded-xl border bg-card', editing === provider.id && 'border-primary/40')}>
+        <div data-provider-id={provider.id} className={cn('rounded-xl border bg-card', editing === provider.id && 'border-primary/40')}>
           <div className="flex min-w-0 items-center gap-3 p-4">
             <span
               className={cn('size-2.5 shrink-0 rounded-full border', credential.usable ? 'border-success bg-success' : 'border-muted-foreground/40')}
@@ -266,7 +271,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
           </div>
           <div className="flex flex-wrap gap-2 border-t px-4 py-3" data-provider-models="">{provider.models.map(model => <span key={model.id} className="max-w-full break-all rounded-md bg-muted px-2 py-1 text-xs" title={model.id}>{model.display_name || model.id}</span>)}</div>
         </div>
-        {editing === provider.id && <ProviderEditorCard key={provider.id} provider={provider} credentialConfigured={credentialConfigured(provider)} onCancel={() => setEditing(null)} onSave={(draft, key) => save(draft, key, provider)} onDiscover={discover} />}
+        {editing === provider.id && <ProviderEditorCard key={provider.id} provider={provider} credentialConfigured={credentialConfigured(provider)} webCredentialConfigured={webCredentialConfigured(provider)} onCancel={() => setEditing(null)} onSave={(draft, key) => save(draft, key, provider)} onDiscover={discover} />}
           </>
         })()}
       </React.Fragment>)}

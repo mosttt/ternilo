@@ -6,6 +6,22 @@ The default `web-fetch` plugin reads public pages directly without a Web API key
 
 These local tools run on the execution computer or Worker. Claude and DeepSeek Responses also support separately configured provider-hosted web tools below.
 
+## Follow the selected Provider
+
+To configure search once across your computers, edit a Provider under **My models → Account-owned → Custom settings → Web access**. Standalone Ternilo uses **Settings → Models**.
+
+Choose search and page reading separately: keep session plugins, turn the capability off, use a computer-executed service, or select supported model-hosted tools. Computer search supports DeepSeek, Brave, Tavily and SearXNG. Reading supports direct fetch or DeepSeek Markdown. DeepSeek search and reading can share one explicitly entered web API key. Addresses and limits are under advanced settings; the model relay address is not reused for web services.
+
+Sessions use the selected Provider’s web settings. Personal new sessions already select the default model and therefore use its Provider; there is no separate web default. Switching Providers switches their web tools. Missing `web_access` or **Use session plugins** preserves standalone plugins. Explicitly disabled preset/session tools stay disabled. Each capability has one selected implementation, without automatic source or credential fallback.
+
+The account stores one configuration and separate web credentials. Server remote sessions retrieve settings for their bound Provider. When the model comes from another computer, web tools still execute on the task computer. Web keys are provided only to authorized execution computers owned by the credential owner, not persisted in their credential stores, session history or plugin configuration. Shared model invocation rights do not authorize exporting web credentials to somebody else’s computer. Model keys are not automatically used for web calls.
+
+New dialogue tasks read updated settings. Configuration and authority are checked before each call. In-flight requests retain their original settings; later calls fail explicitly if settings or credentials have become invalid. Start a new task after configuration changes. All settings and individual plugin views show effective Provider-managed values; edit them in that Provider’s Web access section.
+
+Computer mode supports local Providers, Server account Providers and same-owner computer-forwarded Providers. Platform Providers do not export web credentials. Managed Worker sessions must use independent session plugins or hosted tools instead. Model-only Server device connections do not include computer web credentials. Built-in search remains an upstream service, not code executing on the task computer or Ternilo Server.
+
+The following sections configure independent plugins. Select **Use session plugins** when web access should remain independent of the model Provider.
+
 ## Choose a search service
 
 Add one search plugin to a custom Agent preset. All of them register `web_search`, so enable only one per preset. A failed request does not switch providers.
@@ -61,18 +77,18 @@ To read page content, disable the existing `web-fetch` plugin and add this one. 
 
 The model still calls `web_fetch({"url":"https://example.com/article"})` and receives the page title, original URL and Markdown body. Queries and target URLs are sent to DeepSeek; the execution computer does not fetch the target page directly. Availability depends on DeepSeek’s access and safety policies. Changes stay synchronized between All settings and individual plugin configuration.
 
-Both services use a DeepSeek API key independently of model Provider configuration. Billing is per successful request with a nonempty result; failures, timeouts and empty searches are not charged. See [DeepSeek search and fetch](https://api-docs.deepseek.com/guides/search/) for current pricing and rate limits. HTTP 402 requires topping up the credential’s account; 401 means check the credential; 403/404 means check or change the page; 429 means reduce request frequency. Errors do not echo upstream bodies or keys. Cancellation closes the active request.
+Both services use a DeepSeek API key, saved in Provider Web access or referenced from the execution computer by an independent plugin. Billing is per successful request with a nonempty result; failures, timeouts and empty searches are not charged. See [DeepSeek search and fetch](https://api-docs.deepseek.com/guides/search/) for current pricing and rate limits. HTTP 402 requires topping up the credential’s account; 401 means check the credential; 403/404 means check or change the page; 429 means reduce request frequency. Errors do not echo upstream bodies or keys. Cancellation closes the active request.
 
 ## DeepSeek Responses built-in search
 
-Choose the **DeepSeek Responses** protocol for a Provider, add `deepseek-v4-pro`, then enable **Custom settings → DeepSeek built-in search → Hosted web search**. Search is off by default and cannot be enabled for a Flash-only Provider. In a mixed Provider, only Pro uses built-in search; Flash and other models retain their local tools.
+Choose the **DeepSeek Responses** protocol, add `deepseek-v4-pro`, then select **Custom settings → Web access → Web search → Built-in · model provider**. It is not enabled by default and is unavailable in a Flash-only Provider. An explicit built-in selection rejects unsupported models; choose a supported model or computer search instead of relying on fallback.
 
 Provider configuration:
 
 ```json
 {
   "protocol": "deepseek-responses",
-  "hosted_tools": { "web_search": true }
+  "web_access": { "search": { "mode": "hosted" } }
 }
 ```
 
@@ -86,10 +102,11 @@ See the [DeepSeek Responses contract](https://api-docs.deepseek.com/guides/respo
 
 ## Claude hosted web tools
 
-In the Claude Provider editor, open Custom settings → Claude hosted web tools. Explicitly enable search and/or fetch and configure maximum calls per tool per request, fetched content tokens and domain filtering. Tools are disabled by default. Domains use bare names and optional paths, such as `example.com/docs`; choose an allow list or a block list.
+In the Claude Provider editor, open **Custom settings → Web access** and select **Built-in · model provider** for search and/or reading. Then configure maximum calls per tool per request, fetched content tokens and domain filtering. Hosted tools are not enabled by default. Domains use bare names and optional paths, such as `example.com/docs`; choose an allow list or a block list.
 
 ```json
 {
+  "web_access": { "search": { "mode": "hosted" }, "fetch": { "mode": "hosted" } },
   "hosted_tools": {
     "web_search": true,
     "web_fetch": true,

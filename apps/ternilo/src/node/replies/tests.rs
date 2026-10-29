@@ -71,8 +71,13 @@ async fn concurrent_duplicate_commands_share_one_cached_reply() {
 }
 
 #[tokio::test]
-async fn workspace_location_reply_is_not_persisted_in_the_node_command_cache() {
+async fn private_read_replies_are_not_persisted_or_cached() {
     for operation in [
+        ApplicationOperation::ProviderWebCredential {
+            provider_id: "private-provider".to_owned(),
+            capability: ternilo_protocol::WebCapability::Search,
+            expected: ternilo_protocol::ProviderWebAccess::default(),
+        },
         ApplicationOperation::WorkspaceLocation {
             workspace_id: ternilo_protocol::WorkspaceId::new("workspace"),
         },
@@ -107,7 +112,7 @@ async fn workspace_location_reply_is_not_persisted_in_the_node_command_cache() {
                     command.command_id.clone(),
                     2,
                     json!({
-                        "path": "/private/location", "home": "/private", "created_at_ms": 1,
+                        "api_key": "private-web-key", "path": "/private/location", "home": "/private", "created_at_ms": 1,
                         "base_profile": {"plugins":[{"id":"private-launch-config","config":{"path":"/private/base"}}]},
                     }),
                 ),
@@ -116,6 +121,13 @@ async fn workspace_location_reply_is_not_persisted_in_the_node_command_cache() {
             assert!(
                 matches!(cache.claim(&command).await.unwrap(), ReplyClaim::Execute),
                 "repeatable private read replies must not remain in the in-memory cache"
+            );
+            assert!(
+                matches!(
+                    cache.store.claim_node_command(&command, 3).await.unwrap(),
+                    NodeCommandClaim::Execute
+                ),
+                "private replies must not exist in the underlying durable journal"
             );
         }
         let reopened = ReplyCache::open(path).await.unwrap();

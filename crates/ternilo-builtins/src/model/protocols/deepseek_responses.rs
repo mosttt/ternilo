@@ -228,7 +228,13 @@ pub(super) fn request_body(model: &ProviderModel, request: &ModelRequest) -> Val
     if request.step != 0
         && let Some(hosted) = &model.hosted_tools
     {
-        crate::apply_hosted_web_tools(&mut body, hosted, model.protocol, &model.model);
+        crate::hosted_tools::apply_request_hosted_tools(
+            &mut body,
+            hosted,
+            model.protocol,
+            &model.model,
+            request,
+        );
     }
     body
 }

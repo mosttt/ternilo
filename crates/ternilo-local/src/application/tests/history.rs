@@ -225,6 +225,7 @@ async fn session_profile_overlay_drives_automatic_context_compaction() {
     );
     application
         .upsert_provider_profile(ProviderProfile {
+            web_access: None,
             hosted_tools: None,
             id: "small-context".to_owned(),
             display_name: "Small Context".to_owned(),

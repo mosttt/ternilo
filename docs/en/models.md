@@ -46,4 +46,4 @@ Managed execution, storage and task reservations stay with the original resource
 
 Claude Providers can explicitly enable provider-hosted web search/fetch. See [web tools](web-access.md#claude-hosted-web-tools).
 
-DeepSeek Responses Providers can enable [built-in search](web-access.md#deepseek-responses-built-in-search) for `deepseek-v4-pro`. The standalone Search/Fetch plugins work independently of the conversation model.
+DeepSeek Responses Providers can enable [built-in search](web-access.md#deepseek-responses-built-in-search) for `deepseek-v4-pro`. Computer-executed search/reading can be configured in the same Provider’s Web access section and follow model selection. Standalone plugins remain available; see [Provider web access](web-access.md#follow-the-selected-provider).

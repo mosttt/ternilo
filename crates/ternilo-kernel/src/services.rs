@@ -376,6 +376,7 @@ service_contract! {
             async fn resolve_input_references(references: Vec<SubmissionReference>, prepared_contexts: Vec<ReferenceContext>) -> Result<Vec<ReferenceContext>, HarnessError>;
             async fn session_mode() -> SessionMode;
             async fn permissions() -> PermissionPreset;
+            async fn resolve_provider_web_credential(run_id: RunId, capability: ternilo_protocol::WebCapability, expected: ternilo_protocol::ProviderWebAccess) -> Result<Option<String>, HarnessError>;
             async fn resolve_secret(name: String) -> Result<Option<String>, HarnessError>;
             async fn limits() -> RunLimits;
             async fn check_tool(call: ToolCall, effect: ToolEffect) -> Result<ToolAuthorization, HarnessError>;

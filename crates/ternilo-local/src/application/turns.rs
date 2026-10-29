@@ -160,8 +160,38 @@ impl LocalApplication {
         let attachments = self.attachments.save_many(attachments).await?;
         let lifecycle = self.session_lifecycle(session_id).await;
         let lifecycle_guard = lifecycle.lock().await;
-        let mut managed = self.ensure_session_locked(session_id).await?;
+        let refresh_web = if let TurnInput::Prompt(text) = &input
+            && text.trim_start().starts_with('/')
+        {
+            let cached = self.ensure_session_locked(session_id).await?;
+            cached
+                .harness
+                .resolve_command(text.clone())
+                .await
+                .is_none_or(|command| {
+                    command.result.is_ok_and(|call| {
+                        matches!(call.tool_name.as_str(), "web_search" | "web_fetch")
+                    })
+                })
+        } else {
+            true
+        };
+
+        let mut managed = self
+            .ensure_session_with_web_locked(session_id, refresh_web)
+            .await?;
+        let was_running = managed.harness.active_run().await.is_some();
         let mut gate = Arc::clone(&managed.gate).lock_owned().await;
+        if was_running {
+            let refreshed = self
+                .ensure_session_with_web_locked(session_id, refresh_web)
+                .await?;
+            if !Arc::ptr_eq(&managed, &refreshed) {
+                drop(gate);
+                managed = refreshed;
+                gate = Arc::clone(&managed.gate).lock_owned().await;
+            }
+        }
         self.stopping.check()?;
         self.account_authorizations
             .check(provenance.as_ref())
@@ -174,7 +204,9 @@ impl LocalApplication {
             drop(gate);
             self.live.write().await.remove(session_id);
             managed.harness.shutdown().await?;
-            managed = self.ensure_session_locked(session_id).await?;
+            managed = self
+                .ensure_session_with_web_locked(session_id, refresh_web)
+                .await?;
             gate = Arc::clone(&managed.gate).lock_owned().await;
         }
         if require_unpaused_inbox && self.inbox.snapshot(session_id).await?.paused {

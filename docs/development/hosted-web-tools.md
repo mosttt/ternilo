@@ -24,7 +24,7 @@ Provider 所有者通过 `hosted_tools` 显式启用供应商网页工具，默�
 
 ## DeepSeek Responses 内置搜索
 
-新增显式 DeepSeek Responses 策略，仅 `deepseek-v4-pro` 注入 `{"type":"web_search"}`；其他模型保留本机工具。Provider 对象继续使用 `hosted_tools`。Claude 原有次数、正文和域名配置合同保留；DeepSeek 不接受上游不支持的控制参数，所有者通过一个默认关闭的开关启用。
+初次接入的 `hosted_tools` 策略仅 `deepseek-v4-pro` 注入 `{"type":"web_search"}`；其他模型保留本机工具。Provider 对象继续使用 `hosted_tools`。Claude 原有次数、正文和域名配置合同保留；DeepSeek 不接受上游不支持的控制参数，此字段保留原有合同。当前统一入口与显式模式选择见 [Provider 网页访问](provider-web-access.md)。
 
 搜索调用、模型回答、函数调用和引用使用现有 `ModelProviderState` 持久化，按协议和模型匹配回放。SSE 搜索状态不转换成本机工具；搜索后调用本机工具仍能续传完整搜索历史。只有引用、没有新搜索调用的最终回答也保存来源。标准 OpenAI Responses 的状态与托管工具边界不变。
 
