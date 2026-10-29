@@ -639,6 +639,7 @@ fn provider(id: &str) -> ExtensionProviderContribution {
             reasoning: None,
         },
         models: vec![ProviderModel {
+            web_access: None,
             id: "fixture-model".to_owned(),
             display_name: None,
             settings: ProviderModelSettings::Inherit,

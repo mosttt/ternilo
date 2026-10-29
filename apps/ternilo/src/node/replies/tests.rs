@@ -75,6 +75,7 @@ async fn private_read_replies_are_not_persisted_or_cached() {
     for operation in [
         ApplicationOperation::ProviderWebCredential {
             provider_id: "private-provider".to_owned(),
+            model: "model".to_owned(),
             capability: ternilo_protocol::WebCapability::Search,
             expected: ternilo_protocol::ProviderWebAccess::default(),
         },

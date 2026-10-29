@@ -328,6 +328,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     reasoning: None,
                 },
                 models: vec![ProviderModel {
+                    web_access: None,
                     id: "signed-fixture-model".to_owned(),
                     display_name: Some("Signed Fixture Model".to_owned()),
                     settings: ProviderModelSettings::Inherit,

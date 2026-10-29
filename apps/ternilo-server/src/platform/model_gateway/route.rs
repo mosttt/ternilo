@@ -59,10 +59,9 @@ pub(super) fn resolve(
         .min(resolved.model.defaults.max_output_tokens);
     let max_output = u32::try_from(max_output)
         .map_err(|_| HarnessError::policy("model output limit exceeds u32"))?;
-    if let Some(web) = &resolved.provider.web_access {
-        web.validate_model(resolved.provider.protocol, &resolved.upstream_model)?;
-    }
-    let hosted_tools = resolved.provider.effective_hosted_tools();
+    let hosted_tools = resolved
+        .provider
+        .effective_hosted_tools(&resolved.upstream_model);
     Ok(ResolvedBrokeredRoute {
         route: ProviderModelRoute {
             provider: public_provider(&snapshot.binding).to_owned(),
@@ -193,6 +192,7 @@ mod tests {
                     api_key_ref: None,
                     defaults: limits.clone(),
                     models: vec![ProviderModel {
+                        web_access: None,
                         id: "internal-model".to_owned(),
                         display_name: None,
                         settings: ProviderModelSettings::Inherit,

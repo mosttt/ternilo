@@ -89,6 +89,7 @@ async fn extension_provider_materializes_create_only_and_survives_uninstall_for_
                     reasoning: None,
                 },
                 models: vec![ProviderModel {
+                    web_access: None,
                     id: "fixture-model".to_owned(),
                     display_name: Some("Fixture Model".to_owned()),
                     settings: ProviderModelSettings::Inherit,
@@ -213,6 +214,7 @@ async fn plugin_authorization_is_surface_scoped_single_flight_and_provider_keys_
                 reasoning: None,
             },
             models: vec![ProviderModel {
+                web_access: None,
                 id: "model-a".to_owned(),
                 display_name: None,
                 settings: ProviderModelSettings::Inherit,

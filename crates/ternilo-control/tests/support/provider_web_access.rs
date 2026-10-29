@@ -14,7 +14,7 @@ pub(super) async fn contract(
     let now = fixture.now + 500_000;
     let tenant = &fixture.tenant_a;
     let (original, mut provider) = configure_web_provider(store, fixture).await;
-    let web = provider.web_access.as_deref().unwrap().clone();
+    let web = *provider.effective_web_access("private-model").unwrap();
     let mut request = NodeWebAccessRequest {
         session_id: body.session_id.clone(),
         binding: body.binding.clone(),
@@ -196,7 +196,18 @@ async fn configure_web_provider(
     let mut web = ProviderWebAccess::default();
     web.search.mode = WebSearchMode::Deepseek;
     web.search.api_key_ref = Some("WEB_ONLY_KEY".into());
-    provider.web_access = Some(Box::new(web.clone()));
+    let mut defaults = ProviderWebAccess::default();
+    defaults.search.mode = WebSearchMode::Disabled;
+    provider.web_access = Some(Box::new(defaults));
+    provider
+        .models
+        .iter_mut()
+        .find(|model| model.id == "private-model")
+        .unwrap()
+        .web_access = Some(Box::new(ternilo_protocol::ProviderModelWebAccess {
+        search: Some(web.search.clone()),
+        fetch: None,
+    }));
     store
         .put_user_credential(&fixture.bob, tenant, "WEB_ONLY_KEY", "bob-web-secret", now)
         .await

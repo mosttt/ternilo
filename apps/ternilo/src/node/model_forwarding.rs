@@ -106,7 +106,11 @@ impl ForwardedModels {
                         error.code,
                         ternilo_protocol::ErrorCode::Execution
                             | ternilo_protocol::ErrorCode::Composition
-                    ) {
+                    ) && ternilo_builtins::ProviderHttpFailure::from_public_message(
+                        &error.message,
+                    )
+                    .is_none()
+                    {
                         "the source computer could not complete the model request"
                             .clone_into(&mut error.message);
                     }

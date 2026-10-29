@@ -170,6 +170,7 @@ mod tests {
                 reasoning: None,
             },
             models: vec![ProviderModel {
+                web_access: None,
                 id: "model-a".to_owned(),
                 display_name: Some("Model A".to_owned()),
                 settings: ProviderModelSettings::Inherit,

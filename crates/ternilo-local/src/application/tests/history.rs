@@ -238,6 +238,7 @@ async fn session_profile_overlay_drives_automatic_context_compaction() {
                 reasoning: None,
             },
             models: vec![ProviderModel {
+                web_access: None,
                 id: "small-model".to_owned(),
                 display_name: None,
                 settings: ProviderModelSettings::Inherit,

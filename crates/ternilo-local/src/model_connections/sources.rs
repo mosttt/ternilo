@@ -73,6 +73,7 @@ impl ModelConnection {
                         models: models
                             .iter()
                             .map(|model| ProviderModel {
+                                web_access: None,
                                 id: model.model_id.clone(),
                                 display_name: Some(model.display_name.clone()),
                                 settings: ProviderModelSettings::Override {

@@ -427,6 +427,7 @@ impl Fixture {
                             api_key_ref: None,
                             defaults: defaults(),
                             models: vec![ProviderModel {
+                                web_access: None,
                                 id: "internal-model".to_owned(),
                                 display_name: None,
                                 settings: ProviderModelSettings::Inherit,

@@ -72,6 +72,7 @@ pub async fn configure(
                 api_key_ref: None,
                 defaults: snapshot.defaults.clone(),
                 models: vec![ProviderModel {
+                    web_access: None,
                     id: model.to_owned(),
                     display_name: None,
                     settings: ProviderModelSettings::Inherit,

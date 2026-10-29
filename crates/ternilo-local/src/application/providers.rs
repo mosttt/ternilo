@@ -82,6 +82,20 @@ impl LocalApplication {
             }
         }
         for provider in self.providers.list().await {
+            for web in provider
+                .models
+                .iter()
+                .filter_map(|model| provider.effective_web_access(&model.id))
+            {
+                for capability in [
+                    ternilo_protocol::WebCapability::Search,
+                    ternilo_protocol::WebCapability::Fetch,
+                ] {
+                    if let Some(reference) = web.credential(capability) {
+                        references.insert(reference.to_owned());
+                    }
+                }
+            }
             if let Some(reference) = provider.api_key_ref {
                 references.insert(reference);
             }

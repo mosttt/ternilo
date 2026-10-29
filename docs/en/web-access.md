@@ -10,17 +10,19 @@ These local tools run on the execution computer or Worker. Claude and DeepSeek R
 
 To configure search once across your computers, edit a Provider under **My models → Account-owned → Custom settings → Web access**. Standalone Ternilo uses **Settings → Models**.
 
-Choose search and page reading separately: keep session plugins, turn the capability off, use a computer-executed service, or select supported model-hosted tools. Computer search supports DeepSeek, Brave, Tavily and SearXNG. Reading supports direct fetch or DeepSeek Markdown. DeepSeek search and reading can share one explicitly entered web API key. Addresses and limits are under advanced settings; the model relay address is not reused for web services.
+Choose search and page reading separately: Off, Model built-in, or External integration · service name. Session plugins preserve independent plugin settings; direct reading fetches pages on the task computer. Computer search supports DeepSeek, Brave, Tavily and SearXNG. Reading supports direct fetch or DeepSeek Markdown. DeepSeek search and reading can share one explicitly entered web API key. Addresses and limits are under advanced settings; the model relay address is not reused for web services.
 
-Sessions use the selected Provider’s web settings. Personal new sessions already select the default model and therefore use its Provider; there is no separate web default. Switching Providers switches their web tools. Missing `web_access` or **Use session plugins** preserves standalone plugins. Explicitly disabled preset/session tools stay disabled. Each capability has one selected implementation, without automatic source or credential fallback.
+The Provider supplies defaults. Expand a model’s details to inherit each capability or override search and reading independently. Inherit Provider shows the effective choice. Overriding search does not change reading, capacity or reasoning. Account-owned models use account settings; device-local models use their source computer’s settings. External web tools still run on the task computer.
+
+For example, a Provider can default to external DeepSeek search while one model overrides search to Model built-in. New sessions use their default model’s web settings; switching models switches those settings. Inheritance references the original credential without copying its secret. Entering a separate model web key does not overwrite Provider or sibling keys. Missing `web_access` or External integration · session plugins preserves standalone plugins. Explicitly disabled preset/session tools stay disabled, without automatic source or credential fallback.
 
 The account stores one configuration and separate web credentials. Server remote sessions retrieve settings for their bound Provider. When the model comes from another computer, web tools still execute on the task computer. Web keys are provided only to authorized execution computers owned by the credential owner, not persisted in their credential stores, session history or plugin configuration. Shared model invocation rights do not authorize exporting web credentials to somebody else’s computer. Model keys are not automatically used for web calls.
 
-New dialogue tasks read updated settings. Configuration and authority are checked before each call. In-flight requests retain their original settings; later calls fail explicitly if settings or credentials have become invalid. Start a new task after configuration changes. All settings and individual plugin views show effective Provider-managed values; edit them in that Provider’s Web access section.
+New dialogue tasks read updated settings. Configuration and authority are checked before each call. In-flight requests retain their original settings; later calls fail explicitly if settings or credentials have become invalid. Start a new task after configuration changes. All settings and individual plugin views show the selected model’s effective settings; edit the model details or its Provider’s Web access section.
 
 Computer mode supports local Providers, Server account Providers and same-owner computer-forwarded Providers. Platform Providers do not export web credentials. Managed Worker sessions must use independent session plugins or hosted tools instead. Model-only Server device connections do not include computer web credentials. Built-in search remains an upstream service, not code executing on the task computer or Ternilo Server.
 
-The following sections configure independent plugins. Select **Use session plugins** when web access should remain independent of the model Provider.
+The following sections configure independent plugins. Select **External integration · session plugins** when web access should remain independent of the model Provider.
 
 ## Choose a search service
 
@@ -81,7 +83,9 @@ Both services use a DeepSeek API key, saved in Provider Web access or referenced
 
 ## DeepSeek Responses built-in search
 
-Choose the **DeepSeek Responses** protocol, add `deepseek-v4-pro`, then select **Custom settings → Web access → Web search → Built-in · model provider**. It is not enabled by default and is unavailable in a Flash-only Provider. An explicit built-in selection rejects unsupported models; choose a supported model or computer search instead of relying on fallback.
+Choose the **DeepSeek Responses** protocol and select **Custom settings → Web access → Web search → Model built-in**, or override search only for a specific model. It is not enabled by default.
+
+Ternilo does not maintain a model-name allowlist or block session creation and model selection because of hosted search. Message requests include the selected tool; the upstream provider determines support. Explicit search/reading rejections appear in the conversation with recovery guidance. Messages and existing output remain available; change the model or web settings and send again. Unsupported requests are not retried or silently downgraded. Error details use safe diagnostics rather than echoing upstream text that may contain shared credentials.
 
 Provider configuration:
 
@@ -98,11 +102,11 @@ The same setting applies to local Providers, Server account/platform models, com
 
 DeepSeek does not currently support built-in search call limits, domain filters or built-in Fetch settings, so these controls are not shown. Server reserves an estimate using the full context and maximum output, then settles reported usage. This reservation cannot impose a hard limit on provider-internal generation or additional search charges. The DeepSeek account pays those charges; Ternilo token budgets are not spending caps. Use the standalone plugins when you need explicit control over each search and fetch call.
 
-See the [DeepSeek Responses contract](https://api-docs.deepseek.com/guides/responses_api/). The official API currently supports `web_search` only for `deepseek-v4-pro`; this setting does not enable search for standard OpenAI Responses or Flash.
+See the [DeepSeek Responses contract](https://api-docs.deepseek.com/guides/responses_api/). Model support is determined by the upstream response. Standard OpenAI Responses hosted tool encoding is not yet implemented and cannot be enabled merely by renaming a model.
 
 ## Claude hosted web tools
 
-In the Claude Provider editor, open **Custom settings → Web access** and select **Built-in · model provider** for search and/or reading. Then configure maximum calls per tool per request, fetched content tokens and domain filtering. Hosted tools are not enabled by default. Domains use bare names and optional paths, such as `example.com/docs`; choose an allow list or a block list.
+In the Claude Provider editor, open **Custom settings → Web access** and select **Model built-in** for search and/or reading. Then configure maximum calls per tool per request, fetched content tokens and domain filtering. Hosted tools are not enabled by default. Domains use bare names and optional paths, such as `example.com/docs`; choose an allow list or a block list.
 
 ```json
 {

@@ -2,6 +2,10 @@
 
 本清单区分默认分支已交付能力、待完成工作、待调查问题和未排期扩展。已公开版本见[发行说明](../zh-CN/releases/0.2.29.md)，当前补丁见[v0.2.29 验收](release-0.2.29-acceptance.md)。Work 不在当前实施范围；既有可选 Worker 的恢复和执行环境仍单独保留。
 
+## 当前开发
+
+模型级网页配置已实现并通过本机／Server Node、跨电脑及中英韩浏览器验证，尚未发布：Provider 默认值与模型独立覆盖、统一外部集成选项，以及取消内置搜索的模型名称白名单。技术状态见[Provider 网页访问](provider-web-access.md#模型级配置)。
+
 ## 当前公开版本
 
 v0.2.29 已公开 DeepSeek 独立搜索／抓取、Responses 内置搜索和 Provider 统一网页配置，完成本机、Server Node、跨电脑、三语及真实 SDK 的公开成品验收。对应第 35、29 项的 DeepSeek 部分，其余协议与供应商保留原边界。首次升级需统一更新 Server 与电脑端，见[发行验收](release-0.2.29-acceptance.md)。
@@ -41,7 +45,7 @@ v0.2.28 已合入 main 并公开，交付模型转发保活与请求诊断、Res
 | 26 | 通用执行环境目录 | 未定级／未排期；仅保留现有 Node／Worker 范围的独立能力，不纳入 Work 容器产品 |
 | 27 | 执行池与完整组合授权 | 未定级／未排期；既有 Worker 执行基础不等于完整执行池 |
 | 28 | Claude 更完整的供应商托管工具 | 动态过滤、供应商代码执行等未排期；已完成基本托管搜索／网页读取，见[记录](hosted-web-tools.md) |
-| 29 | Responses 等其他协议的供应商托管工具 | DeepSeek Responses 内置搜索已实现并通过四条模型来源、三语配置及历史／引用浏览器验收，仅 `deepseek-v4-pro` 启用；见[技术记录](hosted-web-tools.md)。标准 OpenAI Responses 和其他未适配协议／工具仍待推进 |
+| 29 | Responses 等其他协议的供应商托管工具 | DeepSeek Responses 内置搜索已实现并通过四条模型来源、三语配置及历史／引用浏览器验收，开发分支已取消模型名称白名单，以上游响应为准；见[技术记录](hosted-web-tools.md)。标准 OpenAI Responses 和其他未适配协议／工具仍待推进 |
 | 30 | Vertex AI 与相应 OAuth 认证接入 | 未排期 |
 | 31 | Amazon Bedrock 接入 | 未排期 |
 | 32 | 供应商 Files API 上传与文件引用 | 未排期；已有图片／附件输入不等于供应商文件服务 |

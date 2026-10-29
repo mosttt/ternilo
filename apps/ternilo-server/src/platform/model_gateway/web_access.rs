@@ -52,11 +52,12 @@ pub(super) async fn node_web_access(
         owner_user_id,
         executor_id,
         provider_id,
-        ..
+        model,
     } = &body.binding
     {
         state.store.node_web_snapshot(&node, &body).await?;
         let provider = crate::platform::computer_models::profile(state, &body.binding).await?;
+        let web = provider.effective_web_access(model);
         let api_key = if let Some(capability) = body.credential {
             if owner_user_id != &node.scope.user_id {
                 return Err(HarnessError::policy(
@@ -67,7 +68,7 @@ pub(super) async fn node_web_access(
             let expected = body.expected.ok_or_else(|| {
                 HarnessError::policy("web credential requires its selected configuration")
             })?;
-            if provider.web_access.as_ref() != Some(&expected) {
+            if web.as_ref() != Some(&expected) {
                 return Err(HarnessError::conflict(
                     "Provider web settings changed; start a new task",
                 )
@@ -80,6 +81,7 @@ pub(super) async fn node_web_access(
                     &ExecutorId::new(executor_id),
                     ApplicationOperation::ProviderWebCredential {
                         provider_id: provider_id.clone(),
+                        model: model.clone(),
                         capability,
                         expected: *expected,
                     },
@@ -91,7 +93,7 @@ pub(super) async fn node_web_access(
             None
         };
         return Ok(Json(ProviderWebAccessReply {
-            configuration: provider.web_access,
+            configuration: web,
             api_key,
         }));
     }

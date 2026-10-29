@@ -1294,6 +1294,7 @@ fn provider(display_name: &str, base_url: &str) -> ProviderProfile {
             reasoning: None,
         },
         models: vec![ProviderModel {
+            web_access: None,
             id: "model".to_owned(),
             display_name: None,
             settings: ProviderModelSettings::Inherit,

@@ -130,10 +130,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
     )),
   )
 
-  const webCredentialConfigured = (provider: ProviderProfile) => ({
-    search: Boolean(provider.web_access?.search.api_key_ref && credentials?.references.some(item => item.reference === provider.web_access?.search.api_key_ref && item.configured)),
-    fetch: Boolean(provider.web_access?.fetch.api_key_ref && credentials?.references.some(item => item.reference === provider.web_access?.fetch.api_key_ref && item.configured)),
-  })
+  const configuredWebCredentials = new Set(credentials?.references.filter(item => item.configured).map(item => item.reference))
 
   const keyState = (provider: ProviderProfile) => {
     if (provider.source === 'operator') return { usable: true, label: t('models.operatorManaged') }
@@ -155,7 +152,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
     const { id, displayName, defaults, models } = validateProviderDraft(draft, validationCopy)
     const current = providers.find(provider => provider.id === id)
     if (!original && current) throw new Error(t('provider.errorDuplicateProvider', { id }))
-    const { webAccess, writes } = prepareWebCredentials(draft, t('provider.webKeyRequired'))
+    const { webAccess, modelWebAccess, writes } = prepareWebCredentials(draft, t('provider.webKeyRequired'))
     const key = apiKey.trim()
     const credentialReference = key ? providerCredentialReference(id) : original?.api_key_ref ?? null
     if (key) {
@@ -178,7 +175,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
         web_access: webAccess,
         api_key_ref: credentialReference,
         defaults,
-        models,
+        models: models.map((model, index) => ({ ...model, web_access: modelWebAccess[index] ?? null })),
         timeout_ms: draft.timeoutMs,
         max_attempts: draft.maxAttempts,
         retry_base_delay_ms: draft.retryBaseDelayMs,
@@ -213,7 +210,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
       const otherReferences = new Set(providers.filter(item => item.id !== provider.id).flatMap(providerCredentialReferences))
       const managedReferences = credentials?.references.filter(reference => (
         providerCredentialReferences(provider).includes(reference.reference)
-        && (reference.reference === prefix || /^(?:SEARCH|FETCH)_(?:DEEPSEEK|BRAVE|TAVILY|SEARXNG)$/.test(reference.reference.slice(`${prefix}_WEB_`.length)) && reference.reference.startsWith(`${prefix}_WEB_`))
+        && (reference.reference === prefix || /^(?:MODEL_[A-F0-9]+_)?(?:SEARCH|FETCH)_(?:DEEPSEEK|BRAVE|TAVILY|SEARXNG)$/.test(reference.reference.slice(`${prefix}_WEB_`.length)) && reference.reference.startsWith(`${prefix}_WEB_`))
         && !otherReferences.has(reference.reference) && reference.writable && reference.source !== 'environment'
       )) ?? []
       for (const reference of managedReferences) {
@@ -271,7 +268,7 @@ export function ProviderLibrary({ target, scope, title, description, authorable 
           </div>
           <div className="flex flex-wrap gap-2 border-t px-4 py-3" data-provider-models="">{provider.models.map(model => <span key={model.id} className="max-w-full break-all rounded-md bg-muted px-2 py-1 text-xs" title={model.id}>{model.display_name || model.id}</span>)}</div>
         </div>
-        {editing === provider.id && <ProviderEditorCard key={provider.id} provider={provider} credentialConfigured={credentialConfigured(provider)} webCredentialConfigured={webCredentialConfigured(provider)} onCancel={() => setEditing(null)} onSave={(draft, key) => save(draft, key, provider)} onDiscover={discover} />}
+        {editing === provider.id && <ProviderEditorCard key={provider.id} provider={provider} credentialConfigured={credentialConfigured(provider)} configuredWebCredentials={configuredWebCredentials} onCancel={() => setEditing(null)} onSave={(draft, key) => save(draft, key, provider)} onDiscover={discover} />}
           </>
         })()}
       </React.Fragment>)}

@@ -96,11 +96,16 @@ impl ControlStore {
         now_ms: u64,
     ) -> Result<ModelProviderRecord, HarnessError> {
         input.profile.validate()?;
-        if input
-            .profile
+        let profile = &input.profile;
+        if profile
             .web_access
             .as_ref()
             .is_some_and(|web| web.uses_computer())
+            || profile.models.iter().any(|model| {
+                profile
+                    .effective_web_access(&model.id)
+                    .is_some_and(|web| web.uses_computer())
+            })
         {
             return Err(HarnessError::invalid(
                 "platform Providers cannot export computer web credentials; configure web access on an account or device Provider",

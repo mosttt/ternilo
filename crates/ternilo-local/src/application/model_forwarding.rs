@@ -44,9 +44,6 @@ impl LocalApplication {
                 "the source computer model protocol changed after selection",
             ));
         }
-        if let Some(web) = &provider.web_access {
-            web.validate_model(provider.protocol, &request.model)?;
-        }
         let current = provider.resolved_model(&request.model)?;
         let reasoning_effort = request
             .resolved_model()
@@ -92,7 +89,7 @@ impl LocalApplication {
             api_key: api_key.clone(),
             observer,
         });
-        let hosted_tools = provider.effective_hosted_tools();
+        let hosted_tools = provider.effective_hosted_tools(&request.model);
         let route = ProviderModelRoute {
             provider: provider.id,
             base_url: provider.base_url,
@@ -163,7 +160,8 @@ impl SourcePolicy {
         available.display_name = None;
         if current.base_url != self.provider.base_url
             || current.protocol != self.provider.protocol
-            || current.effective_hosted_tools() != self.provider.effective_hosted_tools()
+            || current.effective_hosted_tools(&self.model)
+                != self.provider.effective_hosted_tools(&self.model)
             || current.api_key_ref != self.provider.api_key_ref
             || current.timeout_ms != self.provider.timeout_ms
             || current.max_attempts != self.provider.max_attempts

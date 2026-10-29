@@ -112,7 +112,6 @@ impl RunModelSnapshot {
         self.binding.validate()?;
         if let Some(web) = &self.web_access {
             web.validate(self.protocol)?;
-            web.validate_model(self.protocol, self.binding.model_id())?;
         }
         crate::validate_model_defaults(&self.defaults, "run model snapshot")?;
         validate_reference(&self.display_name, "model display name", 200)?;

@@ -21,12 +21,12 @@ pub struct HostedWebTools {
 }
 
 impl HostedWebTools {
-    /// Only explicitly supported model/protocol pairs receive hosted tools.
+    /// The adapter determines request format; the supplier determines model support.
     #[must_use]
-    pub fn applies_to(&self, protocol: ProviderProtocol, model: &str) -> bool {
+    pub fn applies_to(&self, protocol: ProviderProtocol, _model: &str) -> bool {
         match protocol {
             ProviderProtocol::AnthropicMessages => self.web_search || self.web_fetch,
-            ProviderProtocol::DeepSeekResponses => self.web_search && model == "deepseek-v4-pro",
+            ProviderProtocol::DeepSeekResponses => self.web_search,
             _ => false,
         }
     }
@@ -95,7 +95,7 @@ mod tests {
             .validate(ProviderProtocol::DeepSeekResponses)
             .unwrap();
         assert!(deepseek.applies_to(ProviderProtocol::DeepSeekResponses, "deepseek-v4-pro"));
-        assert!(!deepseek.applies_to(ProviderProtocol::DeepSeekResponses, "deepseek-flash"));
+        assert!(deepseek.applies_to(ProviderProtocol::DeepSeekResponses, "deepseek-flash"));
         assert!(!deepseek.applies_to(ProviderProtocol::OpenAiResponses, "deepseek-v4-pro"));
         assert!(
             deepseek

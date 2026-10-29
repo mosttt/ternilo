@@ -49,6 +49,7 @@ impl Fixture {
                 api_key_ref: Some("FORWARDING_TEST_KEY".to_owned()),
                 defaults: defaults.clone(),
                 models: vec![ProviderModel {
+                    web_access: None,
                     id: "test-model".to_owned(),
                     display_name: None,
                     settings: ProviderModelSettings::Inherit,
@@ -343,6 +344,33 @@ async fn upstream_errors_cannot_echo_source_credentials_to_the_server() {
     assert!(
         matches!(next(&mut receiver, &id).await, ModelGatewayFrame::Error { error } if error.code == ErrorCode::Execution)
     );
+    models.reap().await.unwrap();
+    upstream.await.unwrap();
+    fixture.application.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn safe_upstream_web_rejections_survive_source_redaction() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let fixture = Fixture::new(listener.local_addr().unwrap()).await;
+    let upstream = tokio::spawn(async move {
+        let (mut socket, _) = accept_request(&listener).await;
+        let body = json!({"error":{"code":"unsupported_tool","param":"web_search","message":format!("web_search is not supported; {SOURCE_KEY}")}}).to_string();
+        socket.write_all(format!("HTTP/1.1 400 Bad Request\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+    });
+    let (mut models, mut receiver) = fixture.forwarding();
+    let id = ModelRequestId::new("web-rejection-test");
+    models
+        .start(id.clone(), &fixture.scope, fixture.request.clone())
+        .unwrap();
+    let ModelGatewayFrame::Error { error } = next(&mut receiver, &id).await else {
+        panic!("expected upstream rejection");
+    };
+    assert!(
+        error.message.contains("HTTP 400; unsupported_web_search"),
+        "{error}"
+    );
+    assert!(!error.message.contains(SOURCE_KEY));
     models.reap().await.unwrap();
     upstream.await.unwrap();
     fixture.application.shutdown().await.unwrap();

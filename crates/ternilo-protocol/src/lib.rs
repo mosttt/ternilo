@@ -31,8 +31,8 @@ mod model_settings;
 pub use model_settings::{ProviderModelValues, ProviderReasoningSetting};
 mod provider_web;
 pub use provider_web::{
-    NodeRunContext, NodeWebAccessRequest, ProviderFetch, ProviderSearch, ProviderWebAccess,
-    ProviderWebAccessReply, WebCapability, WebFetchMode, WebSearchMode,
+    NodeRunContext, NodeWebAccessRequest, ProviderFetch, ProviderModelWebAccess, ProviderSearch,
+    ProviderWebAccess, ProviderWebAccessReply, WebCapability, WebFetchMode, WebSearchMode,
 };
 mod hosted_tools;
 pub use hosted_tools::HostedWebTools;
@@ -765,6 +765,8 @@ impl ReasoningEffort {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderModel {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_access: Option<Box<ProviderModelWebAccess>>,
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
@@ -949,17 +951,12 @@ impl ProviderProfile {
         if let Some(web) = &self.web_access {
             web.validate(self.protocol)?;
         }
-        if let Some(tools) = self.effective_hosted_tools() {
-            tools.validate(self.protocol)?;
-            if self.protocol == ProviderProtocol::DeepSeekResponses
-                && !self
-                    .models
-                    .iter()
-                    .any(|model| tools.applies_to(self.protocol, &model.id))
-            {
-                return Err(HarnessError::invalid(
-                    "DeepSeek hosted search requires a deepseek-v4-pro model in this Provider",
-                ));
+        for model in &self.models {
+            if let Some(web) = self.effective_web_access(&model.id) {
+                web.validate(self.protocol)?;
+            }
+            if let Some(tools) = self.effective_hosted_tools(&model.id) {
+                tools.validate(self.protocol)?;
             }
         }
         Ok(())
@@ -3489,11 +3486,13 @@ mod tests {
             },
             models: vec![
                 ProviderModel {
+                    web_access: None,
                     id: "model-a".to_owned(),
                     display_name: None,
                     settings: ProviderModelSettings::Inherit,
                 },
                 ProviderModel {
+                    web_access: None,
                     id: "model-b".to_owned(),
                     display_name: None,
                     settings: ProviderModelSettings::Override {
