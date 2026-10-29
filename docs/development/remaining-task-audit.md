@@ -6,6 +6,8 @@
 
 模型级网页配置已实现并通过本机／Server Node、跨电脑及中英韩浏览器验证，尚未发布：Provider 默认值与模型独立覆盖、统一外部集成选项，以及取消内置搜索的模型名称白名单。技术状态见[Provider 网页访问](provider-web-access.md#模型级配置)。
 
+独立维护通道已实现并通过隔离签名升级闭环，随 v0.2.30 候选准备发行：执行协议不匹配时保留电脑更新能力，首次启用需手动升级到 v0.2.30。技术状态见[维护通道](client-maintenance-channel.md)。
+
 ## 当前公开版本
 
 v0.2.29 已公开 DeepSeek 独立搜索／抓取、Responses 内置搜索和 Provider 统一网页配置，完成本机、Server Node、跨电脑、三语及真实 SDK 的公开成品验收。对应第 35、29 项的 DeepSeek 部分，其余协议与供应商保留原边界。首次升级需统一更新 Server 与电脑端，见[发行验收](release-0.2.29-acceptance.md)。

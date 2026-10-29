@@ -34,7 +34,7 @@ pub(crate) async fn initialize(database: &Database) -> Result<(), HarnessError> 
         .await
 }
 
-async fn read_job(
+pub(crate) async fn read_job(
     tx: &mut Transaction,
     tenant: &TenantId,
     executor: &ExecutorId,
@@ -49,7 +49,7 @@ async fn read_job(
     .map_err(database_error)?
     .map(|json| json.0))
 }
-fn digest_token(token: &str) -> String {
+pub(crate) fn digest_token(token: &str) -> String {
     use std::fmt::Write as _;
     token_hash(token)
         .iter()
@@ -229,23 +229,41 @@ impl EdgeStore {
         hello.client = Some(info.clone());
         let changed = sqlx::query("UPDATE control_edge_executors SET hello_json=$3 WHERE tenant_id=$1 AND executor_id=$2 AND hello_json=$4")
             .bind(tenant.as_str()).bind(executor.as_str()).bind(Json(&hello)).bind(original).execute(&mut *tx).await.map_err(database_error)?.rows_affected() == 1;
-        if changed
-            && let Some(progress) = &info.progress
-            && let Some(mut job) = read_job(&mut tx, tenant, executor).await?
-            && job.progress.id == progress.id
-            && job.progress.version == progress.version
-            && progress.revision > job.progress.revision
-        {
-            if progress.phase == ClientUpdatePhase::Completed && info.version != progress.version {
-                return Err(HarnessError::policy(
-                    "computer did not reconnect with the requested version",
-                ));
-            }
-            job.progress = progress.clone();
-            sqlx::query("UPDATE control_client_updates SET job_json=$3 WHERE tenant_id=$1 AND executor_id=$2")
-                .bind(tenant.as_str()).bind(executor.as_str()).bind(Json(&job)).execute(&mut *tx).await.map_err(database_error)?;
+        if changed {
+            update_job_progress(&mut tx, tenant, executor, &info).await?;
         }
         tx.commit().await.map_err(database_error)?;
         Ok(changed)
     }
+}
+
+pub(crate) async fn update_job_progress(
+    tx: &mut Transaction,
+    tenant: &TenantId,
+    executor: &ExecutorId,
+    info: &ClientUpdateInfo,
+) -> Result<(), HarnessError> {
+    if let Some(progress) = &info.progress
+        && let Some(mut job) = read_job(tx, tenant, executor).await?
+        && job.progress.id == progress.id
+        && job.progress.version == progress.version
+        && progress.revision > job.progress.revision
+    {
+        if progress.phase == ClientUpdatePhase::Completed && info.version != progress.version {
+            return Err(HarnessError::policy(
+                "computer did not reconnect with the requested version",
+            ));
+        }
+        job.progress = progress.clone();
+        sqlx::query(
+            "UPDATE control_client_updates SET job_json=$3 WHERE tenant_id=$1 AND executor_id=$2",
+        )
+        .bind(tenant.as_str())
+        .bind(executor.as_str())
+        .bind(Json(&job))
+        .execute(&mut **tx)
+        .await
+        .map_err(database_error)?;
+    }
+    Ok(())
 }

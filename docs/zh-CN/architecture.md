@@ -61,6 +61,8 @@ flowchart LR
 
 Transport 不依赖 Linorun 或本地状态。Node 接收经过认证的本地应用操作；Worker 通过 `ternilo-cloud` 的版本化 HTTP 协议取得 Server 编译和授权的 `RunSpec`。两种执行位置复用身份和执行数据类型，但接入协议和可执行操作各自明确，不能互换。
 
+Node 的维护通道使用独立版本的 HTTPS Hello／Poll 协议，沿用登记身份，但不依赖任务 WebSocket 握手成功。Server 持久保存维护身份、短期命令与回复；执行协议不匹配时仍可投递签名更新，安装完成并恢复任务连接后确认成功。维护协议不携带应用操作，详见[客户端更新](client-updates.md)。
+
 ### 内核与 Linorun
 
 Linorun 是独立通用库，负责组件生命周期、服务路由、依赖激活和组件退出时的清理，不了解 Agent、用户或租户。`ternilo-kernel` 在其上提供最小的 Agent 启动能力：

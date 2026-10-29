@@ -44,8 +44,9 @@ pub(crate) struct RemoteUpdater {
     endpoint: String,
     scope: tokio::sync::RwLock<Option<ternilo_transport::ExecutorScope>>,
     executor_id: String,
-    outgoing:
-        tokio::sync::RwLock<Option<tokio::sync::mpsc::Sender<ternilo_transport::ExecutorFrame>>>,
+    connected: std::sync::atomic::AtomicBool,
+    execution_connected: std::sync::atomic::AtomicBool,
+    changed: tokio::sync::Notify,
     client: reqwest::Client,
     enabled_at_start: bool,
 }
@@ -82,7 +83,9 @@ impl RemoteUpdater {
             endpoint,
             scope: tokio::sync::RwLock::new(None),
             executor_id: node_id.to_owned(),
-            outgoing: tokio::sync::RwLock::new(None),
+            connected: std::sync::atomic::AtomicBool::new(false),
+            execution_connected: std::sync::atomic::AtomicBool::new(false),
+            changed: tokio::sync::Notify::new(),
             client,
             enabled_at_start: installation_registered,
         }))
@@ -91,12 +94,7 @@ impl RemoteUpdater {
     pub(crate) async fn info(&self) -> Result<ClientUpdateInfo, HarnessError> {
         let root = self.application.data_dir();
         let settings = load_settings(root)?;
-        let connected = self
-            .outgoing
-            .read()
-            .await
-            .as_ref()
-            .is_some_and(|sender| !sender.is_closed());
+        let connected = self.connected.load(std::sync::atomic::Ordering::Relaxed);
         {
             let mut state = self.state.lock().await;
             if let Some(progress) = read_progress(root)? {
@@ -104,6 +102,9 @@ impl RemoteUpdater {
             }
             if let Some(progress) = &mut state.progress
                 && connected
+                && self
+                    .execution_connected
+                    .load(std::sync::atomic::Ordering::Relaxed)
                 && progress.phase == ClientUpdatePhase::AwaitingReconnect
                 && progress.version == env!("CARGO_PKG_VERSION")
                 && crate::service::discover(root)
@@ -142,13 +143,10 @@ impl RemoteUpdater {
         })
     }
 
-    pub(crate) async fn connected(
-        self: &Arc<Self>,
-        outgoing: tokio::sync::mpsc::Sender<ternilo_transport::ExecutorFrame>,
-        scope: &ternilo_transport::ExecutorScope,
-    ) {
+    pub(crate) async fn connected(self: &Arc<Self>, scope: &ternilo_transport::ExecutorScope) {
         *self.scope.write().await = Some(scope.clone());
-        *self.outgoing.write().await = Some(outgoing);
+        self.connected
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         let progress = self.state.lock().await.progress.clone();
         if let Some(progress) = progress
             && !progress.phase.terminal()
@@ -165,45 +163,21 @@ impl RemoteUpdater {
                 )
                 .await;
         }
-        let _ = self.report().await;
-        let updater = Arc::clone(self);
-        tokio::spawn(async move {
-            for _ in 0..120 {
-                let awaiting =
-                    updater
-                        .state
-                        .lock()
-                        .await
-                        .progress
-                        .as_ref()
-                        .is_some_and(|progress| {
-                            progress.phase == ClientUpdatePhase::AwaitingReconnect
-                                && progress.version == env!("CARGO_PKG_VERSION")
-                        });
-                if !awaiting {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(500)).await;
-                let _ = updater.report().await;
-            }
-        });
+        self.changed.notify_one();
     }
 
-    async fn report(&self) -> Result<(), HarnessError> {
-        let outgoing = self.outgoing.read().await.clone();
-        if let Some(outgoing) = outgoing {
-            outgoing
-                .send(ternilo_transport::ExecutorFrame::ClientUpdateState {
-                    info: self.info().await?,
-                })
-                .await
-                .map_err(|_| {
-                    HarnessError::unavailable(
-                        "Server connection closed before reporting the update",
-                    )
-                })?;
-        }
-        Ok(())
+    pub(crate) fn set_execution_connected(&self, connected: bool) {
+        self.execution_connected
+            .store(connected, std::sync::atomic::Ordering::Relaxed);
+        self.changed.notify_one();
+    }
+
+    pub(crate) fn disconnected(&self) {
+        self.connected
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+    pub(crate) async fn changed(&self) {
+        self.changed.notified().await;
     }
 
     async fn set_progress(
@@ -238,7 +212,7 @@ impl RemoteUpdater {
                 progress,
             )?;
         }
-        let _ = self.report().await;
+        self.changed.notify_one();
         Ok(())
     }
 
@@ -320,7 +294,7 @@ impl RemoteUpdater {
             state.cancellation = Some(cancellation.clone());
         }
         drop(operation);
-        let _ = self.report().await;
+        self.changed.notify_one();
         let updater = Arc::clone(self);
         tokio::spawn(async move {
             let result = updater.prepare(request, settings, cancellation).await;

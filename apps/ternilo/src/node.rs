@@ -45,6 +45,7 @@ mod model_gateway;
 mod application;
 mod cleanup;
 mod events;
+mod maintenance;
 mod replies;
 pub(crate) use cleanup::server_binding;
 #[path = "node/uploads.rs"]
@@ -92,7 +93,26 @@ pub async fn connect(
         executor_id.as_str(),
         installation_registered,
     )?;
-    let connection = maintain_connection(
+    // Standalone Relay connections do not expose Server lifecycle APIs.
+    let server_channel =
+        reqwest::Url::parse(gateway_url).is_ok_and(|url| url.path() == "/api/v1/executors/connect");
+    let (gate, execution_ready) = tokio::sync::watch::channel(!server_channel);
+    let maintenance = async {
+        if !server_channel {
+            return std::future::pending::<Result<(), HarnessError>>().await;
+        }
+        maintenance::run(
+            gateway_url,
+            token,
+            &executor_id,
+            &instance_nonce,
+            Arc::clone(&updates),
+            Arc::clone(&application),
+            gate,
+        )
+        .await
+    };
+    let execution = maintain_connection(
         gateway_url,
         token,
         &executor_id,
@@ -101,8 +121,12 @@ pub async fn connect(
         Arc::clone(&application),
         replies,
         commands,
-        updates,
+        Arc::clone(&updates),
+        execution_ready,
     );
+    let connection = Box::pin(async {
+        tokio::select! { result = maintenance => result, result = execution => result }
+    });
     if application.account_server_binding().await.is_some() {
         let cleanup = cleanup::CleanupClient::new(gateway_url, token, &executor_id)?;
         tokio::select! {
@@ -125,9 +149,16 @@ async fn maintain_connection(
     replies: Arc<ReplyCache>,
     commands: TaskTracker,
     updates: Arc<crate::updates::RemoteUpdater>,
+    mut execution_ready: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), HarnessError> {
     let mut retry = Duration::from_secs(1);
     loop {
+        while !*execution_ready.borrow() {
+            execution_ready
+                .changed()
+                .await
+                .map_err(|_| HarnessError::unavailable("maintenance channel stopped"))?;
+        }
         let connected_at = tokio::time::Instant::now();
         let result = connect_once(ConnectionConfig {
             updates: Some(Arc::clone(&updates)),
@@ -239,10 +270,10 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
         heartbeat_interval_ms,
     ));
 
-    if let Some(updates) = &config.updates {
-        updates.connected(outgoing.clone(), &scope).await;
-    }
     config.application.resume_server_schedules().await?;
+    if let Some(updates) = &config.updates {
+        updates.set_execution_connected(true);
+    }
 
     let read_result = async {
         loop {
@@ -316,6 +347,9 @@ async fn connect_once(config: ConnectionConfig<'_>) -> Result<(), HarnessError> 
         Ok(())
     }
     .await;
+    if let Some(updates) = &config.updates {
+        updates.set_execution_connected(false);
+    }
     tasks.shutdown().await;
     models.shutdown().await;
     read_result
@@ -399,6 +433,9 @@ where
         } => Err(HarnessError::invalid(format!(
             "gateway selected unsupported protocol version {protocol_version}"
         ))),
+        ControlFrame::Shutdown { reason } => Err(HarnessError::unavailable(format!(
+            "Server refused the execution connection: {reason}"
+        ))),
         _ => Err(HarnessError::invalid("gateway first frame was not welcome")),
     }
 }
@@ -452,8 +489,10 @@ where
                     HarnessError::invalid(format!("decode gateway welcome: {error}"))
                 });
             }
-            Message::Close(_) => {
-                return Err(HarnessError::execution("gateway closed before welcome"));
+            Message::Close(frame) => {
+                return Err(HarnessError::execution(frame.filter(|frame| !frame.reason.is_empty()).map_or_else(
+                    || "gateway closed before welcome; check Server logs and update Ternilo to the Server's matching release".to_owned(),
+                    |frame| format!("gateway refused connection: {}", frame.reason))));
             }
             Message::Binary(_) => {
                 return Err(HarnessError::invalid(

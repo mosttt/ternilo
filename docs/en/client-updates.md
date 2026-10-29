@@ -2,7 +2,9 @@
 
 In **User Settings → My machines**, choose **Update client** on a computer, or use **Client updates** above the list to select several computers. Server recommends the stable client release matching its own version. Configuration, conversations, computer identity and credentials are retained; the computer briefly goes offline during restart.
 
-This feature updates official browser/CLI bundles, not desktop installers, containers or Work. First manually upgrade Server and connected executors together to versions supporting Executor protocol 51. Remote updates then operate within a compatible protocol and data epoch. Protocol or data-format changes require coordinated maintenance.
+This feature updates official browser/CLI bundles, not desktop installers, containers or Work. First manually upgrade Server and computers to v0.2.30 or a later release supporting the independent maintenance channel. Keep the existing instance data, enrollment credential and service configuration; re-enrollment is unnecessary. Earlier clients do not have this channel, so updating Server alone cannot enable it.
+
+Maintenance and task-execution protocols have independent versions. After a later Server upgrade changes the execution protocol, a computer can remain **Maintenance online**: tasks are unavailable, but remote updates can install the matching release and restore execution. No additional resident daemon is installed. The existing client must be running, reachable and authenticated. Data-epoch changes, incompatible maintenance protocols and damaged installations still require manual maintenance.
 
 ## Enable on the computer once
 
@@ -42,15 +44,15 @@ Before updating, Ternilo verifies the plist Label and the loaded agent's actual 
 
 Windows currently supports direct restart only. Do not select direct for a systemd/Supervisor/LaunchAgent-managed service: its manager may restart the old process during replacement. Managers should launch the stable entry point (`bin/ternilo` created by the official installer), not a fixed `releases/<version>-<target>/bin/ternilo` path.
 
-Restart Ternilo once using its normal startup method, then refresh the Server dialog. One instance owns each installation. Separate instances need separate installations. Updates also check for other service processes using the same installation.
+Restart Ternilo once using its normal startup method, then refresh the Server dialog. If a manual upgrade changes the actual binary directory, such as a new `releases/<version>-<target>/bin`, run the same enable command with the new binary and restart to register that installation path. Server-driven upgrades update this metadata automatically and do not require re-enabling. One instance owns each installation. Separate instances need separate installations. Updates also check for other service processes using the same installation.
 
 ## Download, verification and activation
 
 Server downloads the exact version's `client-updates.json`, `client-updates.json.sig` and platform bundle from the official GitHub Release. The release pipeline signs the manifest with a dedicated Ed25519 private key. It covers file size, SHA-256, minimum client version, supported Server versions and the data epoch. Server and clients contain only the public key; neither receives the production signing private key.
 
-Server verifies and caches the bundle, then grants short-lived download access restricted to the computer and operation. The computer downloads it from Server over HTTPS and independently verifies the signature and bundle. Commands and progress use the existing authenticated WebSocket connection. Production Server deployments should use HTTPS.
+Server verifies and caches the bundle, then grants short-lived download access restricted to the computer and operation. The computer downloads it from Server over HTTPS and independently verifies the signature and bundle. Commands and progress use the independently versioned HTTPS maintenance endpoint, authenticated with the enrolled computer credential and independent of execution WebSocket compatibility. Production Server deployments should use HTTPS.
 
-After download, the client waits for conversations, subtasks, queued work and background execution resources to become idle. Maintenance then rejects new work. An independent updater probes the new program before stopping the old service, installs the complete bundle, restarts it using the configured method and checks local service health. Local startup has a 120-second readiness window: a Supervisor RUNNING state alone does not establish that the new version is ready. Timeout still restores the previous program. Completion requires reconnecting to Server with the new version. A network outage alone does not trigger rollback. Downloading and waiting operations can be cancelled; installation cannot.
+After download, the client waits for conversations, subtasks, queued work and background execution resources to become idle. Maintenance then rejects new work. An independent updater probes the new program before stopping the old service, installs the complete bundle, restarts it using the configured method and checks local service health. Local startup has a 120-second readiness window: a Supervisor RUNNING state alone does not establish that the new version is ready. Timeout still restores the previous program. Completion requires a healthy local service and a restored Server execution connection with the new version. A network outage alone does not trigger rollback. Downloading and waiting operations can be cancelled; installation cannot.
 
 Idle persistent MCP/LSP services do not block updates. They shut down with the client and start again when a session needs them. Active tool calls and background jobs still block installation and are not forcibly stopped by an update.
 

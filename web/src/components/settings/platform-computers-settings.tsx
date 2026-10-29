@@ -286,6 +286,7 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
             const project = projects.find(item => item.project_id === computer.project_id)
             const suspended = computer.management.suspended_at_ms != null
             const removed = computer.management.removed_at_ms != null
+            const maintenance = !computer.connected && updateStatuses[computer.executor_id]?.connected
             return (
               <article className={`${styles.row} ${styles.computerRow}`} key={computer.executor_id} data-platform-computer={computer.executor_id}>
                 <div className={styles.identity}>
@@ -296,8 +297,8 @@ function ComputerSettingsContents({ tenantId, scope }: { tenantId: string; scope
                 </div>
                 <div>
                   <div className={styles.stateLine}>
-                    <span className={styles.status} data-online={String(computer.connected)}>
-                      {t(suspended ? 'computers.suspended' : computer.connected ? 'computers.online' : 'computers.offline')}
+                    <span className={styles.status} data-online={String(computer.connected || maintenance)}>
+                      {t(suspended ? 'computers.suspended' : computer.connected ? 'computers.online' : maintenance ? 'computers.maintenance' : 'computers.offline')}
                     </span>
                     <span className={styles.state}>{removed ? t('computers.removedState') : t(`computers.state.${computer.state}`)}</span>
                   </div>

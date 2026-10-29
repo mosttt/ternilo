@@ -254,6 +254,7 @@ fn web_router(state: AppState) -> Router {
         .push(model_gateway::node_router())
         .push(node_cleanup::router())
         .push(client_updates::download_router())
+        .push(client_updates::maintenance_router())
         .push(Router::with_path("health").get(health))
         .push(api_router())
 }
