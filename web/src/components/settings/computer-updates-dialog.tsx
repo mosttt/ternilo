@@ -69,12 +69,10 @@ export function ComputerUpdatesDialog({ tenantId, computers, onClose, onStatuses
     return () => { controller.abort(); abort.current = null }
   }, [refresh])
   React.useEffect(() => { onStatusesChange?.(statuses, errors) }, [onStatusesChange, statuses, errors])
-  const inProgress = Object.values(statuses).some(status => active(status.job) || active(status.info?.progress))
   React.useEffect(() => {
-    if (!inProgress) return
-    const timer = setInterval(() => { if (abort.current) void refresh(false, abort.current.signal) }, 2000)
+    const timer = setInterval(() => { if (abort.current) void refresh(false, abort.current.signal) }, 3000)
     return () => clearInterval(timer)
-  }, [inProgress, refresh])
+  }, [refresh])
 
   const start = async () => {
     const controller = abort.current

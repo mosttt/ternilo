@@ -15,7 +15,7 @@ beforeEach(() => {
   request.mockReset()
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
 })
-afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks() })
 const buttons = () => [...document.querySelectorAll<HTMLButtonElement>('[data-computer-updates] button')]
 const button = (label: string) => buttons().find(button => button.textContent === label)!
 async function render(ids: string[]) { await act(async () => root.render(<LocaleProvider><ComputerUpdatesDialog tenantId="personal-space" computers={ids.map(computer)} onClose={vi.fn()} /></LocaleProvider>)) }
@@ -144,4 +144,29 @@ it('does not show a matching-version check when execution is incompatible and up
   await render(['disabled'])
   expect(document.querySelector('[data-computer-version-state="current"]')).toBeNull()
   expect(document.querySelector('[data-computer-version-state="not_enabled"]')).not.toBeNull()
+})
+
+it('disables an idle update dialog when its maintenance lease expires', async () => {
+  vi.useFakeTimers()
+  request.mockResolvedValue(status('available'))
+  await render(['changing'])
+  expect(button('更新所选电脑（1）').disabled).toBe(false)
+  request.mockResolvedValue(status('offline'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+  expect(document.querySelector('[data-computer-version-state="offline"]')).not.toBeNull()
+  expect(button('更新所选电脑（0）').disabled).toBe(true)
+  expect(request.mock.calls.at(-1)?.[0]).not.toContain('refresh=true')
+})
+
+it('keeps an update action error visible when passive status reads succeed', async () => {
+  vi.useFakeTimers()
+  request.mockImplementation(async (_path: string, options: { method?: string }) => {
+    if (options?.method === 'POST') throw new Error('Release package could not be verified')
+    return status('available')
+  })
+  await render(['failed'])
+  await act(async () => button('更新所选电脑（1）').click())
+  expect(host.textContent).toContain('Release package could not be verified')
+  await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+  expect(host.textContent).toContain('Release package could not be verified')
 })

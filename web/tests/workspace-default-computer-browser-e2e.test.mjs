@@ -415,9 +415,10 @@ test('Server loading, computer defaults and update summaries remain independentl
     evidence.checks.push('offline alpha remains selected, warns, and disables directory browsing and submission')
     await page.goto(`${origin}/settings/computers`)
     const offlineCard = page.locator(`[data-platform-computer="${alpha.id}"]`)
-    await offlineCard.locator('[data-computer-version-state="offline"]').waitFor()
-    assert.equal(await offlineCard.getByRole('img', { name: '电脑离线，上线后才能更新', exact: true }).count(), 1)
-    assert.ok((await offlineCard.textContent()).includes('电脑离线，上线后才能更新'))
+    // Maintenance has its own 30-second lease, independent of WebSocket disconnect.
+    await offlineCard.locator('[data-computer-version-state="offline"]').waitFor({ timeout: 40_000 })
+    assert.equal(await offlineCard.getByRole('img', { name: '维护通道离线，连接后才能更新', exact: true }).count(), 1)
+    assert.ok((await offlineCard.textContent()).includes('维护通道离线，连接后才能更新'))
     if (artifacts) await page.screenshot({ path: path.join(artifacts, 'computer-versions-offline.png'), fullPage: true, animations: 'disabled' })
     await page.goto(origin)
     evidence.checks.push('real offline computer shows an X and an explicit reason instead of a stale check')

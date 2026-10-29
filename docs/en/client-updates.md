@@ -6,6 +6,8 @@ This feature updates official browser/CLI bundles, not desktop installers, conta
 
 Maintenance and task-execution protocols have independent versions. After a later Server upgrade changes the execution protocol, a computer can remain **Maintenance online**: tasks are unavailable, but remote updates can install the matching release and restore execution. No additional resident daemon is installed. The existing client must be running, reachable and authenticated. Data-epoch changes, incompatible maintenance protocols and damaged installations still require manual maintenance.
 
+Computer cards and update dialogs periodically read cached Server state without waiting for computer RPCs. Maintenance is considered offline after 30 seconds without a report; open views refresh automatically.
+
 ## Enable on the computer once
 
 The computer owner must explicitly enable updates using the account running Ternilo. Select the actual restart method. Use the existing instance directory with `--data-dir`, or omit it for the default directory.
