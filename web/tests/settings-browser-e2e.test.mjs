@@ -1,6 +1,5 @@
 import { selectChoice } from './browser-select-fixture.mjs'
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -102,15 +101,15 @@ test('Settings actions are real, bilingual, and mobile-safe', async context => {
       if (response.status() >= 400) httpErrors.push(`${response.status()} ${response.request().method()} ${response.url()}`)
     })
     const origin = await app.origin
-    const hashes = {}
+    const assetSizes = {}
     for (const asset of ['app.js', 'app.css']) {
       const response = await fetch(`${origin}/assets/${asset}`)
       assert.equal(response.status, 200)
-      const actual = createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex')
-      assert.equal(actual, createHash('sha256').update(await readFile(path.join(webRoot, 'dist/assets', asset))).digest('hex'), `Local must embed the current ${asset}`)
-      hashes[asset] = actual
+      const actual = Buffer.from(await response.arrayBuffer())
+      assert.ok(actual.equals(await readFile(path.join(webRoot, 'dist/assets', asset))), `Local must embed the current ${asset}`)
+      assetSizes[asset] = actual.byteLength
     }
-    context.diagnostic(`Current Local assets: ${JSON.stringify(hashes)}`)
+    context.diagnostic(`Current Local asset sizes: ${JSON.stringify(assetSizes)}`)
     if (process.env.TERNILO_E2E_ARTIFACT_DIR) await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
     await page.goto(origin, { waitUntil: 'domcontentloaded' })
     await chooseWorkspace(page, workspace)
