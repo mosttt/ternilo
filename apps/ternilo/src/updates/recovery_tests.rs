@@ -246,3 +246,17 @@ async fn unverifiable_original_is_not_started_and_keeps_recovery_marker() {
             .is_file()
     );
 }
+
+#[test]
+fn recovery_replaces_invalid_settings_from_the_saved_plan() {
+    let fixture = Fixture::new();
+    fs::write(
+        fixture.plan.data_dir.join("config/client-updates.json"),
+        b"{invalid",
+    )
+    .unwrap();
+    restore_installation(&fixture.plan, current_target().unwrap()).unwrap();
+    assert!(
+        load_settings(&fixture.plan.data_dir).unwrap().as_ref() == Some(&fixture.plan.settings)
+    );
+}

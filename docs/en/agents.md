@@ -2,6 +2,8 @@
 
 An Agent preset selects a reusable capability configuration. Standard exposes the usual software tools and Rhai Code Mode; PTC exposes capabilities through Code Mode; Minimal focuses on workspace files and shell; Creative adds guidance for experimenting with presets and runtime extensions. Host policy remains authoritative for every preset.
 
+Choose the preset before sending the first task; existing session overrides are retained when switching a blank session. Once the session starts, its preset is locked: create a new session to change it. Clicking a preset card only opens its details; use “Set as default” to change the preset for new sessions.
+
 ## Code Mode and skills
 
 Code Mode uses Rhai to compose registered capabilities in a script. It is an orchestration interface, not unrestricted access to the host. Tool arguments, workspace permissions, approvals and execution limits still apply. Skills supply reusable task guidance and can be provided by extensions. Loading guidance does not authorize a forbidden filesystem or process operation.

@@ -284,7 +284,10 @@ async fn installation_lock(plan: &ApplyPlan) -> Result<fs::File, HarnessError> {
 }
 fn restore_installation(plan: &ApplyPlan, target: &str) -> Result<(), HarnessError> {
     plan.settings.installation.restore(&plan.backup, target)?;
-    if load_settings(&plan.data_dir)?.as_ref() != Some(&plan.settings) {
+    // Preserve the recovery plan's authority when current settings are missing or invalid.
+    let unchanged =
+        matches!(load_settings(&plan.data_dir), Ok(Some(settings)) if settings == plan.settings);
+    if !unchanged {
         write_private(
             &plan.data_dir.join("config/client-updates.json"),
             &plan.settings,
