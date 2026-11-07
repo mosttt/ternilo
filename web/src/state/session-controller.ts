@@ -271,6 +271,7 @@ export class SessionController implements SessionRuntimeActions {
   private metadataRevisions = { stats: 0, projection: 0, questions: 0, profile: 0 }
   private inboxFlight: InboxFlight | null = null
   private inboxRevision = 0
+  private readonly questionAnswers = new Map<string, Promise<void>>()
   private historyRevision = 0
   private readonly cachedSessions = new Map<string, CachedSession>()
   private streamEvents: SessionEvent[] = []
@@ -923,10 +924,23 @@ export class SessionController implements SessionRuntimeActions {
   readonly answerQuestion = async (questionId: string, answer: UserQuestionAnswer) => {
     if (!this.sessionId) return
     const sessionId = this.sessionId
-    await this.dependencies.api.request(
-      `/questions/${encodeURIComponent(questionId)}/answer?session_id=${encodeURIComponent(sessionId)}`,
-      { method: 'POST', body: answer },
-    )
-    await this.reloadMetadataFor(sessionId)
+    const generation = this.generation
+    const key = JSON.stringify([this.scopeKey, sessionId, questionId])
+    const existing = this.questionAnswers.get(key)
+    if (existing) return existing
+    const pending = (async () => {
+      await this.dependencies.api.request(
+        `/questions/${encodeURIComponent(questionId)}/answer?session_id=${encodeURIComponent(sessionId)}`,
+        { method: 'POST', body: answer },
+      )
+      if (this.sessionId === sessionId && this.generation === generation) {
+        this.metadataRevisions.questions += 1
+        this.updateSnapshot({ questions: this.getSnapshot().questions.filter(item => item.question.id !== questionId) })
+      }
+      await this.reloadMetadataFor(sessionId)
+    })()
+    this.questionAnswers.set(key, pending)
+    try { await pending }
+    finally { this.questionAnswers.delete(key) }
   }
 }

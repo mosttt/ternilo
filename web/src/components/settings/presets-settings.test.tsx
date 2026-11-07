@@ -128,6 +128,29 @@ function LocaleSwitchingPresets() {
 }
 
 describe('system preset localization', () => {
+  it('opens a preset card without changing the default or current session', async () => {
+    vi.mocked(api.request).mockResolvedValue({ ...systemDocument, ...roster.presets[1] })
+    await settle(() => root.render(<LocaleProvider><PresetsSettings /></LocaleProvider>))
+    await settle(() => buttonWithLabel('View 我的 Agent').click())
+    expect(api.request).toHaveBeenCalledWith('/agent-presets/mine')
+    expect(api.request).not.toHaveBeenCalledWith(expect.stringContaining('/default'), expect.anything())
+    expect(workbench.updateSession).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('View 我的 Agent')
+  })
+
+  it('keeps the latest opened preset when an earlier request finishes late', async () => {
+    let resolveOld!: (value: AgentPresetDocument) => void
+    vi.mocked(api.request).mockImplementation(async path => path === '/agent-presets/standard'
+      ? new Promise<AgentPresetDocument>(resolve => { resolveOld = resolve })
+      : { ...systemDocument, ...roster.presets[1] })
+    await settle(() => root.render(<LocaleProvider><PresetsSettings /></LocaleProvider>))
+    await settle(() => buttonWithLabel('View: Standard Mode').click())
+    await settle(() => buttonWithLabel('View: 我的 Agent').click())
+    await settle(() => resolveOld(systemDocument))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('View 我的 Agent')
+    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain('View Standard Mode')
+  })
+
   it('localizes the card and view while retaining user-authored metadata', async () => {
     await settle(() => root.render(<LocaleProvider><PresetsSettings /></LocaleProvider>))
     expect(host.textContent).toContain('A full software Agent with both native tools and the Rhai Code Mode SDK.')

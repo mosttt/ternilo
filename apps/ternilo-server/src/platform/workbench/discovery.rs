@@ -108,6 +108,8 @@ async fn synchronize_connected_node_resources(
     let Some(mut resources) = state.edge.lock_discovery(tenant_id, executor_id).await else {
         return Ok(Vec::new());
     };
+    // Only a snapshot requested after a caller arrived can cover its newly created sessions.
+    let started = std::time::Instant::now();
     let value = state
         .edge
         .call_with_timeout(
@@ -164,7 +166,7 @@ async fn synchronize_connected_node_resources(
             now_ms()?,
         )
         .await?;
-    *resources = Some(std::time::Instant::now());
+    *resources = Some(started);
     Ok(imported)
 }
 

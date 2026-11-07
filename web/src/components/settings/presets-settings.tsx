@@ -100,16 +100,26 @@ export function PresetsSettings() {
   const [deleteTarget, setDeleteTarget] = React.useState<AgentPresetSummary | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState('')
+  const documentRequest = React.useRef(0)
   const target = React.useMemo<ExecutionTarget>(() => ({
     sessionId: currentSession?.identity.session_id,
     workspaceId: currentWorkspace?.workspace_id,
   }), [currentSession?.identity.session_id, currentWorkspace?.workspace_id])
 
+  React.useEffect(() => {
+    setDocument(null)
+    setBusy(false)
+    return () => { documentRequest.current += 1 }
+  }, [target])
+
   const loadDocument = async (preset: AgentPresetSummary, edit: boolean) => {
+    const request = ++documentRequest.current
     setBusy(true)
     setError('')
     try {
       const next = await api.request<AgentPresetDocument>(executionTargetPath(`/agent-presets/${encodeURIComponent(preset.id)}`, target))
+      if (request !== documentRequest.current) return
+      setEditorOpen(edit)
       setDocument(next)
       setName(next.display_name)
       setDescription(next.description)
@@ -120,18 +130,16 @@ export function PresetsSettings() {
       setInventoryError('')
       if (presetDisplayProfile(next.base_profile, next.profile).plugins.some((entry) => entry.kind === 'ternilo.extension.package')) {
         try {
-          setInventory(
-            await api.request<ExtensionInventory>(executionTargetPath('/extensions', target)),
-          )
+          const nextInventory = await api.request<ExtensionInventory>(executionTargetPath('/extensions', target))
+          if (request === documentRequest.current) setInventory(nextInventory)
         } catch (cause) {
-          setInventoryError(cause instanceof Error ? cause.message : String(cause))
+          if (request === documentRequest.current) setInventoryError(cause instanceof Error ? cause.message : String(cause))
         }
       }
-      setEditorOpen(edit)
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : String(cause), 'error')
+      if (request === documentRequest.current) notify(cause instanceof Error ? cause.message : String(cause), 'error')
     } finally {
-      setBusy(false)
+      if (request === documentRequest.current) setBusy(false)
     }
   }
 
@@ -275,9 +283,8 @@ export function PresetsSettings() {
                       <button
                         type="button"
                         className="block min-h-32 w-full p-4 text-left disabled:cursor-default"
-                        disabled={isDefault || !presets.authorable}
-                        aria-label={`${isDefault ? t('presets.default') : t('presets.setDefault')}: ${preset.display_name}`}
-                        onClick={() => void setDefault(preset)}
+                        aria-label={t('presets.viewTitle', { name: preset.display_name })}
+                        onClick={() => void loadDocument(preset, false)}
                       >
                         <span className="flex flex-wrap items-center gap-2">
                           <Bot className="size-4 text-muted-foreground" />
@@ -290,7 +297,12 @@ export function PresetsSettings() {
                         <span className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{preset.description || t('presets.noDescription')}</span>
                         <code className="mt-2 block text-[10px] text-muted-foreground">{preset.id}</code>
                       </button>
-                      <div className="flex min-h-11 items-center gap-1 border-t px-2">
+                      <div className="flex min-h-11 flex-wrap items-center gap-1 border-t px-2">
+                        {presets.authorable && !isDefault && <Button
+                          size="xs" variant="ghost"
+                          aria-label={`${t('presets.setDefault')}: ${preset.display_name}`}
+                          onClick={() => void setDefault(preset)}
+                        >{t('presets.setDefault')}</Button>}
                         {currentSession ? (
                           <Button
                             size="xs"

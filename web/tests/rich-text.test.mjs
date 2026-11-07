@@ -66,10 +66,20 @@ test('keeps safe Markdown images lazy and prevents referrer leakage', () => {
   assert.equal(image?.getAttribute('referrerpolicy'), 'no-referrer')
 })
 
-test('keeps streaming markdown literal until the response settles', () => {
-  const html = renderStreamingMarkdown('**未完成 <img src=x onerror=1>')
-  assert.match(html, /\*\*未完成/)
-  assert.doesNotMatch(html, /<img/)
+test('keeps non-code Markdown blocks identical when streaming finishes', () => {
+  const source = '# 标题\n\n中文 **重点**。\n\n- 第一项\n- 第二项\n\n|列|值|\n|-|-|\n|一|二|'
+  const streaming = renderStreamingMarkdown(source).replace('markdown-body markdown-streaming', 'markdown-body')
+  assert.equal(streaming, renderMarkdown(source))
+  assert.match(streaming, /<h1>/)
+  assert.match(streaming, /<table>/)
+})
+
+test('sanitizes partial streaming markup as well as the completed answer', () => {
+  for (const source of ['**未完成', '**未完成 <img src=x onerror=1>', '<script>alert(1)</script>', '[bad](javascript:alert(1))', '[bad](javascript:alert(1)', '<img src="x" onerror="']) {
+    const template = document.createElement('template')
+    template.innerHTML = renderStreamingMarkdown(source)
+    assert.equal(template.content.querySelector('script, [onerror], a[href^="javascript:"]'), null)
+  }
 })
 
 test('highlights an open streaming code fence and keeps its token tree when settled', () => {

@@ -110,13 +110,7 @@ export function renderMarkdown(source, labels) {
 }
 
 export function renderStreamingMarkdown(source, labels) {
-  // A growing fenced block is already structurally unambiguous. Rendering it
-  // through the normal, sanitized Markdown pipeline keeps syntax highlighting
-  // visible while the model is still writing and preserves the same token tree
-  // when the closing fence arrives. Other incomplete Markdown remains literal
-  // so emphasis, tables and HTML cannot reflow on every partial delimiter.
-  if (/^ {0,3}(?:`{3,}|~{3,})[^\n]*$/m.test(String(source))) {
-    return renderMarkdown(source, labels).replace('class="markdown-body"', 'class="markdown-body markdown-streaming"')
-  }
-  return `<div class="markdown-body markdown-streaming markdown-literal">${escapeHtml(source)}</div>`
+  // Use the same sanitized block layout throughout; completing a response must
+  // not replace a whole literal transcript with a differently sized document.
+  return renderMarkdown(source, labels).replace('class="markdown-body"', 'class="markdown-body markdown-streaming"')
 }

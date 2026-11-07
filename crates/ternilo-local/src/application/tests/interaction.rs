@@ -732,3 +732,34 @@ async fn plugin_save_waits_for_an_idle_metadata_reader_without_reporting_a_runni
     tokio::fs::remove_dir_all(data_dir).await.unwrap();
     tokio::fs::remove_dir_all(workspace_dir).await.unwrap();
 }
+
+#[tokio::test]
+async fn plugin_save_waits_for_finished_turn_cleanup_without_claiming_the_task_is_running() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace_dir = root.path().join("workspace");
+    tokio::fs::create_dir(&workspace_dir).await.unwrap();
+    let application = open_test_application(root.path().join("data")).await;
+    let workspace = application
+        .add_workspace(workspace_dir.to_str().unwrap())
+        .await
+        .unwrap();
+    let session = application
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let id = session.identity.session_id.as_str();
+    application.session_command_catalog(id).await.unwrap();
+    let managed = application.live.read().await.get(id).cloned().unwrap();
+    let finishing = managed.gate.lock().await;
+    assert!(!application.live_activity(id).await.unwrap().running);
+    let save = application.update_profile_plugins(id, Vec::new());
+    tokio::pin!(save);
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(30), &mut save)
+            .await
+            .is_err()
+    );
+    drop(finishing);
+    save.await.unwrap();
+    application.shutdown().await.unwrap();
+}

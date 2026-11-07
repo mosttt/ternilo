@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -179,15 +178,13 @@ test('Local streaming respects small reader gestures and explicit tail resume', 
   const observations = { pageErrors: [], consoleErrors: [], httpErrors: [], failedRequests: [] }
   try {
     const origin = await local.origin
-    const hashes = {}
     for (const asset of ['app.js', 'app.css']) {
       const response = await fetch(`${origin}/assets/${asset}`)
       assert.equal(response.status, 200)
-      hashes[asset] = createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex')
-      const expected = createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex')
-      assert.equal(hashes[asset], expected, `Local must embed the current ${asset}`)
+      const actual = Buffer.from(await response.arrayBuffer())
+      const expected = await readFile(path.join(repository, 'web/dist/assets', asset))
+      assert.ok(actual.equals(expected), `Local must embed the current ${asset}`)
     }
-    t.diagnostic(`Local embedded assets: ${JSON.stringify(hashes)}`)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
 
     for (const mobile of [false, true]) {
@@ -411,29 +408,39 @@ test('Local streaming respects small reader gestures and explicit tail resume', 
           stream.complete()
           await page.getByRole('button', { name: '发送', exact: true }).waitFor()
 
-          const settling = model.next()
-          await page.getByRole('textbox', { name: '输入任务' }).fill('完成后保留阅读位置')
-          await page.getByRole('button', { name: '发送', exact: true }).click()
-          stream = await model.stream(settling)
-          stream.append(['```rust\nfn settled() {}\n```\n\n', ...Array.from({ length: 30 }, (_, index) => `## 完成标题 ${index + 1}\n\n完成段落 ${index + 1}：结束后不能移动。\n\n- 完成项 ${index + 1}\n\n`)].join(''))
-          await assistantText(page, '完成段落 30')
-          await atTail(page)
-          await scroll.hover()
-          await page.mouse.wheel(0, -1200)
-          await page.waitForTimeout(160)
-          const readingAnchor = () => scroll.evaluate(element => {
-            const viewport = element.getBoundingClientRect()
-            const answer = [...element.querySelectorAll('article[data-role="assistant"]')].at(-1)
-            const row = [...answer.querySelectorAll('.markdown-body p')].find(item => item.getBoundingClientRect().bottom > viewport.top)
-            return { text: row?.textContent, top: row ? row.getBoundingClientRect().top - viewport.top : null, scrollTop: element.scrollTop }
-          })
-          const streamingAnchor = await readingAnchor()
-          stream.complete()
-          await page.getByRole('button', { name: '发送', exact: true }).waitFor()
-          await page.waitForTimeout(300)
-          const settledAnchor = await readingAnchor()
-          assert.ok(streamingAnchor.text && settledAnchor.text === streamingAnchor.text && Math.abs(settledAnchor.top - streamingAnchor.top) < 2,
-            `settling a finished answer must not move a paused reader: ${JSON.stringify({ streamingAnchor, settledAnchor })}`)
+          for (const includeCode of [true, false]) {
+            const settling = model.next()
+            await page.getByRole('textbox', { name: '输入任务' }).fill('完成后保留阅读位置')
+            await page.getByRole('button', { name: '发送', exact: true }).click()
+            stream = await model.stream(settling)
+            stream.append([includeCode ? '```rust\nfn settled() {}\n```\n\n' : '', ...Array.from({ length: 30 }, (_, index) => `## 完成标题 ${index + 1}\n\n完成段落 ${index + 1}：结束后不能移动。\n\n- 完成项 ${index + 1}\n\n`)].join(''))
+            await assistantText(page, '完成段落 30')
+            await atTail(page)
+            await scroll.hover()
+            await page.mouse.wheel(0, -1200)
+            await page.waitForTimeout(160)
+            const readingAnchor = () => scroll.evaluate(element => {
+              const viewport = element.getBoundingClientRect()
+              const answer = [...element.querySelectorAll('article[data-role="assistant"]')].at(-1)
+              const walker = document.createTreeWalker(answer, NodeFilter.SHOW_TEXT)
+              for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                for (const match of node.textContent.matchAll(/完成段落 \d+：/g)) {
+                  const range = document.createRange()
+                  range.setStart(node, match.index); range.setEnd(node, match.index + match[0].length)
+                  const bounds = range.getBoundingClientRect()
+                  if (bounds.bottom > viewport.top + 8) return { text: match[0], top: bounds.top - viewport.top, scrollTop: element.scrollTop }
+                }
+              }
+              return { text: null, top: null, scrollTop: element.scrollTop }
+            })
+            const streamingAnchor = await readingAnchor()
+            stream.complete()
+            await page.getByRole('button', { name: '发送', exact: true }).waitFor()
+            await page.waitForTimeout(300)
+            const settledAnchor = await readingAnchor()
+            assert.ok(streamingAnchor.text && settledAnchor.text === streamingAnchor.text && Math.abs(settledAnchor.top - streamingAnchor.top) < 2,
+              `settling a finished answer must not move a paused reader: ${JSON.stringify({ includeCode, streamingAnchor, settledAnchor })}`)
+          }
         } finally {
           stream?.complete()
           if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
@@ -488,7 +495,7 @@ test('Server account and platform Responses follow submitted messages before out
       for (const asset of ['app.js', 'app.css']) {
         const response = await fetch(`${target}/assets/${asset}`)
         assert.equal(response.status, 200)
-        assert.equal(createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex'), createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex'))
+        assert.ok(Buffer.from(await response.arrayBuffer()).equals(await readFile(path.join(repository, 'web/dist/assets', asset))), `Server must embed the current ${asset}`)
       }
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })

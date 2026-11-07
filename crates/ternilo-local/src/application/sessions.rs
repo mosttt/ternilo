@@ -255,12 +255,9 @@ impl LocalApplication {
             })
         };
         let _lifecycle = if requires_idle {
-            if let Some(managed) = self.live.read().await.get(session_id).cloned() {
-                drop(
-                    Arc::clone(&managed.gate)
-                        .try_lock_owned()
-                        .map_err(|_| busy_configuration())?,
-                );
+            let managed = self.live.read().await.get(session_id).cloned();
+            if let Some(managed) = managed {
+                drop(idle_configuration_guard(&managed, &busy_configuration).await?);
             }
             // Metadata reads also use this lock. Give them time to finish without
             // waiting indefinitely behind another lifecycle operation.
@@ -273,11 +270,9 @@ impl LocalApplication {
         let idle_runtime = if requires_idle {
             let managed = self.live.read().await.get(session_id).cloned();
             match managed {
-                Some(managed) => Some(
-                    Arc::clone(&managed.gate)
-                        .try_lock_owned()
-                        .map_err(|_| busy_configuration())?,
-                ),
+                Some(managed) => {
+                    Some(idle_configuration_guard(&managed, &busy_configuration).await?)
+                }
                 None => None,
             }
         } else {
@@ -571,4 +566,23 @@ fn increment_parenthesized_suffix(title: &str, open: char, close: char) -> Optio
         incremented,
         close
     ))
+}
+
+async fn idle_configuration_guard(
+    managed: &super::ManagedSession,
+    busy: &impl Fn() -> HarnessError,
+) -> Result<tokio::sync::OwnedMutexGuard<()>, HarnessError> {
+    if let Ok(guard) = Arc::clone(&managed.gate).try_lock_owned() {
+        return Ok(guard);
+    }
+    if managed.harness.active_run().await.is_some() {
+        return Err(busy());
+    }
+    // A finished turn still holds the gate while saving its title and final state.
+    tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        Arc::clone(&managed.gate).lock_owned(),
+    )
+    .await
+    .map_err(|_| HarnessError::conflict("Session configuration is busy. Retry after the current configuration operation finishes."))
 }

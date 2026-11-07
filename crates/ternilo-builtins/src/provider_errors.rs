@@ -2,6 +2,7 @@
 
 use ternilo_protocol::ProviderProtocol;
 
+mod image;
 mod openai;
 mod web;
 
@@ -81,6 +82,12 @@ impl ProviderHttpFailure {
         status: u16,
         body: &[u8],
     ) -> Option<Self> {
+        if (400..600).contains(&status)
+            && let Ok(value) = serde_json::from_slice(body)
+            && let Some(failure) = Self::from_response_error(&value)
+        {
+            return Some(failure);
+        }
         if let Some(failure) = web::from_response(status, body) {
             return Some(failure);
         }
@@ -102,6 +109,12 @@ impl ProviderHttpFailure {
         None
     }
 
+    /// Recognize structured errors independently of HTTP wrappers or SSE framing.
+    #[must_use]
+    pub fn from_response_error(value: &serde_json::Value) -> Option<Self> {
+        image::from_error(value.get("error").unwrap_or(value))
+    }
+
     /// Match the entire canonical message, never an upstream body or a substring.
     #[must_use]
     pub fn from_public_message(message: &str) -> Option<Self> {
@@ -111,6 +124,7 @@ impl ProviderHttpFailure {
             .map(|(_, failure)| *failure)
             .or_else(|| openai::from_public_message(message))
             .or_else(|| web::from_public_message(message))
+            .or_else(|| image::from_public_message(message))
     }
 }
 

@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -158,7 +157,7 @@ test('Trajectory Details shares durable images, releases Session cache, and sync
     const origin = await ternilo.origin
     for (const asset of ['app.js', 'app.css']) {
       const actual = Buffer.from(await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer())
-      assert.equal(createHash('sha256').update(actual).digest('hex'), createHash('sha256').update(await readFile(path.join(webRoot, 'dist/assets', asset))).digest('hex'))
+      assert.ok(actual.equals(await readFile(path.join(webRoot, 'dist/assets', asset))), `Local must embed the current ${asset}`)
     }
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 900 } })

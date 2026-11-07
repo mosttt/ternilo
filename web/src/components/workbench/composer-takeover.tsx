@@ -49,7 +49,7 @@ function ToolApproval({ item, disabled, onAnswer, onError, onInspectApproval, t 
         <span className={css.approvalIcon}>{approval.presentation ? <ApprovalIcon /> : <ShieldAlert />}</span>
         <div>
           <div className={css.eyebrow}>{t('approval.title')}</div>
-          <h2 id={`approval-${item.question.id}`}>{approval.presentation?.title ?? (approval.tool_name === 'shell' ? t('approval.shell') : approval.tool_name)}</h2>
+          <h2 id={`approval-${item.question.id}`}>{approval.presentation?.title ?? (approval.tool_name === 'shell' ? t('approval.shell') : approval.tool_name === 'spawn_agent' ? t('approval.spawnAgent') : approval.tool_name)}</h2>
         </div>
       </header>
       <ApprovalExplanation approval={approval} className={css.explanation} t={t} />
