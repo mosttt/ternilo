@@ -23,6 +23,18 @@ async fn concurrent_discovery_shares_success_but_mutations_and_later_reads_refre
     drop(first);
     assert!(overlapping.await.is_none());
 
+    let mut first = gateway.lock_discovery(&tenant, &executor).await.unwrap();
+    let snapshot_started = Instant::now();
+    let new_child = gateway.lock_discovery(&tenant, &executor);
+    tokio::pin!(new_child);
+    assert!(matches!(futures_util::poll!(&mut new_child), Poll::Pending));
+    *first = Some(snapshot_started);
+    drop(first);
+    assert!(
+        new_child.await.is_some(),
+        "a newly created child needs a fresh snapshot"
+    );
+
     let first = gateway.lock_discovery(&tenant, &executor).await.unwrap();
     let failed = gateway.lock_discovery(&tenant, &executor);
     tokio::pin!(failed);

@@ -9,6 +9,17 @@ const translate = (resource: Record<keyof typeof zh, string>): Translate<'chat'>
 const t = translate(zh)
 
 describe('runtime error presentation', () => {
+  it('explains image complexity separately from chat reasoning in all languages', () => {
+    const raw = 'execution: Model API error (image_complexity_rejected): safe diagnostic; Server request ID: mrq_fixture'
+    for (const resource of [zh, en, ko]) {
+      expect(presentRuntimeError(raw, translate(resource))).toEqual({
+        title: resource['runtimeError.api.imageComplexity.title'],
+        message: resource['runtimeError.api.imageComplexity.message'],
+        raw, requestId: 'mrq_fixture',
+      })
+    }
+  })
+
   it('distinguishes Provider web configuration and credential errors from model authentication', () => {
     const cases = [
       ['policy_denied: web credentials can only be sent to their owner’s computers', 'authorization'],

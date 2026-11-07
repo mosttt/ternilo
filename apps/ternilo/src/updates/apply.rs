@@ -83,14 +83,13 @@ pub async fn recover(path: &Path) -> Result<(), HarnessError> {
         if marker.try_exists().map_err(io_error)? {
             clear_marker(&marker)?;
         }
-        progress(
+        drop(lock);
+        return restart_restored(
             &plan,
             ClientUpdatePhase::Failed,
-            Some("update stopped before program replacement; original program retained".into()),
-        )?;
-        drop(lock);
-        start_service(&plan).await?;
-        return wait_for_version(&plan.data_dir, &plan.previous_version).await;
+            "update stopped before program replacement; original program retained".into(),
+        )
+        .await;
     }
     // The CLI that launched this helper may still be releasing its executable on Windows.
     let marker = plan
@@ -120,13 +119,12 @@ pub async fn recover(path: &Path) -> Result<(), HarnessError> {
         clear_marker(&marker)?;
     }
     drop(lock);
-    progress(
+    restart_restored(
         &plan,
         ClientUpdatePhase::RolledBack,
-        Some("previous program restored by the local owner".into()),
-    )?;
-    start_service(&plan).await?;
-    wait_for_version(&plan.data_dir, &plan.previous_version).await
+        "previous program restored by the local owner".into(),
+    )
+    .await
 }
 
 async fn apply_inner(plan: &ApplyPlan) -> Result<(), HarnessError> {
@@ -195,31 +193,38 @@ async fn activate(
         .installation
         .control_dir()
         .join(".ternilo-installing.json");
-    write_private(&marker, &plan.request.id)?;
+    let mut replacement_started = false;
     let installation = (|| {
+        write_private(&marker, &plan.request.id)?;
+        replacement_started = true;
         let next = plan
             .settings
             .installation
             .install(staging, &plan.backup, version, target)?;
         let mut settings = plan.settings.clone();
         settings.installation = next;
-        write_private(&plan.data_dir.join("config/client-updates.json"), &settings)
+        write_private(&plan.data_dir.join("config/client-updates.json"), &settings)?;
+        progress(plan, ClientUpdatePhase::AwaitingReconnect, None)?;
+        clear_marker(&marker)
     })();
     if let Err(error) = installation {
-        restore_installation(plan, target)?;
+        if replacement_started {
+            restore_installation(plan, target)?;
+        }
         probe_version(
             &plan.settings.installation.bin().join(executable()),
             &plan.previous_version,
         )
         .await?;
-        clear_marker(&marker)?;
+        if marker.try_exists().map_err(io_error)? {
+            clear_marker(&marker)?;
+        }
         drop(lock);
-        progress(plan, ClientUpdatePhase::Failed, Some(error.to_string()))?;
+        // Reporting must not prevent a verified original installation from restarting.
+        let _ = progress(plan, ClientUpdatePhase::Failed, Some(error.to_string()));
         start_service(plan).await?;
         return Err(error);
     }
-    progress(plan, ClientUpdatePhase::AwaitingReconnect, None)?;
-    clear_marker(&marker)?;
     drop(lock);
     let started = async {
         start_service(plan).await?;
@@ -239,11 +244,21 @@ async fn activate(
         .await?;
         clear_marker(&marker)?;
         drop(lock);
-        progress(plan, ClientUpdatePhase::RolledBack, Some(error.to_string()))?;
-        start_service(plan).await?;
-        wait_for_version(&plan.data_dir, &plan.previous_version).await?;
+        restart_restored(plan, ClientUpdatePhase::RolledBack, error.to_string()).await?;
     }
     Ok(())
+}
+
+// Call only after the original installation is verified and its marker/lock are cleared.
+async fn restart_restored(
+    plan: &ApplyPlan,
+    phase: ClientUpdatePhase,
+    reason: String,
+) -> Result<(), HarnessError> {
+    let reported = progress(plan, phase, Some(reason));
+    start_service(plan).await?;
+    wait_for_version(&plan.data_dir, &plan.previous_version).await?;
+    reported
 }
 
 async fn installation_lock(plan: &ApplyPlan) -> Result<fs::File, HarnessError> {
@@ -269,10 +284,16 @@ async fn installation_lock(plan: &ApplyPlan) -> Result<fs::File, HarnessError> {
 }
 fn restore_installation(plan: &ApplyPlan, target: &str) -> Result<(), HarnessError> {
     plan.settings.installation.restore(&plan.backup, target)?;
-    write_private(
-        &plan.data_dir.join("config/client-updates.json"),
-        &plan.settings,
-    )
+    // Preserve the recovery plan's authority when current settings are missing or invalid.
+    let unchanged =
+        matches!(load_settings(&plan.data_dir), Ok(Some(settings)) if settings == plan.settings);
+    if !unchanged {
+        write_private(
+            &plan.data_dir.join("config/client-updates.json"),
+            &plan.settings,
+        )?;
+    }
+    Ok(())
 }
 fn clear_marker(marker: &Path) -> Result<(), HarnessError> {
     fs::remove_file(marker).map_err(io_error)?;
@@ -635,3 +656,7 @@ mod tests {
         boot.await.unwrap();
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "recovery_tests.rs"]
+mod recovery_tests;

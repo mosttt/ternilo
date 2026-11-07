@@ -40,7 +40,7 @@ You can revoke one session or all other sessions. Revoking the current session a
 
 ## Agent presets
 
-Built-in `standard`, `ptc`, `minimal` and `creative` presets are read-only starting points. Copy one, edit its fields and plugins, save, then optionally make it the default for new conversations. PTC retains standard capabilities but exposes them to the model through Rhai Code Mode. Minimal focuses on files and shell; creative adds guidance for runtime experiments.
+Click a preset card to view its configuration. Use **Set as default** explicitly to change the preset for future conversations. Built-in `standard`, `ptc`, `minimal` and `creative` presets are read-only starting points. Copy one, edit its fields and plugins, save, then optionally make it the default for new conversations. PTC retains standard capabilities but exposes them to the model through Rhai Code Mode. Minimal focuses on files and shell; creative adds guidance for runtime experiments.
 
 A conversation captures a preset snapshot. Editing or deleting the original does not rewrite existing conversations. Only a blank conversation that has never accepted work can change its preset. Cancellation, removal from the queue, restart or a history-preserving fork does not make a used conversation blank again. Start a new conversation for another preset. Models and execution permissions have their own controls.
 

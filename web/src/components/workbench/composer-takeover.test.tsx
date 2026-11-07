@@ -208,6 +208,24 @@ describe('ComposerTakeover', () => {
     expect(onAnswer).toHaveBeenCalledWith('approval', { selected: ['Allow once'] })
   })
 
+  it('explains delegation in each language without hiding a specific policy reason', () => {
+    const approval = { tool_name: 'spawn_agent', call_id: 'spawn', reason: 'tool "spawn_agent" can change host or external state', arguments: { task: 'Review <script>unsafe()</script>' } }
+    const render = (dict: typeof zh) => act(() => root.render(<ComposerTakeover
+      questions={[{ session_id: 's', question: { id: 'spawn', question: 'Allow?', options: [{ label: 'Allow once' }, { label: 'Deny' }], multi_select: false, tool_approval: approval } }]}
+      onAnswer={vi.fn(async () => {})} onError={vi.fn()} t={translate(dict)}
+    />))
+    for (const dict of [zh, en, ko]) {
+      render(dict)
+      expect(host.querySelector('h2')?.textContent).toBe(dict['approval.spawnAgent'])
+      expect(host.querySelector('[data-approval-explanation]')?.textContent).toContain(approval.arguments.task)
+      expect(host.querySelector('script')).toBeNull()
+      expect(host.textContent).not.toContain('can change host')
+    }
+    approval.reason = 'Specific execution policy requires approval'
+    render(zh)
+    expect(host.textContent).toContain(approval.reason)
+  })
+
   it('keeps IME Enter in Other and submits only after composition ends', async () => {
     const onAnswer = vi.fn(async () => {})
     act(() => root.render(<ComposerTakeover

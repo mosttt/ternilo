@@ -138,6 +138,28 @@ async function flush() {
 }
 
 describe('session controller live transport', async () => {
+  it('submits an approval once across repeated clicks and retains the originating session', async () => {
+    let finish!: () => void
+    const api = new FakeApi(async path => {
+      if (path.includes('/answer?')) return new Promise<void>(resolve => { finish = resolve })
+      return metadata(path)
+    })
+    const { deps } = dependencies(api)
+    const controller = new SessionController(deps)
+    controller.start()
+    controller.setTarget('parent', true)
+    await flush()
+    const first = controller.answerQuestion('approval', { selected: ['Allow once'] })
+    const second = controller.answerQuestion('approval', { selected: ['Allow once'] })
+    expect(api.calls.filter(call => call.path.includes('/answer?'))).toHaveLength(1)
+    controller.setTarget('child', true)
+    finish()
+    await Promise.all([first, second])
+    expect(api.calls.filter(call => call.path.includes('/answer?'))[0].path).toBe('/questions/approval/answer?session_id=parent')
+    expect(controller.getSnapshot().loadedSessionId).not.toBe('parent')
+    controller.dispose()
+  })
+
   it('publishes a long history once and discards unfinished history when switching sessions', async () => {
     const { deps, live } = dependencies(new FakeApi(async path => metadata(path)))
     const controller = new SessionController(deps)

@@ -88,12 +88,7 @@ pub(super) fn decode_responses_stream_data(
             let response = event.get("response").unwrap_or(&Value::Null);
             Err(HarnessError::execution(responses_error_message(response)))
         }
-        "error" => Err(HarnessError::execution(
-            event
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("Responses API stream failed"),
-        )),
+        "error" => Err(HarnessError::execution(responses_error_message(event))),
         _ => Ok(StreamEvent::Metadata),
     }
 }
@@ -150,9 +145,13 @@ fn ingest_responses_usage(
 }
 
 fn responses_error_message(response: &Value) -> String {
+    if let Some(failure) = crate::ProviderHttpFailure::from_response_error(response) {
+        return failure.message.to_owned();
+    }
     response
         .pointer("/error/message")
         .and_then(Value::as_str)
+        .or_else(|| response.get("message").and_then(Value::as_str))
         .or_else(|| {
             response
                 .pointer("/incomplete_details/reason")

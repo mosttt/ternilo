@@ -19,10 +19,14 @@ export function ApprovalExplanation({ approval, className, t: suppliedTranslate 
     : structured ? parts.map(value => String(value).trim()).join(' ') : ''
   const shell = approval.tool_name === 'shell'
   const reason = approval.reason.trim()
+  const spawn = approval.tool_name === 'spawn_agent'
+    && reason === 'tool "spawn_agent" can change host or external state'
+    && typeof args.task === 'string'
   const technical = reason.startsWith('the command requests access outside the workspace sandbox:')
     || reason === 'the shell call requests one-time access outside the workspace sandbox'
   return <div className={cn(css.root, className)} data-approval-explanation="">
-    <p>{shell && summary ? summary : shell && (!reason || technical) ? t('approval.missingExplanation') : reason}</p>
+    <p>{spawn ? t('approval.spawnAgentExplanation', { task: String(args.task) })
+      : shell && summary ? summary : shell && (!reason || technical) ? t('approval.missingExplanation') : reason}</p>
     {shell && args.full_access === true && <p className={css.scope}>{t('approval.hostAccess')}</p>}
     {shell && typeof args.command === 'string' && <details data-approval-command="">
       <summary>{t('approval.command')}</summary>

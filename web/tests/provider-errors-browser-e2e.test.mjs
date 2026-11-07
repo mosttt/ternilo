@@ -16,7 +16,12 @@ async function rejectedProvider() {
     const chunks = []; for await (const chunk of request) chunks.push(chunk)
     const body = JSON.parse(Buffer.concat(chunks).toString())
     calls.push({ status, code, body })
-    response.writeHead(status, { 'content-type': 'application/json', 'x-request-id': `ds-failure-${calls.length}` })
+    response.writeHead(status, { 'content-type': status === 200 ? 'text/event-stream' : 'application/json', 'x-request-id': `ds-failure-${calls.length}` })
+    if (kind === 'image_generation_user_error') {
+      const error = { type: kind, code, param: 'complexity', message: `Complexity 'medium' is not supported for this image model. deepseek-private-fixture-key private-upstream-route` }
+      response.end(status === 200 ? `data: ${JSON.stringify({ type: 'error', error, sequence_number: 118 })}\n\n` : JSON.stringify({ error, sequence_number: 118 }))
+      return
+    }
     // Upstream diagnostics are deliberately unsafe; only the fixed HTTP explanation may leave Server.
     response.end(JSON.stringify({ error: { message: 'Insufficient Balance deepseek-private-fixture-key private-upstream-route', code, type: kind ?? 'unknown_error' } }))
   })
@@ -143,6 +148,23 @@ test('Provider account failures reach real Server/Node conversations, localized 
       assert.equal(rejected.error.code, 'credit_balance_exhausted')
       assert.match(rejected.error.message, /prepaid API credits are exhausted/)
       assert.doesNotMatch(JSON.stringify(rejected), /deepseek-private-fixture-key|private-upstream-route/)
+    }
+    for (const status of [502, 200]) {
+      model.setFailure(status, 'invalid_value', 'image_generation_user_error')
+      const before = model.calls.length
+      const queued = await api(`/sessions/${id}/queue`, { body: { content: { kind: 'prompt', input: `image-complexity-${status}` } } })
+      const history = await until(() => api(`/sessions/${id}/events`), value => value.some(event => event.run_id === queued.run_id && event.type === 'turn_failed'), 'image parameter rejection')
+      assert.match(history.findLast(event => event.type === 'turn_failed').message, /image_complexity_rejected/)
+      assert.doesNotMatch(JSON.stringify(history), /deepseek-private-fixture-key|private-upstream-route/)
+      assert.equal(model.calls.length - before, 1, 'a rejected parameter must not retry even inside HTTP 502')
+    }
+    for (const [locale, title] of [['zh', '图像模型拒绝了复杂度参数'], ['en', 'Image model rejected complexity'], ['ko', '이미지 모델이 복잡도 설정을 거부했습니다']]) {
+      await page.evaluate(locale => localStorage.setItem('ternilo.locale', locale), locale)
+      await page.setViewportSize({ width: 390, height: 844 }); await page.reload()
+      await failed.getByText(title, { exact: true }).waitFor()
+      assert.match(await failed.innerText(), /complexity/)
+      assert.ok(await failed.evaluate(element => element.scrollWidth <= element.clientWidth))
+      await page.screenshot({ path: path.join(artifacts, `image-complexity-${locale}.png`) })
     }
     assert.deepEqual(errors, [])
     await writeFile(path.join(artifacts, 'result.json'), JSON.stringify({ status: 'passed', locales: ['zh', 'en', 'ko'], httpStatuses: [400, 401, 402, 422, 429, 500, 503], openaiCodes: billingCases.map(([code]) => code), externalApi: true, errors }, null, 2))

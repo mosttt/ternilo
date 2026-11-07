@@ -113,6 +113,15 @@ test('Local and Server retain question replies across background history, reload
         await assertConversation()
         assert.equal(await page.locator('[data-turn-process]').getAttribute('aria-expanded'), 'false')
       }
+      const processControl = page.locator('[data-turn-process]')
+      await processControl.click()
+      assert.equal(await processControl.getAttribute('aria-expanded'), 'true')
+      await page.getByText('Checking the alternatives.', { exact: true }).waitFor()
+      await assertConversation()
+      await processControl.click()
+      assert.equal(await processControl.getAttribute('aria-expanded'), 'false')
+      await assertConversation()
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
         await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
         await page.getByText(beforeQuestion, { exact: true }).scrollIntoViewIfNeeded()
@@ -124,6 +133,7 @@ test('Local and Server retain question replies across background history, reload
       const beforeSwitch = historyRequests
       await selectSession(otherId)
       await page.getByText(finalAnswer, { exact: true }).waitFor({ state: 'detached' })
+      await page.locator('#conversation-main[data-phase="hero"][data-session-state="empty"]').waitFor()
       await selectSession(id)
       await page.getByText(finalAnswer, { exact: true }).waitFor()
       await assertConversation()

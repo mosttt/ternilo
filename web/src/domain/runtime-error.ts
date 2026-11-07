@@ -19,6 +19,7 @@ const deepseekErrors: Record<string, { title: ErrorKey; message: ErrorKey }> = {
 }
 
 const apiErrors: Record<string, { title: ErrorKey; message: ErrorKey }> = {
+  image_complexity_rejected: { title: 'runtimeError.api.imageComplexity.title', message: 'runtimeError.api.imageComplexity.message' },
   invalid_request: { title: 'runtimeError.api.request.title', message: 'runtimeError.api.request.message' },
   service_tier: { title: 'runtimeError.api.serviceTier.title', message: 'runtimeError.api.serviceTier.message' },
   authentication_failed: { title: 'runtimeError.api.auth.title', message: 'runtimeError.api.auth.message' },
@@ -89,7 +90,7 @@ function presentDiagnostic(raw: string, t: Translate<'chat'>): RuntimeErrorPrese
     }
   }
 
-  const apiCode = raw.match(/^(?:execution:\s*)?Model API error \(HTTP \d{3}; ([a-z_]+)\):/)?.[1]
+  const apiCode = raw.match(/^(?:execution:\s*)?Model API error \((?:HTTP \d{3}; )?([a-z_]+)\):/)?.[1]
   const apiError = apiCode && Object.hasOwn(apiErrors, apiCode) ? apiErrors[apiCode] : null
   if (apiError) return { title: t(apiError.title), message: t(apiError.message), raw }
 

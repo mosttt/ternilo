@@ -74,6 +74,39 @@ fn responses_summary_opt_in_respects_disabled_reasoning_and_protocol_boundaries(
     }
 }
 
+#[test]
+fn responses_image_complexity_errors_keep_the_cause_without_altering_reasoning() {
+    let body = protocols::request_body(
+        &model(ProviderProtocol::OpenAiResponses, Some("medium")),
+        &request(),
+    )
+    .unwrap();
+    assert_eq!(body["reasoning"]["effort"], "medium");
+    assert!(body.get("complexity").is_none());
+    assert!(
+        body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tool| tool["type"] == "function")
+    );
+    let error = json!({"type":"image_generation_user_error", "code":"invalid_value", "param":"complexity", "message":"Complexity 'medium' is not supported for this image model. private-key"});
+    for event in [
+        json!({"type":"error", "error":error, "sequence_number":118}),
+        json!({"type":"response.failed", "response":{"status":"failed", "error":error}}),
+    ] {
+        let failure = protocols::decode_stream_data(
+            event,
+            ProviderProtocol::OpenAiResponses,
+            &mut StreamCompletion::default(),
+        )
+        .err()
+        .expect("image parameter rejection");
+        assert!(failure.to_string().contains("image_complexity_rejected"));
+        assert!(!failure.to_string().contains("private-key"));
+    }
+}
+
 fn gemini_events() -> Vec<Value> {
     vec![
         json!({"candidates":[{"content":{"role":"model","parts":[{"text":"Inspect ","thought":true}]}}]}),

@@ -186,7 +186,7 @@ impl EdgeGateway {
         guard
     }
 
-    /// Concurrent readers can share a completed discovery; a later read refreshes again.
+    /// Share a discovery only when its snapshot was requested after this reader arrived.
     pub(crate) async fn lock_discovery(
         &self,
         tenant_id: &TenantId,
@@ -198,7 +198,7 @@ impl EdgeGateway {
             .await
             .lock_owned()
             .await;
-        if guard.is_some_and(|completed| completed > requested) {
+        if guard.is_some_and(|started| started > requested) {
             None
         } else {
             Some(guard)
