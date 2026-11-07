@@ -62,6 +62,8 @@ Official script installations retain version directories. The updater installs a
 
 Server defaults to a 2 GiB release cache in `client-update-cache` beside `workspace_root`. Set `TERNILO_SERVER_UPDATE_CACHE` to choose a writable directory. Containers need writable storage for that path. This rebuildable cache is not a data backup.
 
+Failures while saving installation markers, configuration or progress also trigger recovery of the original program. Once the program and startup configuration are verified, a failed progress write cannot block its restart. If restoration or version verification fails, the installation marker remains: use the local recovery procedure below instead of deleting it to bypass the check.
+
 ## Status, disabling and recovery
 
 ```sh

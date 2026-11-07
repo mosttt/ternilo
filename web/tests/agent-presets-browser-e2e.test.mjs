@@ -198,6 +198,15 @@ test('the four shared Agent modes are bilingual and change the real model surfac
     await page.getByRole('button', { name: '设置', exact: true }).click()
     let settings = page.getByRole('dialog', { name: '设置' })
     await settings.getByRole('button', { name: 'Agent 预设', exact: true }).click()
+    const blankId = await page.evaluate(() => localStorage.getItem('ternilo.current-session'))
+    assert.equal((await api(page, '/state')).sessions.find(session => session.identity.session_id === blankId).blank, true)
+    const blankUse = settings.getByRole('button', { name: '使用: PTC 模式', exact: true })
+    assert.equal(await blankUse.isEnabled(), true)
+    const presetChanged = page.waitForResponse(response => response.request().method() === 'PATCH'
+      && new URL(response.url()).pathname === `/api/v1/sessions/${blankId}`)
+    await blankUse.click()
+    assert.equal((await presetChanged).status(), 200)
+    assert.equal((await api(page, '/state')).sessions.find(session => session.identity.session_id === blankId).agent_preset, 'ptc')
     for (const [name, description] of [
       ['标准模式', '完整的软件 Agent，同时提供原生工具与 Rhai Code Mode SDK。'],
       ['PTC 模式', '保留标准模式的全部能力，但只向模型呈现 Rhai Code Mode SDK。'],
@@ -328,6 +337,26 @@ test('the four shared Agent modes are bilingual and change the real model surfac
     assert.deepEqual(toolNames(ptc), ['run_code'])
     assert.match(ptc.instructions, /# Code Mode \(Rhai\)/)
     assert.match(ptc.instructions, /`run_code` is the only tool callable directly/)
+
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    settings = page.getByRole('dialog', { name: '设置' })
+    await settings.getByRole('button', { name: 'Agent 预设', exact: true }).click()
+    await settings.getByText('会话开始后预设已锁定；如需更换，请新建会话。', { exact: true }).waitFor()
+    assert.equal(await settings.getByRole('button', { name: '使用: 极简模式', exact: true }).isDisabled(), true)
+    assert.equal(await settings.getByRole('button', { name: '设为默认: 极简模式', exact: true }).isEnabled(), true)
+    assert.equal(await settings.getByRole('button', { name: '查看 极简模式', exact: true }).isEnabled(), true)
+    assert.equal(await settings.getByRole('button', { name: '编辑: Standard Mode · Custom', exact: true }).isEnabled(), true)
+    if (process.env.TERNILO_E2E_ARTIFACT_DIR) {
+      await mkdir(process.env.TERNILO_E2E_ARTIFACT_DIR, { recursive: true })
+      await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'preset-used-desktop.png') })
+      await page.setViewportSize({ width: 390, height: 844 })
+      await settings.getByText('会话开始后预设已锁定；如需更换，请新建会话。', { exact: true }).scrollIntoViewIfNeeded()
+      await page.screenshot({ path: path.join(process.env.TERNILO_E2E_ARTIFACT_DIR, 'preset-used-mobile.png') })
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+      await page.setViewportSize({ width: 1440, height: 900 })
+    }
+    await page.keyboard.press('Escape')
+    await settings.waitFor({ state: 'detached' })
 
     await startModeSession(page, '极简模式')
     const minimal = await runMode(page, model, 1, '验证极简模式')

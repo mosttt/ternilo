@@ -23,7 +23,9 @@ export function SubagentActivity({ sessionId, events, sessions, activity, onOpen
   const children = sessions.filter(session => session.parent_session_id === sessionId && session.subagent)
   const active = children.flatMap(session => {
     const snapshot = published.find(agent => agent.id === session.subagent!.subagent_id)
-    const running = activity[session.identity.session_id]?.running ?? snapshot?.status === 'running'
+    const live = activity[session.identity.session_id]
+    const running = live && (!snapshot || live.updated_at_ms > snapshot.updatedAt)
+      ? live.running : snapshot?.status === 'running'
     return running ? [{ id: session.subagent!.subagent_id, label: session.title,
       sessionId: session.subagent!.transcript_kind === 'conversation' ? session.identity.session_id : undefined }] : []
   })

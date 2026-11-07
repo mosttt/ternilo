@@ -85,6 +85,8 @@ function installedExtension(entry: PluginEntry, inventory: ExtensionInventory | 
 export function PresetsSettings() {
   const { presets, currentSession, currentWorkspace, catalog, refresh, updateSession, notify } = useWorkbench()
   const t = useTranslate('settings')
+  const conversation = useTranslate('conversation')
+  const presetLocked = Boolean(currentSession && !currentSession.blank)
   const builtins = useTranslate('builtins')
   const common = useTranslate('common')
   const [copyDraft, setCopyDraft] = React.useState<CopyDraft | null>(null)
@@ -231,7 +233,7 @@ export function PresetsSettings() {
   }
 
   const useInSession = async (preset: AgentPresetSummary) => {
-    if (!currentSession || currentSession.agent_preset === preset.id) return
+    if (!currentSession || presetLocked || currentSession.agent_preset === preset.id) return
     try {
       await updateSession(currentSession.identity.session_id, { agent_preset: preset.id })
       notify(t('presets.sessionUpdated'))
@@ -264,6 +266,7 @@ export function PresetsSettings() {
   return (
     <div className={styles.section}>
       <SectionHeader title={t('nav.presets')} description={t('presets.description')} />
+      {presetLocked && <p className="text-sm text-muted-foreground">{conversation('session.presetLocked')}</p>}
       {groups.map((group) => {
         const rows = presets.presets.filter((preset) => preset.trust === group.trust)
         if (group.trust === 'system' && rows.length === 0) return null
@@ -307,7 +310,8 @@ export function PresetsSettings() {
                           <Button
                             size="xs"
                             variant="ghost"
-                            disabled={isCurrent}
+                            disabled={isCurrent || presetLocked}
+                            title={presetLocked ? conversation('session.presetLocked') : undefined}
                             aria-label={`${t('presets.use')}: ${preset.display_name}`}
                             onClick={() => void useInSession(preset)}
                           >
