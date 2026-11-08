@@ -48,10 +48,12 @@ pub(crate) fn router() -> Router {
                 .push(
                     Router::with_path("workspace")
                         .get(workspace_browser::info)
-                        .post(workspace_browser::operate),
+                        .post(workspace_browser::operate)
+                        .push(Router::with_path("download").post(workspace_browser::download)),
                 )
                 .push(Router::with_path("attachments/resolve").post(sessions::resolve_attachment))
                 .push(Router::with_path("files/{file_id}/content").get(files::file_content))
+                .push(Router::with_path("files/{file_id}/download").get(files::file_download))
                 .push(Router::with_path("plugins").get(sessions::session_plugins))
                 .push(Router::with_path("commands").get(sessions::session_commands))
                 .push(Router::with_path("services").get(sessions::session_services))

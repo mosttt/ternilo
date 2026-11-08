@@ -36,7 +36,7 @@ pub fn factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: KIND,
-            requires: &["ternilo/session-queries@1", "ternilo/sessions@1"],
+            requires: &["ternilo/session-queries@1", "ternilo/sessions@2"],
             provides: &["ternilo/models@3"],
         },
         |value| {

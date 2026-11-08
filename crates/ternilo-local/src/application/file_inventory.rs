@@ -67,13 +67,43 @@ impl LocalApplication {
         session_id: &str,
         file_id: &str,
     ) -> Result<SessionFileContent, HarnessError> {
+        let attachment = self.session_file_attachment(session_id, file_id).await?;
+        let bytes = if attachment.is_reference() {
+            self.attachments.reference_bytes(&attachment).await?
+        } else {
+            crate::inline_file_attachment_bytes(&attachment)?
+        };
+        Ok(SessionFileContent {
+            name: attachment.name.clone(),
+            media_type: attachment.media_type.clone(),
+            content_base64: STANDARD.encode(bytes),
+        })
+    }
+
+    pub async fn session_file_download_chunk(
+        &self,
+        session_id: &str,
+        file_id: &str,
+        offset: u64,
+    ) -> Result<ternilo_protocol::FileDownloadChunk, HarnessError> {
+        let attachment = self.session_file_attachment(session_id, file_id).await?;
+        self.attachments
+            .file_download_chunk(&attachment, offset)
+            .await
+    }
+
+    async fn session_file_attachment(
+        &self,
+        session_id: &str,
+        file_id: &str,
+    ) -> Result<ternilo_protocol::Attachment, HarnessError> {
         let locator = SessionFileLocator::parse(file_id)?;
         let session = self
             .state
             .session(session_id)
             .await
             .ok_or_else(|| HarnessError::invalid("unknown file session"))?;
-        let attachment = match locator {
+        Ok(match locator {
             SessionFileLocator::Submission { .. } => {
                 if let Some(upload) = self.inbox.accepted_upload(session_id, file_id).await? {
                     upload.attachment
@@ -95,16 +125,6 @@ impl LocalApplication {
                 self.file_event_attachment(&session.identity.session_id, file_id, event_seq)
                     .await?
             }
-        };
-        let bytes = if attachment.is_reference() {
-            self.attachments.reference_bytes(&attachment).await?
-        } else {
-            crate::inline_file_attachment_bytes(&attachment)?
-        };
-        Ok(SessionFileContent {
-            name: attachment.name.clone(),
-            media_type: attachment.media_type.clone(),
-            content_base64: STANDARD.encode(bytes),
         })
     }
 

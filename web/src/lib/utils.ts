@@ -24,7 +24,10 @@ export function formatTime(milliseconds: number) {
 }
 
 export function downloadJson(filename: string, value: unknown) {
-  const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })
+  downloadBlob(filename, new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }))
+}
+
+export function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url

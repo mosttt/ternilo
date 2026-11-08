@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -8,9 +7,10 @@ import { chromium } from 'playwright'
 import { localApi, until } from './model-device-fixture.mjs'
 import { freePort, initializeServer, repository, selectSpace, serverRequest, startProcess, stopProcess, waitForHttp } from './platform-e2e-fixture.mjs'
 
-async function openArchive(browser, origin, account, tenantId, mobile, errors, network) {
+async function openArchive(browser, origin, account, tenantId, mobile, errors, network, locale = 'zh') {
+  const title = { zh: '归档会话', en: 'Archived sessions', ko: '보관된 세션' }[locale]
   const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 960 }, serviceWorkers: 'block', hasTouch: mobile })
-  await context.addInitScript(() => localStorage.setItem('ternilo.locale', 'zh'))
+  await context.addInitScript(value => localStorage.setItem('ternilo.locale', value), locale)
   const page = await context.newPage()
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -34,8 +34,8 @@ async function openArchive(browser, origin, account, tenantId, mobile, errors, n
     await page.setViewportSize({ width: 390, height: 844 })
     await page.getByRole('button', { name: '打开侧边栏', exact: true }).click()
   }
-  await page.getByRole('button', { name: '归档会话', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: '归档会话', exact: true })
+  await page.getByRole('button', { name: title, exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: title, exact: true })
   await dialog.waitFor()
   return { context, page, dialog }
 }
@@ -67,7 +67,7 @@ async function screenshot(page, name) {
   const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
   if (!artifacts) return
   await mkdir(artifacts, { recursive: true })
-  await page.screenshot({ path: path.join(artifacts, `${name}.png`), fullPage: true })
+  await page.screenshot({ path: path.join(artifacts, `${name}.png`), fullPage: true, animations: 'disabled' })
 }
 
 async function previewArchive(page, dialog, sessionId, expectedCount, network, name) {
@@ -150,7 +150,7 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
       for (const asset of ['app.js', 'app.css']) {
         const response = await fetch(`${origin}/assets/${asset}`)
         assert.equal(response.status, 200)
-        assert.equal(createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex'), createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex'))
+        assert.ok(Buffer.from(await response.arrayBuffer()).equals(await readFile(path.join(repository, 'web/dist/assets', asset))), `served ${asset} matches the built UI`)
       }
     }
     const local = await localApi(localOrigin)
@@ -161,8 +161,20 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
     const localId = session.identity.session_id
     await local(`/sessions/${localId}/turns`, { body: { input: '/code "archive-retained-history"' } })
     for (let index = 0; index < 75; index++) await local(`/sessions/${localId}/commands/feedback`, { body: { text: `Archived note ${index}` } })
-    const state = await until(() => owner('/state'), value => value.sessions.length === 1, 'Node session discovered')
-    const publicId = state.sessions[0].identity.session_id
+    const delegated = local(`/sessions/${localId}/turns`, { body: { input: '/agent-on in-process /code "retained-child"' } })
+    const [pending] = await until(() => local(`/questions?session_id=${localId}`), value => value.length, 'spawn approval')
+    await local(`/questions/${pending.question.id}/answer?session_id=${localId}`, { body: { selected: ['Allow once'] } })
+    await delegated
+    const child = (await local('/sessions')).find(record => record.parent_session_id === localId && record.subagent)
+    assert.ok(child, 'delegated child has a canonical session')
+    const childId = child.identity.session_id
+    const childEvents = await local(`/sessions/${childId}/events`)
+    assert.ok(childEvents.some(event => event.type === 'turn_finished'), 'delegated child completed successfully')
+    const state = await until(() => owner('/state'), value => value.sessions.length === 2, 'parent and child discovered')
+    const publicRoot = state.sessions.find(record => !record.parent_session_id)
+    const publicId = publicRoot.identity.session_id
+    const publicChildId = state.sessions.find(record => record.parent_session_id === publicId && record.subagent).identity.session_id
+    await writeFile(path.join(folder, 'keep.txt'), 'workspace files are not session history')
     const events = await local(`/sessions/${localId}/events`)
     browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
     await owner(`/sessions/${publicId}/archive`, { method: 'POST' })
@@ -177,6 +189,8 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
     const sharedRow = reader.dialog.locator(`[data-archived-session="${publicId}"]`)
     await sharedRow.waitFor()
     assert.equal(await sharedRow.getByRole('button', { name: '恢复会话', exact: true }).isDisabled(), true)
+    assert.equal(await sharedRow.getByRole('button', { name: '删除', exact: true }).isDisabled(), true)
+    await assert.rejects(() => admin(`/sessions/${publicId}`, { tenantId, method: 'DELETE' }), /403/)
     await checkLayout(reader.page, reader.dialog, true, layouts)
     await screenshot(reader.page, 'archive-shared-reader-mobile')
     await previewArchive(reader.page, reader.dialog, publicId, events.length, network, 'archive-shared-reader-mobile')
@@ -197,6 +211,9 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
         const opened = await openArchive(browser, platform ? serverOrigin : localOrigin, platform ? account : null, tenantId, mobile, errors, network)
         const row = opened.dialog.locator(`[data-archived-session="${sessionId}"]`)
         await row.waitFor()
+        const childRow = opened.dialog.locator(`[data-archived-session="${platform ? publicChildId : childId}"]`)
+        await childRow.waitFor()
+        assert.equal((await local('/sessions/archived')).length, 2)
         await checkLayout(opened.page, opened.dialog, mobile, layouts)
         const artifactName = `archive-${platform ? 'server-node' : 'local'}-${mobile ? 'mobile' : 'desktop'}`
         await screenshot(opened.page, `${artifactName}-panel`)
@@ -212,6 +229,8 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
         await row.getByRole('button', { name: '恢复会话', exact: true }).click()
         assert.equal((await response).status(), 200)
         await row.waitFor({ state: 'hidden' })
+        await childRow.waitFor({ state: 'hidden' })
+        assert.deepEqual(await local(`/sessions/${childId}/events`), childEvents)
         await opened.dialog.getByRole('status').filter({ hasText: '已恢复' }).waitFor()
         await opened.dialog.getByRole('button', { name: '关闭', exact: true }).click()
         await opened.page.locator(`[data-sidebar-session-row][data-session-id="${sessionId}"]`).waitFor()
@@ -230,11 +249,37 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
       }
     }
     await owner(`/sessions/${publicId}/archive`, { method: 'POST' })
-    await owner(`/sessions/${publicId}`, { method: 'DELETE' })
+    for (const platform of [true, false]) {
+      const id = platform ? publicId : childId
+      const origin = platform ? serverOrigin : localOrigin
+      const opened = await openArchive(browser, origin, platform ? account : null, tenantId, platform, errors, network)
+      const row = opened.dialog.locator(`[data-archived-session="${id}"]`)
+      await row.getByRole('button', { name: '删除', exact: true }).click()
+      const confirmation = opened.page.getByRole('dialog', { name: '删除归档会话', exact: true })
+      await confirmation.waitFor()
+      await confirmation.getByText(/仅删除此条记录/).waitFor()
+      await checkLayout(opened.page, confirmation, platform, layouts)
+      await screenshot(opened.page, `archive-${platform ? 'server-mobile' : 'local-desktop'}-delete-confirm`)
+      await confirmation.getByRole('button', { name: '取消', exact: true }).click()
+      await confirmation.waitFor({ state: 'hidden' })
+      assert.equal((await local('/sessions/archived')).length, platform ? 2 : 1)
+      await row.getByRole('button', { name: '删除', exact: true }).click()
+      const response = opened.page.waitForResponse(value => value.request().method() === 'DELETE' && new URL(value.url()).pathname === `/api/v1/sessions/${id}`)
+      await confirmation.getByRole('button', { name: '永久删除', exact: true }).click()
+      assert.equal((await response).status(), 204)
+      await confirmation.waitFor({ state: 'hidden' })
+      await row.waitFor({ state: 'hidden' })
+      await opened.dialog.getByRole('status').filter({ hasText: '已删除' }).waitFor()
+      if (platform) {
+        await opened.dialog.locator(`[data-archived-session="${publicChildId}"]`).waitFor()
+        assert.deepEqual(await local(`/sessions/${childId}/events`), childEvents, 'deleting parent preserves child history')
+      }
+      assert.equal(await readFile(path.join(folder, 'keep.txt'), 'utf8'), 'workspace files are not session history')
+      await screenshot(opened.page, `archive-${platform ? 'server-mobile' : 'local-desktop'}-deleted`)
+      await opened.context.close()
+    }
     await assert.rejects(() => owner(`/sessions/${publicId}/restore`, { method: 'POST' }))
     await assert.rejects(() => local(`/sessions/${localId}/restore`, { method: 'POST' }))
-    await assert.rejects(() => owner(`/sessions/${publicId}/archive-events`))
-    await assert.rejects(() => local(`/sessions/${localId}/archive-events`))
     assert.deepEqual(await owner('/sessions/archived'), [])
     assert.deepEqual(await local('/sessions/archived'), [])
     assert.deepEqual(errors, [])
@@ -254,6 +299,50 @@ test('archive restore preserves Local and Server Node sessions on desktop and mo
     }
     await browser?.close()
     for (const process of processes.reverse()) await stopProcess(process)
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+
+test('archive deletion confirmation supports English and Korean on mobile', { timeout: 60_000 }, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-archive-languages-'))
+  const origin = `http://127.0.0.1:${await freePort()}`
+  const binary = process.env.TERNILO_E2E_NODE_BINARY ?? path.join(repository, 'target/debug/ternilo')
+  const node = startProcess(binary, ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'data')], { XDG_STATE_HOME: path.join(directory, 'state') })
+  let browser
+  try {
+    await waitForHttp(origin, node)
+    const local = await localApi(origin)
+    const folder = path.join(directory, 'workspace'); await mkdir(folder)
+    const workspace = await local('/workspaces', { body: { path: folder } })
+    const session = await local('/sessions', { body: { workspace_id: workspace.workspace_id } })
+    const id = session.identity.session_id
+    await local(`/sessions/${id}/archive`, { method: 'POST' })
+    browser = await chromium.launch({ headless: true, executablePath: process.env.TERNILO_BROWSER_EXECUTABLE?.trim() || undefined })
+    const errors = [], network = [], layouts = []
+    for (const [locale, remove, title, cancel] of [
+      ['en', 'Delete', 'Delete archived session', 'Cancel'],
+      ['ko', '삭제', '보관된 세션 삭제', '취소'],
+    ]) {
+      const opened = await openArchive(browser, origin, null, null, false, errors, network, locale)
+      await opened.page.setViewportSize({ width: 320, height: 844 })
+      const row = opened.dialog.locator(`[data-archived-session="${id}"]`)
+      await row.getByRole('button', { name: remove, exact: true }).click()
+      const confirmation = opened.page.getByRole('dialog', { name: title, exact: true })
+      await confirmation.waitFor()
+      await checkLayout(opened.page, confirmation, true, layouts)
+      await screenshot(opened.page, `archive-delete-${locale}-320`)
+      await confirmation.getByRole('button', { name: cancel, exact: true }).click()
+      await confirmation.waitFor({ state: 'hidden' })
+      await row.waitFor()
+      await opened.context.close()
+    }
+    assert.deepEqual(errors, [])
+    assert.equal(network.filter(entry => entry.method === 'DELETE').length, 0)
+    assert.equal((await local('/sessions/archived')).length, 1)
+  } finally {
+    await browser?.close()
+    await stopProcess(node)
     await rm(directory, { recursive: true, force: true })
   }
 })

@@ -1,3 +1,4 @@
+import { downloadBlob } from '@/lib/utils'
 import * as React from 'react'
 import { ArrowLeft, ArrowUpRight, CloudOff, Download, FileImage, Files, FileText, LoaderCircle, RefreshCw, Search } from 'lucide-react'
 import { navigate, useSearch } from '@/app/navigation'
@@ -10,7 +11,7 @@ import { fileBlob, fileBytes, fileImage, textFile } from '@/domain/file-content'
 import { useLocale, useTranslate } from '@/i18n/provider'
 import { localeTag } from '@/i18n/runtime'
 import { useWorkbench } from '@/state/workbench'
-import { fileFilters, fileKey, groupFileVersions, filesLocation, listFiles, readFileContent, type FileFilters, type FilePage, type SessionFile, type SessionFileContent } from './files-api'
+import { downloadFileContent, fileFilters, fileKey, groupFileVersions, filesLocation, listFiles, readFileContent, type FileFilters, type FilePage, type SessionFile, type SessionFileContent } from './files-api'
 import css from './files-page.module.css'
 import { FilesNavigation } from './files-navigation'
 import { fileInventoryKey, fileInventoryRevision, invalidateFileInventory, peekFileInventory, rememberFileInventory, subscribeFileInventory } from '@/domain/file-inventory'
@@ -36,6 +37,10 @@ function FilePreview({ file, onClose, onDownload, downloading, downloadError }: 
     const controller = new AbortController()
     setState({ content: null, error: '', loading: true })
     setImageFailed(false)
+    if (!textFile(file.media_type) && !file.media_type.startsWith('image/')) {
+      setState({ content: null, error: '', loading: false })
+      return () => controller.abort()
+    }
     void readFileContent(file, controller.signal).then(content => {
       if (!controller.signal.aborted) setState({ content, error: '', loading: false })
     }).catch(cause => {
@@ -138,17 +143,9 @@ function FileList({ filters }: { filters: FileFilters }) {
     setDownloading(key)
     setDownloadError(null)
     try {
-      const content = resolved ?? await readFileContent(file, controller.signal)
-      const blob = fileBlob(content)
+      const blob = resolved ? fileBlob(resolved) : await downloadFileContent(file, controller.signal)
       if (controller.signal.aborted) return
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = content.name || file.name
-      document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+      downloadBlob(resolved?.name || file.name, blob)
     } catch (cause) {
       if (!controller.signal.aborted) setDownloadError({ key, message: message(cause) })
     } finally {

@@ -12,6 +12,14 @@ Durable session events are the history source. Search indexes and projection che
 
 Cloud session statistics use a database checkpoint and the same statistics projection. The first read replays events, later reads consume only appended events, and unchanged reads return the cached result. History regeneration, checkpoint version changes or invalid state rebuild from the event journal. Cached reads still check current view permissions. Full plugin projections continue to replay history; a Live request combining statistics and full projections shares one history read to keep both at the same data cut.
 
+## Committed session facts
+
+The internal Sessions service is `ternilo/sessions@2`. It provides a lightweight summary, per-run boundaries/terminal state/primary input facts, current-run events and exact-sequence reads. Admission, input-author validation and inbox settlement no longer copy the full transcript. Facts are rebuilt after history validation/recovery and updated under the log lock only after durable event commit. Steering does not replace the run's primary author; scheduled work still validates its creation and dispatch events.
+
+Custom core plugins using the Sessions service must adapt to `ternilo/sessions@2` and rebuild. Executor protocol 52 replaces 51; Server, Node and Worker require matching upgrades, while the independent maintenance channel remains available to update older executors. New subagent inputs record `source.kind=subagent` and the parent run. Older binaries cannot safely read histories containing these records; retain a pre-upgrade backup for rollback. The new version reads existing history, with no database migration.
+
+Each automated delegation receives a distinct run ID; explicitly accepted human follow-ups retain their authorized run ID. Model and web-credential requests carry ordered origin proofs. Server verifies synchronized child inputs, registered parent relationships and schedule creation/dispatch events against the original account authority rather than treating child and parent run IDs as interchangeable or inferring the author from the latest input.
+
 ## Execution and models
 
 Profiles compose plugin configuration. A host policy defines permissions and maximum limits that a plugin cannot loosen. Workspace access, process sandboxing, approvals and model authorization are distinct checks. Large outputs and attachments are stored as artifacts rather than forced into every model context.

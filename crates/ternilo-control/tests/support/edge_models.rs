@@ -1,6 +1,8 @@
 use super::*;
 #[path = "computer_models.rs"]
 mod computers;
+#[path = "edge_model_delegations.rs"]
+mod delegations;
 #[path = "maintenance.rs"]
 mod maintenance;
 #[path = "provider_web_access.rs"]
@@ -44,6 +46,7 @@ pub(super) async fn contract(
     provider_web_access::contract(store, fixture, mapping, &node, &body, &snapshot).await;
     role_model_contract(store, fixture, mapping, &node, &body, &snapshot).await;
     lineage_contract(store, fixture, mapping, &node, &body).await;
+    delegations::contract(store, fixture, mapping, &node, &body).await;
     schedules::contract(store, fixture, mapping, &node, &body).await;
     ledger_contract(store, &principal, now).await;
     Box::pin(computers::contract(
@@ -382,7 +385,7 @@ async fn accepted_input(
         },
     };
     let body = NodeModelRequest {
-        schedule_origins: Vec::new(),
+        run_origins: Vec::new(),
         session_id: mapping.node_session.clone(),
         origin_session_id: mapping.node_session.clone(),
         run_id: RunId::new("account-model-run"),

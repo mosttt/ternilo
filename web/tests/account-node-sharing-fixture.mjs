@@ -9,7 +9,7 @@ export async function sharedAccountTask({ browser, page, server, owner, tenantId
   const instance = await owner('/admin/instance')
   await owner('/admin/instance', { method: 'PATCH', body: { mode: 'multi_user', revision: instance.revision } })
   const registration = await owner('/admin/registration')
-  await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, revision: registration.revision } })
+  await owner('/admin/registration', { method: 'PATCH', body: { mode: 'open', require_approval: false, oidc_only: false, revision: registration.revision } })
   const credentials = { username: 'provider-member', email: 'provider-member@example.test', password: 'provider-member-password' }
   const { session } = await serverRequest(server.origin, '/auth/register', { body: credentials })
   await owner(`/tenants/${tenantId}/members/${session.user.user_id}`, { method: 'PUT', body: { role: 'member' } })
@@ -89,7 +89,7 @@ async function childOriginTask({ page, owner, member, session, sessionId, upstre
     const child = state.sessions.find(value => value.parent_session_id === sessionId && value.subagent)
     const events = await until(() => owner(`/sessions/${child.identity.session_id}/events`), events => events.some(event => ['turn_finished', 'turn_failed'].includes(event.type)), 'child completion')
     assert.equal(events.some(event => event.type === 'turn_failed'), false, JSON.stringify(events))
-    assert.ok(events.some(event => event.type === 'user_message' && event.run_id === accepted.run_id))
+    assert.ok(events.some(event => event.type === 'user_message' && event.run_id !== accepted.run_id && event.source?.kind === 'subagent' && event.source.parent_run_id === accepted.run_id))
     const requests = (await member('/model-access/requests?limit=100')).requests.filter(request => !before.has(request.request_id))
     assert.ok(requests.length >= 2)
     assert.ok(requests.every(request => request.actor_user_id === session.user.user_id && request.model_beneficiary_user_id === session.user.user_id), 'later parent input must not replace the original child actor')

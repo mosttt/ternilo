@@ -51,7 +51,7 @@ pub fn factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: KIND,
-            requires: &["ternilo/run-environment@1", "ternilo/sessions@1"],
+            requires: &["ternilo/run-environment@1", "ternilo/sessions@2"],
             provides: &["ternilo/tools@1", "ternilo/commands@1"],
         },
         |value| {

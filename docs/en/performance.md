@@ -48,3 +48,7 @@ node web/tests/server-model-load.mjs \
 Responses are validated, including `rate_limited` and `Retry-After` for expected 429s. Admitted throughput and rejection rate are reported separately, alongside JSON/stream/cancellation timings. The final ledger is read page by page and checked for exactly one row per accepted ID, matching upstream call counts, no active leases, exact known token settlement and retained reservations for unknown cancelled usage. Ledger rows retain their original UTC month; the current month is also reconciled against Server's aggregate, which is not treated as the whole-run total. Unexpected errors stop new requests and preserve failed evidence without retrying them away.
 
 The sustained phase defaults to 60 seconds and accepts 0–3600. The report records duration, concurrency, upstream delay and build label. This is closed-loop, same-host synthetic traffic rather than real Provider latency, open-loop capacity or a production SLA. Cross-Server Node RPC and storage failure recovery need separate scenarios.
+
+## History processing at startup
+
+Local startup validates history and builds search/file indexes. Indexing processes events as a stream; queue recovery retains submission receipts and schedule records rather than all message bodies. History files and database formats stay unchanged. Startup still scans all history, so history size also affects startup time. This is separate from the browser cache used when switching conversations.

@@ -120,29 +120,25 @@ impl LocalSearchIndex {
 
     pub(crate) async fn rebuild(&self, state: &LocalState) -> Result<(), HarnessError> {
         let sessions = state.snapshot().await.sessions;
-        let mut documents = Vec::new();
-        let mut files = Vec::new();
+        // Hold stable log views before entering SQLite, matching the writer's
+        // log -> index lock order. Only metadata is retained across sessions.
+        let mut sources = Vec::with_capacity(sessions.len());
         for session in sessions {
-            let events = crate::event_store::JsonlEventStore::new(
+            let reader = crate::event_store::JsonlEventStore::new(
                 &state.sessions_dir(),
                 &session.identity.session_id,
             )
-            .load_events()
-            .await?;
-            documents.extend(events.iter().map(|event| indexed_document(&session, event)));
-            files.extend(file_inventory::documents(
-                session.identity.session_id.as_str(),
-                session.workspace_id.as_str(),
-                &events,
-            ));
-            files.extend(file_inventory::upload_documents(
+            .reader()
+            .await;
+            let uploads = file_inventory::upload_documents(
                 session.identity.session_id.as_str(),
                 session.workspace_id.as_str(),
                 &self
                     .inbox
                     .accepted_uploads(session.identity.session_id.as_str())
                     .await?,
-            ));
+            );
+            sources.push((session, reader, uploads));
         }
         self.call(move |database| {
             let transaction = database
@@ -154,7 +150,6 @@ impl LocalSearchIndex {
             transaction
                 .execute("DELETE FROM session_files", [])
                 .map_err(sqlite_error)?;
-            file_inventory::insert(&transaction, &files)?;
             {
                 let mut statement = transaction
                     .prepare(
@@ -163,18 +158,31 @@ impl LocalSearchIndex {
                          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                     )
                     .map_err(sqlite_error)?;
-                for document in documents {
-                    statement
-                        .execute(params![
-                            document.session_id,
-                            document.workspace_id,
-                            to_i64(document.seq, "session event sequence")?,
-                            document.run_id,
-                            to_i64(document.occurred_at_ms, "session event timestamp")?,
-                            document.category,
-                            document.body,
-                        ])
-                        .map_err(sqlite_error)?;
+                for (session, reader, uploads) in sources {
+                    reader.scan(|event| {
+                        let document = indexed_document(&session, &event);
+                        statement
+                            .execute(params![
+                                document.session_id,
+                                document.workspace_id,
+                                to_i64(document.seq, "session event sequence")?,
+                                document.run_id,
+                                to_i64(document.occurred_at_ms, "session event timestamp")?,
+                                document.category,
+                                document.body,
+                            ])
+                            .map_err(sqlite_error)?;
+                        let files = file_inventory::documents(
+                            session.identity.session_id.as_str(),
+                            session.workspace_id.as_str(),
+                            std::slice::from_ref(&event),
+                        );
+                        if !files.is_empty() {
+                            file_inventory::insert(&transaction, &files)?;
+                        }
+                        Ok(())
+                    })?;
+                    file_inventory::insert(&transaction, &uploads)?;
                 }
             }
             transaction.commit().map_err(sqlite_error)

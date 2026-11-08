@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -68,7 +67,7 @@ test('Server account and computer Providers stay independent and execute on the 
     await page.locator('[data-account-model-default]').getByRole('button').click()
     await page.getByRole('menuitem', { name: /^模型/ }).click()
     await page.locator('[data-model-provider="same"]').getByRole('menuitem').filter({ hasText: 'same-model' }).click()
-    await until(() => accountRequest('/default-model'), value => value.provider === 'named_provider' && value.provider_id === 'same', 'personal default saved without a chat')
+    await until(() => accountRequest('/default-model'), value => value.provider === 'account_provider' && value.owner_user_id === server.owner.session.user.user_id && value.provider_id === 'same', 'personal default saved without a chat')
     await until(() => page.getByRole('menu').count(), count => count === 0, 'default model menu closed')
     await page.locator('[data-model-source-filter="platform"]').click()
     await page.getByText('平台独立预算', { exact: true }).waitFor()
@@ -91,7 +90,7 @@ test('Server account and computer Providers stay independent and execute on the 
     await local('/providers', { body: profile(computer.baseUrl) })
     await until(() => owner('/model-computers'), computers => computers.some(item => item.connected), 'computer without a workspace')
     assert.equal((await owner('/state')).workspaces.length, 0)
-    assert.equal((await owner('/providers?executor_id=provider-node'))[0].base_url, computer.baseUrl)
+    assert.equal((await owner(`/providers?executor_id=${enrolledComputerId}`))[0].base_url, computer.baseUrl)
     const folder = path.join(directory, 'workspace'); await mkdir(folder)
     const workspace = await local('/workspaces', { body: { path: folder } })
     const session = await local('/sessions', { body: { workspace_id: workspace.workspace_id } })
@@ -120,9 +119,9 @@ test('Server account and computer Providers stay independent and execute on the 
     const nodeResponse = await nodeSaved
     assert.equal(nodeResponse.status(), 200)
     assert.equal(nodeResponse.request().headers()['x-ternilo-tenant'], tenantId)
-    assert.equal(new URL(nodeResponse.url()).searchParams.get('executor_id'), 'provider-node')
+    assert.equal(new URL(nodeResponse.url()).searchParams.get('executor_id'), enrolledComputerId)
     assert.equal(await page.locator('[data-model-computer]').count(), 1, 'a workspace and its sessions do not duplicate the computer')
-    await assert.rejects(() => owner(`/providers?executor_id=provider-node&session_id=${serverId}`), /400/)
+    await assert.rejects(() => owner(`/providers?executor_id=${enrolledComputerId}&session_id=${serverId}`), /400/)
     assert.deepEqual(await currentModel(), previousModel, 'saving a device Provider does not choose a model for another chat')
     await closeSettings(page)
     const priorComputer = computer.calls.length
@@ -177,7 +176,12 @@ test('Server account and computer Providers stay independent and execute on the 
     await page.getByRole('button', { name: '平台授权', exact: true }).click()
     await until(() => page.locator('[data-model-request]').count(), count => count === 0, 'filtered usage list')
     await page.getByRole('button', { name: '设备本地', exact: true }).click()
-    await page.getByText(/设备本地用量尚未汇总/).waitFor()
+    const deviceUsage = page.locator('[data-computer-usage]')
+    await deviceUsage.getByRole('combobox', { name: '选择模型所在空间', exact: true }).click()
+    await page.locator(`[role="option"][data-source-id="${tenantId}"]`).click()
+    await deviceUsage.getByRole('combobox', { name: '用量所属电脑', exact: true }).waitFor()
+    await deviceUsage.getByText('所选月份没有匹配的已同步记录。旧版本或尚未同步的调用不会据此推算为零。', { exact: true }).waitFor()
+    assert.equal(await page.locator('[data-model-request]').count(), 0, 'account requests do not appear in device-local reports')
     await page.getByRole('link', { name: '授权与接入', exact: true }).click()
     await page.getByRole('button', { name: '创建接入密钥', exact: true }).waitFor()
     const gap = await page.locator('[data-model-keys]').evaluate(element => {
@@ -256,7 +260,7 @@ test('Server account and computer Providers stay independent and execute on the 
     for (const target of [origin, server.origin]) for (const asset of ['app.js', 'app.css']) {
       const served = await (await fetch(`${target}/assets/${asset}`)).arrayBuffer()
       const built = await readFile(path.join(repository, `web/dist/assets/${asset}`))
-      assert.equal(createHash('sha256').update(Buffer.from(served)).digest('hex'), createHash('sha256').update(built).digest('hex'))
+      assert.ok(Buffer.from(served).equals(built), `served ${asset} matches the built UI`)
     }
     assert.deepEqual([...errors, ...resourceErrors.filter(error => !expectedResourceErrors.has(error.key)).map(error => error.text)], [])
   } catch (error) {

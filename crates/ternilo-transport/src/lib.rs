@@ -19,7 +19,7 @@ use ternilo_protocol::{
     TenantId, UserAnswer, UserId, WorkspaceId, WorkspaceRequest, validate_agent_preset_id,
 };
 
-pub const EXECUTOR_PROTOCOL_VERSION: u32 = 51;
+pub const EXECUTOR_PROTOCOL_VERSION: u32 = 52;
 
 mod client_updates;
 pub use client_updates::{ClientUpdateCommand, ClientUpdateRequest};
@@ -335,6 +335,11 @@ pub enum ApplicationOperation {
         session_id: SessionId,
         file_id: String,
     },
+    SessionFileChunk {
+        session_id: SessionId,
+        file_id: String,
+        offset: u64,
+    },
     SessionReferenceCandidates {
         session_id: SessionId,
         request: ReferenceCandidateRequest,
@@ -534,6 +539,7 @@ impl ApplicationOperation {
             | Self::SessionDelete { .. }
             | Self::SessionEvents { .. }
             | Self::SessionFileContent { .. }
+            | Self::SessionFileChunk { .. }
             | Self::SessionReferenceCandidates { .. }
             | Self::SessionWorkspace { .. }
             | Self::SessionPlugins { .. }
@@ -627,6 +633,7 @@ impl ApplicationOperation {
                     | Self::AuthorizationBegin { .. }
                     | Self::AuthorizationCancel { .. }
                     | Self::SessionFileContent { .. }
+                    | Self::SessionFileChunk { .. }
                     | Self::SessionWorkspace { .. }
                     | Self::WorkspaceLocation { .. }
                     | Self::AgentPresetGet { .. }
@@ -799,6 +806,11 @@ fn validate_session_operation(operation: &ApplicationOperation) -> Result<(), Ha
         ApplicationOperation::SessionFileContent {
             session_id,
             file_id,
+        }
+        | ApplicationOperation::SessionFileChunk {
+            session_id,
+            file_id,
+            ..
         } => {
             session_id.validate()?;
             ternilo_protocol::SessionFileLocator::parse(file_id).map(|_| ())
@@ -1488,7 +1500,7 @@ mod tests {
 
     #[test]
     fn executor_live_capabilities_have_an_explicit_versioned_wire() {
-        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 51);
+        assert_eq!(EXECUTOR_PROTOCOL_VERSION, 52);
         let mut peer = ExecutorHello {
             client: None,
             protocol_version: 40,

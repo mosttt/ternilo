@@ -563,6 +563,11 @@ async fn create_subagent_in(
     now_ms: u64,
 ) -> Result<SessionId, HarnessError> {
     child.validate()?;
+    if parent.archived_at_ms.is_some() {
+        return Err(HarnessError::conflict(
+            "restore the parent session before creating a subagent",
+        ));
+    }
     metadata.subagent_id.validate()?;
     if metadata.provider.trim().is_empty() || label.trim().is_empty() {
         return Err(HarnessError::invalid(

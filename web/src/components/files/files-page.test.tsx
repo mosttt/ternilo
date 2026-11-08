@@ -17,7 +17,7 @@ const workbench = vi.hoisted(() => ({
   selectSession: vi.fn(), refresh: vi.fn(),
 }))
 vi.mock('@/state/workbench', () => ({ useWorkbench: () => workbench }))
-vi.mock('@/api/client', () => ({ api: { request: vi.fn() } }))
+vi.mock('@/api/client', () => ({ api: { request: vi.fn(), download: vi.fn() } }))
 vi.mock('@/components/admin/space-switcher', () => ({ SpaceSwitcher: () => <div data-space-switcher /> }))
 
 const file = (changes: Partial<SessionFile> = {}): SessionFile => ({
@@ -189,15 +189,16 @@ it('discards pending preview and download contents on filter or account changes'
   expect(document.querySelector('[data-file-preview]')).toBeNull()
   expect(document.body.textContent).not.toContain('PRIVATE PREVIEW')
 
-  const download = deferred<SessionFileContent>()
+  const download = deferred<Blob>()
   const createObjectURL = vi.fn()
   vi.stubGlobal('URL', class extends URL { static createObjectURL = createObjectURL })
-  request.mockReturnValueOnce(download.promise).mockResolvedValueOnce(page())
+  const downloading = vi.spyOn(api, 'download').mockReturnValueOnce(download.promise)
+  request.mockResolvedValueOnce(page())
   await click('下载 current.txt')
-  const downloadSignal = request.mock.calls.at(-1)?.[1]?.signal
+  const downloadSignal = downloading.mock.calls.at(-1)?.[1]?.signal
   workbench.accountScope = 'new-account'
   await render()
-  await act(async () => download.resolve(content('PRIVATE DOWNLOAD')))
+  await act(async () => download.resolve(new Blob(['PRIVATE DOWNLOAD'])))
   expect(downloadSignal?.aborted).toBe(true)
   expect(createObjectURL).not.toHaveBeenCalled()
 })

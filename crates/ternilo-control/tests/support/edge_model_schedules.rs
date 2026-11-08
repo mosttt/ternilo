@@ -1,7 +1,7 @@
 use super::*;
 use ternilo_protocol::{
-    ScheduleChange, ScheduleId, ScheduleModelOrigin, ScheduleRecord, ScheduleRule, SessionEvent,
-    SessionEventKind,
+    ModelRunOrigin, ScheduleChange, ScheduleId, ScheduleModelOrigin, ScheduleRecord, ScheduleRule,
+    SessionEvent, SessionEventKind,
 };
 
 pub(super) async fn contract(
@@ -59,11 +59,13 @@ pub(super) async fn contract(
     let mut scheduled = original.clone();
     scheduled.run_id = scheduled_run.clone();
     scheduled.request.run_id = scheduled_run;
-    scheduled.schedule_origins.push(ScheduleModelOrigin {
-        session_id: mapping.node_session.clone(),
-        created_seq: first,
-        dispatched_seq: first + 2,
-    });
+    scheduled
+        .run_origins
+        .push(ModelRunOrigin::Schedule(ScheduleModelOrigin {
+            session_id: mapping.node_session.clone(),
+            created_seq: first,
+            dispatched_seq: first + 2,
+        }));
     assert!(
         !store
             .node_model_request_registered(node, &scheduled)
@@ -97,6 +99,7 @@ pub(super) async fn contract(
         &fixture.bob.user_id
     );
     tx.commit().await.unwrap();
+    super::delegations::contract(store, fixture, mapping, node, &scheduled).await;
     assert_tampered_origins_denied(store, node, &scheduled, later, first).await;
     assert_nested_schedule_authorization(
         store, fixture, mapping, node, &scheduled, nested_run, first,
@@ -185,10 +188,13 @@ async fn assert_tampered_origins_denied(
     changed.provenance = Some(later);
     assert_denied(store, node, &changed).await;
     changed = scheduled.clone();
-    changed.schedule_origins.clear();
+    changed.run_origins.clear();
     assert_denied(store, node, &changed).await;
     changed = scheduled.clone();
-    changed.schedule_origins[0].created_seq = first + 1;
+    let ModelRunOrigin::Schedule(origin) = &mut changed.run_origins[0] else {
+        panic!("schedule origin")
+    };
+    origin.created_seq = first + 1;
     assert_denied(store, node, &changed).await;
     changed = scheduled.clone();
     changed.run_id = RunId::new("unregistered-occurrence");
@@ -208,13 +214,13 @@ async fn assert_nested_schedule_authorization(
     let mut nested = scheduled.clone();
     nested.run_id = nested_run.clone();
     nested.request.run_id = nested_run;
-    nested.schedule_origins.insert(
+    nested.run_origins.insert(
         0,
-        ScheduleModelOrigin {
+        ModelRunOrigin::Schedule(ScheduleModelOrigin {
             session_id: mapping.node_session.clone(),
             created_seq: first + 3,
             dispatched_seq: first + 4,
-        },
+        }),
     );
     let mut tx = store.database().begin().await.unwrap();
     let principal = store
@@ -224,7 +230,7 @@ async fn assert_nested_schedule_authorization(
     assert_eq!(principal.actor_user_id, fixture.alice.user_id);
     assert_eq!(principal.run_id, nested.run_id);
     tx.commit().await.unwrap();
-    nested.schedule_origins.reverse();
+    nested.run_origins.reverse();
     assert_denied(store, node, &nested).await;
 }
 

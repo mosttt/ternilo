@@ -32,6 +32,9 @@ export function pluginFieldCopy(kind: string, field: PluginConfigField, t: Trans
   if (kind === 'ternilo.session.log' && field.key === 'max_tool_result_chars') {
     return { label: t('tools.defaultResultLimit'), description: t('tools.defaultResultLimitHint') }
   }
+  if (kind === 'ternilo.session.log' && field.key === 'max_retained_file_mib') {
+    return { label: t('tools.retainedFileLimit'), description: t('tools.retainedFileLimitHint') }
+  }
   if (kind === 'ternilo.agent.react' && field.key === 'automatic_reasoning') {
     return { label: t('optimization.automaticReasoning'), description: t('optimization.automaticReasoningHint') }
   }

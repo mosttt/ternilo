@@ -299,28 +299,7 @@ pub(super) async fn read_file_content(
     session: &SessionId,
     file_id: &str,
 ) -> Result<SessionFileContent, HarnessError> {
-    let mut tx = state.cloud.database().tenant_transaction(tenant).await?;
-    resource_access_in(
-        &mut tx,
-        &user.user_id,
-        tenant,
-        ResourceKind::Session,
-        session.as_str(),
-    )
-    .await?
-    .require(ResourceAction::View)?;
-    let node = sqlx::query("SELECT executor_id, node_session_id FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2")
-        .bind(tenant.as_str()).bind(session.as_str()).fetch_optional(&mut *tx).await.map_err(database_error)?;
-    tx.commit().await.map_err(database_error)?;
-    if let Some(node) = node {
-        let executor = ExecutorId::new(
-            node.try_get::<String, _>("executor_id")
-                .map_err(database_error)?,
-        );
-        let node_session = SessionId::new(
-            node.try_get::<String, _>("node_session_id")
-                .map_err(database_error)?,
-        );
+    if let Some((executor, node_session)) = file_node(state, user, tenant, session).await? {
         let value = state
             .edge
             .call(
@@ -345,4 +324,114 @@ pub(super) async fn read_file_content(
             .session_file_content_as(tenant, &user.user_id, session, file_id)
             .await
     }
+}
+
+async fn file_node(
+    state: &AppState,
+    user: &ControlUser,
+    tenant: &TenantId,
+    session: &SessionId,
+) -> Result<Option<(ExecutorId, SessionId)>, HarnessError> {
+    let mut tx = state.cloud.database().tenant_transaction(tenant).await?;
+    resource_access_in(
+        &mut tx,
+        &user.user_id,
+        tenant,
+        ResourceKind::Session,
+        session.as_str(),
+    )
+    .await?
+    .require(ResourceAction::View)?;
+    let node = sqlx::query("SELECT executor_id, node_session_id FROM control_edge_sessions WHERE tenant_id=$1 AND session_id=$2")
+        .bind(tenant.as_str()).bind(session.as_str()).fetch_optional(&mut *tx).await.map_err(database_error)?;
+    tx.commit().await.map_err(database_error)?;
+    node.map(|node| {
+        Ok((
+            ExecutorId::new(
+                node.try_get::<String, _>("executor_id")
+                    .map_err(database_error)?,
+            ),
+            SessionId::new(
+                node.try_get::<String, _>("node_session_id")
+                    .map_err(database_error)?,
+            ),
+        ))
+    })
+    .transpose()
+}
+
+async fn read_file_chunk(
+    state: &AppState,
+    user: &ControlUser,
+    tenant: &TenantId,
+    session: &SessionId,
+    file_id: &str,
+    offset: u64,
+) -> Result<ternilo_protocol::FileDownloadChunk, HarnessError> {
+    if let Some((executor, node_session)) = file_node(state, user, tenant, session).await? {
+        let value = state
+            .edge
+            .call(
+                tenant,
+                &executor,
+                ApplicationOperation::SessionFileChunk {
+                    session_id: node_session,
+                    file_id: file_id.to_owned(),
+                    offset,
+                },
+            )
+            .await?;
+        state
+            .store
+            .resource_access(user, tenant, ResourceKind::Session, session.as_str())
+            .await?
+            .require(ResourceAction::View)?;
+        serde_json::from_value(value).map_err(|error| {
+            HarnessError::execution(format!("invalid Node file download: {error}"))
+        })
+    } else {
+        state
+            .cloud
+            .session_file_chunk_as(tenant, &user.user_id, session, file_id, offset)
+            .await
+    }
+}
+
+#[handler]
+pub(crate) async fn file_download(
+    request: &mut Request,
+    depot: &mut Depot,
+    response: &mut salvo_core::Response,
+) -> Result<(), ApiError> {
+    let (tenant, session) = scope(request)?;
+    let file_id = path_parameter(request, "file_id")?;
+    SessionFileLocator::parse(&file_id)?;
+    let state = app_state(depot).clone();
+    let user = actor(depot).clone();
+    let read = move |offset| {
+        let (state, user, tenant, session, file_id) = (
+            state.clone(),
+            user.clone(),
+            tenant.clone(),
+            session.clone(),
+            file_id.clone(),
+        );
+        async move { read_file_chunk(&state, &user, &tenant, &session, &file_id, offset).await }
+    };
+    let first = read(0).await?;
+    for (name, value) in [
+        ("content-type", "application/octet-stream".to_owned()),
+        ("content-length", first.version.bytes.to_string()),
+        ("cache-control", "no-store".to_owned()),
+        ("content-disposition", "attachment".to_owned()),
+    ] {
+        response
+            .add_header(name, value, true)
+            .map_err(|_| HarnessError::execution("set download headers"))?;
+    }
+    response.stream(ternilo_local::workspace_download_stream(
+        first,
+        move |offset, _| read(offset),
+    ));
+    Ok(())
 }

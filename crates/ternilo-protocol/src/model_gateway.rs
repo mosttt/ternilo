@@ -110,7 +110,7 @@ pub struct NodeModelRequest {
     pub run_id: RunId,
     pub provenance: Option<InputProvenance>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub schedule_origins: Vec<ScheduleModelOrigin>,
+    pub run_origins: Vec<ModelRunOrigin>,
     pub request_id: String,
     pub binding: RunModelBinding,
     pub request: ModelRequest,
@@ -122,6 +122,43 @@ pub struct ScheduleModelOrigin {
     pub session_id: SessionId,
     pub created_seq: u64,
     pub dispatched_seq: u64,
+}
+
+/// Ordered proofs from an invocation back to the input that authorized it.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ModelRunOrigin {
+    Schedule(ScheduleModelOrigin),
+    Subagent {
+        session_id: SessionId,
+        input_seq: u64,
+    },
+}
+
+impl ModelRunOrigin {
+    pub fn validate(&self) -> Result<(), HarnessError> {
+        match self {
+            Self::Schedule(origin) => origin.validate(),
+            Self::Subagent {
+                session_id,
+                input_seq,
+            } => {
+                session_id.validate()?;
+                if *input_seq > i64::MAX as u64 {
+                    return Err(HarnessError::policy("invalid subagent input sequence"));
+                }
+                Ok(())
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn session_id(&self) -> &SessionId {
+        match self {
+            Self::Schedule(origin) => &origin.session_id,
+            Self::Subagent { session_id, .. } => session_id,
+        }
+    }
 }
 
 impl ScheduleModelOrigin {

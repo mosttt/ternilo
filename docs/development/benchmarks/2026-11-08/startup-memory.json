@@ -1,0 +1,58 @@
+{
+  "scope": "Isolated local startup, Linux x86_64, development builds; no browser or gateway",
+  "build": {
+    "incremental": false,
+    "debug_info": false,
+    "optimized": false
+  },
+  "corpus": {
+    "sessions": 10,
+    "archived_sessions": 5,
+    "turns_per_session": 100,
+    "events": 9000,
+    "bytes": 27424800
+  },
+  "measurement": "HTTP readiness; /proc RSS sampled every 10 ms; smaps_rollup 1 second after readiness. Two fresh process starts, second with existing search cache. No concurrent build or load test.",
+  "before_base": "6d0892a",
+  "units": {
+    "memory": "KiB",
+    "readiness": "ms"
+  },
+  "before": [
+    {
+      "run": 0,
+      "readyMs": 3538.612928,
+      "peakRssKiB": 103688,
+      "Rss": 103688,
+      "Pss": 101097,
+      "Private_Dirty": 41636
+    },
+    {
+      "run": 1,
+      "readyMs": 4311.115948999999,
+      "peakRssKiB": 104312,
+      "Rss": 104312,
+      "Pss": 101742,
+      "Private_Dirty": 41708
+    }
+  ],
+  "after": [
+    {
+      "run": 0,
+      "readyMs": 3576.7201680000003,
+      "peakRssKiB": 75020,
+      "Rss": 75020,
+      "Pss": 72431,
+      "Private_Dirty": 11916
+    },
+    {
+      "run": 1,
+      "readyMs": 4267.335872,
+      "peakRssKiB": 75092,
+      "Rss": 75092,
+      "Pss": 72534,
+      "Private_Dirty": 12052
+    }
+  ],
+  "limits": "Synthetic history; figures do not predict release-build memory or production capacity. No startup speedup measured."
+}

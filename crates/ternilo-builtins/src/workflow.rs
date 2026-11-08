@@ -111,7 +111,7 @@ pub fn engine_factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: ENGINE_KIND,
-            requires: &["ternilo/subagents@3", "ternilo/sessions@1"],
+            requires: &["ternilo/subagents@3", "ternilo/sessions@2"],
             provides: &["ternilo/workflows@1"],
         },
         |value| {

@@ -488,29 +488,48 @@ impl LocalApplication {
         let _lifecycle = lifecycle.lock().await;
         self.inbox.require_live_session_id(session_id).await?;
         let session = self.state.restore_session(session_id).await?;
-        self.invalidate(
-            Some(session_id),
-            crate::LocalInvalidationCategory::Workbench,
-            None,
-        );
+        for id in self.state.subagent_family_ids(session_id).await {
+            self.invalidate(Some(&id), crate::LocalInvalidationCategory::Workbench, None);
+        }
         Ok(session)
     }
 
     pub async fn archive_session(&self, session_id: &str) -> Result<LocalSession, HarnessError> {
-        let lifecycle = self.session_lifecycle(session_id).await;
-        let _lifecycle = lifecycle.lock().await;
-        if self.state.session(session_id).await.is_none() {
-            return Err(HarnessError::invalid(format!(
-                "unknown session {session_id:?}"
-            )));
+        let mut pending = std::collections::VecDeque::from([session_id.to_owned()]);
+        let mut visited = std::collections::BTreeSet::new();
+        let mut guards = Vec::new();
+        while let Some(id) = pending.pop_front() {
+            if !visited.insert(id.clone()) {
+                continue;
+            }
+            guards.push(self.session_lifecycle(&id).await.lock_owned().await);
+            if self.state.session(&id).await.is_none() {
+                if id == session_id {
+                    return Err(HarnessError::invalid(format!("unknown session {id:?}")));
+                }
+                continue;
+            }
+            self.inbox.pause(&id).await?;
+            let managed = self.live.read().await.get(&id).cloned();
+            if let Some(managed) = managed
+                && let Some(run) = managed.harness.active_run().await
+            {
+                managed.harness.cancel(run).await?;
+            }
+            self.stop_live_session(&id).await?;
+            // Discover descendants after stopping their parent, including children created during cancellation.
+            pending.extend(
+                self.state
+                    .subagent_children(&id)
+                    .await
+                    .into_iter()
+                    .map(|id| id.as_str().to_owned()),
+            );
         }
-        self.stop_live_session(session_id).await?;
         let session = self.state.archive_session(session_id, now_ms()?).await?;
-        self.invalidate(
-            Some(session_id),
-            crate::LocalInvalidationCategory::Workbench,
-            None,
-        );
+        for id in visited {
+            self.invalidate(Some(&id), crate::LocalInvalidationCategory::Workbench, None);
+        }
         Ok(session)
     }
 }

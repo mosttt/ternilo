@@ -1,6 +1,8 @@
 import { api } from '@/api/client'
 import { WorkspaceImageContext } from './markdown-workspace-images'
-import { act } from 'react'
+import { WorkspacePanelContext } from '../workspace-panel-context'
+import { initialWorkspacePanel } from '../workspace-panel-state'
+import { act, type ContextType } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Translate } from '@/i18n/runtime'
@@ -38,6 +40,29 @@ afterEach(() => {
 })
 
 describe('AssistantMarkdown code copy', () => {
+  it('opens only files inside the active authenticated workspace', async () => {
+    const openFile = vi.fn()
+    const surface: ContextType<typeof WorkspacePanelContext> = {
+      sessionId: 'session', key: 'fixture', info: { root: '/home/project', can_browse: true, applications: [] },
+      state: initialWorkspacePanel(), update: vi.fn(), error: '', reloadInfo: vi.fn(), show: vi.fn(), openFile,
+      hide: vi.fn(), triggerRef: { current: null }, launch: async () => {}, launching: false, choice: '', notifyError: vi.fn(),
+    }
+    const render = async (sessionId: string) => act(async () => root.render(
+      <WorkspacePanelContext.Provider value={surface}>
+        <WorkspaceImageContext.Provider value={{ sessionId, root: '/home/project', scope: 'owner' }}>
+          <AssistantMarkdown source={'[Download](output/package.zip) [Outside](/etc/private.zip) [Traversal](../secret)'} streaming={false} t={t} />
+        </WorkspaceImageContext.Provider>
+      </WorkspacePanelContext.Provider>,
+    ))
+    await render('session')
+    expect(host.querySelectorAll('button')).toHaveLength(1)
+    act(() => host.querySelector<HTMLButtonElement>('button')!.click())
+    expect(openFile).toHaveBeenCalledExactlyOnceWith('output/package.zip')
+    expect(host.querySelector('a')).toBeNull()
+    await render('another-session')
+    expect(host.querySelector('button')).toBeNull()
+    expect(host.textContent).toContain('Download')
+  })
   it.each([
     ['C:/Users/Move/Desktop/figure%20one.png', 'C:\\Users\\Move\\Desktop'],
     ['file:///C:/Users/Move/Desktop/figure%20one.png', 'C:\\Users\\Move\\Desktop'],

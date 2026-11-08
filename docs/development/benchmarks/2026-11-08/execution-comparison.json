@@ -1,0 +1,2100 @@
+{
+  "scope": "Isolated local execution, Linux x86_64; development builds without debug information or incremental compilation",
+  "units": "ms",
+  "method": "Short and long histories alternate within each process. Each history has one first-runtime task, 20 warm tasks and five foreground in-process delegations. Long history: 100 turns, 900 events, 10,654,000 bytes. Controlled /code tasks, no paid model calls. Each candidate runs separately, without concurrent compilation. Delegation includes approval polling and local HTTP transport.",
+  "baseline_commit": "87b2f39",
+  "candidate_commit": "6f5de7e708e208e5eec78510846887e655225184",
+  "execution_order": [
+    "final_after",
+    "final_before"
+  ],
+  "limits": "Synthetic developer-build measurements, not a capacity limit or a prediction of provider/network latency. Early index-only candidates did not consistently improve short tasks or delegation.",
+  "final_before": {
+    "fixture": {
+      "longHistoryBytes": 10654000,
+      "longHistoryEvents": 900,
+      "task": "/code \"execution-probe\"",
+      "paidModelCalls": 0
+    },
+    "summary": [
+      {
+        "history": "short",
+        "firstMs": 227.96040099999982,
+        "p50Ms": 42.48282999999992,
+        "p95Ms": 61.27229200000056
+      },
+      {
+        "history": "long",
+        "firstMs": 1503.5716310000003,
+        "p50Ms": 89.82043599999997,
+        "p95Ms": 128.73926800000027
+      }
+    ],
+    "measurements": [
+      {
+        "history": "short",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 227.96040099999982
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 1503.5716310000003
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 38.76529700000037
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 79.4763469999998
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 37.78413300000011
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 80.53283699999974
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 36.70771599999989
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 71.28286599999956
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 42.48282999999992
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 68.26887399999941
+      },
+      {
+        "history": "short",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 35.38242100000025
+      },
+      {
+        "history": "long",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 65.3159369999994
+      },
+      {
+        "history": "short",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 36.89070100000026
+      },
+      {
+        "history": "long",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 67.38040000000001
+      },
+      {
+        "history": "short",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 37.950143000000025
+      },
+      {
+        "history": "long",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 82.4728699999996
+      },
+      {
+        "history": "short",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 41.62943300000006
+      },
+      {
+        "history": "long",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 87.77230200000031
+      },
+      {
+        "history": "short",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 48.25996200000009
+      },
+      {
+        "history": "long",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 79.39472400000068
+      },
+      {
+        "history": "short",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 42.01329700000042
+      },
+      {
+        "history": "long",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 82.32020499999999
+      },
+      {
+        "history": "short",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 44.917270999999346
+      },
+      {
+        "history": "long",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 89.82043599999997
+      },
+      {
+        "history": "short",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 44.527900999999474
+      },
+      {
+        "history": "long",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 99.97801400000026
+      },
+      {
+        "history": "short",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 42.573647999999594
+      },
+      {
+        "history": "long",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 109.7953349999998
+      },
+      {
+        "history": "short",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 38.97367099999974
+      },
+      {
+        "history": "long",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 103.10832000000028
+      },
+      {
+        "history": "short",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 78.24276000000009
+      },
+      {
+        "history": "long",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 106.21894000000066
+      },
+      {
+        "history": "short",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 52.30601099999967
+      },
+      {
+        "history": "long",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 143.03267799999958
+      },
+      {
+        "history": "short",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 44.77676599999995
+      },
+      {
+        "history": "long",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 128.73926800000027
+      },
+      {
+        "history": "short",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 61.27229200000056
+      },
+      {
+        "history": "long",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 103.77252800000042
+      },
+      {
+        "history": "short",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 53.83531299999959
+      },
+      {
+        "history": "long",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 92.38370399999985
+      },
+      {
+        "history": "short",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 41.34950299999946
+      },
+      {
+        "history": "long",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 91.96831699999984
+      }
+    ],
+    "delegation": [
+      {
+        "history": "short",
+        "round": 0,
+        "admissionMs": 25.205713999999716,
+        "approvedToCompleteMs": 203.09248899999966,
+        "totalMs": 228.3020150000002
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "admissionMs": 48.42340499999955,
+        "approvedToCompleteMs": 216.4903979999999,
+        "totalMs": 264.9147919999996
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "admissionMs": 35.37452400000075,
+        "approvedToCompleteMs": 188.75647499999923,
+        "totalMs": 224.1316110000007
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "admissionMs": 61.674338000000716,
+        "approvedToCompleteMs": 236.26538600000003,
+        "totalMs": 297.9418660000001
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "admissionMs": 36.08966600000076,
+        "approvedToCompleteMs": 193.99220499999956,
+        "totalMs": 230.08223200000066
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "admissionMs": 49.66015799999968,
+        "approvedToCompleteMs": 239.41996299999937,
+        "totalMs": 289.08052999999927
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "admissionMs": 25.04666299999917,
+        "approvedToCompleteMs": 189.36505900000157,
+        "totalMs": 214.41217700000016
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "admissionMs": 47.08980900000097,
+        "approvedToCompleteMs": 244.6845940000003,
+        "totalMs": 291.7751700000008
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "admissionMs": 52.46568699999989,
+        "approvedToCompleteMs": 252.87552700000015,
+        "totalMs": 305.3418669999992
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "admissionMs": 68.23097400000006,
+        "approvedToCompleteMs": 303.02142099999946,
+        "totalMs": 371.2528600000005
+      }
+    ]
+  },
+  "final_after": {
+    "fixture": {
+      "longHistoryBytes": 10654000,
+      "longHistoryEvents": 900,
+      "task": "/code \"execution-probe\"",
+      "paidModelCalls": 0
+    },
+    "summary": [
+      {
+        "history": "short",
+        "firstMs": 232.40457199999992,
+        "p50Ms": 37.320916000000125,
+        "p95Ms": 51.96650100000079
+      },
+      {
+        "history": "long",
+        "firstMs": 1036.0719729999996,
+        "p50Ms": 61.38165899999967,
+        "p95Ms": 68.15814299999965
+      }
+    ],
+    "measurements": [
+      {
+        "history": "short",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 232.40457199999992
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 1036.0719729999996
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 34.82621900000004
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 56.407300999999734
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 35.16755999999987
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 54.12634100000014
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 32.94472500000029
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 54.28210200000012
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 34.25098600000001
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 58.257544999999936
+      },
+      {
+        "history": "short",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 34.844814999999926
+      },
+      {
+        "history": "long",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 48.026834999999664
+      },
+      {
+        "history": "short",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 33.270802
+      },
+      {
+        "history": "long",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 44.74027100000012
+      },
+      {
+        "history": "short",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 37.320916000000125
+      },
+      {
+        "history": "long",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 43.949351999999635
+      },
+      {
+        "history": "short",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 37.11012200000005
+      },
+      {
+        "history": "long",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 50.99373199999991
+      },
+      {
+        "history": "short",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 33.14039099999991
+      },
+      {
+        "history": "long",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 62.4219149999999
+      },
+      {
+        "history": "short",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 36.91544400000021
+      },
+      {
+        "history": "long",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 57.00698999999986
+      },
+      {
+        "history": "short",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 41.97580800000014
+      },
+      {
+        "history": "long",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 67.0577800000001
+      },
+      {
+        "history": "short",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 36.69558699999925
+      },
+      {
+        "history": "long",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 61.38165899999967
+      },
+      {
+        "history": "short",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 42.98654799999986
+      },
+      {
+        "history": "long",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 65.84334000000035
+      },
+      {
+        "history": "short",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 39.970970999999736
+      },
+      {
+        "history": "long",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 63.384234000000106
+      },
+      {
+        "history": "short",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 51.96650100000079
+      },
+      {
+        "history": "long",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 90.76451799999995
+      },
+      {
+        "history": "short",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 57.22494000000006
+      },
+      {
+        "history": "long",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 68.15814299999965
+      },
+      {
+        "history": "short",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 47.71650600000066
+      },
+      {
+        "history": "long",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 67.15405800000008
+      },
+      {
+        "history": "short",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 41.78450800000064
+      },
+      {
+        "history": "long",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 65.42149599999993
+      },
+      {
+        "history": "short",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 44.85926300000028
+      },
+      {
+        "history": "long",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 54.901378999999906
+      },
+      {
+        "history": "short",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 42.24555099999998
+      },
+      {
+        "history": "long",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 61.873287999999775
+      }
+    ],
+    "delegation": [
+      {
+        "history": "short",
+        "round": 0,
+        "admissionMs": 29.135737999999947,
+        "approvedToCompleteMs": 206.78658199999973,
+        "totalMs": 235.92625899999985
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "admissionMs": 36.498804000000746,
+        "approvedToCompleteMs": 196.26896099999976,
+        "totalMs": 232.76897400000053
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "admissionMs": 36.958700999999564,
+        "approvedToCompleteMs": 208.40510900000027,
+        "totalMs": 245.36430000000018
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "admissionMs": 36.25200399999994,
+        "approvedToCompleteMs": 186.9095210000005,
+        "totalMs": 223.16197400000055
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "admissionMs": 24.120856000000458,
+        "approvedToCompleteMs": 181.0841389999996,
+        "totalMs": 205.20543799999996
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "admissionMs": 35.65959000000021,
+        "approvedToCompleteMs": 210.49045699999988,
+        "totalMs": 246.1508700000004
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "admissionMs": 23.737167999999656,
+        "approvedToCompleteMs": 192.35172000000057,
+        "totalMs": 216.0895959999998
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "admissionMs": 35.59366599999976,
+        "approvedToCompleteMs": 185.58486100000027,
+        "totalMs": 221.1789719999997
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "admissionMs": 24.294251999999688,
+        "approvedToCompleteMs": 183.57668899999953,
+        "totalMs": 207.8713629999993
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "admissionMs": 35.62852400000065,
+        "approvedToCompleteMs": 208.7149649999992,
+        "totalMs": 244.34403800000018
+      }
+    ]
+  },
+  "index_only_before": {
+    "fixture": {
+      "longHistoryBytes": 10654000,
+      "longHistoryEvents": 900,
+      "task": "/code \"execution-probe\"",
+      "paidModelCalls": 0
+    },
+    "summary": [
+      {
+        "history": "short",
+        "firstMs": 258.4540069999998,
+        "p50Ms": 38.25931700000001,
+        "p95Ms": 47.83828900000026
+      },
+      {
+        "history": "long",
+        "firstMs": 1274.5102149999998,
+        "p50Ms": 100.55952500000058,
+        "p95Ms": 112.54954400000042
+      }
+    ],
+    "measurements": [
+      {
+        "history": "short",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 258.4540069999998
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 1274.5102149999998
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 40.560928000000786
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 112.54954400000042
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 38.25931700000001
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 106.88666999999987
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 36.292091000000255
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 102.70889999999963
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 36.01537200000075
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 105.03533000000061
+      },
+      {
+        "history": "short",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 34.516843999999764
+      },
+      {
+        "history": "long",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 96.24766100000033
+      },
+      {
+        "history": "short",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 35.88593299999957
+      },
+      {
+        "history": "long",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 100.55952500000058
+      },
+      {
+        "history": "short",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 35.37569199999962
+      },
+      {
+        "history": "long",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 92.47564200000033
+      },
+      {
+        "history": "short",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 33.581322
+      },
+      {
+        "history": "long",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 101.39533200000005
+      },
+      {
+        "history": "short",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 68.84360299999935
+      },
+      {
+        "history": "long",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 108.31526099999974
+      },
+      {
+        "history": "short",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 47.83828900000026
+      },
+      {
+        "history": "long",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 108.0018059999993
+      },
+      {
+        "history": "short",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 43.841050999999425
+      },
+      {
+        "history": "long",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 96.49168199999986
+      },
+      {
+        "history": "short",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 41.732060000000274
+      },
+      {
+        "history": "long",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 118.49287000000004
+      },
+      {
+        "history": "short",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 43.650620999999774
+      },
+      {
+        "history": "long",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 107.8304420000004
+      },
+      {
+        "history": "short",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 35.608234999999695
+      },
+      {
+        "history": "long",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 87.29898599999979
+      },
+      {
+        "history": "short",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 37.99462700000004
+      },
+      {
+        "history": "long",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 85.26500299999952
+      },
+      {
+        "history": "short",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 36.37015100000008
+      },
+      {
+        "history": "long",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 85.95522700000038
+      },
+      {
+        "history": "short",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 39.728344999999536
+      },
+      {
+        "history": "long",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 92.08453400000053
+      },
+      {
+        "history": "short",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 35.8850680000005
+      },
+      {
+        "history": "long",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 88.27852900000016
+      },
+      {
+        "history": "short",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 38.290296000000126
+      },
+      {
+        "history": "long",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 76.21245799999997
+      },
+      {
+        "history": "short",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 39.53080499999942
+      },
+      {
+        "history": "long",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 77.43739699999969
+      }
+    ],
+    "delegation": [
+      {
+        "history": "short",
+        "round": 0,
+        "admissionMs": 36.95824300000004,
+        "approvedToCompleteMs": 228.64646600000015,
+        "totalMs": 265.60867099999996
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "admissionMs": 48.55753100000038,
+        "approvedToCompleteMs": 215.8464699999995,
+        "totalMs": 264.40506000000005
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "admissionMs": 24.295473999999558,
+        "approvedToCompleteMs": 185.77244400000018,
+        "totalMs": 210.06863299999986
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "admissionMs": 61.98834700000043,
+        "approvedToCompleteMs": 198.8153970000003,
+        "totalMs": 260.80716699999994
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "admissionMs": 24.34844399999929,
+        "approvedToCompleteMs": 174.67089100000067,
+        "totalMs": 199.0196649999998
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "admissionMs": 47.03116200000022,
+        "approvedToCompleteMs": 275.215236,
+        "totalMs": 322.246900000001
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "admissionMs": 51.89827199999854,
+        "approvedToCompleteMs": 262.6484980000005,
+        "totalMs": 314.54718299999877
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "admissionMs": 48.616769000000204,
+        "approvedToCompleteMs": 217.5394269999997,
+        "totalMs": 266.1566299999995
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "admissionMs": 35.32352799999899,
+        "approvedToCompleteMs": 189.14596900000106,
+        "totalMs": 224.46982899999966
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "admissionMs": 47.699038999999175,
+        "approvedToCompleteMs": 215.3478350000005,
+        "totalMs": 263.0473499999989
+      }
+    ]
+  },
+  "index_only_after": {
+    "fixture": {
+      "longHistoryBytes": 10654000,
+      "longHistoryEvents": 900,
+      "task": "/code \"execution-probe\"",
+      "paidModelCalls": 0
+    },
+    "summary": [
+      {
+        "history": "short",
+        "firstMs": 197.16481399999975,
+        "p50Ms": 44.621814000000086,
+        "p95Ms": 53.95237100000031
+      },
+      {
+        "history": "long",
+        "firstMs": 1106.6599189999997,
+        "p50Ms": 67.15139299999919,
+        "p95Ms": 90.12414600000011
+      }
+    ],
+    "measurements": [
+      {
+        "history": "short",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 197.16481399999975
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 1106.6599189999997
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 42.457066999999824
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 58.87791200000038
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 40.82364900000039
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 58.067539000000124
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 36.724572999999964
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 57.30134599999974
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 36.55850099999998
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 56.251516000000265
+      },
+      {
+        "history": "short",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 36.157566000000315
+      },
+      {
+        "history": "long",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 59.5005000000001
+      },
+      {
+        "history": "short",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 35.22044899999992
+      },
+      {
+        "history": "long",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 58.94029499999988
+      },
+      {
+        "history": "short",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 40.91466799999989
+      },
+      {
+        "history": "long",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 64.96797000000015
+      },
+      {
+        "history": "short",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 48.597557999999935
+      },
+      {
+        "history": "long",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 59.17692000000079
+      },
+      {
+        "history": "short",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 44.621814000000086
+      },
+      {
+        "history": "long",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 58.095946999999796
+      },
+      {
+        "history": "short",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 41.773065999999744
+      },
+      {
+        "history": "long",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 66.16050899999937
+      },
+      {
+        "history": "short",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 54.182606000000305
+      },
+      {
+        "history": "long",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 108.28118900000027
+      },
+      {
+        "history": "short",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 47.69616700000006
+      },
+      {
+        "history": "long",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 82.39543800000047
+      },
+      {
+        "history": "short",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 53.95237100000031
+      },
+      {
+        "history": "long",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 67.59066199999961
+      },
+      {
+        "history": "short",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 49.39638699999978
+      },
+      {
+        "history": "long",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 75.07218099999955
+      },
+      {
+        "history": "short",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 44.55864500000007
+      },
+      {
+        "history": "long",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 67.15139299999919
+      },
+      {
+        "history": "short",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 46.39289999999983
+      },
+      {
+        "history": "long",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 72.71047300000009
+      },
+      {
+        "history": "short",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 43.73391900000024
+      },
+      {
+        "history": "long",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 69.55439699999988
+      },
+      {
+        "history": "short",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 51.23592000000008
+      },
+      {
+        "history": "long",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 90.12414600000011
+      },
+      {
+        "history": "short",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 47.801642000000356
+      },
+      {
+        "history": "long",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 73.42962199999965
+      },
+      {
+        "history": "short",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 50.79459300000053
+      },
+      {
+        "history": "long",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 81.11819599999944
+      }
+    ],
+    "delegation": [
+      {
+        "history": "short",
+        "round": 0,
+        "admissionMs": 46.3933619999998,
+        "approvedToCompleteMs": 237.78548900000078,
+        "totalMs": 284.184158
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "admissionMs": 50.0026740000003,
+        "approvedToCompleteMs": 245.15152099999978,
+        "totalMs": 295.1554620000006
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "admissionMs": 35.23931699999957,
+        "approvedToCompleteMs": 224.3490300000003,
+        "totalMs": 259.58926299999985
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "admissionMs": 49.493258000000424,
+        "approvedToCompleteMs": 226.93508500000007,
+        "totalMs": 276.42885900000056
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "admissionMs": 36.56118499999957,
+        "approvedToCompleteMs": 211.74089300000014,
+        "totalMs": 248.30248500000016
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "admissionMs": 37.044974999999795,
+        "approvedToCompleteMs": 224.004774,
+        "totalMs": 261.0501839999997
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "admissionMs": 25.419487000000117,
+        "approvedToCompleteMs": 274.1094440000006,
+        "totalMs": 299.52981
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "admissionMs": 49.32037500000024,
+        "approvedToCompleteMs": 242.42796699999963,
+        "totalMs": 291.7488220000005
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "admissionMs": 37.00093099999958,
+        "approvedToCompleteMs": 213.911701,
+        "totalMs": 250.9133179999999
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "admissionMs": 46.29830700000002,
+        "approvedToCompleteMs": 239.8307309999991,
+        "totalMs": 286.12996099999873
+      }
+    ]
+  },
+  "index_only_reverse_before": {
+    "fixture": {
+      "longHistoryBytes": 10654000,
+      "longHistoryEvents": 900,
+      "task": "/code \"execution-probe\"",
+      "paidModelCalls": 0
+    },
+    "summary": [
+      {
+        "history": "short",
+        "firstMs": 262.4955339999997,
+        "p50Ms": 40.64249000000018,
+        "p95Ms": 54.46628799999962
+      },
+      {
+        "history": "long",
+        "firstMs": 1196.801297,
+        "p50Ms": 92.25478999999996,
+        "p95Ms": 118.24365500000022
+      }
+    ],
+    "measurements": [
+      {
+        "history": "short",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 262.4955339999997
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 1196.801297
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 33.902732000000015
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 84.71786100000008
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 32.092283999999836
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 102.89961099999982
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 42.329475
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 96.05994099999998
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 36.6658709999997
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 76.66982999999982
+      },
+      {
+        "history": "short",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 42.78618800000004
+      },
+      {
+        "history": "long",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 141.00549199999932
+      },
+      {
+        "history": "short",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 44.118758999999955
+      },
+      {
+        "history": "long",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 106.85242500000004
+      },
+      {
+        "history": "short",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 54.672324999999546
+      },
+      {
+        "history": "long",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 92.25478999999996
+      },
+      {
+        "history": "short",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 54.46628799999962
+      },
+      {
+        "history": "long",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 116.56269599999996
+      },
+      {
+        "history": "short",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 40.64249000000018
+      },
+      {
+        "history": "long",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 94.84688600000027
+      },
+      {
+        "history": "short",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 40.824806999999964
+      },
+      {
+        "history": "long",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 103.76009799999974
+      },
+      {
+        "history": "short",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 48.89535100000012
+      },
+      {
+        "history": "long",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 118.24365500000022
+      },
+      {
+        "history": "short",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 39.09410500000013
+      },
+      {
+        "history": "long",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 102.2626739999996
+      },
+      {
+        "history": "short",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 40.67247099999986
+      },
+      {
+        "history": "long",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 78.9907319999993
+      },
+      {
+        "history": "short",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 38.36019800000031
+      },
+      {
+        "history": "long",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 76.78843199999937
+      },
+      {
+        "history": "short",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 39.31700000000001
+      },
+      {
+        "history": "long",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 74.12098400000013
+      },
+      {
+        "history": "short",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 41.148551999999654
+      },
+      {
+        "history": "long",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 73.0429180000001
+      },
+      {
+        "history": "short",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 39.709375000000364
+      },
+      {
+        "history": "long",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 70.3918509999994
+      },
+      {
+        "history": "short",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 35.775322999999844
+      },
+      {
+        "history": "long",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 73.03692000000046
+      },
+      {
+        "history": "short",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 38.01726199999939
+      },
+      {
+        "history": "long",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 82.85887399999956
+      },
+      {
+        "history": "short",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 36.127252999999655
+      },
+      {
+        "history": "long",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 86.11969099999988
+      }
+    ],
+    "delegation": [
+      {
+        "history": "short",
+        "round": 0,
+        "admissionMs": 36.44153800000004,
+        "approvedToCompleteMs": 211.35672999999952,
+        "totalMs": 247.80207700000028
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "admissionMs": 59.61869000000024,
+        "approvedToCompleteMs": 212.0444979999993,
+        "totalMs": 271.66432199999963
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "admissionMs": 36.43279100000018,
+        "approvedToCompleteMs": 191.99146500000006,
+        "totalMs": 228.42473900000005
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "admissionMs": 62.1374909999995,
+        "approvedToCompleteMs": 282.26202699999976,
+        "totalMs": 344.4003509999993
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "admissionMs": 39.0966470000003,
+        "approvedToCompleteMs": 242.7306010000002,
+        "totalMs": 281.8279419999999
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "admissionMs": 49.3213480000004,
+        "approvedToCompleteMs": 275.1479769999996,
+        "totalMs": 324.46980799999983
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "admissionMs": 35.13218300000062,
+        "approvedToCompleteMs": 223.35743000000002,
+        "totalMs": 258.49003900000116
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "admissionMs": 48.24938800000018,
+        "approvedToCompleteMs": 226.6194059999998,
+        "totalMs": 274.86926999999923
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "admissionMs": 23.72968000000037,
+        "approvedToCompleteMs": 183.28166600000077,
+        "totalMs": 207.01179899999988
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "admissionMs": 48.05571400000008,
+        "approvedToCompleteMs": 206.65311500000098,
+        "totalMs": 254.7094049999996
+      }
+    ]
+  },
+  "index_only_reverse_after": {
+    "fixture": {
+      "longHistoryBytes": 10654000,
+      "longHistoryEvents": 900,
+      "task": "/code \"execution-probe\"",
+      "paidModelCalls": 0
+    },
+    "summary": [
+      {
+        "history": "short",
+        "firstMs": 192.53359,
+        "p50Ms": 42.97081900000012,
+        "p95Ms": 69.24381399999993
+      },
+      {
+        "history": "long",
+        "firstMs": 1082.5246860000002,
+        "p50Ms": 61.59733700000015,
+        "p95Ms": 84.03563500000018
+      }
+    ],
+    "measurements": [
+      {
+        "history": "short",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 192.53359
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "phase": "first-runtime",
+        "elapsedMs": 1082.5246860000002
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 40.78982300000007
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "phase": "warm",
+        "elapsedMs": 57.15756599999986
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 40.205946999999924
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "phase": "warm",
+        "elapsedMs": 57.22479599999997
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 39.27966199999992
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "phase": "warm",
+        "elapsedMs": 61.128619999999955
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 69.24381399999993
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "phase": "warm",
+        "elapsedMs": 99.1655880000003
+      },
+      {
+        "history": "short",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 57.92205899999999
+      },
+      {
+        "history": "long",
+        "round": 5,
+        "phase": "warm",
+        "elapsedMs": 82.27682199999981
+      },
+      {
+        "history": "short",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 56.53349500000013
+      },
+      {
+        "history": "long",
+        "round": 6,
+        "phase": "warm",
+        "elapsedMs": 83.66478300000017
+      },
+      {
+        "history": "short",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 47.0412809999998
+      },
+      {
+        "history": "long",
+        "round": 7,
+        "phase": "warm",
+        "elapsedMs": 67.97219399999994
+      },
+      {
+        "history": "short",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 47.47091499999988
+      },
+      {
+        "history": "long",
+        "round": 8,
+        "phase": "warm",
+        "elapsedMs": 66.7928579999998
+      },
+      {
+        "history": "short",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 41.745215999999346
+      },
+      {
+        "history": "long",
+        "round": 9,
+        "phase": "warm",
+        "elapsedMs": 62.261571
+      },
+      {
+        "history": "short",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 41.49632399999973
+      },
+      {
+        "history": "long",
+        "round": 10,
+        "phase": "warm",
+        "elapsedMs": 58.046894999999495
+      },
+      {
+        "history": "short",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 41.76459900000009
+      },
+      {
+        "history": "long",
+        "round": 11,
+        "phase": "warm",
+        "elapsedMs": 67.37584100000004
+      },
+      {
+        "history": "short",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 38.6350910000001
+      },
+      {
+        "history": "long",
+        "round": 12,
+        "phase": "warm",
+        "elapsedMs": 59.62689599999976
+      },
+      {
+        "history": "short",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 38.492544000000635
+      },
+      {
+        "history": "long",
+        "round": 13,
+        "phase": "warm",
+        "elapsedMs": 65.91477500000019
+      },
+      {
+        "history": "short",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 69.96603200000027
+      },
+      {
+        "history": "long",
+        "round": 14,
+        "phase": "warm",
+        "elapsedMs": 61.59733700000015
+      },
+      {
+        "history": "short",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 42.97081900000012
+      },
+      {
+        "history": "long",
+        "round": 15,
+        "phase": "warm",
+        "elapsedMs": 60.69612199999938
+      },
+      {
+        "history": "short",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 41.07178500000009
+      },
+      {
+        "history": "long",
+        "round": 16,
+        "phase": "warm",
+        "elapsedMs": 54.937018999999964
+      },
+      {
+        "history": "short",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 41.50980200000049
+      },
+      {
+        "history": "long",
+        "round": 17,
+        "phase": "warm",
+        "elapsedMs": 60.31283600000006
+      },
+      {
+        "history": "short",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 43.290579000000434
+      },
+      {
+        "history": "long",
+        "round": 18,
+        "phase": "warm",
+        "elapsedMs": 59.01078999999936
+      },
+      {
+        "history": "short",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 43.31926300000032
+      },
+      {
+        "history": "long",
+        "round": 19,
+        "phase": "warm",
+        "elapsedMs": 61.20756799999981
+      },
+      {
+        "history": "short",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 46.51183800000035
+      },
+      {
+        "history": "long",
+        "round": 20,
+        "phase": "warm",
+        "elapsedMs": 84.03563500000018
+      }
+    ],
+    "delegation": [
+      {
+        "history": "short",
+        "round": 0,
+        "admissionMs": 30.774390000000494,
+        "approvedToCompleteMs": 225.88894399999936,
+        "totalMs": 256.6673260000007
+      },
+      {
+        "history": "long",
+        "round": 0,
+        "admissionMs": 36.30021399999987,
+        "approvedToCompleteMs": 211.89873199999965,
+        "totalMs": 248.2001309999996
+      },
+      {
+        "history": "short",
+        "round": 1,
+        "admissionMs": 36.13715200000024,
+        "approvedToCompleteMs": 200.0441580000006,
+        "totalMs": 236.1819400000004
+      },
+      {
+        "history": "long",
+        "round": 1,
+        "admissionMs": 38.11497899999995,
+        "approvedToCompleteMs": 223.67209600000024,
+        "totalMs": 261.7880129999994
+      },
+      {
+        "history": "short",
+        "round": 2,
+        "admissionMs": 37.798823000000084,
+        "approvedToCompleteMs": 307.30140500000016,
+        "totalMs": 345.1011690000005
+      },
+      {
+        "history": "long",
+        "round": 2,
+        "admissionMs": 46.28533999999945,
+        "approvedToCompleteMs": 226.4572560000006,
+        "totalMs": 272.743074
+      },
+      {
+        "history": "short",
+        "round": 3,
+        "admissionMs": 24.623896999999488,
+        "approvedToCompleteMs": 222.8036979999997,
+        "totalMs": 247.42805399999997
+      },
+      {
+        "history": "long",
+        "round": 3,
+        "admissionMs": 36.32605699999931,
+        "approvedToCompleteMs": 204.72140000000036,
+        "totalMs": 241.04788499999995
+      },
+      {
+        "history": "short",
+        "round": 4,
+        "admissionMs": 34.976919999999154,
+        "approvedToCompleteMs": 210.97089400000004,
+        "totalMs": 245.9489079999994
+      },
+      {
+        "history": "long",
+        "round": 4,
+        "admissionMs": 36.96442399999978,
+        "approvedToCompleteMs": 192.76633599999968,
+        "totalMs": 229.73124499999994
+      }
+    ]
+  }
+}

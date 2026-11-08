@@ -177,7 +177,7 @@ pub fn factory() -> PluginFactory {
             requires: &[
                 "ternilo/run-environment@1",
                 "ternilo/attachments@1",
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
             ],
             provides: &["ternilo/models@3"],
         },

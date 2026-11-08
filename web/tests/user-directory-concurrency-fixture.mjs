@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
@@ -175,24 +174,23 @@ export async function screenshots(page, artifacts, name) {
     })
     const closeSidebar = page.locator('[data-app-sidebar-column]:not([inert]) [data-mobile-sidebar-close]')
     if (width === 390 && await closeSidebar.isVisible()) await closeSidebar.click()
-    const bottom = page.getByRole('button', { name: '回到底部', exact: true })
-    if (await bottom.isVisible()) {
-      await bottom.click()
-      await until(() => page.locator('[data-conversation-scroll]').evaluate(element => element.scrollHeight - element.clientHeight - element.scrollTop), remaining => remaining < 8, 'screenshot shows the latest task outcome')
-    }
+    // This helper positions evidence, not a transient follow-button interaction.
+    // A resize can finish following and unmount that button before Playwright clicks it.
+    await page.locator('[data-conversation-scroll]').evaluate(element => { element.scrollTop = element.scrollHeight })
+    await until(() => page.locator('[data-conversation-scroll]').evaluate(element => element.scrollHeight - element.clientHeight - element.scrollTop), remaining => remaining < 8, 'screenshot shows the latest task outcome')
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
     await page.screenshot({ path: path.join(artifacts, `${name}-${width}.png`), animations: 'disabled' })
   }
 }
 
 export async function verifyAssets(origin) {
-  const hashes = {}
+  const assets = {}
   for (const name of ['app.js', 'app.css']) {
     const response = await fetch(origin + '/assets/' + name)
     assert.equal(response.status, 200)
-    const digest = bytes => createHash('sha256').update(bytes).digest('hex')
-    hashes[name] = digest(Buffer.from(await response.arrayBuffer()))
-    assert.equal(hashes[name], digest(await readFile(path.join(repository, 'web/dist/assets', name))))
+    const served = Buffer.from(await response.arrayBuffer())
+    assert.ok(served.equals(await readFile(path.join(repository, 'web/dist/assets', name))), `served ${name} matches the built UI`)
+    assets[name] = { bytes: served.length, matchesBuild: true }
   }
-  return hashes
+  return assets
 }

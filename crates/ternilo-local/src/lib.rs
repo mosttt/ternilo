@@ -7,6 +7,8 @@ pub fn initialize_tls() {
 
 mod server_models;
 pub use server_models::{ModelInputOrigin, ServerModelGateway};
+mod workspace_download;
+pub use workspace_download::workspace_download_stream;
 
 mod account_authorizations;
 mod agent_team;

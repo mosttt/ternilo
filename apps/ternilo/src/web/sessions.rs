@@ -116,6 +116,10 @@ pub(super) fn session_router() -> Router {
                 .push(Router::with_path("history").get(session_history))
                 .push(Router::with_path("archive-history").get(archived_session_history))
                 .push(Router::with_path("files/{file_id}/content").get(session_file_content))
+                .push(
+                    Router::with_path("files/{file_id}/download")
+                        .get(super::workspaces::session_file_download),
+                )
                 .push(Router::with_path("plugins").get(session_plugins))
                 .push(Router::with_path("commands").get(session_commands))
                 .push(Router::with_path("services").get(session_services))
@@ -125,7 +129,11 @@ pub(super) fn session_router() -> Router {
                 .push(
                     Router::with_path("workspace")
                         .get(workspace_browser_info)
-                        .post(workspace_browser),
+                        .post(workspace_browser)
+                        .push(
+                            Router::with_path("download")
+                                .post(super::workspaces::workspace_download),
+                        ),
                 )
                 .push(Router::with_path("attachments/resolve").post(resolve_attachment))
                 .push(Router::with_path("projection").get(session_projection))

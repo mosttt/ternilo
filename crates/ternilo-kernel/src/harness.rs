@@ -770,6 +770,22 @@ impl HarnessSession {
         self.sessions.events().await
     }
 
+    pub async fn summary(&self) -> ternilo_protocol::SessionLogSummary {
+        self.sessions.summary().await
+    }
+
+    pub async fn run_facts(&self, run_id: RunId) -> Option<ternilo_protocol::SessionRunFacts> {
+        self.sessions.run_facts(run_id).await
+    }
+
+    pub async fn run_events(&self, run_id: RunId) -> Vec<SessionEvent> {
+        self.sessions.run_events(run_id).await
+    }
+
+    pub async fn event_at(&self, seq: u64) -> Option<SessionEvent> {
+        self.sessions.event_at(seq).await
+    }
+
     pub async fn events_after(&self, after_seq: Option<u64>) -> Vec<SessionEvent> {
         self.sessions.events_after(after_seq).await
     }

@@ -116,7 +116,7 @@ pub fn code_mode_factory() -> PluginFactory {
             requires: &[
                 "ternilo/code-runtime@1",
                 "ternilo/tools@1",
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
                 "ternilo/hooks@1",
                 "ternilo/run-environment@1",
             ],

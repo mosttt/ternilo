@@ -89,6 +89,21 @@ pub(crate) struct EventLogTail {
     pub(crate) total_records: u64,
 }
 
+/// An immutable log view for blocking consumers, including the SQLite index worker.
+pub(crate) struct EventLogReader {
+    path: PathBuf,
+    _guard: tokio::sync::OwnedRwLockReadGuard<()>,
+}
+
+impl EventLogReader {
+    pub(crate) fn scan(
+        &self,
+        visit: impl FnMut(SessionEvent) -> Result<(), HarnessError>,
+    ) -> Result<(), HarnessError> {
+        read::scan(&self.path, 0, visit).map(|_| ())
+    }
+}
+
 pub struct JsonlEventStore {
     path: PathBuf,
     access: Arc<RwLock<()>>,
@@ -154,6 +169,13 @@ impl JsonlEventStore {
 
     pub(crate) async fn load_events(&self) -> Result<Vec<SessionEvent>, HarnessError> {
         self.load().await
+    }
+
+    pub(crate) async fn reader(&self) -> EventLogReader {
+        EventLogReader {
+            path: self.path.clone(),
+            _guard: Arc::clone(&self.access).read_owned().await,
+        }
     }
 
     /// Read one immutable event without loading the rest of its transcript.
@@ -406,7 +428,7 @@ mod tests {
         let reader = Arc::new(JsonlEventStore::new(directory.path(), &session));
         let (ready, mut started) = tokio::sync::mpsc::channel(4);
         let mut tasks = tokio::task::JoinSet::new();
-        for method in 0..4 {
+        for method in 0..5 {
             let reader = Arc::clone(&reader);
             let ready = ready.clone();
             tasks.spawn(async move {
@@ -420,12 +442,25 @@ mod tests {
                             .await?
                             .events
                     }
-                    _ => reader.event_at(1).await?.into_iter().collect(),
+                    3 => reader.event_at(1).await?.into_iter().collect(),
+                    _ => {
+                        let reader = reader.reader().await;
+                        tokio::task::spawn_blocking(move || {
+                            let mut events = Vec::new();
+                            reader.scan(|event| {
+                                events.push(event);
+                                Ok(())
+                            })?;
+                            Ok::<_, HarnessError>(events)
+                        })
+                        .await
+                        .unwrap()?
+                    }
                 };
                 Ok::<_, HarnessError>((method, events))
             });
         }
-        for _ in 0..4 {
+        for _ in 0..5 {
             started.recv().await.unwrap();
         }
         assert!(

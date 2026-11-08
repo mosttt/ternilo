@@ -16,6 +16,8 @@ use super::*;
 
 #[path = "admission_tests.rs"]
 mod admission;
+#[path = "attachment_tests.rs"]
+mod attachments;
 
 #[tokio::test]
 #[expect(
@@ -83,7 +85,14 @@ async fn http_worker_protocol_uses_canonical_leases_and_rechecks_revocation() {
                 limits: policy.maximum_limits,
                 permissions: session.permissions,
                 mode: SessionMode::Execute,
-                profile: Profile::default(),
+                profile: Profile {
+                    plugins: vec![ternilo_protocol::PluginEntry {
+                        id: "session".into(),
+                        kind: "ternilo.session.log".into(),
+                        enabled: true,
+                        config: serde_json::json!({"max_retained_file_mib":1}),
+                    }],
+                },
                 input: "/write result.txt worker".to_owned(),
                 references: vec![],
                 reference_contexts: vec![],
@@ -239,6 +248,7 @@ async fn http_worker_protocol_uses_canonical_leases_and_rechecks_revocation() {
         panic!("expected a started canonical run")
     };
     assert_eq!(run.claim.spec.input, "/write result.txt worker");
+    attachments::verify_upload(&service, &bearer, &registered.identity, &cloud, &run).await;
     verify_subagent_acceptance(&service, &bearer, &registered.identity, &run).await;
     let mut wrong_fence = RunLease::from(&run);
     wrong_fence.writer_fencing_token += 1;

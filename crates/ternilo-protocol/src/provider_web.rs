@@ -279,7 +279,7 @@ pub struct NodeRunContext {
     pub run_id: crate::RunId,
     pub provenance: Option<crate::InputProvenance>,
     #[serde(default)]
-    pub schedule_origins: Vec<crate::ScheduleModelOrigin>,
+    pub run_origins: Vec<crate::ModelRunOrigin>,
     pub binding: crate::RunModelBinding,
 }
 impl From<&crate::NodeModelRequest> for NodeRunContext {
@@ -289,7 +289,7 @@ impl From<&crate::NodeModelRequest> for NodeRunContext {
             origin_session_id: body.origin_session_id.clone(),
             run_id: body.run_id.clone(),
             provenance: body.provenance.clone(),
-            schedule_origins: body.schedule_origins.clone(),
+            run_origins: body.run_origins.clone(),
             binding: body.binding.clone(),
         }
     }

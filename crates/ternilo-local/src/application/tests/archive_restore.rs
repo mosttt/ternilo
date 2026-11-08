@@ -103,3 +103,236 @@ async fn restore_cannot_recreate_a_deleted_session_or_clear_its_tombstone() {
     );
     application.shutdown().await.unwrap();
 }
+
+async fn archive_child(
+    application: &LocalApplication,
+    parent: &LocalSession,
+    name: &str,
+) -> LocalSession {
+    let binding = application
+        .subagent_session_host()
+        .create(
+            parent.identity.clone(),
+            SubagentSessionRequest {
+                role: None,
+                subagent_id: ternilo_protocol::SubagentId::new(name),
+                provider: "in-process".into(),
+                label: name.into(),
+                task: "archive fixture".into(),
+                transcript_kind: ternilo_protocol::SubagentTranscriptKind::Conversation,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    application
+        .state
+        .session(binding.session_id.as_str())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Verify archive, restart/restore and single-record deletion on the same delegated family."
+)]
+async fn archive_and_restore_follow_delegated_descendants_but_not_forks() {
+    let directory = tempfile::tempdir().unwrap();
+    let workspace_dir = tempfile::tempdir().unwrap();
+    let application = open_test_application(directory.path().to_path_buf()).await;
+    let workspace = application
+        .add_workspace(workspace_dir.path().to_str().unwrap())
+        .await
+        .unwrap();
+    let parent = application
+        .create_session(workspace.workspace_id, Some("archive-parent".into()), None)
+        .await
+        .unwrap();
+    let child = archive_child(&application, &parent, "child").await;
+    let grandchild = archive_child(&application, &child, "grandchild").await;
+    application
+        .run_turn(
+            child.identity.session_id.as_str(),
+            None,
+            "/code \"retained child\"".into(),
+        )
+        .await
+        .unwrap();
+    let fork = application
+        .fork_session(
+            child.identity.session_id.as_str(),
+            Some("independent-fork".into()),
+            None,
+        )
+        .await
+        .unwrap();
+    let fork_child = archive_child(&application, &fork, "independent-child").await;
+    let events = application
+        .events(child.identity.session_id.as_str())
+        .await
+        .unwrap();
+    application
+        .inbox
+        .enqueue(
+            grandchild.identity.session_id.as_str(),
+            queued_submission("keep-pending"),
+        )
+        .await
+        .unwrap();
+    application
+        .archive_session(parent.identity.session_id.as_str())
+        .await
+        .unwrap();
+    for session in [&parent, &child, &grandchild] {
+        let id = session.identity.session_id.as_str();
+        assert!(
+            application
+                .state
+                .session(id)
+                .await
+                .unwrap()
+                .archived_at_ms
+                .is_some()
+        );
+        assert!(application.inbox.snapshot(id).await.unwrap().paused);
+        assert!(!application.live.read().await.contains_key(id));
+    }
+    for session in [&fork, &fork_child] {
+        assert!(
+            application
+                .state
+                .session(session.identity.session_id.as_str())
+                .await
+                .unwrap()
+                .archived_at_ms
+                .is_none()
+        );
+    }
+    application.shutdown().await.unwrap();
+    drop(application);
+    let application = open_test_application(directory.path().to_path_buf()).await;
+    application
+        .restore_session(parent.identity.session_id.as_str())
+        .await
+        .unwrap();
+    for session in [&parent, &child, &grandchild] {
+        let id = session.identity.session_id.as_str();
+        assert!(
+            application
+                .state
+                .session(id)
+                .await
+                .unwrap()
+                .archived_at_ms
+                .is_none()
+        );
+        assert!(application.inbox.snapshot(id).await.unwrap().paused);
+        assert!(!application.live.read().await.contains_key(id));
+    }
+    assert_eq!(
+        application
+            .events(child.identity.session_id.as_str())
+            .await
+            .unwrap(),
+        events
+    );
+    assert_eq!(
+        application
+            .inbox
+            .snapshot(grandchild.identity.session_id.as_str())
+            .await
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+    application
+        .archive_session(parent.identity.session_id.as_str())
+        .await
+        .unwrap();
+    application
+        .delete_session(child.identity.session_id.as_str())
+        .await
+        .unwrap();
+    assert!(
+        application
+            .state
+            .session(child.identity.session_id.as_str())
+            .await
+            .is_none()
+    );
+    assert!(
+        application
+            .state
+            .session(grandchild.identity.session_id.as_str())
+            .await
+            .is_some()
+    );
+    assert!(
+        application
+            .state
+            .session(parent.identity.session_id.as_str())
+            .await
+            .is_some()
+    );
+    application.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn archiving_parent_cancels_a_child_waiting_for_approval_and_parks_its_queue() {
+    let directory = tempfile::tempdir().unwrap();
+    let workspace_dir = tempfile::tempdir().unwrap();
+    let app = Arc::new(open_test_application(directory.path().to_path_buf()).await);
+    let workspace = app
+        .add_workspace(workspace_dir.path().to_str().unwrap())
+        .await
+        .unwrap();
+    let parent = app
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let child = archive_child(&app, &parent, "waiting-child").await;
+    let id = child.identity.session_id.to_string();
+    let run = {
+        let app = Arc::clone(&app);
+        let id = id.clone();
+        tokio::spawn(async move {
+            app.run_turn(&id, None, "/agent-on in-process never-start".into())
+                .await
+        })
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while app.pending_questions(Some(&id)).await.is_empty() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("child reaches approval");
+    app.inbox
+        .enqueue(&id, queued_submission("keep-queued-child"))
+        .await
+        .unwrap();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        app.archive_session(parent.identity.session_id.as_str()),
+    )
+    .await
+    .expect("archive cancels the waiting child")
+    .unwrap();
+    assert!(run.await.unwrap().unwrap_err().is_cancelled());
+    assert!(app.pending_questions(Some(&id)).await.is_empty());
+    assert!(!app.live.read().await.contains_key(&id));
+    let inbox = app.inbox.snapshot(&id).await.unwrap();
+    assert!(inbox.paused);
+    assert_eq!(inbox.items.len(), 1);
+    assert!(
+        app.state
+            .session(&id)
+            .await
+            .unwrap()
+            .archived_at_ms
+            .is_some()
+    );
+    app.shutdown().await.unwrap();
+}

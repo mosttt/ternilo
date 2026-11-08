@@ -7,3 +7,5 @@
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+.fileLink { color: var(--accent-color); text-decoration: underline; text-underline-offset: 3px; text-align: inherit; overflow-wrap: anywhere; }

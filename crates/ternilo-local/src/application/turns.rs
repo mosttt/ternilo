@@ -277,24 +277,25 @@ impl LocalApplication {
                 attachments,
             })
             .await;
-        let current_events = managed.harness.events().await;
-        let revoked = self
-            .model_input_origin(session_id, &run_id)
-            .await
-            .ok()
-            .map(|origin| origin.provenance);
-        let revoked = match revoked {
-            Some(provenance) => self
-                .account_authorizations
-                .check(provenance.as_ref())
-                .await
-                .is_err_and(|error| error.code == ternilo_protocol::ErrorCode::PolicyDenied),
-            None => false,
+        let summary = managed.harness.summary().await;
+        // Revocation changes queue parking only when cancellation ended this turn.
+        let cancelled = outcome.as_ref().is_err_and(HarnessError::is_cancelled);
+        let revoked = if cancelled {
+            match self.model_input_origin(session_id, &run_id).await {
+                Ok(origin) => self
+                    .account_authorizations
+                    .check(origin.provenance.as_ref())
+                    .await
+                    .is_err_and(|error| error.code == ternilo_protocol::ErrorCode::PolicyDenied),
+                Err(_) => false,
+            }
+        } else {
+            false
         };
         self.settle_session_inbox(
             session_id,
-            &current_events,
-            outcome.as_ref().is_err_and(HarnessError::is_cancelled) && !revoked,
+            &summary.consumed_submissions,
+            cancelled && !revoked,
         )
         .await?;
         if outcome.is_err() {
@@ -321,11 +322,7 @@ impl LocalApplication {
             crate::LocalInvalidationCategory::Activity,
             None,
         );
-        let first_successful_turn = current_events
-            .iter()
-            .filter(|event| matches!(event.kind, SessionEventKind::TurnFinished { .. }))
-            .count()
-            == 1;
+        let first_successful_turn = summary.completed_turns == 1;
         let direct_command_turn = outcome.events.iter().any(|event| {
             matches!(
                 event.kind,

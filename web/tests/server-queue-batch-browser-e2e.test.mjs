@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -88,7 +87,7 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     for (const origin of [server.origin, localOrigin]) {
       for (const asset of ['app.js', 'app.css']) {
         const served = await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer()
-        assert.equal(createHash('sha256').update(Buffer.from(served)).digest('hex'), createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex'))
+        assert.ok(Buffer.from(served).equals(await readFile(path.join(repository, 'web/dist/assets', asset))), `served ${asset} matches the built UI`)
       }
     }
     await page.getByLabel('用户名', { exact: true }).fill(server.owner.username)
@@ -116,15 +115,14 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     assert.equal((await stopped).status(), 200)
     await until(() => requests, value => value.length === 2)
     await until(() => pending.has(0), value => !value)
-    const users = requests[1].messages.filter(message => message.role === 'user')
-    const first = users.findIndex(message => JSON.stringify(message.content).includes('B: from the account'))
-    const second = users.findIndex(message => JSON.stringify(message.content).includes('C: from the computer'))
-    assert.ok(first >= 0 && second > first, 'B and C must be distinct user messages in FIFO order')
-    assert.ok(JSON.stringify(requests[1]).includes('Independent B attachment sentinel.'))
-    assert.ok(JSON.stringify(requests[1]).includes('Independent C reference sentinel.'))
+    // Different authors retain separate runs; adjacent inputs by one author share a batch.
+    const accountContext = JSON.stringify(requests[1].messages)
+    assert.ok(accountContext.includes('B: from the account'))
+    assert.ok(accountContext.includes('Independent B attachment sentinel.'))
+    assert.ok(!accountContext.includes('C: from the computer'))
+    assert.ok(!accountContext.includes('Independent C reference sentinel.'))
     await page.locator('[data-role="user"]').filter({ hasText: 'B: from the account' }).waitFor()
-    await page.locator('[data-role="user"]').filter({ hasText: 'C: from the computer' }).waitFor()
-    await page.locator('[data-queue-dock]').waitFor({ state: 'detached' })
+    await page.locator('[data-queued-submission]').filter({ hasText: 'C: from the computer' }).waitFor()
     const reasoning = page.locator('[data-reasoning-row][data-state="complete"]').filter({ hasText: 'Unfinished reasoning before stop.' })
     await reasoning.waitFor()
     const stoppedDuration = await reasoning.locator('[data-reasoning-duration]').innerText()
@@ -133,6 +131,15 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     assert.equal(await page.locator('[data-reasoning-row][data-state="running"]').count(), 0)
     assert.equal(await editor.inputValue(), 'Unsent independent draft')
     complete(pending.get(1))
+    await until(() => requests, value => value.length === 3)
+    const users = requests[2].messages.filter(message => message.role === 'user')
+    const positions = ['B: from the account', 'C: from the computer', 'D: later in the same batch']
+      .map(text => users.findIndex(message => JSON.stringify(message.content).includes(text)))
+    assert.ok(positions[0] >= 0 && positions[1] > positions[0] && positions[2] > positions[1], 'messages retain FIFO order across author boundaries')
+    assert.ok(JSON.stringify(requests[2]).includes('Independent C reference sentinel.'))
+    await page.locator('[data-role="user"]').filter({ hasText: 'C: from the computer' }).waitFor()
+    await page.locator('[data-queue-dock]').waitFor({ state: 'detached' })
+    complete(pending.get(2))
     await until(() => local(`/sessions/${localSession}/queue`), inbox => !inbox.active_run_id && inbox.items.length === 0)
     const historical = page.locator('[data-chat-turn]').first()
     const latest = page.locator('[data-chat-turn]').last()
@@ -140,7 +147,7 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     await editor.focus()
     await page.mouse.move(5, 5)
     await until(() => opacity(historical.locator('[data-message-actions="user"]').first()), value => value === '0')
-    assert.deepEqual(await latest.locator('[data-message-actions="user"]').evaluateAll(elements => elements.map(element => getComputedStyle(element).opacity)), ['1', '1', '1'])
+    assert.deepEqual(await latest.locator('[data-message-actions="user"]').evaluateAll(elements => elements.map(element => getComputedStyle(element).opacity)), ['1', '1'])
     assert.equal(await opacity(latest.locator('[data-turn-tail] footer')), '1')
     await historical.locator('[data-role="user"]').hover()
     await until(() => opacity(historical.locator('[data-message-actions="user"]').first()), value => value === '1')
@@ -157,7 +164,8 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     await page.setViewportSize({ width: 1280, height: 900 })
     const events = (await local(`/sessions/${localSession}/events`)).filter(event => event.type === 'user_message')
     assert.deepEqual(events.map(event => event.content), ['A: original task', 'B: from the account', 'C: from the computer', 'D: later in the same batch'])
-    assert.equal(events[1].run_id, events[2].run_id)
+    assert.notEqual(events[1].run_id, events[2].run_id)
+    assert.equal(events[2].run_id, events[3].run_id)
     assert.equal(events[1].provenance.author.kind, 'account')
     assert.equal(events[2].provenance.author.kind, 'local')
     assert.equal(events[1].attachments[0].name, 'B.txt')
@@ -176,14 +184,14 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     const replacementBody = (await replacement).postDataJSON()
     assert.equal(replacementBody.content.target_seq, events[2].seq)
     assert.deepEqual(replacementBody.references, events[2].references)
-    await until(() => requests, values => values.length === 3)
-    const editedContext = JSON.stringify(requests[2].messages)
+    await until(() => requests, values => values.length === 4)
+    const editedContext = JSON.stringify(requests[3].messages)
     assert.ok(editedContext.includes('B: from the account'))
     assert.ok(editedContext.includes('C: edited from the account'))
     assert.ok(!editedContext.includes('C: from the computer'))
     assert.ok(!editedContext.includes('D: later in the same batch'))
-    assert.ok(!editedContext.includes('Partial response 1.'))
-    complete(pending.get(2))
+    assert.ok(!editedContext.includes('Partial response 2.'))
+    complete(pending.get(3))
     await until(() => local(`/sessions/${localSession}/queue`), inbox => !inbox.active_run_id && inbox.items.length === 0)
     await page.getByRole('button', { name: '停止运行', exact: true }).waitFor({ state: 'hidden' })
     await message('C: edited from the account').waitFor()
@@ -192,11 +200,11 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     assert.equal(await message('B: from the account').count(), 1)
     assert.equal(await page.locator('[data-execution-phase]').count(), 0, 'the retained prefix must not reopen its old timer')
     await message('C: edited from the account').getByRole('button', { name: '重新生成', exact: true }).click()
-    await until(() => requests, values => values.length === 4)
-    assert.equal(requests[3].messages.filter(message => message.role === 'user'
+    await until(() => requests, values => values.length === 5)
+    assert.equal(requests[4].messages.filter(message => message.role === 'user'
       && JSON.stringify(message.content).includes('C: edited from the account')).length, 1)
-    assert.ok(!JSON.stringify(requests[3].messages).includes('Partial response 2.'))
-    complete(pending.get(3))
+    assert.ok(!JSON.stringify(requests[4].messages).includes('Partial response 3.'))
+    complete(pending.get(4))
     await until(() => local(`/sessions/${localSession}/queue`), inbox => !inbox.active_run_id && inbox.items.length === 0)
     await page.reload()
     await message('C: edited from the account').waitFor()

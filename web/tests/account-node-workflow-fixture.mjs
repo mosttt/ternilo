@@ -26,7 +26,7 @@ export async function workflowOriginTask({ page, owner, member, session, session
     const children = (await until(() => owner('/state'), state => state.sessions.filter(value => value.parent_session_id === sessionId && !previousSessions.has(value.identity.session_id)).length === 4, 'four workflow child sessions')).sessions.filter(value => value.parent_session_id === sessionId && !previousSessions.has(value.identity.session_id))
     for (const child of children) {
       const history = await owner(`/sessions/${child.identity.session_id}/events`)
-      assert.ok(history.some(event => event.type === 'user_message' && event.run_id === accepted.run_id), 'workflow child retains its accepted parent run')
+      assert.ok(history.some(event => event.type === 'user_message' && event.run_id !== accepted.run_id && event.source?.kind === 'subagent' && event.source.parent_run_id === accepted.run_id), 'workflow child records its distinct run and accepted parent origin')
       assert.ok(history.some(event => event.type === 'turn_finished'), 'each workflow task and stage completes')
       assert.equal(history.some(event => event.type === 'turn_failed'), false, JSON.stringify(history))
     }
@@ -66,7 +66,10 @@ export async function workflowInterruptedTask({ page, owner, member, session, se
     const children = (await owner('/state')).sessions.filter(value => value.parent_session_id === sessionId && !previousSessions.has(value.identity.session_id))
     assert.equal(children.length, 1, 'interruption must prevent the next pipeline stage from starting')
     const history = await owner(`/sessions/${children[0].identity.session_id}/events`)
-    assert.ok(history.some(event => event.run_id === accepted.run_id && event.type === (revoke ? 'turn_failed' : 'turn_cancelled')), JSON.stringify(history))
+    const input = history.find(event => event.type === 'user_message' && event.source?.kind === 'subagent' && event.source.parent_run_id === accepted.run_id)
+    assert.ok(input)
+    assert.notEqual(input.run_id, accepted.run_id)
+    assert.ok(history.some(event => event.run_id === input.run_id && event.type === (revoke ? 'turn_failed' : 'turn_cancelled')), JSON.stringify(history))
     const requests = (await until(() => member('/model-access/requests?limit=100'), value => {
       const created = value.requests.filter(request => !before.has(request.request_id))
       return created.length > 0 && created.every(request => request.state !== 'pending')

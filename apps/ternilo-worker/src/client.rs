@@ -387,12 +387,25 @@ impl WorkerClient {
         attachment: &Attachment,
         content: &[u8],
     ) -> Result<(), HarnessError> {
-        self.unit(WorkerRequest::StoreAttachment {
+        let metadata = ternilo_cloud::WorkerAttachmentUpload {
+            identity: self.current_identity()?,
             run: run.into(),
             attachment: attachment.clone(),
-            content_base64: STANDARD.encode(content),
-        })
-        .await
+        };
+        let metadata = serde_json::to_vec(&metadata)
+            .map_err(|_| HarnessError::invalid("encode attachment metadata"))?;
+        match self
+            .json(
+                self.request(reqwest::Method::POST, "attachment")
+                    .header("content-type", "application/octet-stream")
+                    .header("x-ternilo-attachment", STANDARD.encode(metadata))
+                    .body(content.to_vec()),
+            )
+            .await?
+        {
+            WorkerReply::Unit => Ok(()),
+            _ => Err(unexpected_reply()),
+        }
     }
 
     pub async fn download_attachment(

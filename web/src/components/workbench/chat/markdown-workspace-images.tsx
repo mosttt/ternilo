@@ -4,10 +4,19 @@ import { ImageOff, LoaderCircle, RotateCcw } from 'lucide-react'
 import { workspaceImagePath } from '@/domain/workspace-image'
 import type { Translate } from '@/i18n/runtime'
 import { ImageLightbox } from '../message-attachments'
-import { workspaceRequest, type WorkspacePreview } from '../workspace-panel-context'
+import { useWorkspaceSurface, workspaceRequest, type WorkspacePreview } from '../workspace-panel-context'
 import css from './markdown-workspace-images.module.css'
 
 export const WorkspaceImageContext = React.createContext<{ sessionId: string; root: string; scope: string } | null>(null)
+
+function WorkspaceFileLink({ sessionId, root, reference, label }: {
+  sessionId: string; root: string; reference: string; label: string
+}) {
+  const surface = useWorkspaceSurface()
+  const path = workspaceImagePath(reference, root)
+  if (!path || surface?.sessionId !== sessionId || !surface.info?.can_browse) return <>{label}</>
+  return <button type="button" className={css.fileLink} title={path} onClick={() => surface.openFile(path)}>{label}</button>
+}
 
 function WorkspaceImage({ sessionId, root, reference, alt, t }: {
   sessionId: string; root: string; reference: string; alt: string; t: Translate<'chat'>
@@ -49,17 +58,20 @@ export function MarkdownWorkspaceImages({ container, markup, t }: {
 }) {
   const scope = React.useContext(WorkspaceImageContext)
   const key = JSON.stringify([markup, scope?.sessionId, scope?.root, scope?.scope])
-  const [targets, setTargets] = React.useState<{ key: string; nodes: HTMLElement[] }>({ key: '', nodes: [] })
-  const mounted = React.useRef(new WeakSet<HTMLElement>())
+  const [targets, setTargets] = React.useState<{ key: string; nodes: { element: HTMLElement; label: string }[] }>({ key: '', nodes: [] })
+  const mounted = React.useRef(new WeakMap<HTMLElement, string>())
   React.useEffect(() => {
     if (!scope || !container.current) return
-    const next = [...container.current.querySelectorAll<HTMLElement>('[data-workspace-image]')]
-    for (const node of next) {
-      if (!mounted.current.has(node)) { node.replaceChildren(); mounted.current.add(node) }
-    }
+    const next = [...container.current.querySelectorAll<HTMLElement>('[data-workspace-image], [data-workspace-link]')].map(element => {
+      const label = mounted.current.get(element) ?? element.textContent ?? ''
+      if (!mounted.current.has(element)) { element.replaceChildren(); mounted.current.set(element, label) }
+      return { element, label }
+    })
     setTargets({ key, nodes: next })
   }, [container, key, scope?.sessionId, scope?.root, scope?.scope])
   if (!scope || targets.key !== key) return null
-  return targets.nodes.map((target, index) => createPortal(<WorkspaceImage {...scope}
-    reference={target.dataset.workspaceImage!} alt={target.dataset.workspaceImageAlt ?? ''} t={t} />, target, `${scope.scope}:${scope.sessionId}:${index}`))
+  return targets.nodes.map(({ element, label }, index) => createPortal(element.dataset.workspaceLink
+    ? <WorkspaceFileLink {...scope} reference={element.dataset.workspaceLink} label={label} />
+    : <WorkspaceImage {...scope} reference={element.dataset.workspaceImage!} alt={element.dataset.workspaceImageAlt ?? ''} t={t} />,
+  element, `${scope.scope}:${scope.sessionId}:${index}`))
 }

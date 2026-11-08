@@ -210,6 +210,67 @@ async fn node_file_download_crosses_the_default_websocket_frame_limit_without_ca
     assert_eq!(received.len(), original.len());
     assert_eq!(Sha256::digest(&received), expected_digest);
     assert_eq!(received, original);
+    let download = async {
+        let response = reqwest::Client::new()
+            .get(format!(
+                "http://{address}/api/v1/sessions/{}/files/generated-0-0/download",
+                session.session_id
+            ))
+            .bearer_auth(&fixture.owner.access_token)
+            .header("x-ternilo-tenant", fixture.tenant.as_str())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        response.bytes().await.unwrap()
+    };
+    let respond = async {
+        let mut offset = 0;
+        let mut ids = Vec::new();
+        while offset < original.len() {
+            let ControlFrame::Command { command } = next_frame(&mut socket).await else {
+                panic!("expected file chunk")
+            };
+            assert_eq!(
+                command.body,
+                ExecutorCommandBody::Application {
+                    request: ApplicationOperation::SessionFileChunk {
+                        session_id: session.node_session_id.clone(),
+                        file_id: "generated-0-0".into(),
+                        offset: offset as u64,
+                    }
+                }
+            );
+            let end = (offset + 1024 * 1024).min(original.len());
+            let reply = ExecutorFrame::Reply {
+                reply: CommandReply::success(
+                    command.command_id.clone(),
+                    crate::platform::http::now_ms().unwrap(),
+                    serde_json::to_value(ternilo_protocol::FileDownloadChunk {
+                        offset: offset as u64,
+                        version: ternilo_protocol::FileDownloadVersion {
+                            bytes: original.len() as u64,
+                            revision: digest_hex.clone(),
+                        },
+                        sha256: Some(digest_hex.clone()),
+                        content_base64: STANDARD.encode(&original[offset..end]),
+                    })
+                    .unwrap(),
+                ),
+            };
+            let text = serde_json::to_string(&reply).unwrap();
+            assert!(
+                text.len() < 2 * 1024 * 1024,
+                "raw downloads use bounded Node replies"
+            );
+            socket.send(Message::Text(text.into())).await.unwrap();
+            ids.push(command.command_id);
+            offset = end;
+        }
+        ids
+    };
+    let (received, chunks) = tokio::join!(download, respond);
+    assert_eq!(received.as_ref(), original.as_slice());
     let mut tx = fixture
         .state
         .cloud
@@ -229,6 +290,17 @@ async fn node_file_download_crosses_the_default_websocket_frame_limit_without_ca
         persisted, 0,
         "file download commands and replies must stay ephemeral"
     );
+    for id in chunks {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM gateway_commands WHERE tenant_id=$1 AND command_id=$2",
+        )
+        .bind(fixture.tenant.as_str())
+        .bind(id.as_str())
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(count, 0, "file chunks must stay ephemeral");
+    }
     let objects = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM cloud_attachment_objects WHERE tenant_id=$1",
     )

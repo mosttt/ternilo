@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use std::{fs::File, os::fd::OwnedFd, path::Component};
 use std::{
-    io::Read,
+    io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
 };
 
@@ -14,8 +14,9 @@ use nix::{
 };
 use serde_json::Value;
 use ternilo_protocol::{
-    HarnessError, WorkspaceBrowserInfo, WorkspaceDirectory, WorkspaceEntry, WorkspaceEntryKind,
-    WorkspacePreview, WorkspaceRequest,
+    FileDownloadChunk, FileDownloadVersion, HarnessError, WORKSPACE_DOWNLOAD_CHUNK_BYTES,
+    WorkspaceBrowserInfo, WorkspaceDirectory, WorkspaceEntry, WorkspaceEntryKind, WorkspacePreview,
+    WorkspaceRequest,
 };
 
 use crate::LocalApplication;
@@ -164,6 +165,61 @@ fn preview(root: &Path, path: String) -> Result<WorkspacePreview, HarnessError> 
     })
 }
 
+fn file_version(file: &std::fs::File) -> Result<FileDownloadVersion, HarnessError> {
+    let metadata = file.metadata().map_err(read_error)?;
+    if !metadata.is_file() {
+        return Err(HarnessError::invalid(
+            "only regular workspace files can be downloaded",
+        ));
+    }
+    let modified = metadata.modified().map_err(read_error)?;
+    let revision = match modified.duration_since(std::time::UNIX_EPOCH) {
+        Ok(duration) => duration.as_nanos().to_string(),
+        Err(error) => format!("-{}", error.duration().as_nanos()),
+    };
+    Ok(FileDownloadVersion {
+        bytes: metadata.len(),
+        revision,
+    })
+}
+
+fn download_chunk(
+    root: &Path,
+    path: &str,
+    offset: u64,
+    expected: Option<&FileDownloadVersion>,
+) -> Result<FileDownloadChunk, HarnessError> {
+    let mut file = open_beneath(root, path, false)?;
+    let version = file_version(&file)?;
+    if expected.is_some_and(|expected| expected != &version) {
+        return Err(HarnessError::conflict(
+            "workspace file changed during download; download it again",
+        ));
+    }
+    if offset > version.bytes {
+        return Err(HarnessError::invalid(
+            "download offset exceeds the file size",
+        ));
+    }
+    file.seek(SeekFrom::Start(offset)).map_err(read_error)?;
+    let mut bytes = Vec::new();
+    (&mut file)
+        .take(WORKSPACE_DOWNLOAD_CHUNK_BYTES)
+        .read_to_end(&mut bytes)
+        .map_err(read_error)?;
+    if file_version(&file)? != version {
+        return Err(HarnessError::conflict(
+            "workspace file changed during download; download it again",
+        ));
+    }
+    Ok(FileDownloadChunk {
+        sha256: None,
+        offset,
+        version,
+        content_base64: STANDARD.encode(bytes),
+    })
+}
+
 pub async fn browse_workspace(
     root: PathBuf,
     request: WorkspaceRequest,
@@ -187,6 +243,12 @@ pub async fn browse_workspace(
             WorkspaceRequest::Read { path } => {
                 serde_json::to_value(preview(&root, path)?).map_err(read_error)
             }
+            WorkspaceRequest::Download {
+                path,
+                offset,
+                version,
+            } => serde_json::to_value(download_chunk(&root, &path, offset, version.as_ref())?)
+                .map_err(read_error),
             _ => unreachable!(),
         })
         .await
@@ -275,6 +337,19 @@ mod tests {
                 .is_err(),
                 "{path}"
             );
+            assert!(
+                browse_workspace(
+                    root.path().to_owned(),
+                    WorkspaceRequest::Download {
+                        path: path.to_owned(),
+                        offset: 0,
+                        version: None,
+                    }
+                )
+                .await
+                .is_err(),
+                "download {path}"
+            );
         }
         let value = browse_workspace(
             root.path().to_owned(),
@@ -310,5 +385,44 @@ mod tests {
             preview(root.path(), "opaque".to_owned()).unwrap().encoding,
             "unsupported"
         );
+    }
+
+    #[tokio::test]
+    async fn downloads_stream_binary_beyond_preview_limits_and_reject_changed_files() {
+        use futures_util::{StreamExt as _, TryStreamExt as _};
+        let root = tempfile::tempdir().unwrap();
+        let bytes = (0_u8..=255)
+            .cycle()
+            .take(3 * 1024 * 1024 + 7)
+            .collect::<Vec<_>>();
+        std::fs::write(root.path().join("package.zip"), &bytes).unwrap();
+        let first = download_chunk(root.path(), "package.zip", 0, None).unwrap();
+        assert!(first.content_base64.len() < 2 * 1024 * 1024);
+        let root_path = root.path().to_owned();
+        let stream = crate::workspace_download_stream(first.clone(), move |offset, version| {
+            let value = download_chunk(&root_path, "package.zip", offset, Some(&version));
+            async move { value }
+        });
+        let chunks = stream.try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(chunks.concat(), bytes);
+        assert_eq!(chunks.len(), 4);
+        std::fs::write(root.path().join("package.zip"), b"changed").unwrap();
+        assert!(
+            download_chunk(
+                root.path(),
+                "package.zip",
+                WORKSPACE_DOWNLOAD_CHUNK_BYTES,
+                Some(&first.version)
+            )
+            .is_err()
+        );
+        std::fs::write(root.path().join("empty.zip"), []).unwrap();
+        let empty = download_chunk(root.path(), "empty.zip", 0, None).unwrap();
+        let stream = crate::workspace_download_stream(empty, |_, _| async {
+            panic!("an empty download has no next chunk")
+        });
+        futures_util::pin_mut!(stream);
+        assert_eq!(stream.next().await.unwrap().unwrap(), Vec::<u8>::new());
+        assert!(stream.next().await.is_none());
     }
 }

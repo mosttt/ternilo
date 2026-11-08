@@ -34,7 +34,7 @@ pub fn factory() -> PluginFactory {
             requires: &[
                 "ternilo/tools@1",
                 "ternilo/prompts@1",
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
                 "ternilo/runtime-extensions@1",
             ],
             provides: &[],

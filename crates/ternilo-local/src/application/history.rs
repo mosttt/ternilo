@@ -1,13 +1,12 @@
 use super::workspaces::workspace_title;
 use super::{
-    AgentId, Arc, BTreeMap, FeedbackRating, HarnessError, JsonlEventStore, LocalApplication,
-    LocalSession, Path, Profile, ReferenceCandidate, ReferenceCandidateRequest,
-    ReferenceCandidateSnapshot, RunId, SessionArchive, SessionCommandCatalog,
-    SessionCommandOutcome, SessionCommandOutcomeKind, SessionCommandReceipt, SessionEvent,
-    SessionEventKind, SessionEventReadRequest, SessionExport, SessionId, SessionIdentity,
-    SessionProjectionSnapshot, SessionSearchHit, SessionSearchRequest, SessionStats,
-    SessionTelemetrySharingStatus, SessionTrace, TenantId, UserId, Workspace, now_ms,
-    resolve_named_provider, session_profile, workspace_reference_candidates,
+    AgentId, Arc, BTreeMap, FeedbackRating, HarnessError, JsonlEventStore, LocalApplication, Path,
+    ReferenceCandidate, ReferenceCandidateRequest, ReferenceCandidateSnapshot, RunId,
+    SessionArchive, SessionCommandCatalog, SessionCommandOutcome, SessionCommandOutcomeKind,
+    SessionCommandReceipt, SessionEvent, SessionEventKind, SessionEventReadRequest, SessionExport,
+    SessionId, SessionIdentity, SessionProjectionSnapshot, SessionSearchHit, SessionSearchRequest,
+    SessionStats, SessionTelemetrySharingStatus, SessionTrace, TenantId, UserId, Workspace, now_ms,
+    workspace_reference_candidates,
 };
 
 impl LocalApplication {
@@ -192,53 +191,6 @@ impl LocalApplication {
         self.session_archive
             .projection(local_archive_identity(), session_id, units)
             .await
-    }
-
-    pub async fn effective_session_profile(
-        &self,
-        session_id: &str,
-    ) -> Result<Profile, HarnessError> {
-        self.session_profile_configuration(session_id, true).await
-    }
-
-    pub(super) async fn cached_session_profile(
-        &self,
-        session_id: &str,
-    ) -> Result<Profile, HarnessError> {
-        self.session_profile_configuration(session_id, false).await
-    }
-
-    async fn session_profile_configuration(
-        &self,
-        session_id: &str,
-        refresh_web: bool,
-    ) -> Result<Profile, HarnessError> {
-        let mut session = self
-            .state
-            .session(session_id)
-            .await
-            .ok_or_else(|| HarnessError::invalid(format!("unknown session {session_id:?}")))?;
-        if let Some(snapshot) = &mut session.server_model {
-            if refresh_web {
-                snapshot.web_access = self
-                    .server_models
-                    .web_access(session_id, snapshot.binding.clone(), None)
-                    .await?
-                    .configuration;
-            } else if let Some(managed) = self.live.read().await.get(session_id) {
-                snapshot.web_access.clone_from(&managed.web_access);
-            }
-        }
-        let named_provider = resolve_named_provider(&session.model, &self.providers).await?;
-        Ok(session_profile(
-            &self.profile,
-            &session.model,
-            session.server_model.as_ref(),
-            named_provider.as_ref(),
-            &session.preset_plugins,
-            &session.profile_plugins,
-            session.mode,
-        ))
     }
 
     pub async fn session_command_catalog(
@@ -459,23 +411,6 @@ impl LocalApplication {
         );
         self.checkpoint_session_fail_soft(session_id).await;
         Ok(SessionCommandReceipt { command_id, events })
-    }
-
-    pub(super) async fn projection_units(
-        &self,
-        session: &LocalSession,
-    ) -> Result<Vec<Arc<dyn ternilo_kernel::SessionProjectionUnit>>, HarnessError> {
-        let named_provider = resolve_named_provider(&session.model, &self.providers).await?;
-        let profile = session_profile(
-            &self.profile,
-            &session.model,
-            session.server_model.as_ref(),
-            named_provider.as_ref(),
-            &session.preset_plugins,
-            &session.profile_plugins,
-            session.mode,
-        );
-        self.catalog.projection_units(&profile)
     }
 
     pub(super) async fn checkpoint_session_fail_soft(&self, session_id: &str) {

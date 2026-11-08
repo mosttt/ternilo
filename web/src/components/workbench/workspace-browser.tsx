@@ -931,7 +931,7 @@ export function WorkspaceBrowser({ wide, readOnly = false, currentSessionEvents 
         {wide && <span className={css.fade} />}
       </div>
 
-      {openArchiveScope === archiveScope && !authRequired && <SessionArchiveDialog key={`${archiveScope}:${view.groupBy}:${view.onlineComputersOnly}`} tenantId={currentTenantId} platform={platform} readOnly={readOnly} workspaces={workspaces} onlineComputersOnly={view.groupBy === 'computer' && view.onlineComputersOnly} onClose={() => setOpenArchiveScope(null)} onRestored={refresh} />}
+      {openArchiveScope === archiveScope && !authRequired && <SessionArchiveDialog key={`${archiveScope}:${view.groupBy}:${view.onlineComputersOnly}`} tenantId={currentTenantId} platform={platform} readOnly={readOnly} workspaces={workspaces} onlineComputersOnly={view.groupBy === 'computer' && view.onlineComputersOnly} onClose={() => setOpenArchiveScope(null)} onChanged={refresh} />}
       {sharingTarget && <ResourceSharingDialog key={`${sharingTarget.kind}:${sharingTarget.id}`} target={sharingTarget} onClose={() => setSharingTarget(null)} onChanged={refresh} />}
       {workspaceMoveTarget && platform && !readOnly && currentTenantId && <WorkspaceProjectDialog
         key={`${accountScope}:${currentTenantId}:${workspaceMoveTarget.workspace_id}`}

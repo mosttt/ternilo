@@ -1,3 +1,5 @@
+mod facts;
+
 #[path = "tool_output_budget.rs"]
 mod tool_output_budget;
 #[cfg(test)]
@@ -46,10 +48,13 @@ pub fn factory() -> PluginFactory {
                 "ternilo/attachments@1",
                 "ternilo/session-telemetry@1",
             ],
-            provides: &["ternilo/sessions@1"],
+            provides: &["ternilo/sessions@2"],
         },
         |value| {
             let config: SessionLogConfig = parse_config(value)?;
+            if config.max_retained_file_mib == 0 {
+                return Err(HarnessError::composition("max_retained_file_mib must be at least 1 MiB"));
+            }
             if config.max_tool_result_chars < 256 || (config.max_tool_history_chars != 0 && config.max_tool_history_chars < 1024) {
                 return Err(HarnessError::composition(
                     "session max_tool_result_chars must be at least 256; max_tool_history_chars must be zero or at least 1024",
@@ -73,12 +78,39 @@ pub fn factory() -> PluginFactory {
 #[derive(Clone, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SessionLogConfig {
+    #[serde(default = "default_max_retained_file_mib")]
+    #[schemars(range(min = 1))]
+    max_retained_file_mib: u32,
     #[serde(default = "default_max_tool_result_chars")]
     max_tool_result_chars: usize,
     #[serde(default = "default_tool_history_chars")]
     max_tool_history_chars: usize,
     #[serde(default)]
     tool_result_limits: BTreeMap<String, usize>,
+}
+
+const fn default_max_retained_file_mib() -> u32 {
+    64
+}
+
+/// Resolve the per-session write policy; reading accepted objects is independent.
+pub fn retained_file_limit(profile: &ternilo_protocol::Profile) -> Result<u64, HarnessError> {
+    let mib = match profile
+        .plugins
+        .iter()
+        .find(|entry| entry.enabled && entry.kind == KIND)
+    {
+        Some(entry) => {
+            parse_config::<SessionLogConfig>(entry.config.clone())?.max_retained_file_mib
+        }
+        None => default_max_retained_file_mib(),
+    };
+    if mib == 0 {
+        return Err(HarnessError::composition(
+            "max_retained_file_mib must be at least 1 MiB",
+        ));
+    }
+    Ok(u64::from(mib) * 1024 * 1024)
 }
 
 const fn default_tool_history_chars() -> usize {
@@ -134,6 +166,7 @@ impl HarnessPlugin for SessionLogPlugin {
                 telemetry,
                 identity,
                 state: Arc::new(tokio::sync::Mutex::new(SessionLogState {
+                    facts: facts::CommittedFacts::from_events(&events),
                     events,
                     committing: false,
                     failure: None,
@@ -367,6 +400,7 @@ struct SessionLog {
 }
 
 struct SessionLogState {
+    facts: facts::CommittedFacts,
     events: Vec<SessionEvent>,
     committing: bool,
     failure: Option<HarnessError>,
@@ -528,6 +562,7 @@ impl SessionLog {
             let result: Result<SessionEvent, HarnessError> = async {
                 environment.commit_event(event.clone()).await?;
                 telemetry.capture(identity, event.clone()).await;
+                state.facts.observe(&event);
                 state.events.push(event.clone());
                 Ok(event)
             }
@@ -580,6 +615,58 @@ impl SessionsProvider for SessionLog {
         _: CallContext<()>,
     ) -> Pin<Box<dyn Future<Output = Vec<SessionEvent>> + Send + 'a>> {
         Box::pin(async move { self.state.lock().await.events.clone() })
+    }
+
+    fn summary<'a>(
+        &'a self,
+        _: CallContext<()>,
+    ) -> Pin<Box<dyn Future<Output = ternilo_protocol::SessionLogSummary> + Send + 'a>> {
+        Box::pin(async move { self.state.lock().await.facts.summary.clone() })
+    }
+
+    fn run_facts<'a>(
+        &'a self,
+        _: CallContext<()>,
+        run_id: RunId,
+    ) -> Pin<Box<dyn Future<Output = Option<ternilo_protocol::SessionRunFacts>> + Send + 'a>> {
+        Box::pin(async move { self.state.lock().await.facts.runs.get(&run_id).cloned() })
+    }
+
+    fn run_events<'a>(
+        &'a self,
+        _: CallContext<()>,
+        run_id: RunId,
+    ) -> Pin<Box<dyn Future<Output = Vec<SessionEvent>> + Send + 'a>> {
+        Box::pin(async move {
+            let state = self.state.lock().await;
+            let Some(run) = state.facts.runs.get(&run_id) else {
+                return Vec::new();
+            };
+            let start =
+                usize::try_from(run.first_seq).expect("committed sequence fits the event vector");
+            let end =
+                usize::try_from(run.last_seq).expect("committed sequence fits the event vector");
+            state.events[start..=end]
+                .iter()
+                .filter(|event| event.run_id == run_id)
+                .cloned()
+                .collect()
+        })
+    }
+
+    fn event_at<'a>(
+        &'a self,
+        _: CallContext<()>,
+        seq: u64,
+    ) -> Pin<Box<dyn Future<Output = Option<SessionEvent>> + Send + 'a>> {
+        Box::pin(async move {
+            self.state
+                .lock()
+                .await
+                .events
+                .get(usize::try_from(seq).ok()?)
+                .cloned()
+        })
     }
 
     fn events_after<'a>(
@@ -1156,6 +1243,13 @@ mod tests {
             store.events.lock().expect("seeded store lock").len(),
             events.len()
         );
+        let facts = harness.run_facts(events[0].run_id.clone()).await.unwrap();
+        assert!(
+            facts.terminal,
+            "recovery must publish terminal facts before activation"
+        );
+        assert_eq!(harness.run_events(events[0].run_id.clone()).await, events);
+        assert_eq!(harness.summary().await.completed_turns, 0);
         harness.shutdown().await.expect("shutdown harness");
     }
 

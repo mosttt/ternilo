@@ -4,6 +4,7 @@ use ternilo_protocol::{HarnessError, PermissionPreset, SessionId, TenantId, User
 use super::{CloudStore, database_error, json_error, mode_str, permission_str, set_tenant, to_i64};
 use crate::{CloudSessionDraft, CloudSessionRecord, CloudSessionUpdate};
 
+mod archive;
 mod fork;
 async fn require_authorized_model_binding(
     transaction: &mut ternilo_storage::Transaction,
@@ -337,103 +338,6 @@ impl CloudStore {
         rows.iter().map(decode_session).collect()
     }
 
-    pub async fn archive_session(
-        &self,
-        tenant_id: &TenantId,
-        actor_id: &UserId,
-        session_id: &SessionId,
-        now_ms: u64,
-    ) -> Result<CloudSessionRecord, HarnessError> {
-        let now = to_i64(now_ms, "cloud session archive timestamp")?;
-        let mut transaction = self.begin().await?;
-        let owner_id = crate::sharing::session_owner_in(
-            &mut transaction,
-            tenant_id,
-            actor_id,
-            session_id,
-            ternilo_control::ResourceAction::Delete,
-        )
-        .await?;
-        let user_id = &owner_id;
-        set_tenant(&mut transaction, tenant_id).await?;
-        let row = sqlx::query(
-            "UPDATE cloud_sessions
-             SET archived_at_ms = $4, updated_at_ms = $4
-             WHERE tenant_id = $1 AND session_id = $2 AND user_id = $3
-               AND archived_at_ms IS NULL
-             RETURNING tenant_id, session_id, user_id, project_id, workspace_id, agent_id,
-                       parent_session_id, subagent_metadata, subagent_role, title, archived_at_ms, state, permissions,
-                       model_snapshot, reserved_model_tokens,
-                       agent_preset, profile_plugins, mode, execution, last_seq, created_at_ms, updated_at_ms",
-        )
-        .bind(tenant_id.as_str())
-        .bind(session_id.as_str())
-        .bind(user_id.as_str())
-        .bind(now)
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(database_error)?
-        .ok_or_else(|| HarnessError::invalid("cloud session does not exist"))?;
-        crate::sharing::audit_session_in(
-            &mut transaction,
-            tenant_id,
-            actor_id,
-            session_id,
-            user_id,
-            ternilo_control::ResourceAction::Delete,
-            now_ms,
-        )
-        .await?;
-        transaction.commit().await.map_err(database_error)?;
-        decode_session(&row)
-    }
-
-    pub async fn restore_session(
-        &self,
-        tenant_id: &TenantId,
-        actor_id: &UserId,
-        session_id: &SessionId,
-        now_ms: u64,
-    ) -> Result<CloudSessionRecord, HarnessError> {
-        let mut transaction = self.begin().await?;
-        let owner_id = crate::sharing::session_owner_in(
-            &mut transaction,
-            tenant_id,
-            actor_id,
-            session_id,
-            ternilo_control::ResourceAction::Delete,
-        )
-        .await?;
-        set_tenant(&mut transaction, tenant_id).await?;
-        let changed = sqlx::query(
-            "UPDATE cloud_sessions SET archived_at_ms = NULL
-             WHERE tenant_id = $1 AND session_id = $2 AND user_id = $3
-               AND archived_at_ms IS NOT NULL",
-        )
-        .bind(tenant_id.as_str())
-        .bind(session_id.as_str())
-        .bind(owner_id.as_str())
-        .execute(&mut *transaction)
-        .await
-        .map_err(database_error)?
-        .rows_affected();
-        let row = select_session(&mut transaction, tenant_id, session_id).await?;
-        if changed > 0 {
-            crate::sharing::audit_session_in(
-                &mut transaction,
-                tenant_id,
-                actor_id,
-                session_id,
-                &owner_id,
-                ternilo_control::ResourceAction::Delete,
-                now_ms,
-            )
-            .await?;
-        }
-        transaction.commit().await.map_err(database_error)?;
-        decode_session(&row)
-    }
-
     pub async fn delete_session(
         &self,
         tenant_id: &TenantId,
@@ -455,24 +359,34 @@ impl CloudStore {
         .await?;
         let user_id = &owner_id;
         set_tenant(&mut transaction, tenant_id).await?;
-        let active = sqlx::query_scalar::<_, i64>(
-            "SELECT CAST(EXISTS(
+        for id in archive::family_in(&mut transaction, tenant_id, user_id, session_id).await? {
+            let active = sqlx::query_scalar::<_, i64>(
+                "SELECT CAST(EXISTS(
                 SELECT 1 FROM cloud_runs
                 WHERE tenant_id = $1 AND session_id = $2
                   AND state IN ('queued', 'leased', 'running', 'cancel_requested')
              ) AS INTEGER)",
-        )
-        .bind(tenant_id.as_str())
-        .bind(session_id.as_str())
-        .fetch_one(&mut *transaction)
-        .await
-        .map_err(database_error)?
-            != 0;
-        if active {
-            return Err(HarnessError::policy(
-                "a cloud session with an active run cannot be deleted",
-            ));
+            )
+            .bind(tenant_id.as_str())
+            .bind(id.as_str())
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(database_error)?
+                != 0;
+            if active {
+                return Err(HarnessError::policy(
+                    "a cloud session with active delegated work cannot be deleted",
+                ));
+            }
         }
+        // History deletion detaches surviving direct children; execution-family
+        // records remain intact so deleting a transcript cannot change isolation.
+        sqlx::query(
+            "UPDATE cloud_sessions SET parent_session_id=NULL,subagent_metadata=NULL,subagent_role=NULL
+             WHERE tenant_id=$1 AND user_id=$2 AND parent_session_id=$3",
+        )
+        .bind(tenant_id.as_str()).bind(user_id.as_str()).bind(session_id.as_str())
+        .execute(&mut *transaction).await.map_err(database_error)?;
         let deleted = sqlx::query(
             "DELETE FROM cloud_sessions
              WHERE tenant_id = $1 AND session_id = $2 AND user_id = $3",

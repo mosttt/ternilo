@@ -16,7 +16,7 @@ test('local same-user sessions and CLI run concurrently while model calls and qu
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-directory-browser-'))
   const artifacts = path.join(process.env.TERNILO_E2E_ARTIFACT_DIR ?? directory, 'local')
   await mkdir(artifacts, { recursive: true })
-  const observations = { errors: [], console: [], network: [], runs: [], assetHashes: {} }, clients = []
+  const observations = { errors: [], console: [], network: [], runs: [], assets: {} }, clients = []
   let local, browser, left, right, model
   try {
     const environment = await isolatedEnvironment(directory)
@@ -24,7 +24,7 @@ test('local same-user sessions and CLI run concurrently while model calls and qu
     const origin = 'http://127.0.0.1:' + await freePort()
     local = startProcess(nodeBinary, ['serve', '--listen', new URL(origin).host, '--data-dir', path.join(directory, 'data')], environment)
     await waitForHttp(origin, local)
-    observations.assetHashes = await verifyAssets(origin)
+    observations.assets = await verifyAssets(origin)
     const request = await localApi(origin)
     await configureModel(request, model)
     const workspaces = []

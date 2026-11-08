@@ -262,7 +262,9 @@ async fn execute(policy_path: PathBuf, envelope_path: PathBuf) -> Result<(), Har
     .with_execution_admission(envelope.spec.metadata.run_id.clone(), execution_admission)
     .with_subagent_sessions(subagent_host)
     .with_agent_team(agent_team)
-    .with_attachment_resolver(attachments)
+    .with_attachment_resolver(attachments.with_retained_file_limit(
+        ternilo_builtins::retained_file_limit(&envelope.spec.profile)?,
+    ))
     .with_session_mode(envelope.spec.mode);
     let harness =
         Arc::new(HarnessSession::boot(&catalog, &envelope.spec.profile, environment).await?);
@@ -947,13 +949,12 @@ async fn execute_started_inner(
             input.reference_contexts =
                 fit_reference_contexts(std::mem::take(&mut input.reference_contexts));
         }
-        let attachment_objects =
-            prepare_attachment_objects(store, host_workspace, started, &additional_inputs).await?;
+        prepare_attachment_objects(store, host_workspace, started, &additional_inputs).await?;
         let envelope = ExecutionEnvelope {
             additional_inputs,
             provenance,
             spec,
-            attachment_objects,
+            attachment_objects: Vec::new(),
             workspace: WorkspaceBinding {
                 workspace_id: started.claim.spec.metadata.workspace_id.clone(),
                 path: child_workspace,
@@ -1492,7 +1493,7 @@ async fn prepare_attachment_objects(
     workspace: &Path,
     run: &StartedRun,
     additional_inputs: &[ternilo_protocol::SteeringInput],
-) -> Result<Vec<ExecutionAttachmentObject>, HarnessError> {
+) -> Result<(), HarnessError> {
     let reader = LocalAttachmentReader::new(&workspace.join(".ternilo"));
     let mut references = BTreeMap::new();
     for attachment in run
@@ -1515,17 +1516,22 @@ async fn prepare_attachment_objects(
             references.entry(digest.to_owned()).or_insert(attachment);
         }
     }
-    let mut objects = Vec::new();
+    let attachments = LocalAttachments::open(&workspace.join(".ternilo")).await?;
     for attachment in references.values() {
         if reader.reference_bytes(attachment).await.is_ok() {
             continue;
         }
-        objects.push(ExecutionAttachmentObject {
-            attachment: (*attachment).clone(),
-            content_base64: store.download_attachment(run, attachment).await?,
-        });
+        // Restore large objects beside the workspace instead of embedding them in the execution envelope.
+        restore_attachment_objects(
+            &attachments,
+            vec![ExecutionAttachmentObject {
+                attachment: (*attachment).clone(),
+                content_base64: store.download_attachment(run, attachment).await?,
+            }],
+        )
+        .await?;
     }
-    Ok(objects)
+    Ok(())
 }
 
 async fn restore_attachment_objects(

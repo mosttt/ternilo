@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, RwLock, Weak},
 };
 use ternilo_kernel::{RunCancellation, WorkspaceExecution, WorkspaceExecutionLease};
-use ternilo_protocol::{HarnessError, InputAuthor, SessionEventKind, UserId};
+use ternilo_protocol::{HarnessError, InputAuthor, UserId};
 
 pub(super) struct SessionDirectoryExecution {
     coordinator: crate::DirectoryCoordinator,
@@ -45,16 +45,8 @@ impl SessionDirectoryExecution {
     }
 
     async fn binding(&self) -> Result<Arc<dyn WorkspaceExecution>, HarnessError> {
-        let events = self.origins.events(&self.session_id).await?;
-        if let Some(event) = events
-            .iter()
-            .rev()
-            .find(|event| matches!(event.kind, SessionEventKind::UserMessage { .. }))
-        {
-            let origin = self
-                .origins
-                .resolve(&self.session_id, &event.run_id)
-                .await?;
+        if let Some(run_id) = self.origins.latest_input_run(&self.session_id).await? {
+            let origin = self.origins.resolve(&self.session_id, &run_id).await?;
             let user = match origin.provenance.map(|input| input.author) {
                 Some(InputAuthor::Local) => Some("local-user".to_owned()),
                 Some(InputAuthor::Account { user_id, .. }) => {

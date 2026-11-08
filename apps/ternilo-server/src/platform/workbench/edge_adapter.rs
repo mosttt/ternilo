@@ -476,7 +476,20 @@ impl<'a> EdgeAdapter<'a> {
             .await?;
         let parent = mapping.metadata.parent_session_id.clone();
         self.record_action(&mapping, ResourceAction::Delete).await?;
-        self.cache_returned_snapshot(mapping, value, parent).await
+        let executor_id = mapping.executor_id.clone();
+        let returned = self.cache_returned_snapshot(mapping, value, parent).await?;
+        // The mutation has committed on the computer. A transient discovery failure
+        // must not turn that success into a failed action; the next discovery retries it.
+        if let Err(error) = super::discovery::synchronize_connected_node_resources(
+            self.state,
+            self.tenant_id,
+            &executor_id,
+        )
+        .await
+        {
+            eprintln!("refresh archived session family on {executor_id}: {error}");
+        }
+        Ok(returned)
     }
 
     pub(crate) async fn restore(
@@ -485,7 +498,7 @@ impl<'a> EdgeAdapter<'a> {
     ) -> Result<WorkbenchSession, HarnessError> {
         self.require_action(&mapping, ResourceAction::Delete)
             .await?;
-        let _resources = self
+        let resources = self
             .state
             .edge
             .lock_resources(self.tenant_id, &mapping.executor_id)
@@ -503,7 +516,21 @@ impl<'a> EdgeAdapter<'a> {
             .await?;
         let parent = mapping.metadata.parent_session_id.clone();
         self.record_action(&mapping, ResourceAction::Delete).await?;
-        self.cache_returned_snapshot(mapping, value, parent).await
+        let executor_id = mapping.executor_id.clone();
+        let returned = self.cache_returned_snapshot(mapping, value, parent).await?;
+        drop(resources);
+        // The mutation has committed on the computer. A transient discovery failure
+        // must not turn that success into a failed action; the next discovery retries it.
+        if let Err(error) = super::discovery::synchronize_connected_node_resources(
+            self.state,
+            self.tenant_id,
+            &executor_id,
+        )
+        .await
+        {
+            eprintln!("refresh archived session family on {executor_id}: {error}");
+        }
+        Ok(returned)
     }
 
     pub(crate) async fn delete(&self, mapping: EdgeSessionRecord) -> Result<(), HarnessError> {
@@ -1459,6 +1486,7 @@ fn operation_action(operation: &ApplicationOperation) -> ResourceAction {
         | ApplicationOperation::DefaultModelGet
         | ApplicationOperation::SessionEvents { .. }
         | ApplicationOperation::SessionFileContent { .. }
+        | ApplicationOperation::SessionFileChunk { .. }
         | ApplicationOperation::SessionReferenceCandidates { .. }
         | ApplicationOperation::SessionWorkspace { .. }
         | ApplicationOperation::SessionPlugins { .. }

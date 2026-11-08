@@ -59,7 +59,7 @@ pub fn factory() -> PluginFactory {
         PluginManifest {
             kind: KIND,
             requires: &[
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
                 "ternilo/tools@1",
                 "ternilo/agents@3",
                 "ternilo/run-environment@1",

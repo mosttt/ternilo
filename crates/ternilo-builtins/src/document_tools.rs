@@ -33,7 +33,7 @@ fn default_browser() -> String {
     "chromium".into()
 }
 pub fn factory() -> PluginFactory {
-    crate::factory(PluginManifest { kind: KIND, requires: &["ternilo/tools@1", "ternilo/workspace-files@2", "ternilo/attachments@1", "ternilo/sessions@1", "ternilo/sandbox@1", "ternilo/prompts@1"], provides: &[] }, |value| {
+    crate::factory(PluginManifest { kind: KIND, requires: &["ternilo/tools@1", "ternilo/workspace-files@2", "ternilo/attachments@1", "ternilo/sessions@2", "ternilo/sandbox@1", "ternilo/prompts@1"], provides: &[] }, |value| {
         let config: Config = crate::parse_config(value)?;
         if config.browser_command.trim().is_empty() || config.browser_command.chars().any(char::is_control) { return Err(HarnessError::invalid("document browser must be an executable name or path without control characters")); }
         Ok(Arc::new(Plugin { config }))
