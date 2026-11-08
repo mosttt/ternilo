@@ -41,7 +41,8 @@ const renderer = {
   link({ href, title, tokens }) {
     const label = this.parser.parseInline(tokens)
     const safe = safeUrl(href, true)
-    if (!safe) return label
+    if (!safe) return isWorkspaceImageReference(href)
+      ? `<span data-workspace-link="${escapeHtml(href)}">${label}</span>` : label
     const titleAttribute = title ? ` title="${escapeHtml(title)}"` : ''
     return `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer"${titleAttribute}>${label}</a>`
   },
@@ -63,11 +64,11 @@ marked.use({
   tokenizer: {
     link(source) {
       // Node history redacts its host root with this placeholder. Encode only
-      // an image destination, leaving prose and code examples untouched.
-      const normalized = source.replace(/^(!\[(?:\\.|[^\]\\])*\]\()(file:\/\/\/?)?<local-workspace>\//, '$1$2%3Clocal-workspace%3E/')
+      // a file destination, leaving prose and code examples untouched.
+      const normalized = source.replace(/^(!?\[(?:\\.|[^\]\\])*\]\()(file:\/\/\/?)?<local-workspace>\//, '$1$2%3Clocal-workspace%3E/')
       if (normalized === source) return false
       const token = Tokenizer.prototype.link.call(this, normalized)
-      if (!token || token.type !== 'image') return false
+      if (!token || !['image', 'link'].includes(token.type)) return false
       token.raw = token.raw.replace('%3Clocal-workspace%3E/', '<local-workspace>/')
       return token
     },
@@ -83,9 +84,9 @@ const sanitizeOptions = {
   USE_PROFILES: { html: true, mathMl: true },
   ALLOW_ARIA_ATTR: true,
   ALLOW_DATA_ATTR: false,
-  ADD_ATTR: ['data-workspace-image', 'data-workspace-image-alt', 'target', 'rel', 'loading', 'referrerpolicy', 'tabindex'],
+  ADD_ATTR: ['data-workspace-image', 'data-workspace-image-alt', 'data-workspace-link', 'target', 'rel', 'loading', 'referrerpolicy', 'tabindex'],
   // Inert renderer metadata, not browser URLs; workspace preview validates the path.
-  ADD_URI_SAFE_ATTR: ['data-workspace-image', 'data-workspace-image-alt'],
+  ADD_URI_SAFE_ATTR: ['data-workspace-image', 'data-workspace-image-alt', 'data-workspace-link'],
   FORBID_TAGS: ['form', 'option', 'select', 'style', 'textarea'],
 }
 

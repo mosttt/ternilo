@@ -1077,11 +1077,6 @@ impl CloudStore {
         let digest = attachment.reference_digest().ok_or_else(|| {
             HarnessError::invalid("cloud attachment object requires a retained reference")
         })?;
-        if content.is_empty() || content.len() > 64 * 1024 * 1024 {
-            return Err(HarnessError::invalid(
-                "cloud attachment object must contain 1 byte to 64 MiB",
-            ));
-        }
         if hex_digest(content) != digest {
             return Err(HarnessError::invalid(
                 "cloud attachment object does not match its SHA-256 reference",
@@ -1090,6 +1085,17 @@ impl CloudStore {
         let mut transaction = self.tenant_transaction(&run.claim.tenant_id).await?;
         let job = require_writer_in(&mut transaction, run, worker_id, Some(now_ms)).await?;
         let workspace: String = job.try_get("workspace_id").map_err(database_error)?;
+        let limit = ternilo_builtins::retained_file_limit(&run.claim.spec.profile)?;
+        if content.len() as u64 > limit {
+            let retained = sqlx::query("SELECT digest FROM cloud_attachment_objects WHERE tenant_id=$1 AND workspace_id=$2 AND digest=$3")
+                .bind(run.claim.tenant_id.as_str()).bind(&workspace).bind(digest)
+                .fetch_optional(&mut *transaction).await.map_err(database_error)?.is_some();
+            if !retained {
+                return Err(HarnessError::invalid(format!(
+                    "generated file exceeds the configured retention limit of {limit} bytes"
+                )));
+            }
+        }
         let changed=sqlx::query("INSERT INTO cloud_attachment_objects(tenant_id,workspace_id,digest,content,created_at_ms) VALUES($1,$2,$3,$4,$5) ON CONFLICT(tenant_id,workspace_id,digest) DO NOTHING")
             .bind(run.claim.tenant_id.as_str()).bind(&workspace).bind(digest).bind(content).bind(to_i64(now_ms,"cloud attachment timestamp")?).execute(&mut *transaction).await.map_err(database_error)?.rows_affected();
         if changed == 0 {
@@ -1102,6 +1108,33 @@ impl CloudStore {
             }
         }
         transaction.commit().await.map_err(database_error)
+    }
+
+    /// Existing objects remain readable and replayable after the write policy is lowered.
+    pub async fn attachment_upload_limit(
+        &self,
+        run: &StartedRun,
+        worker_id: &str,
+        attachment: &Attachment,
+        now_ms: u64,
+    ) -> Result<u64, HarnessError> {
+        attachment.validate()?;
+        let digest = attachment.reference_digest().ok_or_else(|| {
+            HarnessError::invalid("upload requires a retained attachment reference")
+        })?;
+        let mut tx = self.tenant_transaction(&run.claim.tenant_id).await?;
+        let job = require_writer_in(&mut tx, run, worker_id, Some(now_ms)).await?;
+        let workspace: String = job.try_get("workspace_id").map_err(database_error)?;
+        let existing = sqlx::query_scalar::<_, i64>("SELECT CAST(length(content) AS BIGINT) FROM cloud_attachment_objects WHERE tenant_id=$1 AND workspace_id=$2 AND digest=$3")
+            .bind(run.claim.tenant_id.as_str()).bind(&workspace).bind(digest).fetch_optional(&mut *tx).await.map_err(database_error)?;
+        let limit = ternilo_builtins::retained_file_limit(&run.claim.spec.profile)?;
+        let existing = existing
+            .map(u64::try_from)
+            .transpose()
+            .map_err(|_| HarnessError::execution("invalid stored attachment size"))?
+            .unwrap_or(0);
+        tx.commit().await.map_err(database_error)?;
+        Ok(limit.max(existing))
     }
 
     pub async fn extensions_for_run(

@@ -10,6 +10,80 @@ use ternilo_storage::{Json, Transaction, database_error, set_user_scope};
 use crate::{CloudStore, store::hex_digest};
 
 impl CloudStore {
+    pub async fn session_file_chunk_as(
+        &self,
+        tenant_id: &TenantId,
+        actor_id: &UserId,
+        session_id: &SessionId,
+        file_id: &str,
+        offset: u64,
+    ) -> Result<ternilo_protocol::FileDownloadChunk, HarnessError> {
+        use sqlx::Row as _;
+        use ternilo_protocol::{
+            FileDownloadChunk, FileDownloadVersion, WORKSPACE_DOWNLOAD_CHUNK_BYTES,
+        };
+        let locator = ternilo_protocol::SessionFileLocator::parse(file_id)?;
+        let mut transaction = self.tenant_transaction(tenant_id).await?;
+        crate::sharing::session_owner_in(
+            &mut transaction,
+            tenant_id,
+            actor_id,
+            session_id,
+            ResourceAction::View,
+        )
+        .await?;
+        let attachment =
+            file_attachment_in(&mut transaction, tenant_id, session_id, &locator, file_id).await?;
+        let (bytes, total, digest) = if let Some(digest) = attachment.reference_digest() {
+            let start = i32::try_from(offset)
+                .ok()
+                .and_then(|value| value.checked_add(1))
+                .ok_or_else(|| {
+                    HarnessError::invalid("file download offset exceeds storage capacity")
+                })?;
+            let row = sqlx::query("SELECT CAST(length(o.content) AS BIGINT) AS bytes, substr(o.content, CAST($4 AS INTEGER), CAST($5 AS INTEGER)) AS chunk FROM cloud_attachment_objects o JOIN cloud_sessions s ON s.tenant_id=o.tenant_id AND s.workspace_id=o.workspace_id WHERE s.tenant_id=$1 AND s.session_id=$2 AND o.digest=$3")
+                .bind(tenant_id.as_str()).bind(session_id.as_str()).bind(digest).bind(start).bind(i32::try_from(WORKSPACE_DOWNLOAD_CHUNK_BYTES).expect("1 MiB chunk fits i32"))
+                .fetch_optional(&mut *transaction).await.map_err(database_error)?
+                .ok_or_else(|| HarnessError::invalid("cloud attachment object does not exist"))?;
+            let total = u64::try_from(row.try_get::<i64, _>("bytes").map_err(database_error)?)
+                .map_err(|_| HarnessError::execution("invalid retained file size"))?;
+            if offset > total {
+                return Err(HarnessError::invalid(
+                    "download offset exceeds the file size",
+                ));
+            }
+            (
+                row.try_get::<Vec<u8>, _>("chunk").map_err(database_error)?,
+                total,
+                digest.to_owned(),
+            )
+        } else {
+            let bytes = ternilo_local::inline_file_attachment_bytes(&attachment)?;
+            let digest = hex_digest(&bytes);
+            let start = usize::try_from(offset)
+                .ok()
+                .filter(|offset| *offset <= bytes.len())
+                .ok_or_else(|| HarnessError::invalid("download offset exceeds the file size"))?;
+            let end = start
+                .saturating_add(
+                    usize::try_from(WORKSPACE_DOWNLOAD_CHUNK_BYTES)
+                        .expect("1 MiB chunk fits usize"),
+                )
+                .min(bytes.len());
+            (bytes[start..end].to_vec(), bytes.len() as u64, digest)
+        };
+        transaction.commit().await.map_err(database_error)?;
+        Ok(FileDownloadChunk {
+            offset,
+            version: FileDownloadVersion {
+                bytes: total,
+                revision: digest.clone(),
+            },
+            sha256: Some(digest),
+            content_base64: STANDARD.encode(bytes),
+        })
+    }
+
     /// Download one canonical file version, including files from archived sessions.
     pub async fn session_file_content_as(
         &self,

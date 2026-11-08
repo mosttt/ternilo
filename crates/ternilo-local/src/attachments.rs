@@ -3,14 +3,17 @@ use std::{
     future::Future,
     path::{Path, PathBuf},
     pin::Pin,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use sha2::{Digest, Sha256};
 use ternilo_kernel::AttachmentResolver;
 use ternilo_protocol::{ATTACHMENT_REFERENCE_PREFIX, Attachment, HarnessError};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 const MAX_ATTACHMENT_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_RETAINED_OUTPUT_BYTES: u64 = 64 * 1024 * 1024;
@@ -32,7 +35,77 @@ struct PreparedAttachment {
     bytes: Option<Vec<u8>>,
 }
 
+enum WritePolicy {
+    Upload,
+    Retained(u64),
+}
+
+struct SessionAttachments {
+    objects: Arc<LocalAttachments>,
+    max_retained_bytes: u64,
+}
+
 impl LocalAttachments {
+    pub async fn file_download_chunk(
+        &self,
+        attachment: &Attachment,
+        offset: u64,
+    ) -> Result<ternilo_protocol::FileDownloadChunk, HarnessError> {
+        use ternilo_protocol::{
+            FileDownloadChunk, FileDownloadVersion, WORKSPACE_DOWNLOAD_CHUNK_BYTES,
+        };
+        attachment.validate()?;
+        let (bytes, total, digest) = if let Some(digest) = attachment.reference_digest() {
+            let mut file = tokio::fs::File::open(self.reader.object_path(digest))
+                .await
+                .map_err(|error| HarnessError::execution(format!("open retained file: {error}")))?;
+            let total = file
+                .metadata()
+                .await
+                .map_err(|error| {
+                    HarnessError::execution(format!("inspect retained file: {error}"))
+                })?
+                .len();
+            if offset > total {
+                return Err(HarnessError::invalid(
+                    "download offset exceeds the file size",
+                ));
+            }
+            file.seek(std::io::SeekFrom::Start(offset))
+                .await
+                .map_err(|error| HarnessError::execution(format!("seek retained file: {error}")))?;
+            let mut bytes = Vec::new();
+            file.take(WORKSPACE_DOWNLOAD_CHUNK_BYTES)
+                .read_to_end(&mut bytes)
+                .await
+                .map_err(|error| HarnessError::execution(format!("read retained file: {error}")))?;
+            (bytes, total, digest.to_owned())
+        } else {
+            let bytes = inline_file_attachment_bytes(attachment)?;
+            let digest = hex_digest(&bytes);
+            let start = usize::try_from(offset)
+                .ok()
+                .filter(|offset| *offset <= bytes.len())
+                .ok_or_else(|| HarnessError::invalid("download offset exceeds the file size"))?;
+            let end = start
+                .saturating_add(
+                    usize::try_from(WORKSPACE_DOWNLOAD_CHUNK_BYTES)
+                        .expect("1 MiB chunk fits usize"),
+                )
+                .min(bytes.len());
+            (bytes[start..end].to_vec(), bytes.len() as u64, digest)
+        };
+        Ok(FileDownloadChunk {
+            offset,
+            version: FileDownloadVersion {
+                bytes: total,
+                revision: digest.clone(),
+            },
+            sha256: Some(digest),
+            content_base64: STANDARD.encode(bytes),
+        })
+    }
+
     pub async fn open(data_root: &Path) -> Result<Self, HarnessError> {
         let reader = LocalAttachmentReader::new(data_root);
         tokio::fs::create_dir_all(&reader.objects)
@@ -54,18 +127,23 @@ impl LocalAttachments {
         &self,
         attachments: Vec<Attachment>,
     ) -> Result<Vec<Attachment>, HarnessError> {
-        self.save_many_with_limit(attachments, MAX_ATTACHMENT_BYTES)
+        self.save_many_with_limit(attachments, WritePolicy::Upload)
             .await
     }
 
     async fn save_many_with_limit(
         &self,
         attachments: Vec<Attachment>,
-        max_bytes: u64,
+        policy: WritePolicy,
     ) -> Result<Vec<Attachment>, HarnessError> {
+        let max_bytes = match policy {
+            WritePolicy::Upload => MAX_ATTACHMENT_BYTES,
+            WritePolicy::Retained(bytes) => bytes,
+        };
+        let upload = matches!(policy, WritePolicy::Upload);
         let mut prepared = Vec::with_capacity(attachments.len());
         for attachment in attachments {
-            if max_bytes == MAX_ATTACHMENT_BYTES || attachment.is_reference() {
+            if upload || attachment.is_reference() {
                 attachment.validate()?;
             } else if attachment.name.trim().is_empty() || attachment.media_type.trim().is_empty() {
                 return Err(HarnessError::invalid(
@@ -74,7 +152,7 @@ impl LocalAttachments {
             }
             if attachment.is_reference() {
                 let bytes = self.reference_bytes(&attachment).await?;
-                if max_bytes == MAX_ATTACHMENT_BYTES && bytes.is_empty() {
+                if upload && bytes.is_empty() {
                     return Err(HarnessError::invalid(
                         "uploaded attachment must not be empty",
                     ));
@@ -90,7 +168,7 @@ impl LocalAttachments {
                 continue;
             }
             let bytes = decode_file_content(&attachment)?;
-            if max_bytes == MAX_ATTACHMENT_BYTES && bytes.is_empty() {
+            if upload && bytes.is_empty() {
                 return Err(HarnessError::invalid(
                     "uploaded attachment must not be empty",
                 ));
@@ -168,13 +246,6 @@ impl LocalAttachments {
         let digest = attachment.reference_digest().ok_or_else(|| {
             HarnessError::invalid("attachment restore requires a retained object reference")
         })?;
-        let size = u64::try_from(bytes.len())
-            .map_err(|_| HarnessError::invalid("attachment object exceeds retained size limit"))?;
-        if size > MAX_RETAINED_OUTPUT_BYTES {
-            return Err(HarnessError::invalid(
-                "attachment object has an invalid retained size",
-            ));
-        }
         if hex_digest(bytes) != digest {
             return Err(HarnessError::policy(
                 "attachment object does not match its canonical digest",
@@ -259,17 +330,6 @@ impl LocalAttachmentReader {
             HarnessError::invalid("attachment must be a retained object reference")
         })?;
         let path = self.object_path(digest);
-        let metadata = tokio::fs::metadata(&path).await.map_err(|error| {
-            HarnessError::execution(format!(
-                "read attachment object metadata {}: {error}",
-                path.display()
-            ))
-        })?;
-        if metadata.len() > MAX_RETAINED_OUTPUT_BYTES {
-            return Err(HarnessError::execution(format!(
-                "attachment object {digest} has an invalid size"
-            )));
-        }
         let bytes = tokio::fs::read(&path).await.map_err(|error| {
             HarnessError::execution(format!(
                 "read attachment object {}: {error}",
@@ -295,7 +355,47 @@ impl AttachmentResolver for LocalAttachments {
         attachment: Attachment,
     ) -> Pin<Box<dyn Future<Output = Result<Attachment, HarnessError>> + Send + 'a>> {
         Box::pin(async move {
-            self.save_many_with_limit(vec![attachment], MAX_RETAINED_OUTPUT_BYTES)
+            self.save_many_with_limit(
+                vec![attachment],
+                WritePolicy::Retained(MAX_RETAINED_OUTPUT_BYTES),
+            )
+            .await?
+            .pop()
+            .ok_or_else(|| HarnessError::execution("attachment store returned no object"))
+        })
+    }
+
+    fn resolve<'a>(
+        &'a self,
+        attachment: Attachment,
+    ) -> Pin<Box<dyn Future<Output = Result<Attachment, HarnessError>> + Send + 'a>> {
+        Box::pin(self.resolve_attachment(attachment))
+    }
+}
+
+impl LocalAttachments {
+    pub fn with_retained_file_limit(
+        self: &Arc<Self>,
+        max_retained_bytes: u64,
+    ) -> Arc<dyn AttachmentResolver> {
+        Arc::new(SessionAttachments {
+            objects: Arc::clone(self),
+            max_retained_bytes,
+        })
+    }
+}
+
+impl AttachmentResolver for SessionAttachments {
+    fn store<'a>(
+        &'a self,
+        attachment: Attachment,
+    ) -> Pin<Box<dyn Future<Output = Result<Attachment, HarnessError>> + Send + 'a>> {
+        Box::pin(async move {
+            self.objects
+                .save_many_with_limit(
+                    vec![attachment],
+                    WritePolicy::Retained(self.max_retained_bytes),
+                )
                 .await?
                 .pop()
                 .ok_or_else(|| HarnessError::execution("attachment store returned no object"))
@@ -306,7 +406,7 @@ impl AttachmentResolver for LocalAttachments {
         &'a self,
         attachment: Attachment,
     ) -> Pin<Box<dyn Future<Output = Result<Attachment, HarnessError>> + Send + 'a>> {
-        Box::pin(self.resolve_attachment(attachment))
+        Box::pin(self.objects.resolve_attachment(attachment))
     }
 }
 
@@ -392,6 +492,102 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+
+    #[tokio::test]
+    async fn streamed_retained_files_verify_the_canonical_digest() {
+        use futures_util::TryStreamExt as _;
+        let root = tempfile::tempdir().unwrap();
+        let store = Arc::new(LocalAttachments::open(root.path()).await.unwrap());
+        let reference = store
+            .store(Attachment {
+                name: "proof.txt".into(),
+                media_type: "text/plain".into(),
+                content: "proof".into(),
+            })
+            .await
+            .unwrap();
+        tokio::fs::write(
+            store
+                .reader
+                .object_path(reference.reference_digest().unwrap()),
+            b"other",
+        )
+        .await
+        .unwrap();
+        let first = store.file_download_chunk(&reference, 0).await.unwrap();
+        let stream = crate::workspace_download_stream(first, |_, _| async {
+            panic!("small file is one chunk")
+        });
+        assert!(
+            stream
+                .try_collect::<Vec<_>>()
+                .await
+                .unwrap_err()
+                .message
+                .contains("digest verification")
+        );
+    }
+
+    #[tokio::test]
+    async fn retained_file_policy_is_scoped_and_lowering_it_preserves_accepted_objects() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Arc::new(LocalAttachments::open(root.path()).await.unwrap());
+        let raised = store.with_retained_file_limit(66 * 1024 * 1024);
+        let reference = raised
+            .store(Attachment {
+                name: "large.txt".into(),
+                media_type: "text/plain".into(),
+                content: "r".repeat(65 * 1024 * 1024),
+            })
+            .await
+            .unwrap();
+        let lower = store.with_retained_file_limit(1024);
+        assert!(
+            lower
+                .store(Attachment {
+                    name: "new.txt".into(),
+                    media_type: "text/plain".into(),
+                    content: "n".repeat(1025)
+                })
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            lower
+                .resolve(reference.clone())
+                .await
+                .unwrap()
+                .content
+                .len(),
+            65 * 1024 * 1024
+        );
+        let restored_root = tempfile::tempdir().unwrap();
+        let restored = LocalAttachments::open(restored_root.path()).await.unwrap();
+        restored
+            .restore_reference(
+                &reference,
+                &store.reference_bytes(&reference).await.unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            restored.reference_bytes(&reference).await.unwrap().len(),
+            65 * 1024 * 1024
+        );
+        // Choosing the same numeric limit as uploads must not apply upload normalization.
+        let generated = store.with_retained_file_limit(MAX_ATTACHMENT_BYTES);
+        assert!(
+            generated
+                .store(Attachment {
+                    name: "empty.txt".into(),
+                    media_type: "text/plain".into(),
+                    content: String::new()
+                })
+                .await
+                .unwrap()
+                .is_reference()
+        );
+    }
 
     #[tokio::test]
     async fn zero_byte_file_objects_restore_without_allowing_empty_uploads() {

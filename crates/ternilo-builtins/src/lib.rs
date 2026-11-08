@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+pub use session::retained_file_limit;
 
 mod model_gateway;
 pub use model_gateway::{

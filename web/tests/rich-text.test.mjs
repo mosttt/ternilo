@@ -105,3 +105,13 @@ test('recognizes Node-redacted image paths without rewriting code or opening hos
   assert.equal(code.querySelector('code')?.textContent, source)
   assert.equal(code.querySelector('[data-workspace-image]'), null)
 })
+
+test('keeps workspace download links actionable without turning them into host URLs', () => {
+  for (const path of ['output/package.zip', '<local-workspace>/package.zip', 'file:///<local-workspace>/package.zip']) {
+    const source = `[Download package](${path})`
+    const output = fragment(source)
+    assert.equal(output.querySelector('[data-workspace-link]')?.textContent, 'Download package')
+    assert.equal(output.querySelector('a[href]'), null)
+    assert.equal(fragment('`' + source + '`').querySelector('[data-workspace-link]'), null)
+  }
+})

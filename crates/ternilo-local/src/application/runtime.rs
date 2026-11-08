@@ -230,7 +230,9 @@ impl LocalApplication {
         );
         let secrets: Arc<dyn ternilo_kernel::SecretResolver> = self.credentials.clone();
         let session_archive: Arc<dyn ternilo_kernel::SessionArchive> = self.session_archive.clone();
-        let attachments: Arc<dyn ternilo_kernel::AttachmentResolver> = self.attachments.clone();
+        let attachments = self
+            .attachments
+            .with_retained_file_limit(ternilo_builtins::retained_file_limit(&profile)?);
         let runtime_extensions: Arc<dyn ternilo_kernel::RuntimeExtensionsProvider> =
             self.runtime_extensions.clone();
         let agent_team: Arc<dyn AgentTeamProvider> = Arc::new(LocalAgentTeamProvider::new(

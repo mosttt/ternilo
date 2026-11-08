@@ -80,7 +80,11 @@ impl InputOrigins {
                         provenance, source, ..
                     } = event.kind
                 {
-                    input = Some(SessionInputFacts { provenance, source });
+                    input = Some(SessionInputFacts {
+                        seq: event.seq,
+                        provenance,
+                        source,
+                    });
                 }
                 Ok(())
             })?;
@@ -106,7 +110,7 @@ impl InputOrigins {
     ) -> Result<crate::ModelInputOrigin, HarnessError> {
         let mut id = id.to_owned();
         let mut run_id = run_id.clone();
-        let mut schedule_origins = Vec::new();
+        let mut run_origins = Vec::new();
         let mut visited = std::collections::BTreeSet::new();
         loop {
             if !visited.insert((id.clone(), run_id.clone())) || visited.len() > 64 {
@@ -118,6 +122,7 @@ impl InputOrigins {
                 .await
                 .ok_or_else(|| HarnessError::invalid("unknown account model session"))?;
             let SessionInputFacts {
+                seq,
                 provenance: input,
                 source,
             } = self
@@ -152,7 +157,7 @@ impl InputOrigins {
                 if !self.event_at(&id, *dispatched_seq).await?.is_some_and(|event| matches!(&event.kind, SessionEventKind::ScheduleChanged { change: ternilo_protocol::ScheduleChange::Dispatch { id, run_id: Some(dispatched_run), .. } } if id == schedule_id && dispatched_run == &run_id)) {
                     return Err(HarnessError::policy("scheduled model dispatch differs from its run"));
                 }
-                schedule_origins.push(origin);
+                run_origins.push(ternilo_protocol::ModelRunOrigin::Schedule(origin));
                 run_id = created.run_id.clone();
                 continue;
             }
@@ -164,12 +169,22 @@ impl InputOrigins {
             ) && session.subagent.is_some()
                 && let Some(parent) = session.parent_session_id
             {
+                if let Some(ternilo_protocol::UserMessageSource::Subagent { parent_run_id }) =
+                    source
+                {
+                    parent_run_id.validate()?;
+                    run_origins.push(ternilo_protocol::ModelRunOrigin::Subagent {
+                        session_id: session.identity.session_id.clone(),
+                        input_seq: seq,
+                    });
+                    run_id = parent_run_id;
+                }
                 parent.as_str().clone_into(&mut id);
             } else {
                 return Ok(crate::ModelInputOrigin {
                     session_id: session.identity.session_id,
                     provenance: input,
-                    schedule_origins,
+                    run_origins,
                 });
             }
         }

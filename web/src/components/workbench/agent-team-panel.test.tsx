@@ -216,7 +216,7 @@ describe('AgentTeamSurface', () => {
     expect(panel.querySelector('[data-agent-team-stop]')).toBeNull()
     expect([...panel.querySelectorAll('button')].some(item => item.textContent?.includes('发送消息'))).toBe(false)
 
-    await act(async () => button(panel, '任务').click())
+    await act(async () => button(panel, '共享任务').click())
     expect([...panel.querySelectorAll('button')].some(item => item.textContent?.trim() === '新建任务')).toBe(false)
   })
 

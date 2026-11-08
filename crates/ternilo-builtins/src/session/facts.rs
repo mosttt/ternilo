@@ -36,6 +36,7 @@ impl CommittedFacts {
             } => {
                 self.summary.latest_input_run = Some(event.run_id.clone());
                 run.input.get_or_insert_with(|| SessionInputFacts {
+                    seq: event.seq,
                     provenance: provenance.clone(),
                     source: source.clone(),
                 });

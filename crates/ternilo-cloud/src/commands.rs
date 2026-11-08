@@ -169,7 +169,8 @@ impl CloudSessionCommandDraft {
                             request:
                                 ternilo_protocol::WorkspaceRequest::Info
                                 | ternilo_protocol::WorkspaceRequest::List { .. }
-                                | ternilo_protocol::WorkspaceRequest::Read { .. },
+                                | ternilo_protocol::WorkspaceRequest::Read { .. }
+                                | ternilo_protocol::WorkspaceRequest::Download { .. },
                         },
                 },
                 CloudCommandDelivery::ReadOnly,

@@ -91,6 +91,8 @@ export const zh = {
 
   'tools.perToolLimit': "按工具设置单条输出上限（字符）",
   'tools.perToolLimitHint': "用 JSON 填写工具名称与字符数，例如 {\"read_file\":4096,\"search_files\":2048}。每项至少 256；未列出的工具使用默认值，总预算仍生效。{} 表示不单独设置。",
+  'tools.retainedFileLimit': '单个生成文件留存上限（MiB）',
+  'tools.retainedFileLimitHint': '默认 64 MiB。仅限制新生成文件与完整工具输出的留存；调低不会删除或禁用已有文件，也不限制工作区原文件下载。',
   'tools.defaultResultLimit': "默认单条工具输出上限（字符）",
   'tools.defaultResultLimitHint': "未单独设置的工具使用此上限。超长完整结果保存为附件，模型收到截短内容。",
 
@@ -1050,6 +1052,8 @@ export const en: Record<SettingsKey, string> = {
 
   'tools.perToolLimit': "Per-tool result limits (characters)",
   'tools.perToolLimitHint': "Enter tool names and limits as JSON, for example {\"read_file\":4096,\"search_files\":2048}. Each limit must be at least 256. Unlisted tools use the default; the total history budget still applies. {} removes individual limits.",
+  'tools.retainedFileLimit': 'Retained generated-file limit (MiB)',
+  'tools.retainedFileLimitHint': 'Defaults to 64 MiB per new generated file or full tool output. Lowering it preserves existing files and does not limit original workspace downloads.',
   'tools.defaultResultLimit': "Default tool result limit (characters)",
   'tools.defaultResultLimitHint': "Used for tools without an individual limit. Full oversized results are retained as attachments; the model receives a shortened result.",
 
@@ -2052,6 +2056,8 @@ export const ko: Record<SettingsKey, string> = {
 
   'tools.perToolLimit': "도구별 단일 출력 한도 (문자)",
   'tools.perToolLimitHint': "도구 이름과 문자 수를 JSON으로 입력하세요. 예: {\"read_file\":4096,\"search_files\":2048}. 각 한도는 최소 256입니다. 지정하지 않은 도구는 기본값을 사용하며 총예산도 적용됩니다. {}는 개별 한도를 해제합니다.",
+  'tools.retainedFileLimit': '생성 파일별 보존 한도 (MiB)',
+  'tools.retainedFileLimitHint': '새 생성 파일과 전체 도구 출력의 기본 보존 한도는 64 MiB입니다. 한도를 낮춰도 기존 파일과 작업 공간 원본 다운로드에는 영향을 주지 않습니다.',
   'tools.defaultResultLimit': "기본 단일 도구 출력 한도 (문자)",
   'tools.defaultResultLimitHint': "개별 한도가 없는 도구에 적용됩니다. 긴 결과의 원문은 첨부파일로 보존되고 모델에는 줄인 내용이 전달됩니다.",
 

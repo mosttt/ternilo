@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { api } from '@/api/client'
-import { initialWorkspacePanel, readWorkspacePanel, type WorkspacePanelState } from './workspace-panel-state'
+import { initialWorkspacePanel, openWorkspaceTab, readWorkspacePanel, type WorkspacePanelState } from './workspace-panel-state'
 
 export type WorkspaceApplication = { id: string; label: string; icon?: string }
 export type SandboxReadiness = { backend: string; status: 'ready' | 'missing' | 'unusable'; detail?: string; install_command?: string }
@@ -10,6 +10,20 @@ export type WorkspacePreview = { path: string; bytes: number; media_type: string
 
 export function workspaceRequest<Result>(sessionId: string, body?: unknown, signal?: AbortSignal): Promise<Result> {
   return api.request<Result>(`/sessions/${encodeURIComponent(sessionId)}/workspace`, { ...(body ? { method: 'POST', body } : {}), signal })
+}
+
+export function useWorkspaceRead<Result>(sessionId: string, body: unknown, revision: number) {
+  const key = JSON.stringify([sessionId, body, revision])
+  const [result, setResult] = React.useState<{ key: string; data: Result | null; error: string }>({ key: '', data: null, error: '' })
+  React.useEffect(() => {
+    const controller = new AbortController()
+    const [, request] = JSON.parse(key) as [string, unknown]
+    void workspaceRequest<Result>(sessionId, request, controller.signal)
+      .then(data => { if (!controller.signal.aborted) setResult({ key, data, error: '' }) })
+      .catch(cause => { if (!controller.signal.aborted) setResult({ key, data: null, error: cause instanceof Error ? cause.message : String(cause) }) })
+    return () => controller.abort()
+  }, [key, sessionId])
+  return result.key === key ? result : { data: null, error: '' }
 }
 
 export function useWorkspacePanel(sessionId: string | null, accountScope: string | undefined, revision: string, onOpen: () => void, notifyError: (message: string) => void) {
@@ -44,6 +58,7 @@ export function useWorkspacePanel(sessionId: string | null, accountScope: string
     })
   }
   const show = () => { onOpen(); update(state => ({ ...state, open: true })) }
+  const openFile = (path: string) => { onOpen(); update(state => ({ ...openWorkspaceTab(state, state.panes.length - 1, path), open: true })) }
   const hide = () => {
     update(state => ({ ...state, open: false }))
     requestAnimationFrame(() => triggerRef.current?.focus({ preventScroll: true }))
@@ -58,7 +73,7 @@ export function useWorkspacePanel(sessionId: string | null, accountScope: string
       setChoice(app.id)
     } finally { launchFlight.current = false; setLaunching(false) }
   }
-  return { sessionId, key, state, update, info, error, reloadInfo, show, hide, triggerRef, launch, launching, choice, notifyError }
+  return { sessionId, key, state, update, info, error, reloadInfo, show, openFile, hide, triggerRef, launch, launching, choice, notifyError }
 }
 
 type WorkspacePanelContextValue = ReturnType<typeof useWorkspacePanel>

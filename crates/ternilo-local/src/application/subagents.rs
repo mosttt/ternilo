@@ -315,7 +315,9 @@ impl LocalSubagentSessionHost {
         );
         let secrets: Arc<dyn ternilo_kernel::SecretResolver> = self.credentials.clone();
         let session_archive: Arc<dyn ternilo_kernel::SessionArchive> = self.session_archive.clone();
-        let attachments: Arc<dyn ternilo_kernel::AttachmentResolver> = self.attachments.clone();
+        let attachments = self
+            .attachments
+            .with_retained_file_limit(ternilo_builtins::retained_file_limit(&profile)?);
         let runtime_extensions: Arc<dyn ternilo_kernel::RuntimeExtensionsProvider> =
             self.runtime_extensions.clone();
         let agent_team: Arc<dyn AgentTeamProvider> = Arc::new(LocalAgentTeamProvider::new(
@@ -589,7 +591,7 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
     fn run<'a>(
         &'a self,
         session_id: SessionId,
-        run_id: RunId,
+        parent_run_id: RunId,
         input: String,
         cancellation: RunCancellation,
         start: SubagentRunStart,
@@ -603,7 +605,14 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
                     )
                 })?;
             session_id.validate()?;
-            run_id.validate()?;
+            parent_run_id.validate()?;
+            let run_id = start
+                .provenance
+                .as_ref()
+                .and_then(|input| input.run_id.clone())
+                .unwrap_or_else(|| {
+                    RunId::new(format!("subagent-run-{:032x}", rand::random::<u128>()))
+                });
             let session = self
                 .state
                 .session(session_id.as_str())
@@ -635,7 +644,13 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
                 input,
                 provenance: start.provenance.clone(),
                 display_input: None,
-                source: None,
+                source: matches!(
+                    start.provenance.as_ref().map(|input| &input.author),
+                    Some(ternilo_protocol::InputAuthor::Automation {
+                        source: ternilo_protocol::AutomatedInputSource::Subagent
+                    })
+                )
+                .then_some(ternilo_protocol::UserMessageSource::Subagent { parent_run_id }),
                 references: Vec::new(),
                 reference_contexts: Vec::new(),
                 attachments: Vec::new(),
@@ -647,7 +662,7 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
                     managed.harness.cancel(run_id).await?;
                     running.await
                 }
-            }?;
+            };
             self.state
                 .touch_session(session_id.as_str(), None, now_ms()?)
                 .await?;
@@ -657,7 +672,7 @@ impl SubagentSessionHost for LocalSubagentSessionHost {
                 crate::LocalInvalidationCategory::Activity,
                 None,
             );
-            Ok(outcome)
+            outcome
         })
     }
 

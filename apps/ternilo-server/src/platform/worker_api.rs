@@ -32,10 +32,72 @@ mod tests;
 
 pub(crate) fn router() -> Router {
     Router::with_path("internal/worker/v1")
-        .hoop(max_size(MAX_WORKER_BODY_BYTES))
-        .push(Router::with_path("configuration").get(configuration))
-        .push(Router::with_path("register").post(register))
-        .push(Router::with_path("rpc").post(rpc))
+        .push(
+            Router::with_path("configuration")
+                .hoop(max_size(MAX_WORKER_BODY_BYTES))
+                .get(configuration),
+        )
+        .push(
+            Router::with_path("register")
+                .hoop(max_size(MAX_WORKER_BODY_BYTES))
+                .post(register),
+        )
+        .push(
+            Router::with_path("rpc")
+                .hoop(max_size(MAX_WORKER_BODY_BYTES))
+                .post(rpc),
+        )
+        .push(Router::with_path("attachment").post(upload_attachment))
+}
+
+#[handler]
+async fn upload_attachment(
+    request: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<WorkerReply>, ApiError> {
+    use futures_util::StreamExt as _;
+    let encoded = request
+        .headers()
+        .get("x-ternilo-attachment")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| value.len() <= 16 * 1024)
+        .ok_or_else(|| {
+            HarnessError::invalid("attachment upload metadata is missing or too large")
+        })?;
+    let metadata = STANDARD
+        .decode(encoded)
+        .map_err(|_| HarnessError::invalid("invalid attachment upload metadata"))?;
+    let metadata: ternilo_cloud::WorkerAttachmentUpload =
+        serde_json::from_slice(&metadata).map_err(invalid_request)?;
+    let state = app_state(depot);
+    let worker = metadata.identity.worker_id.as_str();
+    let scoped = state
+        .cloud
+        .authenticated_worker(bearer_token(request)?, &metadata.identity, now_ms()?)
+        .await?;
+    let (store, run) = scoped.authorized_run(&metadata.run, now_ms()?).await?;
+    let limit = store
+        .attachment_upload_limit(&run, worker, &metadata.attachment, now_ms()?)
+        .await?;
+    let mut body = request.take_body();
+    let mut content = Vec::new();
+    while let Some(frame) = body.next().await {
+        let frame =
+            frame.map_err(|_| HarnessError::unavailable("attachment upload was interrupted"))?;
+        if let Ok(bytes) = frame.into_data() {
+            if content.len() as u64 + bytes.len() as u64 > limit {
+                return Err(HarnessError::invalid(format!(
+                    "generated file exceeds the configured retention limit of {limit} bytes"
+                ))
+                .into());
+            }
+            content.extend_from_slice(&bytes);
+        }
+    }
+    store
+        .store_attachment_object(&run, worker, &metadata.attachment, &content, now_ms()?)
+        .await?;
+    Ok(Json(WorkerReply::Unit))
 }
 
 pub(crate) fn management_router() -> Router {

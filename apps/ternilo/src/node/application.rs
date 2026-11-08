@@ -303,6 +303,15 @@ pub(super) async fn handle_application_inner(
                 .history(session_id.as_str(), query, false)
                 .await?,
         ),
+        ApplicationOperation::SessionFileChunk {
+            session_id,
+            file_id,
+            offset,
+        } => to_value(
+            application
+                .session_file_download_chunk(session_id.as_str(), &file_id, offset)
+                .await?,
+        ),
         ApplicationOperation::SessionFileContent {
             session_id,
             file_id,

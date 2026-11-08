@@ -9,7 +9,7 @@ use ternilo_protocol::{
 };
 use ternilo_storage::{Json, Transaction, database_error, for_update, set_tenant_scope};
 
-mod schedules;
+mod origins;
 
 impl ControlStore {
     pub async fn node_model_session_registered(
@@ -288,7 +288,7 @@ impl ControlStore {
             ));
         }
         let owner = snapshot.binding.beneficiary_user_id();
-        let origin_run = schedules::verify(tx, node, body).await?;
+        let origin_run = origins::verify(tx, node, body).await?;
         let actor = model_input_actor(tx, node, body, owner, &origin_run).await?;
         let session_id = SessionId::new(
             row.try_get::<String, _>("session_id")

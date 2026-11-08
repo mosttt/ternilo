@@ -41,6 +41,116 @@ fn authors(events: &[SessionEvent]) -> Vec<(String, Option<InputProvenance>)> {
 #[tokio::test]
 #[expect(
     clippy::too_many_lines,
+    reason = "Verify automated follow-ups, inherited authority and human replay rejection on the same child."
+)]
+async fn delegated_followups_have_distinct_runs_with_the_original_input_origin() {
+    let directory = tempfile::tempdir().unwrap();
+    let workspace = directory.path().join("workspace");
+    tokio::fs::create_dir(&workspace).await.unwrap();
+    let app = open_test_application(directory.path().join("data")).await;
+    let workspace = app
+        .add_workspace(workspace.to_str().unwrap())
+        .await
+        .unwrap();
+    let parent = app
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let parent_run = RunId::new("one-parent-turn");
+    let original = account_input("original-input", "alice");
+    let mut input = request("/code \"parent\"", SubmissionDelivery::Queue);
+    input.run_id = Some(parent_run.clone());
+    app.run_session_input_with_provenance(
+        parent.identity.session_id.as_str(),
+        input,
+        original.clone(),
+    )
+    .await
+    .unwrap();
+    let host = app.subagent_session_host();
+    let child = host
+        .create(
+            parent.identity.clone(),
+            SubagentSessionRequest {
+                role: None,
+                subagent_id: SubagentId::new("reused-child"),
+                provider: "in-process".into(),
+                label: "Reused child".into(),
+                task: "inspect".into(),
+                transcript_kind: ternilo_protocol::SubagentTranscriptKind::Conversation,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let mut runs = std::collections::BTreeSet::new();
+    for index in 0..3 {
+        let start = ternilo_kernel::SubagentRunStart::with_provenance(InputProvenance {
+            input_id: SubmissionId::new(format!("child-input-{index}")),
+            run_id: None,
+            author: InputAuthor::Automation {
+                source: ternilo_protocol::AutomatedInputSource::Subagent,
+            },
+        });
+        let outcome = host
+            .run(
+                child.session_id.clone(),
+                parent_run.clone(),
+                "/code \"child\"".into(),
+                ternilo_kernel::RunCancellation::new(),
+                start,
+            )
+            .await
+            .unwrap();
+        let run = outcome.events.first().unwrap().run_id.clone();
+        assert!(runs.insert(run.clone()), "each follow-up needs its own run");
+        let origin = app
+            .model_input_origin(child.session_id.as_str(), &run)
+            .await
+            .unwrap();
+        assert_eq!(origin.session_id, parent.identity.session_id);
+        assert_eq!(origin.provenance, Some(original.clone()));
+    }
+    let accepted_run = RunId::new("accepted-human-followup");
+    let mut human = account_input("human-input", "bob");
+    human.run_id = Some(accepted_run.clone());
+    let start = ternilo_kernel::SubagentRunStart::with_provenance(human.clone());
+    let result = host
+        .run(
+            child.session_id.clone(),
+            accepted_run.clone(),
+            "/code \"human\"".into(),
+            ternilo_kernel::RunCancellation::new(),
+            start.clone(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.events.first().unwrap().run_id, accepted_run);
+    let origin = app
+        .model_input_origin(child.session_id.as_str(), &accepted_run)
+        .await
+        .unwrap();
+    assert_eq!(origin.session_id, child.session_id);
+    assert_eq!(origin.provenance, Some(human));
+    assert!(
+        host.run(
+            child.session_id.clone(),
+            accepted_run,
+            "/code \"must not replay\"".into(),
+            ternilo_kernel::RunCancellation::new(),
+            start
+        )
+        .await
+        .unwrap_err()
+        .message
+        .contains("already exists")
+    );
+    app.close().await.unwrap();
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
     reason = "Keep nested child lineage and later human input checks in one provenance scenario."
 )]
 async fn model_origin_stays_with_the_run_across_later_inputs_and_nested_children() {
@@ -469,14 +579,11 @@ async fn schedule_origin_checks_exact_creation_and_dispatch_in_live_and_offline_
         }
         let result = app.model_input_origin(id, &timer_run).await.unwrap();
         assert_eq!(result.provenance, Some(original.clone()));
-        assert_eq!(result.schedule_origins.len(), 1);
-        assert_eq!(
-            (
-                result.schedule_origins[0].created_seq,
-                result.schedule_origins[0].dispatched_seq
-            ),
-            (1, 2)
-        );
+        assert_eq!(result.run_origins.len(), 1);
+        let ternilo_protocol::ModelRunOrigin::Schedule(proof) = &result.run_origins[0] else {
+            panic!("schedule origin")
+        };
+        assert_eq!((proof.created_seq, proof.dispatched_seq), (1, 2));
         assert!(
             app.model_input_origin(id, &RunId::new("wrong-creation"))
                 .await

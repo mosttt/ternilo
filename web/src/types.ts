@@ -726,6 +726,7 @@ export interface SessionEvent extends Record<string, unknown> {
   reference?: SubmissionReference | null
   completeness?: ReferenceContextCompleteness | null
   source?:
+    | { kind: 'subagent'; parent_run_id: string }
     | { kind: 'schedule'; schedule_id: string; created_seq: number; dispatched_seq: number }
     | { kind: 'skill_invocation'; name: string }
     | {

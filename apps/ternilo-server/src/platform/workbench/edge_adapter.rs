@@ -1486,6 +1486,7 @@ fn operation_action(operation: &ApplicationOperation) -> ResourceAction {
         | ApplicationOperation::DefaultModelGet
         | ApplicationOperation::SessionEvents { .. }
         | ApplicationOperation::SessionFileContent { .. }
+        | ApplicationOperation::SessionFileChunk { .. }
         | ApplicationOperation::SessionReferenceCandidates { .. }
         | ApplicationOperation::SessionWorkspace { .. }
         | ApplicationOperation::SessionPlugins { .. }

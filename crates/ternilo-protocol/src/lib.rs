@@ -19,8 +19,8 @@ mod provider_usage;
 pub use provider_usage::{ProviderUsageRoute, ReportedModelUsage};
 mod model_gateway;
 pub use model_gateway::{
-    ComputerModelAttempt, ComputerModelRequest, ModelGatewayFrame, NodeModelRequest,
-    ScheduleModelOrigin,
+    ComputerModelAttempt, ComputerModelRequest, ModelGatewayFrame, ModelRunOrigin,
+    NodeModelRequest, ScheduleModelOrigin,
 };
 
 mod model_device;
@@ -2936,6 +2936,9 @@ impl SteeringInput {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UserMessageSource {
+    Subagent {
+        parent_run_id: RunId,
+    },
     Schedule {
         schedule_id: ScheduleId,
         created_seq: u64,
@@ -2981,6 +2984,7 @@ impl AgentInput {
         }
         if let Some(source) = &self.source {
             match source {
+                UserMessageSource::Subagent { parent_run_id } => parent_run_id.validate()?,
                 UserMessageSource::Schedule {
                     schedule_id,
                     created_seq,

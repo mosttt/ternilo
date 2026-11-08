@@ -107,7 +107,11 @@ export class ApiClient {
     return this.perform<T>(path, options, false)
   }
 
-  private async perform<T>(path: string, options: RequestOptions, retried: boolean): Promise<T> {
+  async download(path: string, options: RequestOptions = {}): Promise<Blob> {
+    return this.perform<Blob>(path, options, false, 'blob')
+  }
+
+  private async perform<T>(path: string, options: RequestOptions, retried: boolean, format: 'json' | 'blob' = 'json'): Promise<T> {
     const tokenRevision = this.tokenRevision
     const accountRevision = this.accountRevision
     const platformRequest = path.startsWith('/admin/') || path.startsWith('/model-access/')
@@ -136,16 +140,21 @@ export class ApiClient {
     }
     if (response.status === 401 && !retried && this.refreshHandler) {
       if (tokenRevision !== this.tokenRevision) {
-        if (this.token) return this.perform<T>(path, options, true)
+        if (this.token) return this.perform<T>(path, options, true, format)
       } else {
         try {
           await this.refreshAccessToken()
           ensureCurrentScope()
-          return this.perform<T>(path, options, true)
+          return this.perform<T>(path, options, true, format)
         } catch {
           ensureCurrentScope()
         }
       }
+    }
+    if (response.ok && format === 'blob') {
+      const blob = await response.blob()
+      ensureCurrentScope()
+      return blob as T
     }
     const payload = await response.json().catch(() => ({})) as {
       error?: { message?: string; code?: string }

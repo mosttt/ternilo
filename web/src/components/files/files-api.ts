@@ -67,6 +67,10 @@ export function readFileContent(file: Pick<SessionFile, 'session_id' | 'id'>, si
   return api.request<SessionFileContent>(`/sessions/${encodeURIComponent(file.session_id)}/files/${encodeURIComponent(file.id)}/content`, { signal })
 }
 
+export function downloadFileContent(file: Pick<SessionFile, 'session_id' | 'id'>, signal: AbortSignal): Promise<Blob> {
+  return api.download(`/sessions/${encodeURIComponent(file.session_id)}/files/${encodeURIComponent(file.id)}/download`, { signal })
+}
+
 export function fileKey(file: Pick<SessionFile, 'session_id' | 'id'>): string {
   return JSON.stringify([file.session_id, file.id])
 }

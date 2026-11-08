@@ -10,7 +10,7 @@ impl LocalApplication {
         session_id: &str,
         input: &TurnInput,
     ) -> Result<(), HarnessError> {
-        let profile = self.cached_session_profile(session_id).await?;
+        let profile = self.effective_session_profile(session_id).await?;
         let model_error = self.profile_model_error(&profile).await?;
         let Some(error) = model_error else {
             return Ok(());
@@ -147,6 +147,16 @@ mod tests {
         )
         .await
         .unwrap();
+        // Reading the accepted configuration must not authorize a new model call
+        // or create a runtime, even while the Server model source is unavailable.
+        let profile = app.effective_session_profile(&session).await.unwrap();
+        assert!(
+            profile
+                .plugins
+                .iter()
+                .any(|plugin| plugin.kind == ternilo_builtins::BROKERED_MODEL_KIND)
+        );
+        assert!(app.live.read().await.is_empty());
         let result = app
             .run_turn(&session, None, r#"/code "local diagnostic""#.into())
             .await

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
+import { createServer } from 'node:http'
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -21,7 +21,7 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
   const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-workspace-panel-'))
   const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR
   const processes = [], errors = []
-  let browser, page
+  let browser, page, model
   try {
     const application = await initializeServer({ directory: path.join(directory, 'server'), origin: `http://127.0.0.1:${await freePort()}` })
     processes.push(application)
@@ -48,6 +48,8 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     await writeFile(path.join(folder, 'README.md'), '# Workspace preview\n\nMarkdown body.')
     await writeFile(path.join(folder, 'unsafe.html'), '<h1>Isolated HTML</h1><script>parent.__workspaceInjected = true</script><img src="https://workspace.invalid/tracker"><form action="https://workspace.invalid/post"></form>')
     await writeFile(path.join(folder, 'large.txt'), '好'.repeat(800_000))
+    await writeFile(path.join(folder, 'large-download.bin'), Buffer.alloc(65 * 1024 * 1024, 128))
+    await writeFile(path.join(folder, '安装包.zip'), Buffer.from('504b0506' + '00'.repeat(18), 'hex'))
     await writeFile(path.join(folder, 'image.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1sAAAAASUVORK5CYII=', 'base64'))
     await symlink(directory, path.join(folder, 'outside'))
     const launched = path.join(directory, 'launched.txt')
@@ -76,15 +78,17 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     await shared(`/sessions/${remoteSession}/sharing/user/${member.user.user_id}`, { method: 'PUT', body: viewOnly })
     assert.equal((await peer(remoteResource)).can_browse, false)
     await assert.rejects(peer(remoteResource, { body: { kind: 'list', path: '' } }), /403/)
+    await assert.rejects(peer(remoteResource, { body: { kind: 'download', path: '安装包.zip', offset: 0, version: null } }), /403/)
     await shared(`/workspaces/${remoteWorkspace}/sharing/user/${member.user.user_id}`, { method: 'PUT', body: viewOnly })
     assert.equal((await peer(remoteResource)).can_browse, true)
     assert.deepEqual((await peer(remoteResource)).applications, [])
     assert.equal((await peer(remoteResource, { body: { kind: 'read', path: 'src/main.rs' } })).encoding, 'utf8')
+    assert.ok(Buffer.from((await peer(remoteResource, { body: { kind: 'download', path: '安装包.zip', offset: 0, version: null } })).content_base64, 'base64').equals(await readFile(path.join(folder, '安装包.zip'))))
     await assert.rejects(peer(remoteResource, { body: { kind: 'open', app_id: 'vscode' } }), /403/)
     for (const request of [local, shared]) {
       const resource = request === local ? `${localResource}/workspace` : remoteResource
       assert.deepEqual((await request(resource)).applications.map(app => app.id), request === local ? ['vscode'] : [])
-      for (const file of ['../server/config.json', 'outside/server/config.json']) await assert.rejects(request(resource, { body: { kind: 'read', path: file } }))
+      for (const file of ['../server/config.json', 'outside/server/config.json']) for (const kind of ['read', 'download']) await assert.rejects(request(resource, { body: { kind, path: file, ...(kind === 'download' ? { offset: 0, version: null } : {}) } }))
       await assert.rejects(request(resource, { body: { kind: 'open', app_id: 'arbitrary-command' } }))
       if (request === shared) await assert.rejects(request(resource, { body: { kind: 'open', app_id: 'vscode' } }), /403/)
     }
@@ -97,7 +101,7 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     const trackers = []
     page.on('request', request => { if (request.url().includes('workspace.invalid')) trackers.push(request.url()) })
     for (const origin of [localOrigin, application.origin]) for (const asset of ['app.js', 'app.css']) {
-      assert.equal(createHash('sha256').update(Buffer.from(await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer())).digest('hex'), createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex'))
+      assert.ok(Buffer.from(await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer()).equals(await readFile(path.join(repository, 'web/dist/assets', asset))), `served ${asset} matches build`)
     }
     await page.addInitScript(() => { if (window === window.top) localStorage.setItem('ternilo.theme', 'dark') })
     await page.goto(localOrigin)
@@ -107,7 +111,7 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     const openPanel = async () => {
       // Empty-history completion moves the control from the header to the welcome layout.
       await page.locator('#conversation-main[data-session-state="empty"][data-phase="hero"]').waitFor()
-      await toggle.click()
+      if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click()
       await panel.waitFor()
     }
     await until(() => toggle.isEnabled(), Boolean, 'workspace permission')
@@ -153,7 +157,18 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     await panel.locator('[data-workspace-entry="large.txt"]').click()
     const large = panel.locator('[data-workspace-preview="large.txt"]')
     await large.getByText(/文件超过 2 MiB/).waitFor()
-    assert.equal(await large.getByRole('link', { name: '下载', exact: true }).count(), 0)
+    const downloadFile = async (preview, filename) => {
+      const pending = page.waitForEvent('download')
+      await preview.getByRole('button', { name: '下载', exact: true }).click()
+      const saved = await pending
+      assert.equal(saved.suggestedFilename(), filename)
+      assert.ok((await readFile(await saved.path())).equals(await readFile(path.join(folder, filename))), 'downloads retain every original byte, not a preview prefix')
+    }
+    await downloadFile(large, 'large.txt')
+    await panel.locator('[data-workspace-entry="安装包.zip"]').click()
+    const archive = panel.locator('[data-workspace-preview="安装包.zip"]')
+    await archive.getByText('此文件无法在线预览，请下载后查看。', { exact: true }).waitFor()
+    await downloadFile(archive, '安装包.zip')
     await writeFile(path.join(folder, 'new.txt'), 'Live refresh')
     await panel.locator('[data-workspace-pane="0"]').getByRole('button', { name: '刷新', exact: true }).click()
     await panel.locator('[data-workspace-entry="new.txt"]').waitFor()
@@ -193,10 +208,13 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     await panel.locator('[data-workspace-entry="src/main.rs"]').click()
     await panel.locator('[data-workspace-preview="src/main.rs"] pre').filter({ hasText: 'workspace preview' }).waitFor()
     const downloadPromise = page.waitForEvent('download')
-    await panel.locator('[data-workspace-preview="src/main.rs"]').getByRole('link', { name: '下载', exact: true }).click()
+    await panel.locator('[data-workspace-preview="src/main.rs"]').getByRole('button', { name: '下载', exact: true }).click()
     const download = await downloadPromise
     assert.equal(download.suggestedFilename(), 'main.rs')
     assert.equal(await readFile(await download.path(), 'utf8'), await readFile(path.join(folder, 'src/main.rs'), 'utf8'))
+    await panel.getByRole('tab', { name: '文件', exact: true }).click()
+    await panel.locator('[data-workspace-entry="large-download.bin"]').click()
+    await downloadFile(panel.locator('[data-workspace-preview="large-download.bin"]'), 'large-download.bin')
     await panel.getByRole('tab', { name: '文件', exact: true }).click()
     await panel.locator('[data-workspace-entry="image.png"]').click()
     await until(() => panel.locator('[data-workspace-preview="image.png"] img').evaluate(image => image.complete && image.naturalWidth > 0), Boolean, 'Server image decode under CSP')
@@ -227,12 +245,36 @@ test('Server workspace files work on insecure HTTP origins with real Node storag
     await until(() => toggle.isDisabled(), Boolean, 'workspace share revoked')
     await panel.getByText('需要工作区查看权限；仅共享会话不会开放目录。', { exact: true }).waitFor()
     await assert.rejects(peer(remoteResource, { body: { kind: 'read', path: 'README.md' } }), /403/)
+    await assert.rejects(peer(remoteResource, { body: { kind: 'download', path: '安装包.zip', offset: 0, version: null } }), /403/)
+    const reply = '[Download package](<local-workspace>/安装包.zip)'
+    model = createServer((request, response) => {
+      request.resume()
+      request.on('end', () => {
+        const output = [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: reply }] }]
+        response.writeHead(200, { 'content-type': 'text/event-stream' })
+        response.end('data: ' + JSON.stringify({ type: 'response.output_text.delta', output_index: 0, content_index: 0, delta: reply }) + '\n\n'
+          + 'data: ' + JSON.stringify({ type: 'response.completed', response: { status: 'completed', output, usage: { input_tokens: 1, output_tokens: 1 } } }) + '\n\n')
+      })
+    })
+    await new Promise(resolve => model.listen(0, '127.0.0.1', resolve))
+    await local('/providers', { body: { id: 'download-fixture', display_name: 'Download fixture', base_url: `http://127.0.0.1:${model.address().port}/v1`, protocol: 'openai-responses', api_key_ref: null, defaults: { context_window: 32000, max_output_tokens: 2048 }, models: [{ id: 'fixture', settings: { mode: 'inherit' } }], timeout_ms: 15000, max_attempts: 1, retry_base_delay_ms: 25 } })
+    await local(localResource, { method: 'PATCH', body: { model: { provider: 'named_provider', provider_id: 'download-fixture', model: 'fixture' } } })
+    await local(`${localResource}/turns`, { body: { input: 'Link to the package.' } })
+    await page.goto(application.origin)
+    await page.locator(`[data-sidebar-session-row][data-session-id="${remoteSession}"] [data-sidebar-session-button]`).click()
+    await page.locator('[data-role="assistant"]').getByRole('button', { name: 'Download package', exact: true }).click()
+    await archive.getByText('此文件无法在线预览，请下载后查看。', { exact: true }).waitFor()
+    await downloadFile(archive, '安装包.zip')
+    await page.setViewportSize({ width: 390, height: 844 })
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    if (artifacts) await page.screenshot({ path: path.join(artifacts, 'workspace-download-mobile.png'), animations: 'disabled' })
     assert.deepEqual(errors, [])
   } catch (error) {
     if (page && artifacts) { await mkdir(artifacts, { recursive: true }); await page.screenshot({ path: path.join(artifacts, 'workspace-failure.png') }).catch(() => {}) }
     throw new Error(`${error.stack}\n${processes.map(process => process.diagnostics()).join('\n')}`)
   } finally {
     await browser?.close()
+    if (model) await new Promise(resolve => { model.closeAllConnections(); model.close(resolve) })
     for (const process of processes.reverse()) await stopProcess(process)
     await rm(directory, { recursive: true, force: true })
   }

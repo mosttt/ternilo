@@ -10,6 +10,7 @@ pub struct SessionLogSummary {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SessionInputFacts {
+    pub seq: u64,
     pub provenance: Option<InputProvenance>,
     pub source: Option<UserMessageSource>,
 }

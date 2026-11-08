@@ -47,7 +47,7 @@
 .document { display: flex; min-width: 0; min-height: 0; width: 100%; flex: 1; flex-direction: column; }
 .previewToolbar { display: flex; min-height: 34px; flex: none; align-items: center; gap: 6px; padding: 2px 10px; border-bottom: 1px solid var(--border-subtle); font-size: 11px; }
 .previewToolbar > span { flex: 1; color: var(--label-caption); }
-.previewToolbar button, .previewToolbar a { display: inline-flex; min-height: 28px; align-items: center; padding: 2px 5px; border-radius: 5px; }
+.previewToolbar button, .previewToolbar a { display: inline-flex; min-height: 32px; align-items: center; gap: 5px; font-size: 13px; padding: 2px 7px; border-radius: 5px; }
 .previewToolbar svg { width: 14px; height: 14px; }
 .documentFrame { width: 100%; min-height: 0; border: 0; flex: 1; background: var(--background); }
 .safety { padding: 5px 10px; font-size: 10px; color: var(--label-caption); }

@@ -10,6 +10,38 @@ function jsonResponse(status: number, body: unknown) {
 
 afterEach(() => vi.unstubAllGlobals())
 
+describe('ApiClient downloads', () => {
+  it('refreshes authorization and preserves binary bytes without JSON decoding', async () => {
+    const client = new ApiClient('expired')
+    client.setRefreshHandler(async () => 'fresh')
+    vi.stubGlobal('fetch', vi.fn(async (_input, init) => new Headers(init.headers).get('authorization') === 'Bearer fresh'
+      ? new Response(new Uint8Array([0, 255, 128, 10])) : jsonResponse(401, { error: { message: 'expired' } })))
+    const blob = await client.download('/sessions/session/workspace/download', { method: 'POST', body: { path: 'package.zip' } })
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([0, 255, 128, 10]))
+  })
+
+  it('discards a download completed after switching spaces', async () => {
+    const client = new ApiClient('token')
+    let finish!: () => void
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ReadableStream({ start(controller) {
+      finish = () => { controller.enqueue(new Uint8Array([1, 2, 3])); controller.close() }
+    } }))))
+    const downloading = client.download('/sessions/session/workspace/download')
+    await Promise.resolve()
+    client.setTenant('another-space')
+    finish()
+    await expect(downloading).rejects.toMatchObject({ code: 'request_scope_changed' })
+  })
+
+  it('rejects a broken stream rather than saving its partial contents', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(new Uint8Array([1, 2]))
+      controller.error(new Error('transfer interrupted'))
+    } }))))
+    await expect(new ApiClient().download('/download')).rejects.toThrow('transfer interrupted')
+  })
+})
+
 describe('ApiClient token refresh', () => {
   it('shares one rotating refresh across concurrent 401 responses and retries every request', async () => {
     const client = new ApiClient('expired')

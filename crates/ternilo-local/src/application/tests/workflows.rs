@@ -450,8 +450,10 @@ async fn durable_schedule_replays_after_restart_and_dispatches_into_the_session(
         .await
         .unwrap();
     assert_eq!(origin.provenance, creator);
-    assert_eq!(origin.schedule_origins.len(), 1);
-    let proof = &origin.schedule_origins[0];
+    assert_eq!(origin.run_origins.len(), 1);
+    let ternilo_protocol::ModelRunOrigin::Schedule(proof) = &origin.run_origins[0] else {
+        panic!("schedule origin")
+    };
     assert!(proof.created_seq < before_restart);
     assert!(proof.dispatched_seq > before_restart);
     assert_eq!(proof.session_id, session.identity.session_id);

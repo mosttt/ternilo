@@ -12,6 +12,64 @@ struct ResolveAttachmentRequest {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct WorkspaceDownloadRequest {
+    path: String,
+}
+
+#[handler]
+pub(super) async fn workspace_download(
+    request: &mut Request,
+    depot: &mut Depot,
+    response: &mut super::Response,
+) -> Result<(), ApiError> {
+    let session = path_parameter(request, "session_id")?;
+    let body = request
+        .parse_json::<WorkspaceDownloadRequest>()
+        .await
+        .map_err(invalid_request)?;
+    let application = app_state(depot).shared.application.clone();
+    let read = move |offset, version| {
+        let application = application.clone();
+        let session = session.clone();
+        let path = body.path.clone();
+        async move {
+            let value = application
+                .workspace_browser(
+                    &session,
+                    ternilo_protocol::WorkspaceRequest::Download {
+                        path,
+                        offset,
+                        version,
+                    },
+                )
+                .await?;
+            serde_json::from_value::<ternilo_protocol::FileDownloadChunk>(value).map_err(|error| {
+                ternilo_protocol::HarnessError::execution(format!(
+                    "decode workspace download: {error}"
+                ))
+            })
+        }
+    };
+    let first = read(0, None).await?;
+    for (name, value) in [
+        ("content-type", "application/octet-stream".to_owned()),
+        ("content-length", first.version.bytes.to_string()),
+        ("cache-control", "no-store".to_owned()),
+        ("content-disposition", "attachment".to_owned()),
+    ] {
+        response
+            .add_header(name, value, true)
+            .map_err(|_| ternilo_protocol::HarnessError::execution("set download headers"))?;
+    }
+    response.stream(ternilo_local::workspace_download_stream(
+        first,
+        move |offset, version| read(offset, Some(version)),
+    ));
+    Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CreateWorkspaceRequest {
     path: String,
 }
@@ -232,4 +290,38 @@ pub(super) async fn session_file_content(
             .session_file_content(&session_id, &file_id)
             .await?,
     ))
+}
+
+#[handler]
+pub(super) async fn session_file_download(
+    request: &mut Request,
+    depot: &mut Depot,
+    response: &mut super::Response,
+) -> Result<(), ApiError> {
+    let session = path_parameter(request, "session_id")?;
+    let file_id = path_parameter(request, "file_id")?;
+    let app = app_state(depot).shared.application.clone();
+    let read = move |offset| {
+        let (app, session, file_id) = (app.clone(), session.clone(), file_id.clone());
+        async move {
+            app.session_file_download_chunk(&session, &file_id, offset)
+                .await
+        }
+    };
+    let first = read(0).await?;
+    for (name, value) in [
+        ("content-type", "application/octet-stream".to_owned()),
+        ("content-length", first.version.bytes.to_string()),
+        ("cache-control", "no-store".to_owned()),
+        ("content-disposition", "attachment".to_owned()),
+    ] {
+        response
+            .add_header(name, value, true)
+            .map_err(|_| ternilo_protocol::HarnessError::execution("set download headers"))?;
+    }
+    response.stream(ternilo_local::workspace_download_stream(
+        first,
+        move |offset, _| read(offset),
+    ));
+    Ok(())
 }

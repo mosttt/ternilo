@@ -52,6 +52,9 @@ pub fn factory() -> PluginFactory {
         },
         |value| {
             let config: SessionLogConfig = parse_config(value)?;
+            if config.max_retained_file_mib == 0 {
+                return Err(HarnessError::composition("max_retained_file_mib must be at least 1 MiB"));
+            }
             if config.max_tool_result_chars < 256 || (config.max_tool_history_chars != 0 && config.max_tool_history_chars < 1024) {
                 return Err(HarnessError::composition(
                     "session max_tool_result_chars must be at least 256; max_tool_history_chars must be zero or at least 1024",
@@ -75,12 +78,39 @@ pub fn factory() -> PluginFactory {
 #[derive(Clone, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SessionLogConfig {
+    #[serde(default = "default_max_retained_file_mib")]
+    #[schemars(range(min = 1))]
+    max_retained_file_mib: u32,
     #[serde(default = "default_max_tool_result_chars")]
     max_tool_result_chars: usize,
     #[serde(default = "default_tool_history_chars")]
     max_tool_history_chars: usize,
     #[serde(default)]
     tool_result_limits: BTreeMap<String, usize>,
+}
+
+const fn default_max_retained_file_mib() -> u32 {
+    64
+}
+
+/// Resolve the per-session write policy; reading accepted objects is independent.
+pub fn retained_file_limit(profile: &ternilo_protocol::Profile) -> Result<u64, HarnessError> {
+    let mib = match profile
+        .plugins
+        .iter()
+        .find(|entry| entry.enabled && entry.kind == KIND)
+    {
+        Some(entry) => {
+            parse_config::<SessionLogConfig>(entry.config.clone())?.max_retained_file_mib
+        }
+        None => default_max_retained_file_mib(),
+    };
+    if mib == 0 {
+        return Err(HarnessError::composition(
+            "max_retained_file_mib must be at least 1 MiB",
+        ));
+    }
+    Ok(u64::from(mib) * 1024 * 1024)
 }
 
 const fn default_tool_history_chars() -> usize {

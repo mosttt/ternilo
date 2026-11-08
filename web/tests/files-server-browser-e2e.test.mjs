@@ -217,6 +217,7 @@ test('native Server Files preserves Node versions, enforces ownership and explai
     assert.equal(await owner.getByText('来源离线', { exact: true }).count(), 1)
     if (await history.getAttribute('open') === null) await history.locator('summary').click()
     expectedErrors.set(`owner:${contentPath}`, new Set([503]))
+    expectedErrors.set(`owner:${contentPath.replace(/\/content$/, '/download')}`, new Set([503]))
     await oldRow.getByRole('button').first().click()
     await preview.getByRole('alert').getByText('无法预览此文件', { exact: true }).waitFor()
     assert.match(await preview.getByRole('alert').textContent(), /node is offline/i)

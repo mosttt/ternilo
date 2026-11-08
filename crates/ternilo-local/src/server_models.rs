@@ -11,7 +11,7 @@ use ternilo_protocol::{HarnessError, ModelRequest, ModelResponse, RunModelBindin
 pub struct ModelInputOrigin {
     pub session_id: ternilo_protocol::SessionId,
     pub provenance: Option<ternilo_protocol::InputProvenance>,
-    pub schedule_origins: Vec<ternilo_protocol::ScheduleModelOrigin>,
+    pub run_origins: Vec<ternilo_protocol::ModelRunOrigin>,
 }
 
 pub trait ServerModelGateway: Send + Sync {

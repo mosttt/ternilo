@@ -59,6 +59,7 @@ mod presets;
 mod provider_web;
 mod providers;
 mod services;
+mod session_profiles;
 mod sessions;
 mod turns;
 mod workspaces;

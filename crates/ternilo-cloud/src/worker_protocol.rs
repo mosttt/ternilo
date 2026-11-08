@@ -111,6 +111,14 @@ pub struct WorkerRpcRequest {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkerAttachmentUpload {
+    pub identity: CloudWorkerIdentity,
+    pub run: RunLease,
+    pub attachment: Attachment,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorkerRequest {
     Heartbeat,
