@@ -14,13 +14,34 @@ const labels = {
   ko: { settings: '설정', plugins: '플러그인', overview: '통합 설정', configuration: '플러그인 구성', jump: '플러그인으로 이동', search: '플러그인 또는 매개변수 검색', mode: '협업 모드', children: '유지할 하위 에이전트 수 제한', team: '에이전트 팀 열기', collaboration: '협업 설정', refresh: '팀 새로 고침', save: '저장', reset: '세션 재정의 제거', discard: '변경 취소' },
 }
 
+// Drain intercepted callbacks before removing their route registration.
+async function holdRequests(page, pattern, accepts = () => true) {
+  let release, entered, active = 0
+  const gate = new Promise(resolve => { release = resolve })
+  const received = new Promise(resolve => { entered = resolve })
+  const handler = async route => {
+    active++
+    try {
+      if (accepts(route.request())) { entered(); await gate }
+      await route.continue()
+    } finally { active-- }
+  }
+  await page.route(pattern, handler)
+  return { received, release, close: async () => {
+    release()
+    await until(() => active, value => value === 0, 'intercepted requests have been forwarded')
+    await page.unroute(pattern, handler)
+  } }
+}
+
 for (const placement of ['local', 'server-node']) {
   test(`plugin drafts, saved settings and inheritance sync across all entry points (${placement})`, { timeout: 180_000 }, async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'ternilo-plugin-settings-'))
     const artifacts = process.env.TERNILO_E2E_ARTIFACT_DIR ?? directory
     await mkdir(artifacts, { recursive: true })
     const processes = [], errors = { page: [], console: [], http: [] }
-    let browser, page, releaseProfileRefresh
+    let browser, page
+    const heldRequests = []
     try {
       const environment = { ...Object.fromEntries(Object.keys(process.env).filter(key => key.startsWith('TERNILO_')).map(key => [key, undefined])), XDG_STATE_HOME: path.join(directory, 'state') }
       const nodeOrigin = `http://127.0.0.1:${await freePort()}`
@@ -109,27 +130,18 @@ for (const placement of ['local', 'server-node']) {
         assert.equal(await retainedField.inputValue(), '64')
         // Keep the first save pending after the backend accepts it, then switch editors.
         const delayRefresh = server && locale === 'zh'
-        const profilePath = `**/api/v1${resource}/plugins`
-        const refreshGate = new Promise(resolve => { releaseProfileRefresh = resolve })
-        let refreshHeld = false
-        const holdProfile = async route => {
-          const response = await route.fetch()
-          refreshHeld = true
-          await refreshGate
-          await route.fulfill({ response })
-        }
-        if (delayRefresh) await page.route(profilePath, holdProfile)
+        const profileRefresh = delayRefresh ? await holdRequests(page, `**/api/v1${resource}/plugins`) : null
+        if (profileRefresh) heldRequests.push(profileRefresh)
         await retainedField.fill('128')
         await retained.getByRole('button', { name: text.save, exact: true }).click()
         await until(stored, value => value.profile_plugins.some(entry => entry.id === 'session' && entry.config.max_retained_file_mib === 128), 'retained file policy saved')
         await settings.getByRole('tab', { name: text.configuration, exact: true }).click()
         await retained.locator('button[aria-expanded][aria-label]').click()
         assert.equal(await retainedField.inputValue(), '128')
-        if (delayRefresh) {
-          await until(() => refreshHeld, Boolean, 'first save is waiting for its profile refresh')
+        if (profileRefresh) {
+          await profileRefresh.received
           assert.equal(await retainedField.isDisabled(), true, 'the other editor shares the pending write lock')
-          releaseProfileRefresh()
-          await page.unrouteAll({ behavior: 'wait' })
+          await profileRefresh.close()
           await until(() => retainedField.isEnabled(), Boolean, 'editors unlock after the committed configuration is synchronized')
         }
         await retainedField.fill('96')
@@ -170,25 +182,19 @@ for (const placement of ['local', 'server-node']) {
         const files = settings.locator('[data-plugin-id="local-files"]')
         await files.locator('#plugin-local-files-max_read_bytes').fill('3145728')
         if (locale === 'zh') {
-          let release, started
-          const held = new Promise(resolve => { release = resolve })
-          const received = new Promise(resolve => { started = resolve })
-          const routePattern = `**/api/v1${resource}`
-          await page.route(routePattern, async route => {
-            if (route.request().method() === 'PATCH') { started(); await held }
-            await route.continue()
-          })
+          const pendingSave = await holdRequests(page, `**/api/v1${resource}`, request => request.method() === 'PATCH')
+          heldRequests.push(pendingSave)
           try {
             await files.getByRole('button', { name: text.save, exact: true }).click()
-            await received
+            await pendingSave.received
             await closeSettings()
             const busyTeam = await openTeam()
             assert.equal(await busyTeam.getByRole('button', { name: text.save, exact: true }).isEnabled(), false, 'saving in one entry point must lock writes in another')
-            release()
+            pendingSave.release()
             await until(stored, value => value.profile_plugins.some(entry => entry.id === 'local-files'), 'save after switching entry points')
             await busyTeam.locator('[data-slot="dialog-close"]').click()
             await openSettings()
-          } finally { release(); await page.unrouteAll({ behavior: 'wait' }) }
+          } finally { await pendingSave.close() }
         } else await files.getByRole('button', { name: text.save, exact: true }).click()
         await until(stored, value => value.profile_plugins.some(entry => entry.id === 'local-files' && entry.config.max_read_bytes === 3145728), 'saved independent plugin')
         await until(() => files.getByRole('button', { name: text.save, exact: true }).isEnabled(), value => !value, 'save complete')
@@ -300,8 +306,7 @@ for (const placement of ['local', 'server-node']) {
       await page?.screenshot({ path: path.join(artifacts, `plugin-settings-${placement}-failure.png`) }).catch(() => {})
       throw error
     } finally {
-      releaseProfileRefresh?.()
-      await page?.unrouteAll({ behavior: 'wait' })
+      for (const held of heldRequests) await held.close()
       await browser?.close()
       for (const process of processes.reverse()) await stopProcess(process)
       await rm(directory, { recursive: true, force: true })

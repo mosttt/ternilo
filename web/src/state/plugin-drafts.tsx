@@ -8,7 +8,12 @@ export interface PluginDraft {
   touched: Set<string>
 }
 
-type StoredDraft = { baseline: string; value: PluginDraft }
+type StoredDraft = { baseline: string; value: PluginDraft; pendingSource?: string }
+
+export function pluginConfigBaseline(config: Record<string, unknown>) {
+  return JSON.stringify(config, (_key, value: unknown) => value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : value)
+}
 const PluginDraftContext = React.createContext<{
   locks: Set<string>
   locksRef: React.RefObject<Set<string>>
@@ -42,27 +47,46 @@ export function usePluginDraft(key: string | undefined, baseline: string, initia
   const shared = React.useContext(PluginDraftContext)
   const [local, setLocal] = React.useState<StoredDraft>(() => ({ baseline, value: initial }))
   const stored = key && shared ? shared.drafts[key] : local
-  const value = stored?.baseline === baseline ? stored.value : initial
+  const matchesSource = (entry: StoredDraft | undefined) => entry?.baseline === baseline || entry?.pendingSource === baseline
+  const current = stored && matchesSource(stored) ? stored : { baseline, value: initial }
+  const value = current.value
+  const acceptedBaseline = current.baseline
   const update = (action: React.SetStateAction<PluginDraft>) => {
     const apply = (previous: StoredDraft | undefined): StoredDraft => {
-      const current = previous?.baseline === baseline ? previous.value : initial
-      return { baseline, value: typeof action === 'function' ? action(current) : action }
+      const current = previous && matchesSource(previous) ? previous : { baseline, value: initial }
+      return { ...current, value: typeof action === 'function' ? action(current.value) : action }
     }
     if (key && shared) shared.setDrafts(current => ({ ...current, [key]: apply(current[key]) }))
     else setLocal(apply)
   }
   // A completed write must not replace edits made from another entry point while it was pending.
-  const settle = (next: PluginDraft) => {
-    const unchanged = (previous: StoredDraft | undefined) => previous?.baseline === baseline && previous.value === value
+  const settle = (next: PluginDraft, savedBaseline?: string) => {
+    const unchanged = (previous: StoredDraft | undefined) => previous
+      ? matchesSource(previous) && previous.value === value : stored === undefined
+    // Remember the accepted write until its asynchronous profile projection catches up.
+    const accepted = { baseline: savedBaseline ?? baseline, value: next,
+      ...(savedBaseline && savedBaseline !== baseline ? { pendingSource: baseline } : {}) }
     if (key && shared) shared.setDrafts(current => {
-      return unchanged(current[key]) ? { ...current, [key]: { baseline, value: next } } : current
+      return unchanged(current[key]) ? { ...current, [key]: accepted } : current
     })
-    else setLocal(current => unchanged(current) ? { baseline, value: next } : current)
+    else setLocal(current => unchanged(current) ? accepted : current)
   }
   React.useEffect(() => {
-    if (stored && stored.baseline !== baseline) update(initial)
-  }, [baseline, key, stored?.baseline])
-  return [value, update, settle] as const
+    if (!stored || (stored.baseline === baseline && !stored.pendingSource) || stored.pendingSource === baseline) return
+    const synchronize = (current: StoredDraft): StoredDraft => {
+      if (current.baseline === baseline && current.pendingSource) return { baseline, value: current.value }
+      // An edit can commit after this render but before its baseline effect runs.
+      return current === stored ? { baseline, value: initial } : current
+    }
+    if (key && shared) shared.setDrafts(current => {
+      const previous = current[key]
+      if (!previous) return current
+      const next = synchronize(previous)
+      return next === previous ? current : { ...current, [key]: next }
+    })
+    else setLocal(synchronize)
+  }, [baseline, key, stored?.baseline, stored?.pendingSource])
+  return [value, update, settle, acceptedBaseline] as const
 }
 
 // A save may outlive a dialog. Share its lock with the next configuration entry point.

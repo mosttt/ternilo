@@ -1,9 +1,9 @@
-import { act } from 'react'
+import { act, useLayoutEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '@/i18n/provider'
 import type { PluginCatalogEntry, PluginEntry } from '@/types'
-import { PluginDraftProvider } from '@/state/plugin-drafts'
+import { PluginDraftProvider, usePluginDraft } from '@/state/plugin-drafts'
 import { PluginConfigCard } from './plugin-config-card'
 
 const storageValues = new Map<string, string>()
@@ -280,6 +280,70 @@ describe('PluginConfigCard draft lifecycle', () => {
     await settle(() => finish())
     expect(host.querySelector('[aria-expanded]')?.getAttribute('aria-expanded')).toBe('true')
     expect(host.querySelector('#plugin-local-files-max_read_bytes')).not.toBeNull()
+  })
+
+  it('preserves an edit committed by another entry point before baseline effects finish', async () => {
+    const key = 'session-a:files'
+    function IncomingEdit({ config }: { config: Record<string, unknown> }) {
+      const [, update] = usePluginDraft(key, JSON.stringify(config), { draft: config, texts: {}, rawText: JSON.stringify(config, null, 2), rawInvalid: false, touched: new Set() })
+      useLayoutEffect(() => {
+        if (config.max_read_bytes === 3145728) update(current => ({ ...current,
+          texts: { ...current.texts, max_read_bytes: '4194304' }, touched: new Set(['max_read_bytes']) }))
+      }, [config.max_read_bytes])
+      return null
+    }
+    const draw = (config: Record<string, unknown>) => root.render(<LocaleProvider><PluginDraftProvider>
+      <PluginConfigCard entry={{ ...entry, config }} metadata={metadata()} draftKey={key} expanded overridden onSave={vi.fn()} />
+      <IncomingEdit config={config} />
+    </PluginDraftProvider></LocaleProvider>)
+    await settle(() => draw({}))
+    const input = () => host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!
+    await settle(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input(), '3145728')
+      input().dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await settle(() => draw({ max_read_bytes: 3145728 }))
+    expect(input().value).toBe('4194304')
+    expect([...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '保存')!.disabled).toBe(false)
+  })
+
+  it('keeps the next edit when committed configuration arrives after save completion', async () => {
+    const draw = (config: Record<string, unknown>) => root.render(<LocaleProvider><PluginDraftProvider>
+      <PluginConfigCard entry={{ ...entry, config }} metadata={metadata()} draftKey="late-projection"
+        expanded overridden onSave={vi.fn(async () => undefined)} />
+    </PluginDraftProvider></LocaleProvider>)
+    const input = () => host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!
+    const edit = (value: string) => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input(), value)
+      input().dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await settle(() => draw({}))
+    await settle(() => edit('3145728'))
+    await settle(() => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '保存')!.click())
+    expect(host.textContent).not.toContain('未保存')
+    await settle(() => edit('4194304'))
+    await settle(() => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '放弃修改')!.click())
+    expect(input().value).toBe('3145728')
+    await settle(() => edit('4194304'))
+    await settle(() => draw({ max_read_bytes: 3145728 }))
+    expect(input().value).toBe('4194304')
+  })
+
+  it('uses the accepted inherited configuration while its projection is delayed', async () => {
+    const draw = (config: Record<string, unknown>) => root.render(<LocaleProvider><PluginDraftProvider>
+      <PluginConfigCard entry={{ ...entry, config }} metadata={metadata()} draftKey="late-reset" expanded overridden
+        onSave={vi.fn()} onReset={vi.fn(async () => ({ ...entry, config: {} }))} />
+    </PluginDraftProvider></LocaleProvider>)
+    const input = () => host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!
+    await settle(() => draw({ max_read_bytes: 3145728 }))
+    await settle(() => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('移除会话覆盖'))!.click())
+    expect(input().value).toBe('2097152')
+    await settle(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input(), '4194304')
+      input().dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await settle(() => draw({}))
+    expect(input().value).toBe('4194304')
   })
 
   it('discards edits when restoring inheritance returns the same saved configuration', async () => {

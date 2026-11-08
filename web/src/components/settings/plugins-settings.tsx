@@ -414,6 +414,7 @@ export function PluginsSettings({ onChanged, onlyKind }: { onChanged(): Promise<
     try {
       const next = await api.request<Profile>(`/sessions/${encodeURIComponent(sessionId)}/plugins`)
       if (request === profileRequest.current) setProfile(next)
+      return next
     } catch (cause) {
       if (request === profileRequest.current) setProfileError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -452,7 +453,8 @@ export function PluginsSettings({ onChanged, onlyKind }: { onChanged(): Promise<
     if (!startWriting()) throw new Error(common('saving'))
     try {
       await updateSession(currentSession.identity.session_id, { profile_plugins: overrides })
-      await Promise.all([loadProfile(), onChanged()])
+      const [accepted] = await Promise.all([loadProfile(), onChanged()])
+      return accepted
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === 'conflict') throw new Error(t(cause.message.includes('Session configuration is busy') ? 'plugins.configurationConflict' : 'plugins.waitForTask'))
       throw cause
@@ -463,14 +465,16 @@ export function PluginsSettings({ onChanged, onlyKind }: { onChanged(): Promise<
 
   const saveEntry = async (entry: PluginEntry) => {
     if (!currentSession) throw new Error(t('plugins.noSession'))
-    await writeOverrides([...currentSession.profile_plugins.filter((item) => item.id !== entry.id), entry])
+    const accepted = await writeOverrides([...currentSession.profile_plugins.filter((item) => item.id !== entry.id), entry])
     notify(t('plugins.saved'))
+    return accepted?.plugins.find(item => item.id === entry.id)
   }
 
   const resetEntry = async (id: string) => {
     if (!currentSession) throw new Error(t('plugins.noSession'))
-    await writeOverrides(currentSession.profile_plugins.filter((item) => item.id !== id))
+    const accepted = await writeOverrides(currentSession.profile_plugins.filter((item) => item.id !== id))
     notify(t('plugins.resetDone'))
+    return accepted?.plugins.find(item => item.id === id)
   }
 
   const toggleEntry = async (entry: PluginEntry, enabled: boolean) => {
