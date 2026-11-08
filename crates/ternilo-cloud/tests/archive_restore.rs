@@ -327,3 +327,207 @@ async fn archived_listing_respects_sharing_and_restore_preserves_grants() {
             .is_empty()
     );
 }
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Verify archive, restart/restore and single-record deletion on the same delegated family."
+)]
+async fn archive_family_keeps_forks_independent_and_restore_does_not_resume_queues() {
+    use ternilo_protocol::{
+        SessionId, SubagentId, SubagentSessionMetadata, SubagentTranscriptKind,
+    };
+    let fixture = fixture().await;
+    let tenant = &fixture.session.tenant_id;
+    let owner = &fixture.owner.user_id;
+    let metadata = |id: &str| SubagentSessionMetadata {
+        role: None,
+        subagent_id: SubagentId::new(id),
+        provider: "in-process".into(),
+        transcript_kind: SubagentTranscriptKind::Conversation,
+    };
+    let root = &fixture.session.session_id;
+    let child = fixture
+        .cloud
+        .create_canonical_subagent_session(
+            tenant,
+            owner,
+            root,
+            &SessionId::new("archive-child"),
+            metadata("child"),
+            "Child".into(),
+            102,
+        )
+        .await
+        .unwrap();
+    let grandchild = fixture
+        .cloud
+        .create_canonical_subagent_session(
+            tenant,
+            owner,
+            &child.session_id,
+            &SessionId::new("archive-grandchild"),
+            metadata("grandchild"),
+            "Grandchild".into(),
+            103,
+        )
+        .await
+        .unwrap();
+    // Seed an ordinary branch with the same parent pointer but no delegation metadata.
+    // Actual fork history and execution-family isolation have their own contract tests.
+    let fork = fixture
+        .cloud
+        .create_canonical_subagent_session(
+            tenant,
+            owner,
+            &child.session_id,
+            &SessionId::new("ordinary-branch"),
+            metadata("branch"),
+            "Independent branch".into(),
+            104,
+        )
+        .await
+        .unwrap();
+    let mut tx = fixture
+        .cloud
+        .database()
+        .tenant_transaction(tenant)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE cloud_sessions SET subagent_metadata=NULL WHERE tenant_id=$1 AND session_id=$2",
+    )
+    .bind(tenant.as_str())
+    .bind(fork.session_id.as_str())
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let fork_child = fixture
+        .cloud
+        .create_canonical_subagent_session(
+            tenant,
+            owner,
+            &fork.session_id,
+            &SessionId::new("fork-child"),
+            metadata("fork-child"),
+            "Independent child".into(),
+            105,
+        )
+        .await
+        .unwrap();
+    assert!(
+        fixture
+            .cloud
+            .archive_session(tenant, &fixture.reader.user_id, root, 106)
+            .await
+            .is_err()
+    );
+    fixture
+        .cloud
+        .archive_session(tenant, owner, root, 107)
+        .await
+        .unwrap();
+    for id in [root, &child.session_id, &grandchild.session_id] {
+        assert!(
+            fixture
+                .cloud
+                .get_session(tenant, id)
+                .await
+                .unwrap()
+                .archived_at_ms
+                .is_some()
+        );
+        assert!(
+            fixture
+                .cloud
+                .session_inbox(tenant, owner, id)
+                .await
+                .unwrap()
+                .paused
+        );
+    }
+    for id in [&fork.session_id, &fork_child.session_id] {
+        assert!(
+            fixture
+                .cloud
+                .get_session(tenant, id)
+                .await
+                .unwrap()
+                .archived_at_ms
+                .is_none()
+        );
+    }
+    assert!(
+        fixture
+            .cloud
+            .create_canonical_subagent_session(
+                tenant,
+                owner,
+                root,
+                &SessionId::new("late-child"),
+                metadata("late"),
+                "Late child".into(),
+                108
+            )
+            .await
+            .is_err()
+    );
+    fixture
+        .cloud
+        .restore_session(tenant, owner, root, 109)
+        .await
+        .unwrap();
+    assert!(
+        fixture
+            .cloud
+            .list_accessible_archived_sessions(tenant, owner, 100)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    for id in [root, &child.session_id, &grandchild.session_id] {
+        assert!(
+            fixture
+                .cloud
+                .session_inbox(tenant, owner, id)
+                .await
+                .unwrap()
+                .paused
+        );
+    }
+    fixture
+        .cloud
+        .archive_session(tenant, owner, root, 110)
+        .await
+        .unwrap();
+    fixture
+        .cloud
+        .delete_session(tenant, &child.session_id, owner, 111)
+        .await
+        .unwrap();
+    assert!(
+        fixture
+            .cloud
+            .get_session(tenant, &child.session_id)
+            .await
+            .is_err()
+    );
+    let surviving = fixture
+        .cloud
+        .get_session(tenant, &grandchild.session_id)
+        .await
+        .unwrap();
+    assert!(surviving.archived_at_ms.is_some());
+    assert!(surviving.parent_session_id.is_none());
+    assert!(surviving.subagent.is_none());
+    assert!(
+        fixture
+            .cloud
+            .get_session(tenant, &fork.session_id)
+            .await
+            .unwrap()
+            .parent_session_id
+            .is_none()
+    );
+}

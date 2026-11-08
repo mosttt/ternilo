@@ -407,22 +407,6 @@ pub(crate) async fn archive_session(
                 .await?
                 .require(ResourceAction::Delete)?;
             let now = now_ms()?;
-            let runs = state
-                .cloud
-                .active_session_runs(&tenant_id, &actor(depot).user_id, &session_id)
-                .await?;
-            if !runs.is_empty() {
-                state
-                    .cloud
-                    .pause_session_inbox(&tenant_id, &actor(depot).user_id, &session_id, None, now)
-                    .await?;
-                for run_id in runs {
-                    state
-                        .cloud
-                        .cancel_run_as(&tenant_id, &actor(depot).user_id, &session_id, &run_id, now)
-                        .await?;
-                }
-            }
             CloudAdapter::new(state, actor(depot), &tenant_id)
                 .present(
                     state

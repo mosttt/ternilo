@@ -341,3 +341,92 @@ async fn history_deletion_cannot_recycle_family_identity(
     );
     assert_eq!(fixture.family(&session.session_id).await, original);
 }
+
+#[tokio::test]
+async fn archiving_a_running_family_cancels_descendants_and_preserves_pending_inputs() {
+    use ternilo_cloud::CloudRunState;
+    let directory = tempfile::tempdir().unwrap();
+    let url = format!(
+        "sqlite://{}",
+        directory.path().join("archive-running.sqlite3").display()
+    );
+    let control = ControlStore::connect(&url, None, SecretCipher::from_key([53; 32]), 4)
+        .await
+        .unwrap();
+    let cloud = CloudStore::connect(&url, None, 4).await.unwrap();
+    let mut fixture = Fixture::open(control, cloud).await;
+    let owner = fixture.owner.user_id.clone();
+    let parent = fixture.session("archive-running-parent").await;
+    let parent_id = fixture.submit(&parent, "parent-run", &owner).await;
+    let parent_run = fixture.start(&parent_id).await;
+    let (child, child_id) = fixture.child(&parent_run, "running-child").await;
+    let child_run = fixture.start(&child_id).await;
+    let (grandchild, grandchild_id) = fixture.child(&child_run, "queued-grandchild").await;
+    let queued = fixture.compiled(&child, "later-child-input", &owner);
+    let now = fixture.tick();
+    fixture
+        .cloud
+        .enqueue_session_submission_as(&owner, &queued, &request(&queued), now)
+        .await
+        .unwrap();
+    let now = fixture.tick();
+    fixture
+        .cloud
+        .archive_session(&fixture.tenant, &owner, &parent.session_id, now)
+        .await
+        .unwrap();
+    for (id, expected) in [
+        (&parent_id, CloudRunState::CancelRequested),
+        (&child_id, CloudRunState::CancelRequested),
+        (&grandchild_id, CloudRunState::Cancelled),
+    ] {
+        assert_eq!(
+            fixture
+                .cloud
+                .get_run(&fixture.tenant, id)
+                .await
+                .unwrap()
+                .state,
+            expected
+        );
+    }
+    for session in [&parent, &child, &grandchild] {
+        assert!(
+            fixture
+                .cloud
+                .get_session(&fixture.tenant, &session.session_id)
+                .await
+                .unwrap()
+                .archived_at_ms
+                .is_some()
+        );
+        assert!(
+            fixture
+                .cloud
+                .session_inbox(&fixture.tenant, &owner, &session.session_id)
+                .await
+                .unwrap()
+                .paused
+        );
+    }
+    let inbox = fixture
+        .cloud
+        .session_inbox(&fixture.tenant, &owner, &child.session_id)
+        .await
+        .unwrap();
+    assert_eq!(inbox.items.len(), 1);
+    let now = fixture.tick();
+    fixture
+        .cloud
+        .restore_session(&fixture.tenant, &owner, &parent.session_id, now)
+        .await
+        .unwrap();
+    assert_eq!(
+        fixture
+            .cloud
+            .session_inbox(&fixture.tenant, &owner, &child.session_id)
+            .await
+            .unwrap(),
+        inbox
+    );
+}

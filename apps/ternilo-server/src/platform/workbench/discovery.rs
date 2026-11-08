@@ -100,7 +100,7 @@ async fn discover_computer(
 
 /// Refresh machine-reported metadata without borrowing a browser user's authority.
 /// The transport snapshot and enrolled owner establish identity; grants still gate reads and execution.
-async fn synchronize_connected_node_resources(
+pub(super) async fn synchronize_connected_node_resources(
     state: &AppState,
     tenant_id: &TenantId,
     executor_id: &ExecutorId,

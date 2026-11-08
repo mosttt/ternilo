@@ -29,7 +29,7 @@ beforeEach(() => {
 })
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 async function render() {
-  await act(async () => root.render(<LocaleProvider><SessionArchiveDialog tenantId="team" platform readOnly workspaces={[]} onClose={vi.fn()} onRestored={restored} /></LocaleProvider>))
+  await act(async () => root.render(<LocaleProvider><SessionArchiveDialog tenantId="team" platform readOnly workspaces={[]} onClose={vi.fn()} onChanged={restored} /></LocaleProvider>))
 }
 function button(text: string) {
   const target = [...document.querySelectorAll<HTMLButtonElement>('button')].find(element => element.textContent === text)

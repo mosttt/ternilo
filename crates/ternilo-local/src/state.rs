@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::PathBuf,
+};
 
 use serde::{Deserialize, Serialize};
 use ternilo_protocol::{
@@ -170,6 +173,27 @@ impl LocalState {
             .cloned()
     }
 
+    pub(crate) async fn subagent_children(&self, id: &str) -> Vec<ternilo_protocol::SessionId> {
+        self.document
+            .lock()
+            .await
+            .sessions
+            .iter()
+            .filter(|child| {
+                child.subagent.is_some()
+                    && child
+                        .parent_session_id
+                        .as_ref()
+                        .is_some_and(|parent| parent.as_str() == id)
+            })
+            .map(|child| child.identity.session_id.clone())
+            .collect()
+    }
+
+    pub(crate) async fn subagent_family_ids(&self, id: &str) -> BTreeSet<String> {
+        subagent_session_ids(&self.document.lock().await.sessions, id)
+    }
+
     pub async fn insert_workspace(&self, workspace: Workspace) -> Result<(), HarnessError> {
         let mut guard = self.document.lock().await;
         if guard.workspaces.iter().any(|current| {
@@ -228,6 +252,11 @@ impl LocalState {
                 .iter()
                 .find(|candidate| &candidate.identity.session_id == parent_id)
                 .ok_or_else(|| HarnessError::invalid("fork parent session does not exist"))?;
+            if session.subagent.is_some() && parent.archived_at_ms.is_some() {
+                return Err(HarnessError::conflict(
+                    "restore the parent session before creating a subagent",
+                ));
+            }
             if parent.workspace_id != session.workspace_id
                 || parent.workspace_path != session.workspace_path
             {
@@ -328,22 +357,19 @@ impl LocalState {
         archived_at_ms: u64,
     ) -> Result<LocalSession, HarnessError> {
         let mut guard = self.document.lock().await;
-        let current = guard
+        let family = subagent_session_ids(&guard.sessions, id);
+        let mut next = guard.clone();
+        for session in &mut next.sessions {
+            if family.contains(session.identity.session_id.as_str()) {
+                session.archived_at_ms.get_or_insert(archived_at_ms);
+            }
+        }
+        let result = next
             .sessions
             .iter()
             .find(|session| session.identity.session_id.as_str() == id)
+            .cloned()
             .ok_or_else(|| HarnessError::invalid(format!("unknown session {id:?}")))?;
-        if current.archived_at_ms.is_some() {
-            return Ok(current.clone());
-        }
-        let mut next = guard.clone();
-        let session = next
-            .sessions
-            .iter_mut()
-            .find(|session| session.identity.session_id.as_str() == id)
-            .expect("session was found in the source document");
-        session.archived_at_ms = Some(archived_at_ms);
-        let result = session.clone();
         self.persist(&next).await?;
         *guard = next;
         Ok(result)
@@ -359,14 +385,19 @@ impl LocalState {
         if current.archived_at_ms.is_none() {
             return Ok(current.clone());
         }
+        let family = subagent_session_ids(&guard.sessions, id);
         let mut next = guard.clone();
-        let session = next
+        for session in &mut next.sessions {
+            if family.contains(session.identity.session_id.as_str()) {
+                session.archived_at_ms = None;
+            }
+        }
+        let result = next
             .sessions
-            .iter_mut()
+            .iter()
             .find(|session| session.identity.session_id.as_str() == id)
-            .expect("session was found in the source document");
-        session.archived_at_ms = None;
-        let result = session.clone();
+            .unwrap()
+            .clone();
         self.persist(&next).await?;
         *guard = next;
         Ok(result)
@@ -509,6 +540,31 @@ impl LocalState {
             .map_err(|error| HarnessError::execution(format!("serialize local state: {error}")))?;
         atomic_replace(&self.state_path, &bytes, false).await
     }
+}
+
+/// Follow delegated children only. Conversation forks have independent lifecycles.
+fn subagent_session_ids(sessions: &[LocalSession], root: &str) -> BTreeSet<String> {
+    let mut children: HashMap<&str, Vec<&str>> = HashMap::new();
+    for session in sessions {
+        if session.subagent.is_some()
+            && let Some(parent) = &session.parent_session_id
+        {
+            children
+                .entry(parent.as_str())
+                .or_default()
+                .push(session.identity.session_id.as_str());
+        }
+    }
+    let mut pending = vec![root];
+    let mut ids = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if ids.insert(id.to_owned())
+            && let Some(nested) = children.get(id)
+        {
+            pending.extend(nested);
+        }
+    }
+    ids
 }
 
 fn validate_document(document: &StateDocument) -> Result<(), HarnessError> {
