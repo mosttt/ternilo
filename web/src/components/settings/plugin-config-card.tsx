@@ -46,6 +46,7 @@ export function PluginConfigCard({
   saveLabel,
   savingLabel,
   disabledReason,
+  pendingWrite = false,
   hostToolCallLimit,
   target,
   onToggle,
@@ -63,6 +64,7 @@ export function PluginConfigCard({
   saveLabel?: string
   savingLabel?: string
   disabledReason?: string
+  pendingWrite?: boolean
   hostToolCallLimit?: number
   target?: ExecutionTarget
   onToggle?(enabled: boolean): Promise<void>
@@ -84,7 +86,7 @@ export function PluginConfigCard({
   )
   const [open, setOpen] = React.useState(false)
   const initial: PluginDraft = { draft: baselineDraft, texts: baselineTexts, rawText: baselineText, rawInvalid: false, touched: new Set() }
-  const [editor, setEditor] = usePluginDraft(draftKey, baseline, initial)
+  const [editor, setEditor, settleEditor] = usePluginDraft(draftKey, baseline, initial)
   const { draft, rawText, rawInvalid, touched } = editor
   const texts = React.useMemo(() => {
     const values = initialTexts(draft, fields)
@@ -99,7 +101,8 @@ export function PluginConfigCard({
   const setRawText = (value: string) => updateField('rawText', value)
   const setRawInvalid = (value: boolean) => updateField('rawInvalid', value)
   const setTouched = (value: React.SetStateAction<PluginDraft['touched']>) => updateField('touched', value)
-  const [busy, setBusy] = React.useState(false)
+  const [writing, setBusy] = React.useState(false)
+  const busy = writing || pendingWrite
   const [error, setError] = React.useState('')
   React.useEffect(() => {
     if (openRequest !== undefined) setOpen(true)
@@ -142,8 +145,8 @@ export function PluginConfigCard({
     setError('')
     try {
       await onSave({ ...entry, config: preview.next })
-      setEditor({ draft: preview.next, texts: initialTexts(preview.next, fields), rawText: JSON.stringify(preview.next, null, 2), rawInvalid: false, touched: new Set() })
-      setOpen(false)
+      settleEditor({ draft: preview.next, texts: initialTexts(preview.next, fields), rawText: JSON.stringify(preview.next, null, 2), rawInvalid: false, touched: new Set() })
+      if (!expanded) setOpen(false)
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause)
       const localized = entry.kind === 'ternilo.subagents.in_process' ? coordinationErrorKey(message) : null
@@ -159,8 +162,8 @@ export function PluginConfigCard({
     setError('')
     try {
       await onReset()
-      restore()
-      setOpen(false)
+      settleEditor(initial)
+      if (!expanded) setOpen(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -356,7 +359,7 @@ export function PluginConfigCard({
             {overridden && onReset ? <Button type="button" variant="ghost" disabled={busy || Boolean(disabledReason)} onClick={() => void resetOverride()}><RotateCcw />{t('plugins.resetOverride')}</Button> : null}
             <Button type="button" variant="outline" disabled={!dirty || busy} onClick={restore}>{t('plugins.discard')}</Button>
             <Button type="button" disabled={!dirty || busy || Boolean(preview.invalid) || Boolean(disabledReason)} onClick={() => void save()}>
-              {busy ? savingLabel ?? common('saving') : saveLabel ?? common('save')}
+              {writing ? savingLabel ?? common('saving') : saveLabel ?? common('save')}
             </Button>
           </div>
         </div>

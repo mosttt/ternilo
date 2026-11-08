@@ -51,10 +51,18 @@ export function usePluginDraft(key: string | undefined, baseline: string, initia
     if (key && shared) shared.setDrafts(current => ({ ...current, [key]: apply(current[key]) }))
     else setLocal(apply)
   }
+  // A completed write must not replace edits made from another entry point while it was pending.
+  const settle = (next: PluginDraft) => {
+    const unchanged = (previous: StoredDraft | undefined) => previous?.baseline === baseline && previous.value === value
+    if (key && shared) shared.setDrafts(current => {
+      return unchanged(current[key]) ? { ...current, [key]: { baseline, value: next } } : current
+    })
+    else setLocal(current => unchanged(current) ? { baseline, value: next } : current)
+  }
   React.useEffect(() => {
     if (stored && stored.baseline !== baseline) update(initial)
   }, [baseline, key, stored?.baseline])
-  return [value, update] as const
+  return [value, update, settle] as const
 }
 
 // A save may outlive a dialog. Share its lock with the next configuration entry point.

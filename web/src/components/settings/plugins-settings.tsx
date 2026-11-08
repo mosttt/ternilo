@@ -813,6 +813,7 @@ export function PluginsSettings({ onChanged, onlyKind }: { onChanged(): Promise<
                   metadata={metadata}
                   hostToolCallLimit={catalog?.host_limits?.max_tool_calls}
                   disabledReason={disabledReason}
+                  pendingWrite={writing}
                   overridden={currentSession.profile_plugins.some((item) => item.id === entry.id)}
                   onToggle={(enabled) => toggleEntry(entry, enabled)}
                   onSave={saveEntry}
@@ -1262,6 +1263,7 @@ export function PluginsSettings({ onChanged, onlyKind }: { onChanged(): Promise<
                               </p>
                             ) : null}
                             <PluginConfigCard
+                              pendingWrite={writing}
                               entry={{
                                 id: `${rowId}:settings`,
                                 kind: 'ternilo.extension.package',

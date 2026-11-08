@@ -229,6 +229,59 @@ describe('PluginConfigCard draft lifecycle', () => {
     expect(host.textContent).not.toContain('未保存')
   })
 
+  it('makes the editor read-only while another entry point is committing the same plugin settings', async () => {
+    const draw = (pendingWrite: boolean) => root.render(<LocaleProvider><PluginConfigCard entry={entry}
+      metadata={metadata()} expanded overridden={false} pendingWrite={pendingWrite} onSave={vi.fn()} /></LocaleProvider>)
+    await settle(() => draw(true))
+    expect(host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!.disabled).toBe(true)
+    await settle(() => draw(false))
+    expect(host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!.disabled).toBe(false)
+  })
+
+  it('does not overwrite a new entry-point draft when the previous save finishes late', async () => {
+    let finish!: () => void
+    const onSave = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    const draw = (view: string, config: Record<string, unknown>) => root.render(<LocaleProvider><PluginDraftProvider>
+      <PluginConfigCard key={view} entry={{ ...entry, config }} metadata={metadata()}
+        draftKey="session-a:files" expanded overridden onSave={onSave} />
+    </PluginDraftProvider></LocaleProvider>)
+    const input = () => host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!
+    const edit = (value: string) => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input(), value)
+      input().dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    const save = () => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '保存')!
+    await settle(() => draw('overview', {}))
+    await settle(() => edit('3145728'))
+    await settle(() => save().click())
+    expect(onSave).toHaveBeenCalledTimes(1)
+    // The committed configuration can reach a second entry point before the first save's refresh completes.
+    await settle(() => draw('details', { max_read_bytes: 3145728 }))
+    await settle(() => edit('4194304'))
+    await settle(() => finish())
+    expect(input().value).toBe('4194304')
+    expect(save().disabled).toBe(false)
+  })
+
+  it('keeps details open when a save started in the aggregate editor completes', async () => {
+    let finish!: () => void
+    const onSave = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    const draw = (expanded: boolean) => root.render(<LocaleProvider><PluginConfigCard entry={entry}
+      metadata={metadata()} expanded={expanded} overridden={false} onSave={onSave} /></LocaleProvider>)
+    await settle(() => draw(true))
+    const input = host.querySelector<HTMLInputElement>('#plugin-local-files-max_read_bytes')!
+    await settle(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, '3145728')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await settle(() => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '保存')!.click())
+    await settle(() => draw(false))
+    await settle(() => host.querySelector<HTMLButtonElement>('[aria-expanded]')!.click())
+    await settle(() => finish())
+    expect(host.querySelector('[aria-expanded]')?.getAttribute('aria-expanded')).toBe('true')
+    expect(host.querySelector('#plugin-local-files-max_read_bytes')).not.toBeNull()
+  })
+
   it('discards edits when restoring inheritance returns the same saved configuration', async () => {
     await settle(() => root.render(<LocaleProvider><PluginConfigCard entry={entry} metadata={metadata()}
       expanded overridden onSave={vi.fn()} onReset={vi.fn(async () => undefined)} /></LocaleProvider>))
