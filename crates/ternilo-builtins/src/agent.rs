@@ -74,7 +74,7 @@ pub fn factory() -> PluginFactory {
             kind: KIND,
             requires: &[
                 "ternilo/run-environment@1",
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
                 "ternilo/prompts@1",
                 "ternilo/tools@1",
                 "ternilo/commands@1",
@@ -338,9 +338,10 @@ impl ReactAgent {
     }
 
     async fn fail(&self, run_id: &RunId, error: HarnessError) -> HarnessError {
-        for (call, started) in
-            crate::session::pending_tool_calls(&self.sessions.events().await, run_id)
-        {
+        for (call, started) in crate::session::pending_tool_calls(
+            &self.sessions.run_events(run_id.clone()).await,
+            run_id,
+        ) {
             let _ = self
                 .append(
                     run_id,
@@ -622,13 +623,7 @@ impl ReactAgent {
             },
         )
         .await?;
-        let events = self
-            .sessions
-            .events()
-            .await
-            .into_iter()
-            .filter(|event| event.run_id == *run_id)
-            .collect();
+        let events = self.sessions.run_events(run_id.clone()).await;
         Ok(DirectCommandOutcome::Finished(RunOutcome {
             answer: output.content,
             steps: tool_calls,
@@ -969,13 +964,7 @@ impl ReactAgent {
         let attachments = input.attachments;
         let additional_inputs = input.additional_inputs;
         let direct_has_attachments = !attachments.is_empty();
-        if self
-            .sessions
-            .events()
-            .await
-            .iter()
-            .any(|event| event.run_id == run_id)
-        {
+        if self.sessions.run_facts(run_id.clone()).await.is_some() {
             return Err(HarnessError::invalid(format!(
                 "run id {run_id:?} already exists in this session"
             )));
@@ -1186,7 +1175,7 @@ impl ReactAgent {
             }
             let reasoning_observation = if self.observe_reasoning || self.automatic_reasoning {
                 Some(crate::reasoning_observation::observe(
-                    &self.sessions.events().await,
+                    &self.sessions.run_events(run_id.clone()).await,
                     &run_id,
                 ))
             } else {
@@ -1364,13 +1353,7 @@ impl ReactAgent {
                     },
                 )
                 .await?;
-                let events = self
-                    .sessions
-                    .events()
-                    .await
-                    .into_iter()
-                    .filter(|event| event.run_id == run_id)
-                    .collect();
+                let events = self.sessions.run_events(run_id.clone()).await;
                 return Ok(RunOutcome {
                     answer: response.content,
                     steps: step,
@@ -1611,15 +1594,12 @@ impl AgentsProvider for ReactAgent {
                 return Ok(());
             }
             drop(active);
-            if self.sessions.events().await.iter().any(|event| {
-                event.run_id == run_id
-                    && matches!(
-                        event.kind,
-                        SessionEventKind::TurnFinished { .. }
-                            | SessionEventKind::TurnFailed { .. }
-                            | SessionEventKind::TurnCancelled
-                    )
-            }) {
+            if self
+                .sessions
+                .run_facts(run_id.clone())
+                .await
+                .is_some_and(|facts| facts.terminal)
+            {
                 return Ok(());
             }
             Err(HarnessError::invalid(format!(

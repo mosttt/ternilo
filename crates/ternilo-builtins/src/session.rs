@@ -1,3 +1,5 @@
+mod facts;
+
 #[path = "tool_output_budget.rs"]
 mod tool_output_budget;
 #[cfg(test)]
@@ -46,7 +48,7 @@ pub fn factory() -> PluginFactory {
                 "ternilo/attachments@1",
                 "ternilo/session-telemetry@1",
             ],
-            provides: &["ternilo/sessions@1"],
+            provides: &["ternilo/sessions@2"],
         },
         |value| {
             let config: SessionLogConfig = parse_config(value)?;
@@ -134,6 +136,7 @@ impl HarnessPlugin for SessionLogPlugin {
                 telemetry,
                 identity,
                 state: Arc::new(tokio::sync::Mutex::new(SessionLogState {
+                    facts: facts::CommittedFacts::from_events(&events),
                     events,
                     committing: false,
                     failure: None,
@@ -367,6 +370,7 @@ struct SessionLog {
 }
 
 struct SessionLogState {
+    facts: facts::CommittedFacts,
     events: Vec<SessionEvent>,
     committing: bool,
     failure: Option<HarnessError>,
@@ -528,6 +532,7 @@ impl SessionLog {
             let result: Result<SessionEvent, HarnessError> = async {
                 environment.commit_event(event.clone()).await?;
                 telemetry.capture(identity, event.clone()).await;
+                state.facts.observe(&event);
                 state.events.push(event.clone());
                 Ok(event)
             }
@@ -580,6 +585,58 @@ impl SessionsProvider for SessionLog {
         _: CallContext<()>,
     ) -> Pin<Box<dyn Future<Output = Vec<SessionEvent>> + Send + 'a>> {
         Box::pin(async move { self.state.lock().await.events.clone() })
+    }
+
+    fn summary<'a>(
+        &'a self,
+        _: CallContext<()>,
+    ) -> Pin<Box<dyn Future<Output = ternilo_protocol::SessionLogSummary> + Send + 'a>> {
+        Box::pin(async move { self.state.lock().await.facts.summary.clone() })
+    }
+
+    fn run_facts<'a>(
+        &'a self,
+        _: CallContext<()>,
+        run_id: RunId,
+    ) -> Pin<Box<dyn Future<Output = Option<ternilo_protocol::SessionRunFacts>> + Send + 'a>> {
+        Box::pin(async move { self.state.lock().await.facts.runs.get(&run_id).cloned() })
+    }
+
+    fn run_events<'a>(
+        &'a self,
+        _: CallContext<()>,
+        run_id: RunId,
+    ) -> Pin<Box<dyn Future<Output = Vec<SessionEvent>> + Send + 'a>> {
+        Box::pin(async move {
+            let state = self.state.lock().await;
+            let Some(run) = state.facts.runs.get(&run_id) else {
+                return Vec::new();
+            };
+            let start =
+                usize::try_from(run.first_seq).expect("committed sequence fits the event vector");
+            let end =
+                usize::try_from(run.last_seq).expect("committed sequence fits the event vector");
+            state.events[start..=end]
+                .iter()
+                .filter(|event| event.run_id == run_id)
+                .cloned()
+                .collect()
+        })
+    }
+
+    fn event_at<'a>(
+        &'a self,
+        _: CallContext<()>,
+        seq: u64,
+    ) -> Pin<Box<dyn Future<Output = Option<SessionEvent>> + Send + 'a>> {
+        Box::pin(async move {
+            self.state
+                .lock()
+                .await
+                .events
+                .get(usize::try_from(seq).ok()?)
+                .cloned()
+        })
     }
 
     fn events_after<'a>(
@@ -1156,6 +1213,13 @@ mod tests {
             store.events.lock().expect("seeded store lock").len(),
             events.len()
         );
+        let facts = harness.run_facts(events[0].run_id.clone()).await.unwrap();
+        assert!(
+            facts.terminal,
+            "recovery must publish terminal facts before activation"
+        );
+        assert_eq!(harness.run_events(events[0].run_id.clone()).await, events);
+        assert_eq!(harness.summary().await.completed_turns, 0);
         harness.shutdown().await.expect("shutdown harness");
     }
 

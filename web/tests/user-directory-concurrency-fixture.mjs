@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
@@ -186,13 +185,13 @@ export async function screenshots(page, artifacts, name) {
 }
 
 export async function verifyAssets(origin) {
-  const hashes = {}
+  const assets = {}
   for (const name of ['app.js', 'app.css']) {
     const response = await fetch(origin + '/assets/' + name)
     assert.equal(response.status, 200)
-    const digest = bytes => createHash('sha256').update(bytes).digest('hex')
-    hashes[name] = digest(Buffer.from(await response.arrayBuffer()))
-    assert.equal(hashes[name], digest(await readFile(path.join(repository, 'web/dist/assets', name))))
+    const served = Buffer.from(await response.arrayBuffer())
+    assert.ok(served.equals(await readFile(path.join(repository, 'web/dist/assets', name))), `served ${name} matches the built UI`)
+    assets[name] = { bytes: served.length, matchesBuild: true }
   }
-  return hashes
+  return assets
 }

@@ -29,7 +29,7 @@ pub fn factory() -> PluginFactory {
     make_factory(
         PluginManifest {
             kind: KIND,
-            requires: &["ternilo/tools@1", "ternilo/jobs@1", "ternilo/sessions@1"],
+            requires: &["ternilo/tools@1", "ternilo/jobs@1", "ternilo/sessions@2"],
             provides: &[],
         },
         |value| {

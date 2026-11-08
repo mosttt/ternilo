@@ -576,7 +576,7 @@ service_contract! {
 
 service_contract! {
     pub contract Sessions {
-        id: "ternilo/sessions@1",
+        id: "ternilo/sessions@2",
         intercept: (),
         identity: (),
         merge: merge_unit,
@@ -584,6 +584,10 @@ service_contract! {
             async fn append(run_id: RunId, kind: SessionEventKind) -> Result<SessionEvent, HarnessError>;
             async fn append_if_next_seq(next_seq: u64, run_id: RunId, kind: SessionEventKind) -> Result<Option<SessionEvent>, HarnessError>;
             async fn events() -> Vec<SessionEvent>;
+            async fn summary() -> ternilo_protocol::SessionLogSummary;
+            async fn run_facts(run_id: RunId) -> Option<ternilo_protocol::SessionRunFacts>;
+            async fn run_events(run_id: RunId) -> Vec<SessionEvent>;
+            async fn event_at(seq: u64) -> Option<SessionEvent>;
             async fn events_after(after_seq: Option<u64>) -> Vec<SessionEvent>;
             async fn history(query: ternilo_protocol::SessionHistoryQuery) -> Result<ternilo_protocol::SessionEventPage, HarnessError>;
             async fn derive_messages() -> Vec<ModelMessage>;

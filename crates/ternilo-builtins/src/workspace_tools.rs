@@ -69,7 +69,7 @@ pub fn file_tools_factory() -> PluginFactory {
             requires: &[
                 "ternilo/tools@1",
                 "ternilo/workspace-files@2",
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
                 "ternilo/attachments@1",
             ],
             provides: &[],
@@ -104,7 +104,7 @@ pub fn ask_user_tool_factory() -> PluginFactory {
             kind: ASK_USER_TOOL_KIND,
             requires: &[
                 "ternilo/tools@1",
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
                 "ternilo/run-environment@1",
             ],
             provides: &[],
@@ -123,7 +123,7 @@ pub fn plan_tool_factory() -> PluginFactory {
             kind: PLAN_TOOL_KIND,
             requires: &[
                 "ternilo/tools@1",
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
                 "ternilo/run-environment@1",
             ],
             provides: &[],

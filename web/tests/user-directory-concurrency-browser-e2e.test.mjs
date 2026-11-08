@@ -17,7 +17,7 @@ test('Server account holders and their local CLI share a directory without relea
   const artifacts = path.join(process.env.TERNILO_E2E_ARTIFACT_DIR ?? directory, 'server')
   await mkdir(artifacts, { recursive: true })
   const processes = [], clients = [], pages = []
-  const observations = { errors: [], console: [], network: [], runs: [], barriers: [], assetHashes: {} }
+  const observations = { errors: [], console: [], network: [], runs: [], barriers: [], assets: {} }
   let browser, model
   try {
     const environment = await isolatedEnvironment(directory)
@@ -43,8 +43,8 @@ test('Server account holders and their local CLI share a directory without relea
     { ...environment, TERNILO_LOCAL_TOKEN: credential.credential.token })
     processes.push(node)
     await waitForHttp(origin, node)
-    observations.assetHashes.local = await verifyAssets(origin)
-    observations.assetHashes.server = await verifyAssets(server.origin)
+    observations.assets.local = await verifyAssets(origin)
+    observations.assets.server = await verifyAssets(server.origin)
     const local = await localApi(origin)
     await configureModel(local, model)
     const folders = [path.join(directory, 'shared'), path.join(directory, 'independent')], workspaces = []

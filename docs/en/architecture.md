@@ -12,6 +12,12 @@ Durable session events are the history source. Search indexes and projection che
 
 Cloud session statistics use a database checkpoint and the same statistics projection. The first read replays events, later reads consume only appended events, and unchanged reads return the cached result. History regeneration, checkpoint version changes or invalid state rebuild from the event journal. Cached reads still check current view permissions. Full plugin projections continue to replay history; a Live request combining statistics and full projections shares one history read to keep both at the same data cut.
 
+## Committed session facts
+
+The internal Sessions service is `ternilo/sessions@2`. It provides a lightweight summary, per-run boundaries/terminal state/primary input facts, current-run events and exact-sequence reads. Admission, input-author validation and inbox settlement no longer copy the full transcript. Facts are rebuilt after history validation/recovery and updated under the log lock only after durable event commit. Steering does not replace the run's primary author; scheduled work still validates its creation and dispatch events.
+
+Custom core plugins implementing or declaring `ternilo/sessions@1` must implement the new queries, update their dependency declaration and rebuild. Built-in plugins are updated together. Configuration, JSONL history, database and Node transport formats remain unchanged.
+
 ## Execution and models
 
 Profiles compose plugin configuration. A host policy defines permissions and maximum limits that a plugin cannot loosen. Workspace access, process sandboxing, approvals and model authorization are distinct checks. Large outputs and attachments are stored as artifacts rather than forced into every model context.

@@ -1,7 +1,7 @@
 use super::*;
 use std::time::Duration;
 use ternilo_kernel::HostPolicy;
-use ternilo_protocol::{RunLimits, SessionMode};
+use ternilo_protocol::{RunLimits, SessionEvent, SessionMode};
 
 #[tokio::test]
 async fn stop_and_send_acknowledges_before_cleanup_and_waits_for_the_old_turn_gate() {

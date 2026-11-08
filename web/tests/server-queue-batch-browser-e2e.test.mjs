@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -88,7 +87,7 @@ test('Server batches retain authors and references, stop reasoning timers, and r
     for (const origin of [server.origin, localOrigin]) {
       for (const asset of ['app.js', 'app.css']) {
         const served = await (await fetch(`${origin}/assets/${asset}`)).arrayBuffer()
-        assert.equal(createHash('sha256').update(Buffer.from(served)).digest('hex'), createHash('sha256').update(await readFile(path.join(repository, 'web/dist/assets', asset))).digest('hex'))
+        assert.ok(Buffer.from(served).equals(await readFile(path.join(repository, 'web/dist/assets', asset))), `served ${asset} matches the built UI`)
       }
     }
     await page.getByLabel('用户名', { exact: true }).fill(server.owner.username)

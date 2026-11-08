@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -256,7 +255,7 @@ test('Server account and computer Providers stay independent and execute on the 
     for (const target of [origin, server.origin]) for (const asset of ['app.js', 'app.css']) {
       const served = await (await fetch(`${target}/assets/${asset}`)).arrayBuffer()
       const built = await readFile(path.join(repository, `web/dist/assets/${asset}`))
-      assert.equal(createHash('sha256').update(Buffer.from(served)).digest('hex'), createHash('sha256').update(built).digest('hex'))
+      assert.ok(Buffer.from(served).equals(built), `served ${asset} matches the built UI`)
     }
     assert.deepEqual([...errors, ...resourceErrors.filter(error => !expectedResourceErrors.has(error.key)).map(error => error.text)], [])
   } catch (error) {

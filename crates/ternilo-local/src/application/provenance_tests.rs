@@ -142,7 +142,7 @@ async fn model_origin_stays_with_the_run_across_later_inputs_and_nested_children
             .await
             .map(|origin| (origin.session_id, origin.provenance))
             .unwrap(),
-        (parent.identity.session_id, Some(original))
+        (parent.identity.session_id.clone(), Some(original.clone()))
     );
     assert!(
         app.model_input_origin(identity.session_id.as_str(), &RunId::new("missing-run"))
@@ -150,6 +150,21 @@ async fn model_origin_stays_with_the_run_across_later_inputs_and_nested_children
             .is_err()
     );
     app.shutdown().await.unwrap();
+    drop(app);
+    let reopened = open_test_application(directory.path().join("data")).await;
+    assert_eq!(
+        reopened
+            .model_input_origin(identity.session_id.as_str(), &run)
+            .await
+            .map(|origin| (origin.session_id, origin.provenance))
+            .unwrap(),
+        (parent.identity.session_id, Some(original)),
+    );
+    assert!(
+        reopened.live.read().await.is_empty(),
+        "origin queries do not start runtimes"
+    );
+    reopened.shutdown().await.unwrap();
 }
 
 #[tokio::test]
@@ -353,4 +368,129 @@ async fn input_provenance_survives_multiuser_queue_restart_and_fork() {
         recorded
     );
     restored.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Validate the same scheduled lineage and forgeries with and without a live runtime."
+)]
+async fn schedule_origin_checks_exact_creation_and_dispatch_in_live_and_offline_history() {
+    use ternilo_protocol::{
+        AutomatedInputSource, ScheduleChange, ScheduleId, ScheduleRecord, ScheduleRule,
+    };
+    let directory = tempfile::tempdir().unwrap();
+    let folder = directory.path().join("workspace");
+    tokio::fs::create_dir(&folder).await.unwrap();
+    let app = open_test_application(directory.path().join("data")).await;
+    let workspace = app.add_workspace(folder.to_str().unwrap()).await.unwrap();
+    let session = app
+        .create_session(workspace.workspace_id, None, None)
+        .await
+        .unwrap();
+    let id = session.identity.session_id.as_str();
+    let origin_run = RunId::new("author-run");
+    let timer_run = RunId::new("timer-run");
+    let schedule_id = ScheduleId::new("reminder");
+    let original = account_input("author-input", "alice");
+    let input = |provenance, source| SessionEventKind::UserMessage {
+        provenance,
+        source,
+        content: "test".into(),
+        display_content: None,
+        references: vec![],
+        attachments: vec![],
+    };
+    let timer_input = |created_seq| {
+        input(
+            Some(InputProvenance {
+                input_id: SubmissionId::new(format!("timer-input-{created_seq}")),
+                run_id: None,
+                author: InputAuthor::Automation {
+                    source: AutomatedInputSource::Schedule,
+                },
+            }),
+            Some(UserMessageSource::Schedule {
+                schedule_id: schedule_id.clone(),
+                created_seq,
+                dispatched_seq: 2,
+            }),
+        )
+    };
+    let events = vec![
+        (origin_run.clone(), input(Some(original.clone()), None)),
+        (
+            origin_run.clone(),
+            SessionEventKind::ScheduleChanged {
+                change: ScheduleChange::Create {
+                    schedule: ScheduleRecord {
+                        id: schedule_id.clone(),
+                        prompt: "later".into(),
+                        rule: ScheduleRule::After {
+                            after_seconds: 3600,
+                        },
+                        created_at_ms: 1,
+                        scheduled_at_ms: 3_600_001,
+                    },
+                },
+            },
+        ),
+        (
+            origin_run.clone(),
+            SessionEventKind::ScheduleChanged {
+                change: ScheduleChange::Dispatch {
+                    id: schedule_id.clone(),
+                    run_id: Some(timer_run.clone()),
+                    accepted_at_ms: 3_600_001,
+                    next_scheduled_at_ms: None,
+                },
+            },
+        ),
+        (timer_run.clone(), timer_input(1)),
+        (RunId::new("wrong-creation"), timer_input(0)),
+        (RunId::new("wrong-dispatch"), timer_input(1)),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(seq, (run_id, kind))| SessionEvent {
+        seq: seq as u64,
+        occurred_at_ms: 1,
+        run_id,
+        kind,
+    })
+    .collect::<Vec<_>>();
+    JsonlEventStore::new(&app.state.sessions_dir(), &session.identity.session_id)
+        .seed_events(&events)
+        .await
+        .unwrap();
+    for live in [false, true] {
+        if live {
+            app.addressable_session(id).await.unwrap();
+        }
+        let result = app.model_input_origin(id, &timer_run).await.unwrap();
+        assert_eq!(result.provenance, Some(original.clone()));
+        assert_eq!(result.schedule_origins.len(), 1);
+        assert_eq!(
+            (
+                result.schedule_origins[0].created_seq,
+                result.schedule_origins[0].dispatched_seq
+            ),
+            (1, 2)
+        );
+        assert!(
+            app.model_input_origin(id, &RunId::new("wrong-creation"))
+                .await
+                .unwrap_err()
+                .message
+                .contains("creation")
+        );
+        assert!(
+            app.model_input_origin(id, &RunId::new("wrong-dispatch"))
+                .await
+                .unwrap_err()
+                .message
+                .contains("dispatch")
+        );
+    }
+    app.shutdown().await.unwrap();
 }

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use ternilo_protocol::{
-    HarnessError, InputProvenance, QueueEditRequest, SessionEvent, SessionEventKind,
-    SessionInboxSnapshot, SessionSubmission, SessionSubmissionRequest, SubmissionContent,
-    SubmissionDelivery, SubmissionId, SubmissionPlacement, UserMessageSource,
+    HarnessError, InputProvenance, QueueEditRequest, SessionEventKind, SessionInboxSnapshot,
+    SessionSubmission, SessionSubmissionRequest, SubmissionContent, SubmissionDelivery,
+    SubmissionId, SubmissionPlacement, UserMessageSource,
 };
 use tokio::sync::Mutex;
 
@@ -48,16 +48,11 @@ impl LocalApplication {
     pub(super) async fn settle_session_inbox(
         &self,
         session_id: &str,
-        events: &[SessionEvent],
+        consumed: &[SubmissionId],
         cancelled: bool,
     ) -> Result<(), HarnessError> {
         self.inbox
-            .settle_run(
-                session_id,
-                &consumed_submission_ids(events),
-                cancelled,
-                now_ms()?,
-            )
+            .settle_run(session_id, consumed, cancelled, now_ms()?)
             .await
     }
 
@@ -368,15 +363,16 @@ impl LocalApplication {
                     },
                 )
                 .await;
-            let revoked = self
-                .account_authorizations
-                .check(item.provenance.as_ref())
-                .await
-                .is_err_and(|error| error.code == ternilo_protocol::ErrorCode::PolicyDenied);
+            let revoked = result.is_err()
+                && self
+                    .account_authorizations
+                    .check(item.provenance.as_ref())
+                    .await
+                    .is_err_and(|error| error.code == ternilo_protocol::ErrorCode::PolicyDenied);
             if result.is_err() {
                 self.settle_session_inbox(
                     session_id,
-                    &managed.harness.events().await,
+                    &managed.harness.summary().await.consumed_submissions,
                     result.as_ref().is_err_and(HarnessError::is_cancelled) && !revoked,
                 )
                 .await?;
@@ -477,19 +473,6 @@ async fn recovery_facts(
     })
     .await
     .map_err(|error| HarnessError::execution(format!("read session recovery facts: {error}")))?
-}
-
-fn consumed_submission_ids(events: &[SessionEvent]) -> Vec<SubmissionId> {
-    events
-        .iter()
-        .filter_map(|event| match &event.kind {
-            SessionEventKind::UserMessage {
-                source: Some(UserMessageSource::Submission { submission_id, .. }),
-                ..
-            } => Some(submission_id.clone()),
-            _ => None,
-        })
-        .collect()
 }
 
 #[cfg(test)]

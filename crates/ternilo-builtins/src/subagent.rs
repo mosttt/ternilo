@@ -85,7 +85,7 @@ pub fn factory() -> PluginFactory {
                 "ternilo/models@3",
                 "ternilo/prompts@1",
                 "ternilo/tools@1",
-                "ternilo/sessions@1",
+                "ternilo/sessions@2",
                 "ternilo/run-environment@1",
             ],
             provides: &["ternilo/subagents@3"],

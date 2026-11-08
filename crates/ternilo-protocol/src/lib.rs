@@ -38,6 +38,8 @@ mod hosted_tools;
 pub use hosted_tools::HostedWebTools;
 mod input_provenance;
 pub use input_provenance::{AutomatedInputSource, InputAuthor, InputProvenance};
+mod session_facts;
+pub use session_facts::{SessionInputFacts, SessionLogSummary, SessionRunFacts};
 mod history;
 pub use history::{SessionEventPage, SessionHistoryQuery};
 mod conversation;
