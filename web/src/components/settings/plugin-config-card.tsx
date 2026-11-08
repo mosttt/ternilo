@@ -1,4 +1,4 @@
-import { usePluginDraft, type PluginDraft } from '@/state/plugin-drafts'
+import { pluginConfigBaseline, usePluginDraft, type PluginDraft } from '@/state/plugin-drafts'
 import { pluginFieldCopy } from './plugin-field-copy'
 import { ToolSchemaFields } from './tool-schema-fields'
 import * as React from 'react'
@@ -46,6 +46,7 @@ export function PluginConfigCard({
   saveLabel,
   savingLabel,
   disabledReason,
+  pendingWrite = false,
   hostToolCallLimit,
   target,
   onToggle,
@@ -63,28 +64,31 @@ export function PluginConfigCard({
   saveLabel?: string
   savingLabel?: string
   disabledReason?: string
+  pendingWrite?: boolean
   hostToolCallLimit?: number
   target?: ExecutionTarget
   onToggle?(enabled: boolean): Promise<void>
-  onSave(entry: PluginEntry): Promise<void>
-  onReset?(): Promise<void>
+  onSave(entry: PluginEntry): Promise<PluginEntry | void>
+  onReset?(): Promise<PluginEntry | void>
 }) {
   const t = useTranslate('settings')
   const common = useTranslate('common')
   const providerManaged = entry.id.startsWith('provider-web-')
   disabledReason ??= providerManaged ? t('provider.webManagedPlugin') : undefined
-  const baseline = JSON.stringify(configRecord(entry.config))
-  const baselineText = JSON.stringify(configRecord(entry.config), null, 2)
+  const baseline = pluginConfigBaseline(configRecord(entry.config))
   const schemaFingerprint = JSON.stringify(metadata.config_schema)
   const fields = React.useMemo(() => pluginConfigFields(metadata.config_schema).filter(field => field.key !== 'provider_web_access'), [schemaFingerprint])
-  const baselineDraft = React.useMemo(() => configRecord(entry.config), [baseline])
+  const baselineDraft = React.useMemo(() => JSON.parse(baseline) as Record<string, unknown>, [baseline])
+  const baselineText = JSON.stringify(baselineDraft, null, 2)
   const baselineTexts = React.useMemo(
     () => initialTexts(baselineDraft, fields),
     [baselineDraft, fields],
   )
   const [open, setOpen] = React.useState(false)
   const initial: PluginDraft = { draft: baselineDraft, texts: baselineTexts, rawText: baselineText, rawInvalid: false, touched: new Set() }
-  const [editor, setEditor] = usePluginDraft(draftKey, baseline, initial)
+  const [editor, setEditor, settleEditor, acceptedBaseline] = usePluginDraft(draftKey, baseline, initial)
+  const acceptedDraft = React.useMemo(() => JSON.parse(acceptedBaseline) as Record<string, unknown>, [acceptedBaseline])
+  const acceptedText = JSON.stringify(acceptedDraft, null, 2)
   const { draft, rawText, rawInvalid, touched } = editor
   const texts = React.useMemo(() => {
     const values = initialTexts(draft, fields)
@@ -99,12 +103,16 @@ export function PluginConfigCard({
   const setRawText = (value: string) => updateField('rawText', value)
   const setRawInvalid = (value: boolean) => updateField('rawInvalid', value)
   const setTouched = (value: React.SetStateAction<PluginDraft['touched']>) => updateField('touched', value)
-  const [busy, setBusy] = React.useState(false)
+  const [writing, setBusy] = React.useState(false)
+  const busy = writing || pendingWrite
   const [error, setError] = React.useState('')
   React.useEffect(() => {
     if (openRequest !== undefined) setOpen(true)
   }, [openRequest])
-  const restore = () => { setEditor(initial); setError('') }
+  const restore = () => {
+    setEditor({ draft: acceptedDraft, texts: initialTexts(acceptedDraft, fields), rawText: acceptedText, rawInvalid: false, touched: new Set() })
+    setError('')
+  }
   const visible = expanded || open
   const Heading = expanded ? 'div' : 'button'
 
@@ -130,7 +138,7 @@ export function PluginConfigCard({
     }
     return { next, invalid: '' }
   }, [draft, fields, rawInvalid, texts, touched, entry.kind])
-  const dirty = touched.size > 0 || JSON.stringify(draft) !== baseline || rawText !== baselineText
+  const dirty = touched.size > 0 || pluginConfigBaseline(draft) !== acceptedBaseline || rawText !== acceptedText
 
   const save = async () => {
     if (preview.invalid) {
@@ -141,9 +149,11 @@ export function PluginConfigCard({
     setBusy(true)
     setError('')
     try {
-      await onSave({ ...entry, config: preview.next })
-      setEditor({ draft: preview.next, texts: initialTexts(preview.next, fields), rawText: JSON.stringify(preview.next, null, 2), rawInvalid: false, touched: new Set() })
-      setOpen(false)
+      const accepted = await onSave({ ...entry, config: preview.next })
+      const savedBaseline = pluginConfigBaseline(configRecord(accepted?.config ?? preview.next))
+      const saved = JSON.parse(savedBaseline) as Record<string, unknown>
+      settleEditor({ draft: saved, texts: initialTexts(saved, fields), rawText: JSON.stringify(saved, null, 2), rawInvalid: false, touched: new Set() }, savedBaseline)
+      if (!expanded) setOpen(false)
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause)
       const localized = entry.kind === 'ternilo.subagents.in_process' ? coordinationErrorKey(message) : null
@@ -158,9 +168,13 @@ export function PluginConfigCard({
     setBusy(true)
     setError('')
     try {
-      await onReset()
-      restore()
-      setOpen(false)
+      const accepted = await onReset()
+      if (accepted) {
+        const savedBaseline = pluginConfigBaseline(configRecord(accepted.config))
+        const saved = JSON.parse(savedBaseline) as Record<string, unknown>
+        settleEditor({ draft: saved, texts: initialTexts(saved, fields), rawText: JSON.stringify(saved, null, 2), rawInvalid: false, touched: new Set() }, savedBaseline)
+      } else settleEditor(initial)
+      if (!expanded) setOpen(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -356,7 +370,7 @@ export function PluginConfigCard({
             {overridden && onReset ? <Button type="button" variant="ghost" disabled={busy || Boolean(disabledReason)} onClick={() => void resetOverride()}><RotateCcw />{t('plugins.resetOverride')}</Button> : null}
             <Button type="button" variant="outline" disabled={!dirty || busy} onClick={restore}>{t('plugins.discard')}</Button>
             <Button type="button" disabled={!dirty || busy || Boolean(preview.invalid) || Boolean(disabledReason)} onClick={() => void save()}>
-              {busy ? savingLabel ?? common('saving') : saveLabel ?? common('save')}
+              {writing ? savingLabel ?? common('saving') : saveLabel ?? common('save')}
             </Button>
           </div>
         </div>
