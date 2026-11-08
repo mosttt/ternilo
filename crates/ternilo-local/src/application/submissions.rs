@@ -13,18 +13,14 @@ impl LocalApplication {
     pub(super) async fn recover_session_work(&self) -> Result<(), HarnessError> {
         for session in self.state.snapshot().await.sessions {
             let session_id = session.identity.session_id.as_str();
-            let events =
-                JsonlEventStore::new(&self.state.sessions_dir(), &session.identity.session_id)
-                    .load_events()
-                    .await?;
-            self.inbox
-                .recover(session_id, &consumed_submission_ids(&events))
-                .await?;
+            let restore_schedules =
+                session.archived_at_ms.is_none() && session.server_model.is_none();
+            let store =
+                JsonlEventStore::new(&self.state.sessions_dir(), &session.identity.session_id);
+            let (consumed, scheduled) = recovery_facts(&store, restore_schedules).await?;
+            self.inbox.recover(session_id, &consumed).await?;
             // Timers need a live Harness; reading history must remain read-only.
-            if session.archived_at_ms.is_none()
-                && session.server_model.is_none()
-                && ternilo_builtins::has_pending_schedules(&events)?
-            {
+            if scheduled {
                 self.ensure_session_locked(session_id).await?;
             }
         }
@@ -40,8 +36,9 @@ impl LocalApplication {
                 continue;
             }
             let session_id = session.identity.session_id.as_str();
-            let events = self.events_after(session_id, None).await?;
-            if ternilo_builtins::has_pending_schedules(&events)? {
+            let store =
+                JsonlEventStore::new(&self.state.sessions_dir(), &session.identity.session_id);
+            if recovery_facts(&store, true).await?.1 {
                 self.addressable_session(session_id).await?;
             }
         }
@@ -449,6 +446,37 @@ pub(super) fn submission_source(
         delivery,
         skill_name: item.content.skill_name().map(str::to_owned),
     }
+}
+
+/// Startup needs submission receipts and schedule changes, not message/tool bodies.
+async fn recovery_facts(
+    store: &JsonlEventStore,
+    inspect_schedules: bool,
+) -> Result<(Vec<SubmissionId>, bool), HarnessError> {
+    let reader = store.reader().await;
+    tokio::task::spawn_blocking(move || {
+        let mut consumed = Vec::new();
+        let mut schedules = Vec::new();
+        reader.scan(|event| {
+            match &event.kind {
+                SessionEventKind::UserMessage {
+                    source: Some(UserMessageSource::Submission { submission_id, .. }),
+                    ..
+                } => consumed.push(submission_id.clone()),
+                SessionEventKind::ScheduleChanged { .. } if inspect_schedules => {
+                    schedules.push(event);
+                }
+                _ => {}
+            }
+            Ok(())
+        })?;
+        Ok((
+            consumed,
+            ternilo_builtins::has_pending_schedules(&schedules)?,
+        ))
+    })
+    .await
+    .map_err(|error| HarnessError::execution(format!("read session recovery facts: {error}")))?
 }
 
 fn consumed_submission_ids(events: &[SessionEvent]) -> Vec<SubmissionId> {

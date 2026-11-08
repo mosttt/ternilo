@@ -137,3 +137,105 @@ async fn idle_queue_driver_waits_for_profile_change_before_recreating_runtime() 
     );
     app.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn streaming_recovery_retains_receipts_and_schedule_validation() {
+    use ternilo_kernel::SessionEventStore as _;
+    use ternilo_protocol::{
+        RunId, ScheduleChange, ScheduleId, ScheduleRecord, ScheduleRule, SessionId,
+    };
+    let root = tempfile::tempdir().unwrap();
+    let store = JsonlEventStore::new(root.path(), &SessionId::new("recovery"));
+    let receipt = SubmissionId::new("consumed-input");
+    let schedule = ScheduleRecord {
+        id: ScheduleId::new("reminder"),
+        prompt: "remember".into(),
+        rule: ScheduleRule::Every { every_seconds: 60 },
+        scheduled_at_ms: 1000,
+        created_at_ms: 1,
+    };
+    let kinds = [
+        SessionEventKind::AssistantReasoningDelta {
+            step: 1,
+            delta: "large history ".repeat(100_000),
+        },
+        SessionEventKind::UserMessage {
+            provenance: None,
+            content: "submitted".into(),
+            display_content: None,
+            source: Some(UserMessageSource::Submission {
+                submission_id: receipt.clone(),
+                created_at_ms: 1,
+                delivery: SubmissionDelivery::Queue,
+                regenerate_from: None,
+                skill_name: None,
+            }),
+            references: vec![],
+            attachments: vec![],
+        },
+        SessionEventKind::ScheduleChanged {
+            change: ScheduleChange::Create {
+                schedule: schedule.clone(),
+            },
+        },
+        SessionEventKind::ScheduleChanged {
+            change: ScheduleChange::Dispatch {
+                id: schedule.id.clone(),
+                run_id: None,
+                accepted_at_ms: 1000,
+                next_scheduled_at_ms: Some(61000),
+            },
+        },
+    ];
+    for (seq, kind) in kinds.into_iter().enumerate() {
+        store
+            .append(SessionEvent {
+                seq: seq as u64,
+                occurred_at_ms: 1,
+                run_id: RunId::new("run"),
+                kind,
+            })
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        recovery_facts(&store, true).await.unwrap(),
+        (vec![receipt.clone()], true)
+    );
+    assert_eq!(
+        recovery_facts(&store, false).await.unwrap(),
+        (vec![receipt.clone()], false)
+    );
+    for seq in 4..6 {
+        store
+            .append(SessionEvent {
+                seq,
+                occurred_at_ms: 2,
+                run_id: RunId::new("run"),
+                kind: SessionEventKind::ScheduleChanged {
+                    change: ScheduleChange::Delete {
+                        id: schedule.id.clone(),
+                    },
+                },
+            })
+            .await
+            .unwrap();
+        if seq == 4 {
+            assert_eq!(
+                recovery_facts(&store, true).await.unwrap(),
+                (vec![receipt.clone()], false)
+            );
+        }
+    }
+    assert!(
+        recovery_facts(&store, true)
+            .await
+            .unwrap_err()
+            .message
+            .contains("inactive")
+    );
+    assert_eq!(
+        recovery_facts(&store, false).await.unwrap(),
+        (vec![receipt], false)
+    );
+}

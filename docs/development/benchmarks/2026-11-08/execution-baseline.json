@@ -1,0 +1,283 @@
+{
+  "fixture": {
+    "longHistoryBytes": 10654000,
+    "longHistoryEvents": 900,
+    "task": "/code \"execution-probe\"",
+    "paidModelCalls": 0
+  },
+  "summary": [
+    {
+      "history": "short",
+      "firstMs": 269.08223899999984,
+      "p50Ms": 54.982303000000684,
+      "p95Ms": 70.94455099999959
+    },
+    {
+      "history": "long",
+      "firstMs": 1382.745614,
+      "p50Ms": 151.85197299999982,
+      "p95Ms": 169.00094499999977
+    }
+  ],
+  "measurements": [
+    {
+      "history": "short",
+      "round": 0,
+      "phase": "first-runtime",
+      "elapsedMs": 269.08223899999984
+    },
+    {
+      "history": "long",
+      "round": 0,
+      "phase": "first-runtime",
+      "elapsedMs": 1382.745614
+    },
+    {
+      "history": "short",
+      "round": 1,
+      "phase": "warm",
+      "elapsedMs": 56.0410380000003
+    },
+    {
+      "history": "long",
+      "round": 1,
+      "phase": "warm",
+      "elapsedMs": 135.90690499999982
+    },
+    {
+      "history": "short",
+      "round": 2,
+      "phase": "warm",
+      "elapsedMs": 54.07060100000035
+    },
+    {
+      "history": "long",
+      "round": 2,
+      "phase": "warm",
+      "elapsedMs": 135.96283099999982
+    },
+    {
+      "history": "short",
+      "round": 3,
+      "phase": "warm",
+      "elapsedMs": 46.13260000000082
+    },
+    {
+      "history": "long",
+      "round": 3,
+      "phase": "warm",
+      "elapsedMs": 122.99568900000031
+    },
+    {
+      "history": "short",
+      "round": 4,
+      "phase": "warm",
+      "elapsedMs": 44.42011099999945
+    },
+    {
+      "history": "long",
+      "round": 4,
+      "phase": "warm",
+      "elapsedMs": 122.99461100000008
+    },
+    {
+      "history": "short",
+      "round": 5,
+      "phase": "warm",
+      "elapsedMs": 45.93508399999973
+    },
+    {
+      "history": "long",
+      "round": 5,
+      "phase": "warm",
+      "elapsedMs": 125.51626100000067
+    },
+    {
+      "history": "short",
+      "round": 6,
+      "phase": "warm",
+      "elapsedMs": 51.86877100000038
+    },
+    {
+      "history": "long",
+      "round": 6,
+      "phase": "warm",
+      "elapsedMs": 163.0762049999994
+    },
+    {
+      "history": "short",
+      "round": 7,
+      "phase": "warm",
+      "elapsedMs": 72.84102600000006
+    },
+    {
+      "history": "long",
+      "round": 7,
+      "phase": "warm",
+      "elapsedMs": 168.28445600000032
+    },
+    {
+      "history": "short",
+      "round": 8,
+      "phase": "warm",
+      "elapsedMs": 70.41625399999975
+    },
+    {
+      "history": "long",
+      "round": 8,
+      "phase": "warm",
+      "elapsedMs": 169.00094499999977
+    },
+    {
+      "history": "short",
+      "round": 9,
+      "phase": "warm",
+      "elapsedMs": 70.94455099999959
+    },
+    {
+      "history": "long",
+      "round": 9,
+      "phase": "warm",
+      "elapsedMs": 167.82625300000018
+    },
+    {
+      "history": "short",
+      "round": 10,
+      "phase": "warm",
+      "elapsedMs": 64.7331520000007
+    },
+    {
+      "history": "long",
+      "round": 10,
+      "phase": "warm",
+      "elapsedMs": 160.09095100000013
+    },
+    {
+      "history": "short",
+      "round": 11,
+      "phase": "warm",
+      "elapsedMs": 54.92914799999926
+    },
+    {
+      "history": "long",
+      "round": 11,
+      "phase": "warm",
+      "elapsedMs": 151.85197299999982
+    },
+    {
+      "history": "short",
+      "round": 12,
+      "phase": "warm",
+      "elapsedMs": 44.62928800000009
+    },
+    {
+      "history": "long",
+      "round": 12,
+      "phase": "warm",
+      "elapsedMs": 161.25534400000015
+    },
+    {
+      "history": "short",
+      "round": 13,
+      "phase": "warm",
+      "elapsedMs": 54.982303000000684
+    },
+    {
+      "history": "long",
+      "round": 13,
+      "phase": "warm",
+      "elapsedMs": 167.16577700000016
+    },
+    {
+      "history": "short",
+      "round": 14,
+      "phase": "warm",
+      "elapsedMs": 57.19796899999983
+    },
+    {
+      "history": "long",
+      "round": 14,
+      "phase": "warm",
+      "elapsedMs": 165.43854699999974
+    },
+    {
+      "history": "short",
+      "round": 15,
+      "phase": "warm",
+      "elapsedMs": 58.57519300000058
+    },
+    {
+      "history": "long",
+      "round": 15,
+      "phase": "warm",
+      "elapsedMs": 140.93623500000012
+    },
+    {
+      "history": "short",
+      "round": 16,
+      "phase": "warm",
+      "elapsedMs": 60.11603300000024
+    },
+    {
+      "history": "long",
+      "round": 16,
+      "phase": "warm",
+      "elapsedMs": 147.90336500000012
+    },
+    {
+      "history": "short",
+      "round": 17,
+      "phase": "warm",
+      "elapsedMs": 63.136703999999554
+    },
+    {
+      "history": "long",
+      "round": 17,
+      "phase": "warm",
+      "elapsedMs": 137.9013699999996
+    },
+    {
+      "history": "short",
+      "round": 18,
+      "phase": "warm",
+      "elapsedMs": 51.301314000000275
+    },
+    {
+      "history": "long",
+      "round": 18,
+      "phase": "warm",
+      "elapsedMs": 144.738155
+    },
+    {
+      "history": "short",
+      "round": 19,
+      "phase": "warm",
+      "elapsedMs": 48.95251600000029
+    },
+    {
+      "history": "long",
+      "round": 19,
+      "phase": "warm",
+      "elapsedMs": 132.05734099999972
+    },
+    {
+      "history": "short",
+      "round": 20,
+      "phase": "warm",
+      "elapsedMs": 46.727514999999585
+    },
+    {
+      "history": "long",
+      "round": 20,
+      "phase": "warm",
+      "elapsedMs": 195.9662299999991
+    }
+  ],
+  "build": {
+    "optimized": false,
+    "incremental": false,
+    "debug_info": false
+  },
+  "scope": "Linux x86_64, isolated Local instance, alternating short/long history task requests, no external model",
+  "limits": "Baseline only. Separates first runtime initialization from 20 warm rounds; no execution speedup has been implemented."
+}

@@ -13,13 +13,26 @@ pub(super) async fn load(path: PathBuf, start_seq: u64) -> Result<EventLogTail, 
 }
 
 fn read(path: &Path, start_seq: u64) -> Result<EventLogTail, HarnessError> {
+    let mut events = Vec::new();
+    let total_records = scan(path, start_seq, |event| {
+        events.push(event);
+        Ok(())
+    })?;
+    Ok(EventLogTail {
+        events,
+        total_records,
+    })
+}
+
+pub(super) fn scan(
+    path: &Path,
+    start_seq: u64,
+    mut visit: impl FnMut(SessionEvent) -> Result<(), HarnessError>,
+) -> Result<u64, HarnessError> {
     let file = match File::open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(EventLogTail {
-                events: Vec::new(),
-                total_records: 0,
-            });
+            return Ok(0);
         }
         Err(error) => {
             return Err(HarnessError::execution(format!(
@@ -30,7 +43,6 @@ fn read(path: &Path, start_seq: u64) -> Result<EventLogTail, HarnessError> {
     };
     let mut reader = BufReader::with_capacity(64 * 1024, file);
     let mut line = Vec::new();
-    let mut events = Vec::new();
     let mut total_records = 0_u64;
     loop {
         line.clear();
@@ -63,12 +75,9 @@ fn read(path: &Path, start_seq: u64) -> Result<EventLogTail, HarnessError> {
                 event.seq
             )));
         }
-        events.push(event);
+        visit(event)?;
     }
-    Ok(EventLogTail {
-        events,
-        total_records,
-    })
+    Ok(total_records)
 }
 
 #[cfg(test)]
