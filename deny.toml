@@ -1,15 +1,5 @@
 [advisories]
 ignore = [
-    { id = "RUSTSEC-2024-0411", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0412", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0413", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0414", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0415", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0416", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0417", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0418", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0419", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
-    { id = "RUSTSEC-2024-0420", reason = "Tauri Linux transitively requires the archived GTK3 bindings until its WebKitGTK backend migrates" },
     { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is build-time-only through Tauri's archived GTK3 macros" },
     { id = "RUSTSEC-2025-0075", reason = "urlpattern is private Tauri plumbing and has no maintained replacement selectable by Ternilo" },
     { id = "RUSTSEC-2025-0080", reason = "urlpattern is private Tauri plumbing and has no maintained replacement selectable by Ternilo" },
